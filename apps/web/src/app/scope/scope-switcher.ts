@@ -1,7 +1,8 @@
-import { Component, DOCUMENT, ElementRef, Injector, afterNextRender, computed, inject, input, signal, viewChild } from '@angular/core';
+import { Component, DOCUMENT, ElementRef, Injector, afterNextRender, booleanAttribute, computed, inject, input, signal, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorBuildingsLight, phosphorCaretDownLight, phosphorCaretUpDownLight } from '@ng-icons/phosphor-icons/light';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { HotelPicker } from './hotel-picker';
 import { ScopeService } from './scope.service';
 
@@ -12,16 +13,31 @@ const POP_WIDTH = 416;
 /**
  * The scope control: a button that says which hotels the person works on and opens the hotel picker.
  * `sidebar` is the group switcher at the top of the navigation; `chip` is the compact form for a page header.
+ * With `compact`, the sidebar form is the group's initial with the number of hotels in scope as a badge: what
+ * the collapsed sidebar (the icon rail) shows. It is the same button, so the picker and the focus stay put.
  * The picker opens in a native modal dialog: anchored under the button on a wide screen, a bottom sheet on a
  * phone. A pick applies at once, so the page behind follows while the picker is open.
  */
 @Component({
   selector: 'app-scope-switcher',
-  imports: [NgIcon, HotelPicker, HlmButtonImports],
+  imports: [NgIcon, HotelPicker, HlmButtonImports, HlmTooltipImports],
   providers: [provideIcons({ phosphorBuildingsLight, phosphorCaretDownLight, phosphorCaretUpDownLight })],
   host: { class: 'block min-w-0', '(window:resize)': 'place()' },
   styles: `
-    .sw-side { display: flex; width: 100%; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--radius-control, 8px); text-align: left; outline: none; transition: background-color 130ms ease; }
+    .sw-side {
+      position: relative; display: flex; width: 100%; align-items: center; gap: 10px; overflow: hidden; padding: 6px; border-radius: var(--radius-control, 8px);
+      text-align: left; white-space: nowrap; outline: none; transition: background-color 130ms ease;
+    }
+    /* Compact (the icon rail): the button is 40 px wide, so only the initial shows; the names are cut off and faded. */
+    .sw-text, .sw-caret { transition: opacity 120ms ease; }
+    .sw-side[data-compact] :is(.sw-text, .sw-caret) { opacity: 0; }
+    .sw-count {
+      position: absolute; top: 1px; right: 1px; display: grid; min-width: 16px; height: 16px; padding: 0 4px; place-items: center; border-radius: 9999px;
+      border: 1px solid var(--field-border); background: var(--card); color: var(--foreground);
+      font-size: var(--type-micro-size, 11px); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums;
+    }
+    /* A narrowed scope reads stronger than the whole group. */
+    .sw-count[data-narrowed] { border-color: var(--rail, var(--background)); background: var(--foreground); color: var(--background); }
     .sw-chip {
       display: inline-flex; max-width: 100%; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border-radius: 9999px; outline: none;
       font-size: 12.5px; color: var(--foreground); background: var(--field); border: 1px solid var(--field-border-hover); transition: border-color 130ms ease;
@@ -57,19 +73,35 @@ const POP_WIDTH = 416;
     }
     @media (prefers-reduced-motion: reduce) {
       .sw-pop[open] { animation: none; }
-      .sw-side, .sw-chip { transition: none; }
+      .sw-side, .sw-chip, .sw-text, .sw-caret { transition: none; }
     }
   `,
   template: `
     @if (variant() === 'sidebar') {
-      <button #trigger type="button" class="sw-side" aria-haspopup="dialog" [attr.aria-expanded]="open()" (click)="show()">
+      <button
+        #trigger
+        type="button"
+        class="sw-side"
+        aria-haspopup="dialog"
+        [attr.aria-expanded]="open()"
+        [attr.data-compact]="compact() ? '' : null"
+        [hlmTooltip]="tip()"
+        position="right"
+        sideOffset="18"
+        [tooltipDisabled]="!compact() || open()"
+        (click)="show()"
+      >
         <span class="bg-foreground/90 text-background grid size-7 shrink-0 place-items-center rounded-md text-[12px] font-semibold" aria-hidden="true">{{ initial() }}</span>
-        <span class="min-w-0 flex-1">
+        <span class="sw-text min-w-0 flex-1">
           <span class="block truncate text-[13px] font-medium">{{ group() }}</span>
           <span class="block truncate text-[12px]" [class]="scope.isAll() ? 'text-muted-foreground' : 'text-foreground'">{{ scope.label() }}</span>
         </span>
         <span class="sr-only">. Change hotels</span>
-        <ng-icon name="phosphorCaretUpDownLight" class="text-muted-foreground shrink-0" aria-hidden="true" />
+        <ng-icon name="phosphorCaretUpDownLight" class="sw-caret text-muted-foreground shrink-0" aria-hidden="true" />
+        @if (compact()) {
+          <!-- The label above already says how many; the badge is for the eye. -->
+          <span class="sw-count" [attr.data-narrowed]="scope.isAll() ? null : ''" aria-hidden="true">{{ scope.count() }}</span>
+        }
       </button>
     } @else {
       <button #trigger type="button" class="sw-chip" aria-haspopup="dialog" [attr.aria-expanded]="open()" [attr.data-narrowed]="scope.isAll() ? null : ''" (click)="show()">
@@ -101,6 +133,8 @@ export class ScopeSwitcher {
   readonly variant = input<'sidebar' | 'chip'>('chip');
   /** The hotel group's name, on the sidebar form. */
   readonly group = input('Halcyon Hospitality');
+  /** The sidebar form, 40 px wide: the initial and a count badge (the collapsed sidebar). */
+  readonly compact = input(false, { transform: booleanAttribute });
 
   protected readonly scope = inject(ScopeService);
   private readonly view = inject(DOCUMENT).defaultView;
@@ -116,6 +150,8 @@ export class ScopeSwitcher {
   protected readonly x = signal(12);
   protected readonly y = signal(64);
   protected readonly initial = computed(() => this.group().trim().charAt(0).toUpperCase());
+  /** What the compact form says on hover and focus: "Halcyon Hospitality · All 20 hotels". */
+  protected readonly tip = computed(() => `${this.group()} · ${this.scope.label()}`);
 
   protected show() {
     const dialog = this.dialog().nativeElement;

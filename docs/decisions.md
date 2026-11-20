@@ -457,6 +457,23 @@ Kassandra is drawn by the same components wherever she appears (`apps/web/src/ap
   - The Round 2 types are defined once, in `@compass/contracts`; `api/round2-contracts.ts` and `boards/types.ts` re-export them.
   - The built-in boards are `built-in-portfolio` and `built-in-dubai`, because the server's sample board "Portfolio overview" has the id `portfolio`.
 
+## The sidebar collapses to an icon rail (Round 3, 21 Nov 2026)
+
+- **Two states, one component.** `nav[appSidebar]` (`apps/web/src/app/shell/`) is the 232 px panel or a 64 px rail of icons, so the page gets 168 px more. The state is `SidebarState`: the person's choice, kept in `localStorage["compass.sidebar"]` (`collapsed` or `expanded`). Until there is a choice, a window under 1280 px starts as the rail. Phones keep the bottom tab bar; the sidebar and its shortcut are off there.
+- **The button is at the top, beside the logo**, where Linear, Notion, GitHub and Claude have it; the foot of the sidebar already holds the theme switch. In the rail it sits under the mark, so it stays the second stop in the focus order. It carries `aria-expanded`, and its tooltip says "Collapse sidebar" or "Expand sidebar" with the key.
+- **Keys:** `[` on its own, and ⌘\ or Ctrl+\ from anywhere. `[` is a character while someone types (a field, a menu), and nothing happens while a modal dialog is open. ⌘[ and Ctrl+[ stay the browser's.
+- **Nothing moves but the labels.** The logo mark, the scope's initial and every icon sit on one axis, 32 px from the left edge, in both states. An item is as wide as the sidebar, so collapsing cuts its label off while the grid column animates (`--motion-moderate`, 200 ms in the default themes; none with `prefers-reduced-motion`). The main area follows the column; it does not jump.
+- **What the rail shows:**
+  - The Juyo mark, without the wordmark.
+  - The scope: the group's initial with the number of hotels in scope as a badge (stronger when the scope is narrowed). It is the same button as in the panel (`ScopeSwitcher` with `compact`), so it opens the same picker.
+  - Inbox, Boards and Agent Studio as icons; a count becomes an orange badge with ink text (white fails 4.5:1 on the orange in the light theme). The current place keeps the Fill icon and a stronger background.
+  - Threads as one icon that opens the list as a menu beside the rail. Rename and Delete stay in the panel.
+  - The theme switch as three icons in a column (still a radio group), the theme lab, and the note about the demo data behind an "About this demo" button (a native popover, so it also works on touch).
+- **Tooltips** on every icon of the rail, to the right, with the house timing (600 ms, 100 ms, skip-delay group, never on touch). In the panel the items have labels, so their tooltips are off.
+- **Slot for Docs:** the links at the foot come from one list (`foot` in `shell/sidebar.ts`). A Docs entry added there shows in the panel and in the rail.
+- **Checks:** unit tests for the state, the keys and the rail's contents; headless Chrome for the behaviour (33 checks: persistence, keys, focus, tooltip delay, the menu, the popover, 1200 px, reduced motion, a phone); axe with no violations in the sidebar in the three themes, in both states and with the menu, a tooltip and the note open.
+- **Also fixed:** the count on the current row was 4.3:1 in the light theme and is now 5.2:1; the compass icon of the "Juyo concept" theme was not registered, so the phone header's theme button was empty in that theme.
+
 ## Themes: Light, Dark and "Juyo concept" (21 Nov 2026)
 
 - **Three themes, one set of token names.** `<html data-theme="light | dark | juyo-concept">`; the choice is kept in `localStorage["compass.theme"]` (until a choice is made, light or dark follows the OS) and applied by the inline script in `index.html` before the first paint. `data-theme` also works on any element.

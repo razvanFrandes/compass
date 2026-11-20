@@ -68,6 +68,31 @@ describe('ScopeSwitcher', () => {
     expect(root.querySelector('[role=listbox]')).toBeNull();
   });
 
+  it('compact, for the icon rail: the same button, with the number of hotels in scope as a badge', async () => {
+    await render('sidebar');
+    const button = trigger();
+    fixture.componentRef.setInput('compact', true);
+    await settle();
+    expect(trigger()).toBe(button);
+    expect(button.hasAttribute('data-compact')).toBe(true);
+    const badge = () => button.querySelector('.sw-count')!;
+    expect(badge().textContent?.trim()).toBe('20');
+    expect(badge().hasAttribute('data-narrowed')).toBe(false);
+    // The names stay in the button for a screen reader; the badge is for the eye.
+    expect(button.textContent).toContain('All 20 hotels');
+    expect(badge().getAttribute('aria-hidden')).toBe('true');
+
+    scope.set(['LIS', 'DXB2']);
+    await settle();
+    expect(badge().textContent?.trim()).toBe('2');
+    expect(badge().hasAttribute('data-narrowed')).toBe(true);
+
+    button.click();
+    await settle();
+    expect(dialog().hasAttribute('open')).toBe(true);
+    expect(root.querySelectorAll('[role=option]').length).toBeGreaterThan(20);
+  });
+
   it('shows the scope it was opened with', async () => {
     await render('chip', '/studio?hotels=DOH,DXB1,DXB2');
     expect(trigger().textContent).toContain('Middle East · 3 hotels');
