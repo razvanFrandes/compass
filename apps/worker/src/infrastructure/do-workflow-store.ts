@@ -75,4 +75,17 @@ export class DurableWorkflowStore implements WorkflowStore {
   async listAudit(): Promise<AuditEntry[]> {
     return [...(await this.#storage.list<AuditEntry>({ prefix: 'audit:', reverse: true })).values()];
   }
+
+  // ---- email
+  async emailForRun(runId: string) {
+    return (await this.#storage.get<string>(`email:${runId}`)) ?? null;
+  }
+  /** The receipt and the workflow's count go in one write, so a mail is never recorded without being counted. */
+  async recordEmail(runId: string, workflowId: string, receipt: string, test: boolean) {
+    const workflow = test ? undefined : await this.getWorkflow(workflowId);
+    await this.#storage.put<string | Workflow>({
+      [`email:${runId}`]: receipt,
+      ...(workflow ? { [`wf:${workflowId}`]: { ...workflow, emailsSent: (workflow.emailsSent ?? 0) + 1 } } : {}),
+    });
+  }
 }

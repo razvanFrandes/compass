@@ -56,6 +56,9 @@ export function createWorkflowExtension(store: WorkflowStore, now: () => Date = 
       const scope = await store.runForSession(String(api.conversationId));
       if (!scope) throw new Error('propose_action only works inside a workflow run.');
       const { run, workflow } = scope;
+      if (workflow.action.type === 'email') {
+        return { output: [{ type: 'text', text: 'This workflow sends an email and proposes nothing. Call send_email instead.' }] };
+      }
 
       const existing = await store.proposalForTask(api.taskId);
       if (existing) {

@@ -6,9 +6,13 @@ import { PiHarness } from 'agents/harness/pi';
 import { Lifecycle } from 'agents/lifecycle';
 import { createAI } from 'agents/models/pi-ai';
 import { HotelData } from '../../application/hotel-data.ts';
+import { createEmailExtension } from '../../application/workflows/email-tool.ts';
+import { emailWorkflowBlocked, publicRun, publicWorkflow, recipientChanged } from '../../application/workflows/email.ts';
 import { templateWorkflows, workflowInstructions } from '../../application/workflows/templates.ts';
 import { createWorkflowExtension, DecisionSignal } from '../../application/workflows/workflow-tools.ts';
 import type { Env } from '../../env.ts';
+import { CloudflareEmailSender } from '../../infrastructure/cloudflare-email-sender.ts';
+import { DurableEmailQuota } from '../../infrastructure/do-email-quota.ts';
 import { DurableWorkflowStore } from '../../infrastructure/do-workflow-store.ts';
 import { openPostgres } from '../../infrastructure/postgres.ts';
 import { WorkersAiEmbedder } from '../../infrastructure/workers-ai-embedder.ts';
@@ -26,6 +30,9 @@ export const MAX_WORKFLOWS = 30;
  * The workflow agents of the group, in one Durable Object. Each run is its own durable Pi session: it checks the data,
  * proposes an action and, when a person must approve, parks on a durable signal. The wait holds no invocation and
  * survives deploys; the decision endpoint delivers the signal and the run continues where it stopped.
+ *
+ * An email workflow sends a mail instead of proposing. The API has no login, so what it returns never holds a
+ * recipient in full (`publicWorkflow`) or the address of the client that started a run (`publicRun`).
  */
 export class WorkflowAgents extends DurableObject<Env> {
   ai = createAI({ binding: this.env.AI, gateway: { id: 'compass', byokAlias: 'compass', collectLog: true } });
@@ -50,6 +57,11 @@ export class WorkflowAgents extends DurableObject<Env> {
   // ---------------------------------------------------------------- workflows
 
   async list(): Promise<Workflow[]> {
+    return (await this.#workflows()).map(publicWorkflow);
+  }
+
+  /** The workflows as stored, with the real recipients. Seeds the templates on first use. */
+  async #workflows(): Promise<Workflow[]> {
     let workflows = await this.store.listWorkflows();
     if (!workflows.length) {
       workflows = templateWorkflows(new Date().toISOString());
@@ -62,39 +74,61 @@ export class WorkflowAgents extends DurableObject<Env> {
     const workflow = await this.store.getWorkflow(id);
     if (!workflow) return { error: 'No such workflow.', status: 404 };
     const proposals = (await this.store.listProposals()).filter((p) => p.workflowId === id);
-    return { workflow, runs: await this.store.listRuns(id), proposals };
+    return { workflow: publicWorkflow(workflow), runs: (await this.store.listRuns(id)).map(publicRun), proposals };
   }
 
   async create(input: WorkflowSpecInput, createdBy: Workflow['createdBy'] = 'user'): Promise<Workflow | WorkflowError> {
     const parsed = WorkflowSpec.safeParse(input);
     if (!parsed.success) return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '), status: 400 };
-    if ((await this.list()).length >= MAX_WORKFLOWS) {
+    if ((await this.#workflows()).length >= MAX_WORKFLOWS) {
       return { error: `The demo holds at most ${MAX_WORKFLOWS} workflows. Disable or edit an existing one.`, status: 409 };
     }
     const workflow: Workflow = { ...parsed.data, id: `wf-${crypto.randomUUID().slice(0, 8)}`, createdAt: new Date().toISOString(), createdBy, lastRun: null };
     await this.store.putWorkflow(workflow);
-    return workflow;
+    return publicWorkflow(workflow);
   }
 
   async update(id: string, patch: Partial<WorkflowSpecInput>): Promise<Workflow | WorkflowError> {
     const current = await this.store.getWorkflow(id);
     if (!current) return { error: 'No such workflow.', status: 404 };
-    const parsed = WorkflowSpec.safeParse({ ...current, ...patch });
+    // The recipient is fixed at creation: anyone can call this API, so a PATCH must not redirect a workflow's mail.
+    const { delivery, ...rest } = patch;
+    if (delivery !== undefined && recipientChanged(current, delivery)) {
+      return { error: "The recipient can't be changed. Create a new workflow.", status: 400 };
+    }
+    const parsed = WorkflowSpec.safeParse({ ...current, ...rest });
     if (!parsed.success) return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '), status: 400 };
     const workflow: Workflow = { ...current, ...parsed.data };
     await this.store.putWorkflow(workflow);
-    return workflow;
+    return publicWorkflow(workflow);
   }
 
   // ---------------------------------------------------------------- runs
 
-  async run(id: string, trigger: WorkflowRun['trigger'] = 'manual', reason = ''): Promise<WorkflowRun | WorkflowError> {
+  /**
+   * Starts a run. `opts.test` is a "send test now" run: an email workflow then always sends, marked as a test.
+   * `opts.client` is who asked (the client address), for the email limits; without it a scheduled or brief run counts
+   * as 'cron' and any other as 'manual'.
+   */
+  async run(
+    id: string,
+    trigger: WorkflowRun['trigger'] = 'manual',
+    reason = '',
+    opts: { test?: boolean; client?: string } = {},
+  ): Promise<WorkflowRun | WorkflowError> {
     const workflow = await this.store.getWorkflow(id);
     if (!workflow) return { error: 'No such workflow.', status: 404 };
+    const test = opts.test === true;
+    // An email workflow ends after 7 days or 5 emails. A test still runs: it is held by the hourly and daily limits.
+    const blocked = test ? null : emailWorkflowBlocked(workflow, new Date());
+    if (blocked) {
+      if (workflow.enabled) await this.store.putWorkflow({ ...workflow, enabled: false });
+      return { error: blocked, status: 400 };
+    }
     const active = (await this.store.listRuns(id)).find((r) => r.status === 'running' || r.status === 'waiting_approval');
     if (active) return { error: `This workflow already has a run in progress (${active.id}).`, status: 409 };
 
-    const session = await this.harness.sessions.create({ agent: { instructions: workflowInstructions(workflow) } });
+    const session = await this.harness.sessions.create({ agent: { instructions: workflowInstructions(workflow, test) } });
     const run: WorkflowRun = {
       id: `run-${crypto.randomUUID().slice(0, 8)}`,
       workflowId: id,
@@ -104,12 +138,14 @@ export class WorkflowAgents extends DurableObject<Env> {
       startedAt: new Date().toISOString(),
       endedAt: null,
       summary: null,
+      ...(test ? { test } : {}),
+      client: opts.client || (trigger === 'manual' ? 'manual' : 'cron'),
     };
     await this.store.putRun(run);
     await this.store.putWorkflow({ ...workflow, lastRun: { runId: run.id, at: run.startedAt, status: run.status } });
-    await session.submit(`Run the workflow now (trigger: ${trigger}${reason ? `, ${reason}` : ''}).`, { operationId: run.id });
+    await session.submit(`Run the workflow now (trigger: ${trigger}${reason ? `, ${reason}` : ''}${test ? ', test run' : ''}).`, { operationId: run.id });
     this.ctx.waitUntil(this.#settle(run.id));
-    return run;
+    return publicRun(run);
   }
 
   /** The run's log: its transcript, projected like the chat. */
@@ -117,13 +153,13 @@ export class WorkflowAgents extends DurableObject<Env> {
     const run = await this.store.getRun(runId);
     if (!run) return { error: 'No such run.', status: 404 };
     const entries = projectEntries(await this.harness.session(run.sessionId).messages());
-    return { run: (await this.store.getRun(runId)) ?? run, entries };
+    return { run: publicRun((await this.store.getRun(runId)) ?? run), entries };
   }
 
   /** Runs the enabled workflows the morning brief calls for: brief findings for their hotels, and the daily ones. */
   async runTriggered(brief: Brief): Promise<WorkflowRun[]> {
     const started: WorkflowRun[] = [];
-    for (const workflow of await this.list()) {
+    for (const workflow of await this.#workflows()) {
       if (!workflow.enabled) continue;
       const trigger = workflow.trigger;
       let reason = '';
@@ -196,7 +232,10 @@ export class WorkflowAgents extends DurableObject<Env> {
     const endedAt = new Date().toISOString();
     await this.store.updateRun(runId, { status, endedAt, summary: result.text ?? result.reason ?? null });
     const workflow = await this.store.getWorkflow(run.workflowId);
-    if (workflow) await this.store.putWorkflow({ ...workflow, lastRun: { runId, at: run.startedAt, status } });
+    if (!workflow) return;
+    // An email workflow that has used up its days or its emails turns itself off here, not only at its next run.
+    const enabled = workflow.enabled && !emailWorkflowBlocked(workflow, new Date());
+    await this.store.putWorkflow({ ...workflow, enabled, lastRun: { runId, at: run.startedAt, status } });
   }
 
   #createRegistry() {
@@ -209,6 +248,15 @@ export class WorkflowAgents extends DurableObject<Env> {
       }),
     );
     registry.install(createWorkflowExtension(this.store));
+    // The quota sits on this object's own storage: there is one WorkflowAgents object, so every send passes through it.
+    registry.install(
+      createEmailExtension({
+        store: this.store,
+        sender: new CloudflareEmailSender(this.env.EMAIL),
+        quota: new DurableEmailQuota(this.ctx.storage),
+        appUrl: this.env.APP_URL,
+      }),
+    );
     return registry;
   }
 }

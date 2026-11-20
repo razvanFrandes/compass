@@ -72,9 +72,28 @@ export function templateWorkflows(createdAt: string): Workflow[] {
   return TEMPLATES.map(({ id, ...spec }) => ({ ...WorkflowSpec.parse(spec), id, createdAt, createdBy: 'template', lastRun: null }));
 }
 
-/** The run brief a workflow agent starts from: its spec as instructions. */
-export function workflowInstructions(workflow: Workflow): string {
+/** The run brief a workflow agent starts from: its spec as instructions. `test` is a "send test now" run. */
+export function workflowInstructions(workflow: Workflow, test = false): string {
   const hotels = workflow.hotels.includes('ALL') ? 'all 20 hotels' : workflow.hotels.join(', ');
+  if (workflow.action.type === 'email') {
+    // The recipient is not here: the tool takes it from the workflow, so the model never sees or chooses it.
+    return [
+      `You are running the Compass workflow "${workflow.name}" unattended, for ${hotels}.`,
+      `Goal: ${workflow.goal}`,
+      workflow.checks.length ? `Check first with: ${workflow.checks.join(', ')}. Start from get_brief when the trigger is a brief finding.` : '',
+      `Your only action is an email to the workflow's recipient, through send_email. ${workflow.action.guidance}`,
+      'Steps: 1) check the data with tools, comparing windows of equal length; 2) decide whether the condition in the goal holds today; ' +
+        '3) on a test run always call send_email once, with would_fire saying whether the condition holds today; otherwise call ' +
+        'send_email only when it holds; 4) end with two or three sentences on what you found and whether an email was sent. ' +
+        'If the condition does not hold and this is not a test run, say there is nothing to report and send nothing.',
+      'In send_email, quote numbers from tool results; never compute numbers yourself.',
+      test
+        ? 'This is a test run: always call send_email exactly once, with would_fire saying whether the condition holds today, even when it does not hold.'
+        : 'This is not a test run.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
   return [
     `You are running the Compass workflow "${workflow.name}" unattended, for ${hotels}.`,
     `Goal: ${workflow.goal}`,

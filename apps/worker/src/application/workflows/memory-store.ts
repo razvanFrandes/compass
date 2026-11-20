@@ -8,6 +8,7 @@ export class MemoryWorkflowStore implements WorkflowStore {
   readonly proposals = new Map<string, Proposal>();
   readonly audit: AuditEntry[] = [];
   readonly #tasks = new Map<string, TaskRef>();
+  readonly #emails = new Map<string, string>();
 
   taskOf(proposalId: string): TaskRef | undefined {
     return this.#tasks.get(proposalId);
@@ -44,5 +45,13 @@ export class MemoryWorkflowStore implements WorkflowStore {
   }
   async appendAudit(entry: AuditEntry) {
     this.audit.push(entry);
+  }
+  async emailForRun(runId: string) {
+    return this.#emails.get(runId) ?? null;
+  }
+  async recordEmail(runId: string, workflowId: string, receipt: string, test: boolean) {
+    this.#emails.set(runId, receipt);
+    const workflow = this.workflows.get(workflowId);
+    if (workflow && !test) this.workflows.set(workflowId, { ...workflow, emailsSent: (workflow.emailsSent ?? 0) + 1 });
   }
 }

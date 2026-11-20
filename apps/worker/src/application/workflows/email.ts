@@ -1,4 +1,4 @@
-import type { Workflow } from '@compass/contracts';
+import { maskEmail, type Workflow, type WorkflowRun } from '@compass/contracts';
 
 /** A mail ready to go out. */
 export interface OutgoingEmail {
@@ -88,4 +88,46 @@ export function composeWorkflowEmail(input: WorkflowEmailInput): Omit<OutgoingEm
   ].join('');
 
   return { subject, text, html };
+}
+
+export const EMAIL_WORKFLOW_LIMITS = { days: 7, emails: 5 } as const;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Pure: why an email workflow may not send on its own any more, or null when it may. The public demo has no login, so
+ * an email workflow ends after 7 days or 5 sent emails, whichever comes first. Other workflows are never blocked.
+ */
+export function emailWorkflowBlocked(workflow: Workflow, now: Date): string | null {
+  if (workflow.action.type !== 'email') return null;
+  if ((workflow.emailsSent ?? 0) >= EMAIL_WORKFLOW_LIMITS.emails) {
+    return `This workflow has sent its ${EMAIL_WORKFLOW_LIMITS.emails} emails and is now off. Create a new workflow to keep getting them.`;
+  }
+  if (now.getTime() > Date.parse(workflow.createdAt) + EMAIL_WORKFLOW_LIMITS.days * DAY_MS) {
+    return `Email workflows stop after ${EMAIL_WORKFLOW_LIMITS.days} days and this one is now off. Create a new workflow to keep getting them.`;
+  }
+  return null;
+}
+
+/** A workflow as the open API shows it: the recipient masked, in a copy. Storage keeps the real address for the runs. */
+export function publicWorkflow<T extends Pick<Workflow, 'delivery'>>(workflow: T): T {
+  return workflow.delivery ? { ...workflow, delivery: { ...workflow.delivery, to: maskEmail(workflow.delivery.to) } } : workflow;
+}
+
+/** A run as the open API shows it: without the address of the client that started it. */
+export function publicRun(run: WorkflowRun): WorkflowRun {
+  const { client: _private, ...shown } = run;
+  return shown;
+}
+
+/**
+ * Pure: whether a patch's `delivery` names another recipient than the saved one. Repeating the address is fine, as
+ * saved or as the API shows it (masked), so a client can send back the workflow it read.
+ */
+export function recipientChanged(current: Pick<Workflow, 'delivery'>, delivery: unknown): boolean {
+  const to = (delivery as { to?: unknown } | null)?.to;
+  if (typeof to !== 'string' || !current.delivery) return true;
+  const saved = current.delivery.to.trim().toLowerCase();
+  const given = to.trim().toLowerCase();
+  return given !== saved && given !== maskEmail(saved);
 }

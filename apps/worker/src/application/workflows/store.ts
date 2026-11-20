@@ -17,4 +17,8 @@ export interface WorkflowStore {
   proposalsForRun(runId: string): Promise<Proposal[]>;
   auditForProposal(proposalId: string): Promise<AuditEntry | null>;
   appendAudit(entry: AuditEntry): Promise<void>;
+  /** The receipt of the email a run sent, or null when it sent none. One mail per run. */
+  emailForRun(runId: string): Promise<string | null>;
+  /** Stores a run's email receipt. A send that is not a test also counts towards the workflow's `emailsSent`. */
+  recordEmail(runId: string, workflowId: string, receipt: string, test: boolean): Promise<void>;
 }

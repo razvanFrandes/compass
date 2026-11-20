@@ -175,4 +175,27 @@ describe('workflow approval flow', () => {
       await harness.close(context);
     },
   );
+
+  it('propose_action refuses inside an email workflow', async () => {
+    const { faux, harness, root, store } = await setup('auto_low_risk');
+    store.workflows.set('wf-dubai', {
+      ...store.workflows.get('wf-dubai')!,
+      action: { type: 'email', guidance: '' },
+      delivery: { channel: 'email', to: 'silviu@example.com' },
+    });
+    let refusal = '';
+    faux.setResponses([
+      fauxAssistantMessage(fauxToolCall('propose_action', { ...PROPOSAL, action: 'notify', risk: 'low' }), { stopReason: 'toolUse' }),
+      (ctx) => {
+        refusal = lastToolText(ctx);
+        return fauxAssistantMessage(fauxText('Understood.'));
+      },
+    ]);
+    await (await root.submit({ type: 'input', content: 'Run the workflow now.' }, context)).wait(context);
+    expect(refusal).toContain('send_email');
+    expect(store.proposals.size).toBe(0);
+    expect(store.audit).toHaveLength(0);
+    expect(store.runs.get('run-1')!.status).toBe('running');
+    await harness.close(context);
+  });
 });
