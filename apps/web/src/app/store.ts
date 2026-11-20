@@ -682,7 +682,7 @@ const NEXT_RUN: Record<string, string> = { rate: 'next in 21 h 40 min', pace: 'n
 export const PORTFOLIO_BOARD = 'built-in-portfolio';
 export const DUBAI_BOARD = 'built-in-dubai';
 
-export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watcher' | 'builder' | 'notfound' | 'orb-lab' | 'catalog' | 'theme-lab';
+export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watcher' | 'builder' | 'notfound' | 'orb-lab' | 'catalog' | 'theme-lab' | 'docs';
 
 /** Views with an address of their own; the rest live at "/". The builder is at /workflows/new and /workflows/<id>/edit. */
 const BUILDER_PATH = '/workflows/new';

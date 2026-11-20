@@ -23,6 +23,9 @@ import { OrbLab } from './orb/orb-lab';
 import { CatalogView } from './charts/catalog';
 import { GROUP } from './data';
 import { KassandraThreadList } from './kassandra/kassandra-thread-list';
+import { DocsFab } from './docs/docs-fab';
+import { DocsHub } from './docs/docs-hub';
+import { DocsRouter } from './docs/docs-router';
 import * as icons from './icons';
 
 /**
@@ -31,7 +34,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, KassandraThreadList, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, DocsHub, DocsFab, KassandraThreadList, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
   providers: [provideIcons({ ...icons }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   template: `
@@ -143,6 +146,14 @@ import * as icons from './icons';
               <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading…</p>
             }
           }
+          @case ('docs') {
+            <!-- /docs/*: the documentation hub; its code loads on first visit -->
+            @defer (on immediate) {
+              <app-docs-hub />
+            } @placeholder {
+              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading…</p>
+            }
+          }
           @case ('catalog') {
             <!-- /catalog: the chart design-system page; its code (and the extra chart types) loads on first visit -->
             @defer (on immediate) {
@@ -171,6 +182,8 @@ import * as icons from './icons';
     }
 
     }
+    <!-- Docs: a floating button on every screen; it moves above a composer, a toast or the tab bar (src/app/docs) -->
+    <app-docs-fab />
     <!-- Toasts sit where no composer is: top on phones (the ask bar and tab bar are at the bottom), bottom right on desktop -->
     <hlm-toaster [theme]="theme.dark() ? 'dark' : 'light'" [position]="phone() ? 'top-center' : 'bottom-right'" [offset]="phone() ? '12px' : '24px'" />
   `,
@@ -181,12 +194,13 @@ export class App {
   private readonly doc = inject(DOCUMENT);
   protected readonly group = GROUP;
   protected readonly theme = inject(Theme);
+  private readonly docs = inject(DocsRouter);
   protected readonly themes = THEMES;
   protected readonly phone = signal(this.doc.defaultView?.matchMedia('(max-width: 1023px)').matches ?? false);
 
   constructor() {
     effect(() => {
-      this.doc.title = pageTitle(this.store.view(), this.live.title(), this.boardName());
+      this.doc.title = this.store.view() === 'docs' ? this.docs.title() : pageTitle(this.store.view(), this.live.title(), this.boardName());
     });
   }
 

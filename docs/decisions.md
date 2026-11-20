@@ -450,3 +450,16 @@ Kassandra is drawn by the same components wherever she appears (`apps/web/src/ap
   - A dialog or popover that opens from the ink rail (the hotel picker) is paper again; it used to inherit the rail's inverse roles and showed white text on white.
 - **Open:** components should adopt the tokens so the bridge can shrink; the default themes should get the same non-colour tokens; the chart option builders should read `chartStyle()`.
 
+
+## Documentation hub in the app (21 Nov 2026)
+
+Reviewers should see the system, the thinking and the craft from inside the site, so the docs are a part of the app (`apps/web/src/app/docs/`).
+
+- **A floating Docs button on every screen**, bottom right, with a panel of eight sections. "?" opens it from the keyboard; a "?" typed into a field is a character. The panel is a disclosure with a list of links, not a menu, so each section is an ordinary link that also opens in a new tab.
+- **The button never covers a composer, a toast or the phone tab bar.** Its position is measured, not declared per screen: it looks for those elements under itself and moves above them (`fab-position.ts`, a pure function with tests). Past 60% of the screen height it returns to the corner.
+- **`/docs/*` is one view of the app (`docs`) with its own small router.** `CompassStore` and `Live` only know the view; `DocsRouter` keeps the page and its address, so the shared files changed by a few lines. The Worker already answers unknown paths with the app, so a deep link survives a reload.
+- **The pages are data, not prose.** Each page is a component with typed arrays (cells, tables, flows) and a shared kit (`docs-kit.ts`). Repository Markdown was adapted, not rendered as is: a wall of text is not what a reviewer reads.
+- **Examples are the real components.** `/docs/components` renders the app's own widget chart, evidence panel, data table, composer, conversation, hotel picker, builder canvas, orb and proposal card with sample rows. The agent card is a static copy, because that card is written inline in the Agent Studio view. The decision card is shown inert, because its buttons act on real proposals.
+- **Token values are read from the page.** `/docs/design-system` holds token names only and reads their values with `getComputedStyle` (`token-reader.ts`), again when the theme changes. A token a theme does not define is said to be absent, not given a value.
+- **The architecture map is drawn from data** (`architecture-map.ts`): the nodes, edges, flow tabs and steps of `docs/architecture.html`, brought up to date (the Worker serves the app, Boards is a sixth Durable Object, voice goes to Soniox). Its colours are theme roles. It is wider than the page on most laptops, so "Expand the map" opens it in a dialog as wide as the window.
+- **Open:** the agent card could become a component of its own, so the docs and Agent Studio share it.
