@@ -64,6 +64,13 @@ export interface ChatLive {
   streamingText: string;
   /** Tool calls of the current turn and their status. */
   tools: { callId: string; name: string; status: 'pending' | 'running' | 'done' | 'sleeping' | 'waiting' | string }[];
+  /**
+   * Tool calls the model is writing right now, with their arguments as far as they have streamed (a string may be cut
+   * mid-word, later keys may be missing). Absent when there is none. A call leaves this list when its `assistant`
+   * entry is committed; from then on it is in `tools`. The UI uses it to start a skeleton, or to show a chart's title,
+   * before the call exists.
+   */
+  drafting?: { callId: string; name: string; args: Record<string, unknown> }[];
   /** Model turns taken in the current run. */
   turns: number;
   /** Why the last run ended without an answer (`model_error`, `turn_limit`, `aborted`, …), until the next run. */

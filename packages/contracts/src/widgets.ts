@@ -35,10 +35,8 @@ export const WIDGET_KINDS = [
 export const WidgetKind = z.enum(WIDGET_KINDS);
 export type WidgetKind = z.infer<typeof WidgetKind>;
 
-export const WIDGET_FORMATS = ['number', 'percent', 'currency', 'count'] as const;
-
-/** A widget never carries more rows than this; a board widget neither. */
-export const WIDGET_MAX_ROWS = 200;
+import { WIDGET_FORMATS } from './widget-limits.ts';
+export { WIDGET_FORMATS, WIDGET_MAX_ROWS } from './widget-limits.ts';
 
 const columnKey = z.string().min(1).max(64);
 

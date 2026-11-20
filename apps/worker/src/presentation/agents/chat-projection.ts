@@ -88,6 +88,20 @@ function phaseOf(running: boolean, content: unknown, tools: readonly unknown[]):
   return 'waiting';
 }
 
+/**
+ * The tool calls of the partial answer: the model is still writing them, and their arguments are whatever has
+ * streamed so far (Pi parses the partial JSON on every delta). They become real calls with the `assistant` entry.
+ */
+function draftingOf(content: unknown): NonNullable<ChatLive['drafting']> {
+  return asArray<Part>(content)
+    .filter((part) => part.type === 'toolCall' && !!part.id && !!part.name)
+    .map((part) => ({
+      callId: part.id ?? '',
+      name: part.name ?? '',
+      args: part.arguments !== null && typeof part.arguments === 'object' && !Array.isArray(part.arguments) ? (part.arguments as Record<string, unknown>) : {},
+    }));
+}
+
 export function projectLive(docs: Readonly<Record<string, unknown>>): ChatLive {
   const live = (docs['pi.live'] ?? {}) as Json;
   const run = live['run'] as { turns?: number } | undefined;
@@ -103,11 +117,13 @@ export function projectLive(docs: Readonly<Record<string, unknown>>): ChatLive {
     name: t.name,
     status: t.status,
   }));
+  const drafting = draftingOf(generation?.message?.content);
   return {
     running: run !== undefined,
     phase: phaseOf(run !== undefined, generation?.message?.content, tools),
     streamingText: textOf(generation?.message?.content),
     tools,
+    ...(run !== undefined && drafting.length ? { drafting } : {}),
     turns: run?.turns ?? 0,
     failure: failure?.reason
       ? { reason: failure.reason, ...(typeof failure.detail === 'string' ? { detail: redactDetail(failure.detail) } : {}) }
