@@ -6,6 +6,7 @@ import { FilterState, scopeChips } from './filters';
 import { AnswerScope, BriefRow, CompassStore, isBuilderUrl, scopeForRow } from './store';
 import { Drill } from './portfolio';
 import { drillContent } from './drill';
+import { ScopeService } from './scope/scope.service';
 
 /** Who decides, as the audit log records it. The demo has no sign-in yet. */
 export const DECIDER = 'Revenue manager (web)';
@@ -46,6 +47,8 @@ export class Live {
   readonly briefApi = inject(BriefApi);
   readonly chat = inject(KassandraChat);
   readonly workflowsApi = inject(WorkflowsApi);
+  /** The hotels the person works on (the sidebar switcher). Decisions waiting on a person follow it. */
+  readonly hotelScope = inject(ScopeService);
 
   /* ── Brief ── */
   readonly briefState = computed<'loading' | 'live' | 'snapshot'>(() => (this.briefApi.brief.value() ? 'live' : this.briefApi.brief.isLoading() ? 'loading' : 'snapshot'));
@@ -62,7 +65,7 @@ export class Live {
   readonly workflows = this.workflowsApi.listResource();
   readonly pending = this.workflowsApi.proposalsResource();
   readonly audit = this.workflowsApi.auditResource();
-  readonly pendingList = computed(() => (this.pending.hasValue() ? this.pending.value() : []));
+  readonly pendingList = computed(() => (this.pending.hasValue() ? this.pending.value() : []).filter((p) => this.hotelScope.includes(p.hotel_code)));
   readonly workflowList = computed(() => (this.workflows.hasValue() ? this.workflows.value() : []));
   readonly workflowsError = computed(() => (this.workflows.error() ? toApiError(this.workflows.error()).message : null));
   /** Calls in flight, by workflow or proposal id, so buttons can say "Running…" / "Approving…". */
@@ -100,7 +103,8 @@ export class Live {
       }
     }, 10_000);
     void timer;
-    // Every place has an address, so reload and Back work: /ask?c=…, /watchers/:id, /boards/:id, /workflows/new.
+    // Every place has an address, so reload and Back work: /ask?c=…, /studio/:id, /boards/:id, /workflows/new.
+    // The scope rides along in ?hotels= (ScopeService.href).
     this.applyUrl();
     effect(() => {
       const target = this.urlFor();
@@ -108,7 +112,7 @@ export class Live {
       if (!target || !loc) return;
       const params = new URLSearchParams(loc.search);
       const here = target.c ? loc.pathname === target.path && params.get('c') === target.c : loc.pathname === target.path;
-      if (!here) globalThis.history?.pushState(null, '', target.c ? `${target.path}?c=${encodeURIComponent(target.c)}` : target.path);
+      if (!here) globalThis.history?.pushState(null, '', this.hotelScope.href(target.c ? `${target.path}?c=${encodeURIComponent(target.c)}` : target.path));
     });
     globalThis.addEventListener?.('popstate', () => this.applyUrl());
   }
@@ -123,9 +127,9 @@ export class Live {
       case 'board':
         return { path: `/boards/${encodeURIComponent(this.store.activeBoardId())}` };
       case 'watchers':
-        return { path: '/watchers' };
+        return { path: '/studio' };
       case 'watcher':
-        return { path: `/watchers/${encodeURIComponent(this.store.activeWatcherId())}` };
+        return { path: `/studio/${encodeURIComponent(this.store.activeWatcherId())}` };
       case 'builder':
         return null;
       default:
@@ -149,12 +153,14 @@ export class Live {
       const q = params.get('q');
       if (q !== null) {
         this.prefill(q);
-        globalThis.history?.replaceState(null, '', `/ask?c=${encodeURIComponent(this.chat.conversation())}`);
+        globalThis.history?.replaceState(null, '', this.hotelScope.href(`/ask?c=${encodeURIComponent(this.chat.conversation())}`));
       }
       return this.store.view.set('thread');
     }
-    if (path === '/watchers') return this.store.view.set('watchers');
-    const wid = seg(/^\/watchers\/([^/]+)$/);
+    // Agent Studio lives at /studio; /watchers is its old address and still opens it.
+    if (path.startsWith('/watchers')) globalThis.history?.replaceState(null, '', `${path.replace(/^\/watchers/, '/studio')}${loc.search}`);
+    if (path === '/studio' || path === '/watchers') return this.store.view.set('watchers');
+    const wid = seg(/^\/(?:studio|watchers)\/([^/]+)$/);
     if (wid) {
       this.store.activeWatcherId.set(wid);
       return this.store.view.set('watcher');

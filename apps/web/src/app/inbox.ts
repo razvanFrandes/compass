@@ -10,6 +10,8 @@ import { AMS_CONVERSION, BCN_OUT_OF_ORDER, DPS_KITCHEN, LIS_PACE, NYC_ACCOUNT, P
 import { BriefRow, CompassStore, InboxItem, briefTitle, gopMonths, isoDay, shortHotel } from './store';
 import { Live } from './live';
 import { ProposalCard } from './proposal-card';
+import { ScopeSwitcher } from './scope/scope-switcher';
+import { ScopeService } from './scope/scope.service';
 import * as icons from './icons';
 
 function spark(values: number[], w = 120, h = 40) {
@@ -25,17 +27,21 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
 */
 @Component({
   selector: 'app-inbox',
-  imports: [NgIcon, NgTemplateOutlet, AskBar, PickupBars, Spark, ProposalCard, HlmButtonImports, HlmDropdownMenuImports],
+  imports: [NgIcon, NgTemplateOutlet, AskBar, PickupBars, Spark, ProposalCard, ScopeSwitcher, HlmButtonImports, HlmDropdownMenuImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
     <div class="mx-auto grid max-w-[1240px] gap-x-8 gap-y-6 px-[max(16px,env(safe-area-inset-left,0px))] pt-5 pb-44 sm:px-8 lg:grid-cols-12 lg:pt-8 lg:pb-16">
       <!-- Hero brief -->
       <section class="relative lg:col-span-8" aria-labelledby="brief-title">
-        <p class="text-muted-foreground text-[12px] font-medium tracking-[0.06em] uppercase">Fri 20 Nov · Morning brief</p>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p class="text-muted-foreground text-[12px] font-medium tracking-[0.06em] uppercase">Fri 20 Nov · Morning brief</p>
+          <!-- The hotel scope; on phones it sits in the top bar -->
+          <app-scope-switcher class="max-lg:hidden" />
+        </div>
         <h1 id="brief-title" class="mt-3 max-w-[30ch] text-[26px]/[1.2] font-semibold tracking-[-0.015em] text-balance sm:text-[30px]/[1.2]">{{ headline() }}</h1>
         <div class="text-muted-foreground mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[14px]">
-          <span>{{ open().length }} findings across {{ group.hotels }} hotels, ranked by money</span>
+          <span>{{ open().length }} {{ open().length === 1 ? 'finding' : 'findings' }} {{ scope.count() === 1 ? 'at' : 'across' }} {{ scope.phrase() }}, ranked by money</span>
           @if (decisionCount()) {
             <button type="button" class="stake-chip stake-chip--decision" (click)="focusDecision()">● {{ decisionCount() }} {{ decisionCount() === 1 ? 'needs' : 'need' }} your decision</button>
           }
@@ -217,6 +223,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
 export class InboxView {
   protected readonly store = inject(CompassStore);
   protected readonly live = inject(Live);
+  protected readonly scope = inject(ScopeService);
   protected readonly group = GROUP;
   protected readonly showResolved = signal(false);
 

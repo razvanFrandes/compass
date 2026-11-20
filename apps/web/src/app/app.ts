@@ -12,6 +12,7 @@ import { WatchersView } from './watchers';
 import { Live } from './live';
 import { WatcherPage } from './watcher-page';
 import { WorkflowBuilder } from './builder/builder-page';
+import { ScopeSwitcher } from './scope/scope-switcher';
 import { GROUP } from './data';
 import * as icons from './icons';
 
@@ -21,7 +22,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, ScopeSwitcher, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
   providers: [provideIcons({ ...icons }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   template: `
@@ -46,14 +47,8 @@ import * as icons from './icons';
           <span class="text-[14px] font-semibold tracking-[-0.02em]">Compass</span>
         </div>
 
-        <button type="button" aria-disabled="true" hlmTooltip="Coming soon: switch between hotel groups" aria-describedby="soon-note" class="flex cursor-not-allowed items-center gap-2.5 rounded-lg px-2 py-1.5 text-left">
-          <span class="bg-foreground/90 text-background grid size-7 place-items-center rounded-md text-[12px] font-semibold">H</span>
-          <span class="min-w-0 flex-1">
-            <span class="block truncate text-[13px] font-medium">{{ group.name }}</span>
-            <span class="text-muted-foreground block truncate text-[12px]">All {{ group.hotels }} hotels</span>
-          </span>
-          <ng-icon name="phosphorCaretUpDownLight" class="text-muted-foreground opacity-50" />
-        </button>
+        <!-- The scope: which hotels the brief, Kassandra and new workflows work on (src/app/scope) -->
+        <app-scope-switcher variant="sidebar" [group]="group.name" />
 
         <ul class="flex flex-col gap-px text-[14px]">
           @for (n of nav(); track n.view) {
@@ -101,9 +96,10 @@ import * as icons from './icons';
       <main id="content" class="min-w-0 max-lg:overflow-x-clip lg:min-h-0" [class]="store.view() === 'thread' ? 'h-dvh' : 'lg:overflow-y-auto'">
         @if (store.view() !== 'thread') {
           <header class="flex h-14 items-center justify-between px-[max(16px,env(safe-area-inset-left,0px))] lg:hidden">
-            <div class="flex items-center gap-2">
+            <div class="flex min-w-0 items-center gap-2">
               <span class="text-[14px] font-semibold tracking-[-0.02em]">Compass</span>
-              <span class="text-muted-foreground text-[14px]">/ Halcyon</span>
+              <span class="text-muted-foreground text-[14px]" aria-hidden="true">/</span>
+              <app-scope-switcher />
             </div>
             <button hlmBtn variant="ghost" size="icon" [attr.aria-label]="dark() ? 'Switch to light theme' : 'Switch to dark theme'" (click)="toggleTheme()"><ng-icon [name]="dark() ? 'phosphorSunLight' : 'phosphorMoonLight'" /></button>
           </header>
@@ -172,7 +168,7 @@ export class App {
   protected readonly nav = computed(() => [
     { view: 'inbox' as View, label: 'Inbox', icon: 'phosphorTrayLight', iconActive: 'phosphorTrayFill', count: this.store.unread() },
     { view: 'boards' as View, label: 'Boards', icon: 'phosphorSquaresFourLight', iconActive: 'phosphorSquaresFourFill', count: 0 },
-    { view: 'watchers' as View, label: 'Watchers', icon: 'phosphorLightningLight', iconActive: 'phosphorLightningFill', count: this.live.pendingList().length },
+    { view: 'watchers' as View, label: 'Agent Studio', icon: 'phosphorLightningLight', iconActive: 'phosphorLightningFill', count: this.live.pendingList().length },
   ]);
 
   protected isActive(v: View) {

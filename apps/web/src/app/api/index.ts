@@ -3,5 +3,6 @@ export * from './api-http';
 export * from './brief-api';
 export * from './chat-socket';
 export * from './chat-turns';
+export * from './hotels-api';
 export * from './kassandra-chat';
 export * from './workflows-api';
