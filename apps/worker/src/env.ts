@@ -12,6 +12,10 @@ export interface Env {
   BRIEFS: DurableObjectNamespace<Briefs>;
   WORKFLOWS: DurableObjectNamespace<WorkflowAgents>;
   BUDGET: DurableObjectNamespace<Budget>;
+  /** Cloudflare Email Sending; the only sender allowed is alerts@compass.razvanfrandes.com. */
+  EMAIL: SendEmail;
+  /** The app's public origin, for links in emails: https://juyo.razvanfrandes.com. */
+  APP_URL: string;
   /** Per-UTC-day limits of the public demo, e.g. { "question": 300 }. Missing keys keep the defaults (domain/budget.ts). */
   DAILY_LIMITS?: unknown;
   /** Optional secret: requests with `x-compass-admin-key: <ADMIN_KEY>` skip the daily budget. */

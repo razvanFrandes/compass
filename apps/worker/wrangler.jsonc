@@ -34,9 +34,15 @@
 
   // Daily limits for every visitor together, per UTC day (docs/security.md). A missing key keeps its default.
   // Optional secret ADMIN_KEY (wrangler secret put ADMIN_KEY): the x-compass-admin-key header then skips these limits.
+  // APP_URL: the app's public origin, for the Explore link in workflow emails (APP_URL + /ask?q=).
   "vars": {
-    "DAILY_LIMITS": { "question": 300, "workflow_run": 60, "decision": 120, "brief_refresh": 24, "embedding": 2000 }
+    "DAILY_LIMITS": { "question": 300, "workflow_run": 60, "decision": 120, "brief_refresh": 24, "embedding": 2000 },
+    "APP_URL": "https://juyo.razvanfrandes.com"
   },
+
+  // Workflow emails, through Email Sending on compass.razvanfrandes.com. Any recipient, one sender.
+  // Limits (infrastructure/do-email-quota.ts): 3 per recipient and 10 per client per hour, 50 per UTC day.
+  "send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["alerts@compass.razvanfrandes.com"] }],
 
   // The morning brief is regenerated at 05:00 UTC (06:00–07:00 in Europe).
   "triggers": { "crons": ["0 5 * * *"] },
