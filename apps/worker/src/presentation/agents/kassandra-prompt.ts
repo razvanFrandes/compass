@@ -1,3 +1,5 @@
+import { UNTRUSTED_RULE } from '../../domain/untrusted.ts';
+
 /**
  * Kassandra's system prompt, as Pi prompt sections. The data rules mirror the product principles: the model plans,
  * picks tools and explains; SQL computes every number; every claim can be traced to a tool result.
@@ -30,6 +32,7 @@ export const KASSANDRA_SECTIONS = [
         '- Money is in EUR unless a tool says local currency. Ratios come from sums. Same time last year = 364 days back.',
         '- Stay dates on or after the business date are on the books, not actuals. Say which one you are showing.',
         '- If the data cannot answer, say so plainly. Never guess.',
+        UNTRUSTED_RULE,
       ].join('\n'),
   },
   {

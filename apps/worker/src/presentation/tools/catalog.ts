@@ -2,6 +2,7 @@ import { Grain, MetricKey, type DataResult } from '@compass/contracts';
 import { z } from 'zod';
 import type { DataError, HotelData } from '../../application/hotel-data.ts';
 import type { Result } from '../../domain/result.ts';
+import { untrustedBlock } from '../../domain/untrusted.ts';
 
 /**
  * The data tools, defined once. Two adapters expose them: the public MCP server (Claude Desktop and any other
@@ -29,14 +30,19 @@ const hotels = z
 const isoDate = z.iso.date().describe('ISO date, YYYY-MM-DD');
 const bucket = z.enum(['day', 'week', 'month', 'total']).describe('Bucket size; total gives one row for the whole period');
 
-/** Rows for the model as compact JSON (capped), plus the full rows and evidence as structured content. */
-export function success(result: DataResult<object>): ToolOutcome {
+/**
+ * Rows for the model as compact JSON (capped), plus the full rows and evidence as structured content.
+ * Pass `untrusted` (a source label) when the rows carry free text from outside, e.g. guest reviews: the model then
+ * reads them inside <untrusted_data>, as data. The structured rows for the UI stay as they are.
+ */
+export function success(result: DataResult<object>, untrusted?: string): ToolOutcome {
   const shown = result.rows.slice(0, MAX_TEXT_ROWS);
   const more = result.rows.length > shown.length ? `\n(${result.rows.length - shown.length} more rows not shown)` : '';
   const ev = result.evidence;
   const definitions = Object.entries(ev.definitions).map(([k, v]) => `${k}: ${v}`);
+  const json = JSON.stringify(shown);
   const text = [
-    JSON.stringify(shown),
+    untrusted ? untrustedBlock(json, untrusted) : json,
     more,
     definitions.length ? `\nDefinitions: ${definitions.join(' | ')}` : '',
     ev.notes.length ? `\nNotes: ${ev.notes.join(' ')}` : '',
@@ -50,7 +56,8 @@ export function failure(error: DataError): ToolOutcome {
   return { ok: false, text: `${error.message}${hint}` };
 }
 
-const fromResult = (result: Result<DataResult<object>, DataError>) => (result.ok ? success(result.value) : failure(result.error));
+const fromResult = (result: Result<DataResult<object>, DataError>, untrusted?: string) =>
+  result.ok ? success(result.value, untrusted) : failure(result.error);
 
 function tool<S extends z.ZodObject>(definition: DataTool<S>): DataTool<S> {
   return definition;
@@ -153,7 +160,7 @@ export const DATA_TOOLS = [
       limit: z.number().int().min(1).max(50).default(15),
       sort: z.enum(['decline', 'volume']).default('decline'),
     }),
-    run: async (data, args) => success(await data.getAccountProduction(args)),
+    run: async (data, args) => success(await data.getAccountProduction(args), 'account names'),
   }),
   tool({
     name: 'get_fnb',
@@ -199,7 +206,7 @@ export const DATA_TOOLS = [
       to: isoDate.optional(),
       limit: z.number().int().min(1).max(30).default(10),
     }),
-    run: async (data, args) => success(await data.searchReviews(args)),
+    run: async (data, args) => success(await data.searchReviews(args), 'guest reviews'),
   }),
   tool({
     name: 'get_web_funnel',
@@ -245,6 +252,6 @@ export const DATA_TOOLS = [
       'Run one read-only PostgreSQL SELECT over schema hotel when no specific tool fits. Capped at 200 rows, 5 s timeout. ' +
       'Call get_schema first. Convert money to EUR with hotel.eur_rate() before comparing hotels.',
     input: z.object({ sql: z.string().min(1).describe('One SELECT or WITH … SELECT statement') }),
-    run: async (data, args) => fromResult(await data.runReadonlyQuery(args.sql)),
+    run: async (data, args) => fromResult(await data.runReadonlyQuery(args.sql), 'custom query rows'),
   }),
 ] as const satisfies readonly DataTool[];
