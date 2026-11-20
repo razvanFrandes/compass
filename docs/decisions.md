@@ -435,3 +435,12 @@ Kassandra is drawn by the same components wherever she appears (`apps/web/src/ap
   - Boards have one client, `BoardsService` (`/api/boards`): "Add to board" and "Describe a view" save through it, so the Boards pages redraw without a reload. Saved widgets are drawn by `<juyo-widget-chart>`.
   - The Round 2 types are defined once, in `@compass/contracts`; `api/round2-contracts.ts` and `boards/types.ts` re-export them.
   - The built-in boards are `built-in-portfolio` and `built-in-dubai`, because the server's sample board "Portfolio overview" has the id `portfolio`.
+
+## Themes: Light, Dark and "Juyo concept" (21 Nov 2026)
+
+- **Three themes, one set of token names.** `<html data-theme="light | dark | juyo-concept">`; the choice is kept in `localStorage["compass.theme"]` (until a choice is made, light or dark follows the OS) and applied by the inline script in `index.html` before the first paint. `data-theme` also works on any element.
+- **The concept theme is an additive layer** in `apps/web/src/themes/juyo-concept/`: `tokens.css` (primitive → semantic → component) and `bridge.css`, which maps the literal sizes, radii, shadows and timings that components still carry onto the tokens. No component template changed except the shell's theme switch.
+- **Direction:** a light working surface framed by Juyo's ink rail; colour means this period (blue), Kassandra (violet) or a decision (orange); one family, Archivo, on its width axis, with Chivo Mono for code; hairlines before shadows; 110 ms state changes. The spec is `docs/research/theme/juyo-concept-spec.md`, the research `docs/research/theme/juyo-concept-research.md`.
+- **`/theme-lab`** documents the system next to a default theme. Its tables read the rendered CSS, and its contrast audit computes WCAG 2 and APCA in the browser.
+- **Open:** components should adopt the tokens so the bridge can shrink; the default themes should get the same non-colour tokens; the chart option builders should read `chartStyle()`.
+

@@ -48,6 +48,7 @@ export {
   phosphorSparkleLight,
   phosphorSquaresFourLight,
   phosphorSunLight,
+  phosphorSwatchesLight,
   phosphorThumbsDownLight,
   phosphorThumbsUpLight,
   phosphorTrashLight,

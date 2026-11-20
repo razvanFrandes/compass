@@ -1,0 +1,276 @@
+/*
+  Juyo concept: tokens. Spec and rationale: docs/research/theme/juyo-concept-spec.md.
+
+  Three tiers, one direction of reference (Material 3, Primer, DTCG aliases):
+    1. primitives  --jc-*            raw values; never used by a component
+    2. semantic    --background …    roles; the same names the Light and Dark themes define, plus the roles they
+                                     never had as tokens (radius, elevation, focus, motion, type, density, charts)
+    3. component   --button-* …      one component's decision, always an alias of a semantic token
+
+  The theme is selected with data-theme="juyo-concept" on <html>, or on any element, so the theme lab can put it
+  next to the default themes. The first selector gives the root the specificity it needs over `:root.light`.
+*/
+:root[data-theme='juyo-concept'],
+[data-theme='juyo-concept'] {
+  color-scheme: light;
+
+  /* ───────────────────────── Tier 1: primitives ───────────────────────── */
+
+  /* Colour. Built in OKLCH, one hue per scale; a step has the same job in every scale:
+     1–3 tinted surfaces · 4 soft fills on dark · 5 graphics (≥ 3:1 on surfaces 0–2) · 6 text (≥ 4.5:1 on 0–3)
+     · 7 strong text (≥ 7:1) · 8 text on the scale's own tint.
+     Ink is the neutral, tinted toward Juyo's #101418 (hue 250): 0 raised surface · 1–2 canvas · 3–5 fills
+     · 5–7 hairlines · 8 control borders (≥ 3:1) · 9 quiet icons · 10–11 secondary text · 12 text. */
+  --jc-ink-0: #ffffff; --jc-ink-1: #f9fafb; --jc-ink-2: #f4f6f8; --jc-ink-3: #edf0f2; --jc-ink-4: #e5e8eb; --jc-ink-5: #dde0e3; --jc-ink-6: #d4d8dc; --jc-ink-7: #c0c5ca; --jc-ink-8: #82888f; --jc-ink-9: #6e757d; --jc-ink-10: #575e67; --jc-ink-11: #394149; --jc-ink-12: #101418;
+  /* Night: Juyo's dark surfaces, for the inverse rail. 1–3 are sampled from their product CSS. */
+  --jc-night-1: #101418; --jc-night-2: #161b22; --jc-night-3: #1f2630; --jc-night-4: #2b343e; --jc-night-5: #414853; --jc-night-6: #6e757e; --jc-night-7: #999fa7; --jc-night-8: #b9bec4; --jc-night-9: #fafafa;
+  /* Blue, hue 261. Step 5 is Juyo's chart blue #477EE3. */
+  --jc-blue-1: #f1f6ff; --jc-blue-2: #dfecff; --jc-blue-3: #c1d9ff; --jc-blue-4: #87b1fa; --jc-blue-5: #477ee3; --jc-blue-6: #2261d1; --jc-blue-7: #114aae; --jc-blue-8: #0f3375;
+  /* Violet, hue 290: Kassandra. */
+  --jc-violet-1: #f5f4ff; --jc-violet-2: #eae8ff; --jc-violet-3: #d6d2fc; --jc-violet-4: #b0a6ef; --jc-violet-5: #8470d6; --jc-violet-6: #684dbf; --jc-violet-7: #52379f; --jc-violet-8: #372769;
+  /* Orange, hue 45: a decision is waiting. `signal` is Juyo's #FE7637, a fill for ink text only. */
+  --jc-orange-1: #fff3ed; --jc-orange-2: #ffe4d6; --jc-orange-3: #ffc8ac; --jc-orange-4: #ff9c6b; --jc-orange-5: #e86518; --jc-orange-6: #b64700; --jc-orange-7: #923800; --jc-orange-8: #612605; --jc-orange-signal: #fe7637;
+  --jc-teal-1: #edf8f8; --jc-teal-2: #d7f1f1; --jc-teal-3: #b0e3e3; --jc-teal-4: #64c3c4; --jc-teal-5: #009395; --jc-teal-6: #007374; --jc-teal-7: #00595b; --jc-teal-8: #003e3f;
+  --jc-green-1: #eef9f3; --jc-green-2: #d9f3e3; --jc-green-3: #b5e5ca; --jc-green-4: #71c69a; --jc-green-5: #229666; --jc-green-6: #03734a; --jc-green-7: #025939; --jc-green-8: #063d26;
+  --jc-red-1: #fef3f2; --jc-red-2: #ffe4e1; --jc-red-3: #fdc9c4; --jc-red-4: #f4928a; --jc-red-5: #e44645; --jc-red-6: #c02b2f; --jc-red-7: #9b1e22; --jc-red-8: #651818;
+  --jc-ochre-1: #fbf5ea; --jc-ochre-2: #f9e9ce; --jc-ochre-3: #f0d39f; --jc-ochre-4: #dcb05b; --jc-ochre-5: #b28319; --jc-ochre-6: #8e670b; --jc-ochre-7: #6e4f06; --jc-ochre-8: #4c3709;
+  /* Slate, hue 264: the comparison period. Step 6 is Juyo's brand slate #4F5E7D. */
+  --jc-slate-1: #f4f6fa; --jc-slate-2: #e7ebf3; --jc-slate-3: #d0d8e7; --jc-slate-4: #a4b1cb; --jc-slate-5: #65779d; --jc-slate-6: #4f5e7d; --jc-slate-7: #3a4763; --jc-slate-8: #263045;
+  --jc-plum-1: #fcf3f8; --jc-plum-2: #fae4ef; --jc-plum-3: #f3cae0; --jc-plum-4: #e196c0; --jc-plum-5: #bc5694; --jc-plum-6: #9b3876; --jc-plum-7: #7b285d; --jc-plum-8: #551d40;
+
+  /* Type families. One variable family does three jobs through its width axis; a mono only for code. */
+  --jc-font-archivo: 'Archivo', 'Helvetica Neue', Arial, ui-sans-serif, system-ui, sans-serif;
+  --jc-font-chivo-mono: 'Chivo Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --jc-width-condensed: 88%;
+  --jc-width-normal: 100%;
+  --jc-width-wide: 112%;
+  --jc-weight-regular: 400;
+  --jc-weight-book: 450;
+  --jc-weight-medium: 500;
+  --jc-weight-semibold: 600;
+
+  /* Type scale: hand-picked sizes on a 4px line grid (Refactoring UI; Carbon productive, base 14). */
+  --jc-size-11: 0.6875rem; --jc-size-12: 0.75rem; --jc-size-13: 0.8125rem; --jc-size-14: 0.875rem;
+  --jc-size-16: 1rem; --jc-size-20: 1.25rem; --jc-size-24: 1.5rem; --jc-size-32: 2rem; --jc-size-44: 2.75rem;
+
+  /* Space: 4px unit, non-linear above 16 (no two steps closer than 25%). */
+  --jc-space-0: 0; --jc-space-1: 2px; --jc-space-2: 4px; --jc-space-3: 8px; --jc-space-4: 12px; --jc-space-5: 16px;
+  --jc-space-6: 24px; --jc-space-7: 32px; --jc-space-8: 48px; --jc-space-9: 64px;
+
+  /* Radius: four steps that follow the size of the thing. */
+  --jc-radius-1: 2px; --jc-radius-2: 4px; --jc-radius-3: 6px; --jc-radius-4: 10px; --jc-radius-round: 9999px;
+
+  /* Motion: Carbon's productive durations and curves. */
+  --jc-duration-1: 70ms; --jc-duration-2: 110ms; --jc-duration-3: 180ms; --jc-duration-4: 280ms; --jc-duration-5: 400ms;
+  --jc-ease-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --jc-ease-enter: cubic-bezier(0, 0, 0.38, 0.9);
+  --jc-ease-exit: cubic-bezier(0.2, 0, 1, 0.9);
+
+  /* ───────────────────────── Tier 2: semantic ───────────────────────── */
+
+  /* Surfaces: tone and a hairline separate layers; shadows are kept for things that float. */
+  --background: var(--jc-ink-2);
+  --foreground: var(--jc-ink-12);
+  --card: var(--jc-ink-0);
+  --card-foreground: var(--foreground);
+  --popover: var(--jc-ink-0);
+  --popover-foreground: var(--foreground);
+  --surface-sunken: var(--jc-ink-3);
+  --surface-inverse: var(--jc-night-1);
+  --rail: var(--jc-night-1);
+
+  /* Actions are ink. Colour is left for data, for Kassandra and for decisions. */
+  --primary: var(--jc-ink-12);
+  --primary-foreground: var(--jc-ink-0);
+  --secondary: var(--jc-ink-3);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--jc-ink-3);
+  --muted-foreground: var(--jc-ink-10);
+  --accent: var(--jc-ink-3);
+  --accent-foreground: var(--foreground);
+  --destructive: var(--jc-red-6);
+  --overlay-hover: rgb(16 20 24 / 0.05);
+  --overlay-pressed: rgb(16 20 24 / 0.1);
+
+  /* Text */
+  --text-1: var(--jc-ink-12);
+  --text-secondary: var(--jc-ink-10);
+  --icon-quiet: var(--jc-ink-10);
+  --link: var(--jc-blue-6);
+
+  /* Borders: hairline (decorative), strong (dividers on fills), control (form fields, ≥ 3:1). */
+  --border: var(--jc-ink-5);
+  --border-strong: var(--jc-ink-7);
+  --border-control: var(--jc-ink-8);
+  --input: var(--jc-ink-8);
+  --field: var(--jc-ink-0);
+  --field-border: var(--jc-ink-6);
+  --field-border-hover: var(--jc-ink-8);
+
+  /* Focus: one ring everywhere, 2px solid with a 2px gap. */
+  --ring: var(--jc-blue-6);
+  --focus-brand: var(--jc-blue-6);
+  --focus-width: 2px;
+  --focus-offset: 2px;
+
+  /* The three voices: fact (ink and blue), Kassandra (violet), a decision that waits for you (orange). */
+  --brand: var(--jc-violet-6);
+  --kassandra: var(--jc-violet-6);
+  --kassandra-tint: var(--jc-violet-1);
+  --kassandra-border: var(--jc-violet-3);
+  --decision: var(--jc-orange-6);
+  --decision-tint: var(--jc-orange-1);
+  --decision-border: var(--jc-orange-3);
+  --brass: var(--jc-orange-5);
+  --brass-ink: var(--jc-orange-6);
+  --brass-wash: var(--jc-orange-1);
+  --positive: var(--jc-green-6);
+  --negative: var(--jc-red-6);
+  --selected: var(--jc-blue-1);
+  --selected-border: var(--jc-blue-6);
+
+  /* Charts. This period is blue; the comparison period is the same hue with the colour drained (slate) and a
+     dash; a reference such as budget is an ink rule. Categories alternate light and dark steps, so neighbours differ
+     by 2:1 or more in luminance and survive a greyscale print or a colour-vision deficiency. */
+  --series: var(--jc-blue-5);
+  --series-soft: rgb(71 126 227 / 0.6);
+  --series-cmp: var(--jc-slate-5);
+  --series-ref: var(--jc-ink-11);
+  --series-muted: var(--jc-ink-8);
+  --series-3: var(--jc-teal-5);
+  --grid: var(--jc-ink-4);
+  --chart-axis: var(--jc-ink-10);
+  --chart-rule: var(--jc-ink-7);
+  --cat-1: var(--jc-blue-5);
+  --cat-2: var(--jc-teal-7);
+  --cat-3: var(--jc-ochre-5);
+  --cat-4: var(--jc-plum-7);
+  --cat-5: var(--jc-green-5);
+  --cat-6: var(--jc-slate-7);
+  --chart-1: var(--cat-1);
+  --chart-2: var(--cat-2);
+  --chart-3: var(--cat-3);
+  --chart-4: var(--cat-4);
+  --chart-5: var(--cat-5);
+  /* Sequential: one hue, lightness falls as the value rises (light theme: dark = more). */
+  --seq-1: var(--jc-blue-1); --seq-2: var(--jc-blue-2); --seq-3: var(--jc-blue-3); --seq-4: var(--jc-blue-4);
+  --seq-5: var(--jc-blue-5); --seq-6: var(--jc-blue-6); --seq-7: var(--jc-blue-8);
+  /* Diverging, for a variance against a real midpoint: orange below, grey at zero, blue above. */
+  --div-neg-3: var(--jc-orange-6); --div-neg-2: var(--jc-orange-4); --div-neg-1: var(--jc-orange-2);
+  --div-zero: var(--jc-ink-3);
+  --div-pos-1: var(--jc-blue-2); --div-pos-2: var(--jc-blue-4); --div-pos-3: var(--jc-blue-6);
+
+  /* Type roles */
+  --font-sans: var(--jc-font-archivo);
+  --font-display: var(--jc-font-archivo);
+  --font-numeric: var(--jc-font-archivo);
+  --font-mono: var(--jc-font-chivo-mono);
+  --font-width-text: var(--jc-width-normal);
+  --font-width-display: var(--jc-width-wide);
+  --font-width-numeric: var(--jc-width-condensed);
+
+  --type-micro-size: var(--jc-size-11); --type-micro-line: 1rem; --type-micro-tracking: 0.02em;
+  --type-label-size: var(--jc-size-12); --type-label-line: 1rem; --type-label-tracking: 0.01em;
+  --type-dense-size: var(--jc-size-13); --type-dense-line: 1.25rem; --type-dense-tracking: 0;
+  --type-body-size: var(--jc-size-14); --type-body-line: 1.25rem; --type-body-tracking: 0;
+  --type-lead-size: var(--jc-size-16); --type-lead-line: 1.5rem; --type-lead-tracking: -0.005em;
+  --type-title-size: var(--jc-size-20); --type-title-line: 1.75rem; --type-title-tracking: -0.01em;
+  --type-headline-size: var(--jc-size-24); --type-headline-line: 2rem; --type-headline-tracking: -0.015em;
+  --type-display-size: var(--jc-size-32); --type-display-line: 2.375rem; --type-display-tracking: -0.02em;
+  --type-hero-size: var(--jc-size-44); --type-hero-line: 3rem; --type-hero-tracking: -0.025em;
+  --type-display-weight: var(--jc-weight-medium);
+  --type-metric-weight: var(--jc-weight-book);
+  --type-strong-weight: var(--jc-weight-semibold);
+
+  /* Shape */
+  --radius: 0.3125rem;
+  --radius-mark: var(--jc-radius-1);
+  --radius-control: var(--jc-radius-2);
+  --radius-container: var(--jc-radius-3);
+  --radius-overlay: var(--jc-radius-4);
+
+  /* Elevation: 0 is a hairline. Shadows are ink, two-part, and only for layers that float. */
+  --elevation-raised: 0 1px 2px rgb(16 20 24 / 0.07), 0 1px 1px rgb(16 20 24 / 0.04);
+  --elevation-overlay: 0 6px 16px -4px rgb(16 20 24 / 0.14), 0 2px 4px -2px rgb(16 20 24 / 0.08);
+  --elevation-modal: 0 24px 48px -12px rgb(16 20 24 / 0.24), 0 8px 16px -8px rgb(16 20 24 / 0.12);
+  --scrim: rgb(16 20 24 / 0.45);
+
+  /* Motion */
+  --motion-instant: var(--jc-duration-1);
+  --motion-fast: var(--jc-duration-2);
+  --motion-moderate: var(--jc-duration-3);
+  --motion-slow: var(--jc-duration-4);
+  --motion-chart: var(--jc-duration-5);
+  --ease-standard: var(--jc-ease-standard);
+  --ease-enter: var(--jc-ease-enter);
+  --ease-exit: var(--jc-ease-exit);
+
+  /* Density: compact by default, on the 4px grid. Touch keeps its 44px targets. */
+  --control-height-xs: 24px;
+  --control-height-sm: 28px;
+  --control-height-md: 32px;
+  --control-height-lg: 36px;
+  --row-height: 32px;
+  --row-height-two-line: 48px;
+  --cell-padding-x: var(--jc-space-4);
+  --cell-padding-y: 6px;
+
+  /* ───────────────────────── Tier 3: component ───────────────────────── */
+  --button-radius: var(--radius-control);
+  --input-radius: var(--radius-control);
+  --chip-radius: var(--radius-control);
+  --tag-radius: var(--radius-mark);
+  --nav-item-radius: var(--radius-control);
+  --card-radius: var(--radius-container);
+  --card-border: var(--field-border);
+  --card-shadow-hover: var(--elevation-raised);
+  --popover-radius: var(--radius-container);
+  --popover-shadow: var(--elevation-overlay);
+  --dialog-radius: var(--radius-overlay);
+  --dialog-shadow: var(--elevation-modal);
+  --ask-radius: var(--radius-container);
+  --table-header-surface: var(--jc-ink-1);
+  --table-rule: var(--jc-ink-4);
+  --table-total-rule: var(--jc-ink-12);
+  --chart-line-width: 2px;
+  --chart-cmp-dash: 4 3;
+  --chart-bar-radius: var(--radius-mark);
+}
+
+/* Narrow screens and touch: one step up, so body text is 16px where a keyboard may open (iOS zooms below it). */
+@media (pointer: coarse) {
+  :root[data-theme='juyo-concept'],
+  [data-theme='juyo-concept'] {
+    --control-height-xs: 44px;
+    --control-height-sm: 44px;
+    --control-height-md: 44px;
+    --control-height-lg: 48px;
+  }
+}
+
+/* The rail is an inverse surface: the same semantic names, mapped to the night scale. Components inside it
+   need no change. (Carbon and Material both ship an inverse role; here it is a scope.) Like the bridge, it stops
+   at the next [data-theme], so it does not reach into a default-theme pane nested in a concept page. */
+@scope ([data-theme='juyo-concept']) to ([data-theme]:not([data-theme='juyo-concept'])) {
+  nav[aria-label='Main']:not(.fixed),
+  [data-surface='inverse'] {
+    --background: var(--jc-night-1);
+    --foreground: var(--jc-night-9);
+    --card: var(--jc-night-4);
+    --muted: var(--jc-night-2);
+    --muted-foreground: var(--jc-night-7);
+    --secondary: var(--jc-night-3);
+    --accent: var(--jc-night-3);
+    --border: rgb(255 255 255 / 0.1);
+    --field: var(--jc-night-2);
+    --field-border: var(--jc-night-4);
+    --overlay-hover: rgb(255 255 255 / 0.06);
+    --overlay-pressed: rgb(255 255 255 / 0.11);
+    --ring: var(--jc-blue-4);
+    --brass: var(--jc-orange-signal);
+    --brass-ink: var(--jc-orange-4);
+    --text-1: var(--jc-night-9);
+    --icon-quiet: var(--jc-night-8);
+    color: var(--foreground);
+  }
+}

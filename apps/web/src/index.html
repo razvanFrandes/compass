@@ -22,19 +22,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Geist+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Geist+Mono:wght@400;500&family=Archivo:wdth,wght@75..125,400..700&family=Chivo+Mono:wght@400;500&display=swap">
   <script>
-    // Theme: an explicit data-theme on <html> wins, then the choice remembered in this browser, then the OS setting.
-    // Spartan reads the .dark class; the app's toggle writes localStorage "compass.theme".
+    // Theme: an explicit data-theme on <html> wins, then the choice remembered in this browser (localStorage
+    // "compass.theme": light, dark or juyo-concept), then the OS setting for light or dark.
+    // Spartan reads the .dark class; "juyo-concept" is a light theme.
     (function () {
       var root = document.documentElement;
       var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
-      function remembered() {
-        try { return localStorage.getItem('compass.theme'); } catch (e) { return null; }
-      }
+      try {
+        var saved = localStorage.getItem('compass.theme');
+        if (!root.getAttribute('data-theme') && (saved === 'light' || saved === 'dark' || saved === 'juyo-concept')) root.setAttribute('data-theme', saved);
+      } catch (e) {}
       function apply() {
-        var theme = root.getAttribute('data-theme') || remembered() || (mq && mq.matches ? 'light' : 'dark');
-        var light = theme === 'light';
+        var theme = root.getAttribute('data-theme') || (mq && mq.matches ? 'light' : 'dark');
+        var light = theme === 'light' || theme === 'juyo-concept';
         root.classList.toggle('light', light);
         root.classList.toggle('dark', !light);
       }

@@ -682,7 +682,7 @@ const NEXT_RUN: Record<string, string> = { rate: 'next in 21 h 40 min', pace: 'n
 export const PORTFOLIO_BOARD = 'built-in-portfolio';
 export const DUBAI_BOARD = 'built-in-dubai';
 
-export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watcher' | 'builder' | 'notfound' | 'orb-lab' | 'catalog';
+export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watcher' | 'builder' | 'notfound' | 'orb-lab' | 'catalog' | 'theme-lab';
 
 /** Views with an address of their own; the rest live at "/". The builder is at /workflows/new and /workflows/<id>/edit. */
 const BUILDER_PATH = '/workflows/new';
@@ -690,8 +690,12 @@ const EDIT_PATH = /^\/workflows\/[A-Za-z0-9_-]{1,64}\/edit\/?$/;
 export const isBuilderUrl = (loc: Pick<Location, 'pathname' | 'search'>) => loc.pathname.startsWith(BUILDER_PATH) || EDIT_PATH.test(loc.pathname) || new URLSearchParams(loc.search).has('builder');
 /** /orb-lab: the demo page for the Kassandra orb. Not linked from the navigation. */
 export const isOrbLabUrl = (loc: Pick<Location, 'pathname'>) => loc.pathname.replace(/\/+$/, '') === '/orb-lab';
+/** The theme lab documents the design tokens of every theme. */
+export const THEME_LAB_PATH = '/theme-lab';
+export const isThemeLabUrl = (loc: Pick<Location, 'pathname'>) => loc.pathname.replace(/\/+$/, '') === THEME_LAB_PATH;
 function initialView(): View {
   const loc = globalThis.location;
+  if (loc && isThemeLabUrl(loc)) return 'theme-lab';
   if (loc && isOrbLabUrl(loc)) return 'orb-lab';
   return loc && isBuilderUrl(loc) ? 'builder' : 'inbox';
 }

@@ -5,6 +5,9 @@
 @import 'tw-animate-css';
 @import '@spartan-ng/brain/hlm-tailwind-preset.css';
 
+/* A themed subtree (the theme lab shows two themes side by side): `dark:` follows the nearest .dark or .light. */
+@custom-variant dark (&:is(.dark *):not(:is(.dark .light *)));
+
 @source './app';
 @source '../libs/ui';
 
@@ -15,7 +18,9 @@
   surfaces) and every chart/graphic token against 3:1. Purple buttons are a step darker than Juyo's #996AD5
   so white text passes (5.0:1 instead of 3.9:1).
 */
-:root {
+:root,
+[data-theme='dark'],
+[data-theme='light'] {
   color-scheme: dark;
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
@@ -74,7 +79,8 @@
   --chart-5: var(--negative);
 }
 
-:root.light {
+:root.light,
+[data-theme='light'] {
   color-scheme: light;
   --background: #fafafa;
   --foreground: #101418;
@@ -315,6 +321,9 @@
 .seg > button:hover { color: var(--foreground); }
 .seg > button[aria-selected='true'], .seg > button[aria-checked='true'] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 2px rgb(0 0 0 / 0.25); }
 .seg > button span { color: var(--muted-foreground); }
+/* Fills its row, segments share the width (the theme switch in the rail). */
+.seg--fill { display: flex; }
+.seg--fill > button { flex: 1; justify-content: center; padding: 0 6px; }
 
 /* ───────── Decision table (tables_and_rate_calendar.md C2) ───────── */
 .dec-table { border-collapse: separate; border-spacing: 0; }

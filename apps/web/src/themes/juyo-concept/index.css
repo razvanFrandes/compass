@@ -1,0 +1,9 @@
+/*
+  The "Juyo concept" theme: an additive layer over styles.css, selected with data-theme="juyo-concept".
+  It is listed after styles.css in angular.json, so it loads later and adds nothing to the default themes.
+
+    tokens.css   primitives → semantic → component tokens
+    bridge.css   maps the literals the components still carry onto those tokens
+*/
+@import './tokens.css';
+@import './bridge.css';

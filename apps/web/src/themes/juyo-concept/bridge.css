@@ -1,0 +1,289 @@
+/*
+  Juyo concept: bridge. The app's components predate the token contract: they carry literal sizes
+  (`text-[13.5px]`, `rounded-[10px]`, `duration-[175ms]`) and styles.css carries literal radii, shadows and
+  timings. This file maps those literals onto the tokens in tokens.css, so the whole system moves with the theme
+  and no component is edited. It is a migration aid: when a component adopts the tokens, its lines here go.
+
+  Everything is inside a donut scope: it applies under data-theme="juyo-concept" and stops at the next
+  [data-theme], so the theme lab can nest a default-theme pane inside a concept page (and the other way round).
+*/
+
+/* ───────────── Utilities. styles.css imports Tailwind's utilities unlayered, so these are unlayered too and win
+   by coming later in the bundle at equal specificity. ───────────── */
+@scope ([data-theme='juyo-concept']) to ([data-theme]:not([data-theme='juyo-concept'])) {
+  /* Type scale: 20 literal sizes become 8 steps. A size is matched as a class token, with or without a
+     line-height modifier (`text-[14px]`, `text-[14px]/relaxed`); `--tw-leading` keeps an explicit leading-*. */
+  :is([class^='text-[10px]'], [class*=' text-[10px]'], [class^='text-[11px]'], [class*=' text-[11px]']) { font-size: var(--type-micro-size); line-height: var(--tw-leading, var(--type-micro-line)); letter-spacing: var(--type-micro-tracking); }
+  :is([class^='text-[11.5px]'], [class*=' text-[11.5px]'], [class^='text-[12px]'], [class*=' text-[12px]'], [class^='text-[12.5px]'], [class*=' text-[12.5px]'], [class^='text-xs'], [class*=' text-xs']) { font-size: var(--type-label-size); line-height: var(--tw-leading, var(--type-label-line)); letter-spacing: var(--type-label-tracking); }
+  :is([class^='text-[13px]'], [class*=' text-[13px]'], [class^='text-[13.5px]'], [class*=' text-[13.5px]']) { font-size: var(--type-dense-size); line-height: var(--tw-leading, var(--type-dense-line)); letter-spacing: var(--type-dense-tracking); }
+  :is([class^='text-[14px]'], [class*=' text-[14px]'], [class^='text-[14.5px]'], [class*=' text-[14.5px]'], [class^='text-[15px]'], [class*=' text-[15px]'], [class^='text-[15.5px]'], [class*=' text-[15.5px]'], [class^='text-sm'], [class*=' text-sm']) { font-size: var(--type-body-size); line-height: var(--tw-leading, var(--type-body-line)); letter-spacing: var(--type-body-tracking); }
+  :is([class^='text-[16px]'], [class*=' text-[16px]'], [class^='text-[17px]'], [class*=' text-[17px]'], [class^='text-[18px]'], [class*=' text-[18px]'], [class^='text-base'], [class*=' text-base']) { font-size: var(--type-lead-size); line-height: var(--tw-leading, var(--type-lead-line)); letter-spacing: var(--type-lead-tracking); }
+  :is([class^='text-[20px]'], [class*=' text-[20px]'], [class^='text-[22px]'], [class*=' text-[22px]'], [class^='text-xl'], [class*=' text-xl']) { font-size: var(--type-title-size); line-height: var(--tw-leading, var(--type-title-line)); letter-spacing: var(--type-title-tracking); }
+  :is([class^='text-[24px]'], [class*=' text-[24px]'], [class^='text-[26px]'], [class*=' text-[26px]']) { font-size: var(--type-headline-size); line-height: var(--tw-leading, var(--type-headline-line)); letter-spacing: var(--type-headline-tracking); }
+  :is([class^='text-[30px]'], [class*=' text-[30px]'], [class^='text-[34px]'], [class*=' text-[34px]']) { font-size: var(--type-display-size); line-height: var(--tw-leading, var(--type-display-line)); letter-spacing: var(--type-display-tracking); }
+  @media (min-width: 40rem) {
+    :is([class*='sm:text-[12px]']) { font-size: var(--type-label-size); line-height: var(--tw-leading, var(--type-label-line)); letter-spacing: var(--type-label-tracking); }
+    :is([class*='sm:text-[15px]']) { font-size: var(--type-body-size); line-height: var(--tw-leading, var(--type-body-line)); letter-spacing: var(--type-body-tracking); }
+    :is([class*='sm:text-[24px]']) { font-size: var(--type-headline-size); line-height: var(--tw-leading, var(--type-headline-line)); letter-spacing: var(--type-headline-tracking); }
+    :is([class*='sm:text-[30px]']) { font-size: var(--type-display-size); line-height: var(--tw-leading, var(--type-display-line)); letter-spacing: var(--type-display-tracking); }
+  }
+
+  /* Display: from 20px up, headings take the wide cut at medium weight. Nothing is set in bold. */
+  :is([class^='text-[20px]'], [class*=' text-[20px]'], [class^='text-[22px]'], [class*=' text-[22px]'], [class^='text-xl'], [class*=' text-xl'], [class^='text-[24px]'], [class*=' text-[24px]'], [class^='text-[26px]'], [class*=' text-[26px]'], [class^='text-[30px]'], [class*=' text-[30px]'], [class^='text-[34px]'], [class*=' text-[34px]'], [class*='sm:text-[24px]'], [class*='sm:text-[30px]']) {
+    font-family: var(--font-display);
+    font-stretch: var(--font-width-display);
+    font-weight: var(--type-display-weight);
+  }
+  ng-icon { font-stretch: normal; letter-spacing: 0; }
+
+  /* Figures: tabular lining digits in the condensed cut, so a 13px column takes the room of an 11.5px one.
+     Large figures (metrics) go back to the normal width at book weight. */
+  .tabular-nums, [class*='tabular-nums'] {
+    font-family: var(--font-numeric);
+    font-stretch: var(--font-width-numeric);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  .tabular-nums:is([class^='text-[20px]'], [class*=' text-[20px]'], [class^='text-[22px]'], [class*=' text-[22px]'], [class^='text-xl'], [class*=' text-xl'], [class^='text-[24px]'], [class*=' text-[24px]'], [class^='text-[26px]'], [class*=' text-[26px]'], [class^='text-[30px]'], [class*=' text-[30px]'], [class^='text-[34px]'], [class*=' text-[34px]']) {
+    font-stretch: var(--font-width-text);
+    font-weight: var(--type-metric-weight);
+  }
+  .font-mono { font-family: var(--font-mono); font-stretch: normal; }
+
+  /* Labels are sentence case. Capitals are for acronyms (ADR, RevPAR), not for decoration. */
+  .uppercase:not(input, textarea) { text-transform: none; letter-spacing: var(--type-label-tracking); }
+  /* The workflow builder's step labels are styled inside the component; the class is repeated to outrank it. */
+  .wb-eyebrow.wb-eyebrow.wb-eyebrow { font-size: var(--type-label-size); font-weight: var(--jc-weight-medium); letter-spacing: var(--type-label-tracking); text-transform: none; }
+
+  /* Radius: 2 for marks, 4 for controls, 6 for containers, 10 for overlays. */
+  .rounded-xs, .rounded-sm, .rounded-\[2px\], .rounded-\[3px\] { border-radius: var(--radius-mark); }
+  .rounded, .rounded-md, .rounded-\[4px\], .rounded-\[5px\], .rounded-\[6px\], .rounded-\[8px\] { border-radius: var(--radius-control); }
+  .rounded-lg, .rounded-xl, .rounded-\[10px\], .rounded-\[12px\], .rounded-\[14px\] { border-radius: var(--radius-container); }
+  .rounded-2xl, .rounded-3xl { border-radius: var(--radius-overlay); }
+  .rounded-t-\[3px\] { border-radius: var(--radius-mark) var(--radius-mark) 0 0; }
+
+  /* Colour used as text must be a text step (6), not a graphic step (5). */
+  .text-\(--series\) { color: var(--link); }
+  .text-\(--brass\) { color: var(--brass-ink); }
+  .text-\(--series-3\) { color: var(--jc-teal-6); }
+  .text-\(--series-cmp\) { color: var(--jc-slate-6); }
+  /* Secondary text is already the lightest step that passes 4.5:1; fading it further fails. */
+  .text-muted-foreground\/80, .text-muted-foreground\/70, .text-foreground\/60 { color: var(--muted-foreground); }
+
+  /* Motion: state changes are fast and share one curve. */
+  .transition, .transition-all, .transition-colors, .transition-opacity, .transition-transform, .transition-shadow {
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--ease-standard);
+  }
+
+  /* Button (libs/ui/button): compact heights, control radius, flat fills, no press scale. */
+  [data-slot='button'] {
+    border-radius: var(--button-radius);
+    letter-spacing: 0;
+    scale: none;
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--ease-standard);
+  }
+  [data-slot='button']::after { transition-duration: var(--motion-instant); }
+  [data-slot='button'][data-size='xs'] { height: var(--control-height-xs); font-size: var(--type-label-size); }
+  [data-slot='button'][data-size='sm'] { height: var(--control-height-sm); font-size: var(--type-dense-size); }
+  [data-slot='button'][data-size='default'] { height: var(--control-height-md); font-size: var(--type-dense-size); }
+  [data-slot='button'][data-size='lg'] { height: var(--control-height-lg); font-size: var(--type-body-size); }
+  [data-slot='button'][data-size='icon-xs'] { width: var(--control-height-xs); height: var(--control-height-xs); }
+  [data-slot='button'][data-size='icon-sm'] { width: var(--control-height-sm); height: var(--control-height-sm); }
+  [data-slot='button'][data-size='icon'] { width: var(--control-height-md); height: var(--control-height-md); }
+  [data-slot='button'][data-size='icon-lg']:not(.size-14) { width: var(--control-height-lg); height: var(--control-height-lg); }
+  [data-slot='button'][data-variant='default'] { box-shadow: none; }
+  [data-slot='button'][data-variant='outline'] { border-color: var(--border-strong); }
+  [data-slot='button'][data-variant='secondary'] { background: var(--card); border-color: var(--border-strong); }
+  [data-slot='button'][data-variant='link'] { color: var(--link); }
+  [data-slot='button'].rounded-full { border-radius: var(--jc-radius-round); }
+}
+
+/* ───────────── styles.css component classes ───────────── */
+@scope ([data-theme='juyo-concept']) to ([data-theme]:not([data-theme='juyo-concept'])) {
+  :scope {
+    font-family: var(--font-sans);
+    font-feature-settings: normal;
+    font-synthesis: none;
+    font-kerning: normal;
+  }
+  body { font-feature-settings: normal; font-synthesis: none; }
+  ::selection { background: rgb(71 126 227 / 0.24); }
+
+  /* Focus: one ring on every component, the same 2px outline with a 2px gap. It replaces five ring recipes
+     (glows, insets, double shadows). !important because focus visibility is an invariant, not a style. */
+  :focus-visible {
+    outline: var(--focus-width) solid var(--ring) !important;
+    outline-offset: var(--focus-offset) !important;
+    box-shadow: none !important;
+  }
+  /* Where the ring would be clipped (rows, cells, joined buttons, the stretched card link) it sits inside. */
+  :is(.dec-table tbody tr, .cal-cell, .filter-token > button, .run-hit, .seg > button, .op-toggle button, [role='tab'], [role='menuitem'], [role='option'], .filter-opt input):focus-visible {
+    outline-offset: calc(var(--focus-width) * -1) !important;
+  }
+  .card-link:focus-visible { outline: none !important; }
+  .card-link:focus-visible::after { box-shadow: none; outline: var(--focus-width) solid var(--ring); outline-offset: calc(var(--focus-width) * -1); }
+  .option-card:has(input:focus-visible) { box-shadow: none; outline: var(--focus-width) solid var(--ring); outline-offset: var(--focus-offset); }
+  :is(.field-input, .field-select, .name-input, textarea, input[type='text']):focus-visible { outline-offset: 0 !important; border-color: var(--ring); }
+
+  /* Motion: content settles with opacity and 2px of travel, no blur; charts draw in 400ms. */
+  .gen-in { animation: jc-settle var(--motion-moderate) var(--ease-enter) both; }
+  .chart-draw { animation-duration: var(--motion-chart); animation-timing-function: var(--ease-standard); }
+  .chart-fade { animation-duration: var(--motion-moderate); animation-delay: var(--motion-fast); }
+  .bar-grow { animation-duration: var(--motion-chart); animation-timing-function: var(--ease-standard); }
+  .sheet-in, .voice-sheet, .create-dialog[open], .filter-sheet[open], .night-panel { animation-duration: var(--motion-slow); animation-timing-function: var(--ease-enter); }
+  .ask-send { animation-duration: var(--motion-instant); }
+  .filter-btn--flash { animation-duration: 900ms; }
+  :is(.ask-field, .clickable-card, .clickable-card::after, .clickable-row::after, .insight-card, .decision-card, .seg > button, .dec-table tbody tr, .cal-cell, .filter-chip, .watcher-card--link, .day-toggle, .option-card, .field-input, .field-select, .filter-btn, .toggle, .toggle > i, .stake-chip--decision) {
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--ease-standard);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .gen-in, .chart-draw, .chart-fade, .bar-grow, .sheet-in, .voice-sheet, .create-dialog[open], .filter-sheet[open], .night-panel { animation: none; }
+  }
+
+  /* Ask bar: a field, not a hero. Control border at rest (3:1), ink ring when it has focus. */
+  .ask-field { min-height: 48px; border-radius: var(--ask-radius); border-color: var(--border-control); background: var(--field); }
+  .ask-field:hover { border-color: var(--jc-ink-10); }
+  .ask-field:focus-within { border-color: var(--ring); box-shadow: 0 0 0 1px var(--ring); }
+  .ask-mic { color: var(--icon-quiet); }
+  /* The field shows the ring; the textarea inside it does not draw a second one. */
+  :is(.ask-field, .wb-composer) :is(textarea, input):focus-visible { outline: none !important; }
+
+  /* Cards: a hairline and the surface tone. Hover raises by one level and darkens the hairline; nothing moves. */
+  .clickable-card { border-radius: var(--card-radius); border-color: var(--card-border); }
+  .insight-card, .decision-card, .watcher-card, .feed-banner, .receipt { border-radius: var(--card-radius); border-color: var(--card-border); }
+  .card-link::after { border-radius: var(--card-radius); }
+  .clickable-card:active { transform: none; }
+  @media (hover: hover) {
+    .clickable-card:hover, .insight-card:hover { border-color: var(--border-control); box-shadow: var(--card-shadow-hover); }
+    .decision-card:hover { box-shadow: var(--card-shadow-hover); }
+    .watcher-card--link:hover { border-color: var(--border-control); }
+    .watcher-card--needs.watcher-card--link:hover { border-color: var(--decision); }
+  }
+
+  /* A decision that waits for you: the orange tint and border, and the one orange action with ink text. */
+  .decision-card { border-color: var(--decision-border); background: var(--decision-tint); }
+  .watcher-card--needs { border-color: var(--decision-border); }
+  .decision-btn { background: var(--jc-orange-signal); color: var(--jc-ink-12); border-radius: var(--button-radius); }
+  .stake-chip { height: var(--control-height-sm); border-radius: var(--chip-radius); font-size: var(--type-dense-size); font-stretch: var(--font-width-numeric); }
+  .stake-chip--decision { color: var(--decision); border-color: var(--decision-border); background: var(--decision-tint); }
+  @media (hover: hover) { .stake-chip--decision:hover { background: var(--jc-orange-2); } }
+  .cal-dot, .run--pending, .run-dot--pending { background: var(--jc-orange-5); }
+
+  /* Labels and chips */
+  .card-eyebrow, .timeline-day { font-size: var(--type-label-size); line-height: var(--type-label-line); font-weight: var(--jc-weight-medium); letter-spacing: var(--type-label-tracking); text-transform: none; color: var(--muted-foreground); }
+  .money-chip { border-radius: var(--tag-radius); font-size: var(--type-dense-size); font-stretch: var(--font-width-numeric); background: var(--surface-sunken); }
+  .status-chip { height: 22px; border-radius: var(--chip-radius); color: var(--jc-ink-10); background: var(--jc-ink-3); }
+  .status-chip--needs { color: var(--decision); background: var(--decision-tint); }
+  .status-chip--running { color: var(--foreground); }
+  .status-chip--failed { color: var(--jc-red-6); background: var(--jc-red-1); }
+  .schedule-chip, .evidence-chip, .scope-badge, .rec-badge, .scope-chip { border-radius: var(--chip-radius); }
+  .schedule-chip { font-stretch: var(--font-width-numeric); }
+  .filter-chip { height: var(--control-height-sm); border-radius: var(--chip-radius); font-size: var(--type-dense-size); border-color: var(--border-strong); }
+  .filter-chip[aria-checked='true'] { color: var(--foreground); background: var(--card); border-color: var(--jc-ink-12); box-shadow: inset 0 0 0 1px var(--jc-ink-12); }
+  .ai-tag { border-radius: var(--tag-radius); color: var(--kassandra); border-color: var(--kassandra-border); background: var(--kassandra-tint); letter-spacing: var(--type-micro-tracking); }
+
+  /* Segmented controls */
+  .seg, .op-toggle { border-radius: var(--radius-control); background: var(--muted); }
+  .op-toggle { border-color: var(--field-border); }
+  .seg > button { height: var(--control-height-xs); border-radius: var(--radius-mark); font-size: var(--type-dense-size); }
+  .op-toggle button { border-radius: var(--radius-mark); font-size: var(--type-label-size); }
+  .seg > button[aria-selected='true'], .seg > button[aria-checked='true'], .op-toggle button[aria-pressed='true'], .op-toggle button[aria-checked='true'] { box-shadow: var(--elevation-raised); }
+
+  /* Tables: a ledger. Quiet header, hairline rows, tabular figures; the ask is in the rows, not the grid. */
+  .dec-table th { padding: 0 var(--cell-padding-x) 6px; font-size: var(--type-label-size); letter-spacing: var(--type-label-tracking); border-bottom-color: var(--border-strong); }
+  .dec-table td { height: var(--row-height-two-line); padding: var(--cell-padding-y) var(--cell-padding-x); border-bottom-color: var(--table-rule); font-variant-numeric: tabular-nums lining-nums; }
+  @media (hover: hover) { .dec-table tbody tr:not(.is-empty):hover { background: var(--overlay-hover); } }
+  .dec-table tbody tr.is-selected { background: var(--selected); }
+  .cell-1 { font-size: var(--type-dense-size); line-height: var(--type-dense-line); }
+  .cell-2 { font-size: var(--type-label-size); line-height: var(--type-label-line); margin-top: 0; }
+  table { font-variant-numeric: tabular-nums lining-nums; }
+  /* Totals take the accountant's rules: a single rule above, a double rule below. */
+  :is(tfoot, tr[data-total]) :is(td, th) { border-top: 1px solid var(--table-total-rule); border-bottom: 3px double var(--table-total-rule); font-weight: var(--type-strong-weight); }
+
+  /* Marks: bars and ticks are square-cut, 1–2px at most. */
+  .bullet, .bullet-fill, .cell-bar, .cell-bar > i, .meter-seg { border-radius: 1px; }
+  .bullet { background: var(--jc-ink-4); }
+  .run { border-radius: 1px; background: var(--jc-ink-8); }
+  .run--finding, .run-dot--finding { background: var(--jc-ink-11); }
+  .run--failed { background: repeating-linear-gradient(135deg, var(--jc-red-5) 0 3px, var(--jc-red-3) 3px 6px); }
+  .run--skipped, .run-dot--skipped { background: transparent; box-shadow: inset 0 0 0 1px var(--jc-ink-8); }
+  .run-dot { background: var(--jc-ink-8); }
+  .run-dot--failed { background: var(--jc-red-5); }
+  .meter-seg { box-shadow: inset 0 0 0 1px var(--jc-ink-8); }
+  .legend-mark--solid, .legend-mark--hatch, .legend-mark--band, .legend-mark--grey, .legend-mark--neg, .legend-mark--outline { border-radius: 1px; }
+
+  /* Rate calendar */
+  .cal-cell { border-radius: var(--radius-control); }
+  @media (hover: hover) { .cal-cell:not(:disabled):hover { filter: none; box-shadow: inset 0 0 0 1px var(--border-control); } }
+
+  /* Things that float: popovers and tips take the overlay shadow, dialogs the modal one. */
+  .run-tip, .filter-pop { border-radius: var(--popover-radius); box-shadow: var(--popover-shadow); border-color: var(--border-strong); }
+  .night-panel { box-shadow: var(--elevation-modal); }
+  .confirm-dialog, .create-dialog { border-radius: var(--dialog-radius); box-shadow: var(--dialog-shadow); border-color: var(--border-strong); }
+  .confirm-dialog::backdrop, .create-dialog::backdrop, .filter-sheet::backdrop { background: var(--scrim); }
+  .filter-sheet { border-radius: var(--dialog-radius) var(--dialog-radius) 0 0; }
+  @media (max-width: 639.98px) { .create-dialog { border-radius: 0; box-shadow: none; } }
+
+  /* Agent Studio */
+  .watcher-glyph, .timeline-node { border-radius: var(--radius-control); }
+  .timeline-node { color: var(--icon-quiet); }
+  .timeline-node--you { border-radius: var(--jc-radius-round); }
+  .run-row, .autonomy-row { border-radius: var(--radius-control); }
+  .run-row { font-size: var(--type-dense-size); }
+  .run-row__when, .run-row__dur { font-size: var(--type-label-size); font-stretch: var(--font-width-numeric); }
+  .run-steps { border-radius: var(--radius-container); font-size: var(--type-dense-size); background: var(--surface-sunken); }
+  .review-btn { background: var(--primary); color: var(--primary-foreground); border-radius: var(--button-radius); }
+  .day-toggle { width: var(--control-height-md); height: var(--control-height-md); border-radius: var(--radius-control); border-color: var(--border-strong); font-size: var(--type-dense-size); }
+  .option-card { border-radius: var(--radius-container); border-color: var(--field-border); }
+  .option-card:has(input:checked) { border-color: var(--jc-ink-12); background: var(--jc-ink-1); box-shadow: inset 0 0 0 1px var(--jc-ink-12); }
+  .option-radio { border-color: var(--border-control); }
+  .option-card:has(input:checked) .option-radio { border-color: var(--jc-ink-12); }
+  .option-card:has(input:checked) .option-radio::after { background: var(--jc-ink-12); }
+  .settings-label { font-size: var(--type-body-size); }
+  .settings-help { font-size: var(--type-label-size); line-height: var(--type-label-line); }
+  .bubble-user { border-radius: var(--radius-container) var(--radius-container) var(--radius-mark) var(--radius-container); background: var(--card); border: 1px solid var(--field-border); font-size: var(--type-body-size); line-height: var(--type-body-line); }
+  .toggle { background: var(--border-control); }
+  .toggle > i { background: var(--jc-ink-0); box-shadow: var(--elevation-raised); }
+  .toggle[aria-checked='true'] { background: var(--primary); }
+
+  /* Fields: the border is a control border (3:1 against the surface), which the default themes miss. */
+  .field-label { font-size: var(--type-dense-size); }
+  .field-input, .field-select { height: var(--control-height-md); border-radius: var(--input-radius); border-color: var(--border-control); font-size: var(--type-body-size); }
+  textarea.field-input { height: auto; }
+  .name-input { border-radius: var(--radius-control); font-size: var(--type-lead-size); }
+  @media (pointer: coarse) { .field-input, .field-select { font-size: 16px; } }
+
+  /* Filter bar */
+  .filter-btn { height: var(--control-height-md); border-radius: var(--radius-control); border-color: var(--border-strong); font-size: var(--type-dense-size); }
+  .filter-btn[aria-expanded='true'] { border-color: var(--jc-ink-12); }
+  .filter-opt { min-height: var(--control-height-sm); border-radius: var(--radius-control); font-size: var(--type-dense-size); }
+  .filter-token { height: var(--control-height-md); border-radius: var(--radius-control); font-size: var(--type-dense-size); }
+  .filter-token > button { border-radius: var(--radius-control) 0 0 var(--radius-control); }
+  .filter-token > button + button { border-radius: 0 var(--radius-control) var(--radius-control) 0; }
+  @keyframes jc-pill-flash { 0% { background: var(--jc-blue-2); } 100% { background: var(--card); } }
+  .filter-btn--flash { animation-name: jc-pill-flash; }
+
+  /* Kassandra's answers */
+  .md h3, .md h4, .md h5, .md h6 { font-weight: var(--type-strong-weight); }
+  .md code, .md-inline code { font-family: var(--font-mono); border-radius: var(--radius-mark); background: var(--surface-sunken); }
+  .md pre { border-radius: var(--radius-control); background: var(--surface-sunken); font-size: var(--type-label-size); }
+  .md a { color: var(--link); }
+  .md table { font-size: var(--type-dense-size); font-stretch: var(--font-width-numeric); }
+  .md th { font-size: var(--type-label-size); letter-spacing: var(--type-label-tracking); border-bottom-color: var(--border-strong); }
+  .md td { height: var(--row-height); border-bottom-color: var(--table-rule); padding-block: 5px; }
+
+  /* Charts drawn by ECharts: the theme sets axis and grid defaults (echart.ts); text takes the numeric cut here,
+     because option builders name their font inline. */
+  app-echart text { font-family: var(--font-numeric) !important; font-stretch: var(--font-width-numeric); font-variant-numeric: tabular-nums lining-nums; }
+
+  /* Shell: the rail's current item is a filled row; the mobile bar keeps the paper surface. */
+  nav[aria-label='Main']:not(.fixed) { border-right-color: transparent; }
+  nav[aria-label='Main']:not(.fixed) :is(button, a) { border-radius: var(--nav-item-radius); }
+}
+
+@keyframes jc-settle {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: none; }
+}
