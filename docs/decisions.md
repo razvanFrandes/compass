@@ -411,7 +411,7 @@ Kassandra is drawn by the same components wherever she appears (`apps/web/src/ap
   - **Widgets** (`show_widget`, contracts §3) are drawn by `<juyo-widget-chart>` from the tool's rows.
   - **Widgets appear in three phases, in one card that never changes size** (the "Skeletons" rule above; the mapping is `kassandra/live-slots.ts`):
     1. *Chosen*: `live.tools` has a `show_widget` call that is pending or running. The card shows skeleton lines for the title and the chart's skeleton. The kind is not known yet (`live.tools` carries no arguments), so the shape is a neutral bar chart.
-    2. *Described*: the call's entry is committed with its arguments. The title and subtitle are real, and the chart area is the skeleton of that widget kind (`<juyo-widget-chart [spec] [rows]="null" [loading]="true">`), already at its final dimensions.
+    2. *Described*: the call's entry is committed with its arguments. The title and subtitle are real, and the chart area is the skeleton of that widget kind (`<juyo-widget-chart [spec] [rows]="null" loading="title">`), already at its final dimensions.
     3. *Ready*: the `tool_result` with `widget` is in. The chart takes the skeleton's place inside the same element, and "How this was computed" and "Add to board" take the place of their skeletons.
   - A skeleton that has appeared stays at least 300 ms (`SkeletonHold`), so a fast result does not flicker in. A transcript loaded from the server shows its charts at once, with no skeleton. A failed call or a stopped run leaves no skeleton.
   - The shimmer is a slow, faint sweep (`.k-skel`); under `prefers-reduced-motion` it is a static block.
@@ -427,4 +427,11 @@ Kassandra is drawn by the same components wherever she appears (`apps/web/src/ap
 - **Threads in the sidebar** have distinct titles (the scope in brackets is dropped, a taken title gets a number), a relative time, and ⋯ with Rename (in place) and Delete (with Undo). The list is this browser's; the transcripts stay on the server.
 - **The hotel scope goes with every question** (`scope.hotels`, contracts §1), read from `ScopeService`. An empty scope is left out: the whole group.
 - **Describe a view** on a board sends "Build a board view: …" on a conversation of its own, shows Kassandra's work under the bar, and saves every widget she answers with on that board, with a receipt and Undo.
-- **Placeholders, until the other branches land** (same path, selector and inputs, so each is replaced by taking the other branch's file): `orb/juyo-orb.ts` (an adapter over the round 3 shader orb), `charts/widget-chart.ts` (a KPI figure or a table of the rows), `scope/scope.service.ts` (`hotels` signal). The Round 2 types live in `api/round2-contracts.ts` until `@compass/contracts` exports them.
+- **Integrated (2026-11-21).** The placeholders are gone; the family uses the real components:
+  - `<juyo-widget-chart>` from `charts/`: `kassandra-widget` maps its phase to `[loading]` (chosen → `skeleton`, described → `title`, ready → `none`). The card keeps its own title and passes `[header]="false"`.
+  - `<juyo-orb>` from `orb/` (WebGL) in voice mode only, fed `level`, `bands` (a `Float32Array`) and `state`. At rest the composer shows the CSS mark, so a page of composers holds no WebGL context.
+  - `ScopeService` from `scope/`; the composer's scope chip is `ScopeService.label()`, the same words as the sidebar switcher.
+  - The Thread sits in `<juyo-evidence-layout>` (resizable split; bottom sheet on phones). `evidenceSelected` opens the tool call's card. The panel draws its own waiting cards from `stepsWithLive()`, so `kassandra-evidence-pending` was removed.
+  - Boards have one client, `BoardsService` (`/api/boards`): "Add to board" and "Describe a view" save through it, so the Boards pages redraw without a reload. Saved widgets are drawn by `<juyo-widget-chart>`.
+  - The Round 2 types are defined once, in `@compass/contracts`; `api/round2-contracts.ts` and `boards/types.ts` re-export them.
+  - The built-in boards are `built-in-portfolio` and `built-in-dubai`, because the server's sample board "Portfolio overview" has the id `portfolio`.

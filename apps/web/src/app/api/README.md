@@ -66,7 +66,7 @@ A `ChatTurn` is `{ key, question, pending, steps, answer, streamingText, running
 - **`/ask?q=…`** (links in the alert emails) must pre-fill the composer with `q` and must not call `ask()`.
 - **Scope.** `ask(text, mode, { hotels })` restricts the answer to those hotels (round2-contracts §1). An empty list is left out of the message: the whole group. `Live` passes `ScopeService.hotels()` with every question.
 - **Widgets.** A `show_widget` step carries `widget`: the spec plus the `rows`, `columns` and `evidence` of the tool result it names (round2-contracts §3). `<kassandra-conversation>` draws it; do not render it yourself.
-- **Round 2 types** (`AskScope`, `WidgetSpec`, `ChatWidget`, `EvidenceColumn`, `Board`, `BoardWidget`, `VoiceToken`) are in `round2-contracts.ts` until `@compass/contracts` exports them.
+- **Round 2 types** (`AskScope`, `WidgetSpec`, `ChatWidget`, `EvidenceColumn`, `Board`, `BoardWidget`, `VoiceToken`) are defined in `@compass/contracts`; `round2-contracts.ts` re-exports them under these names.
 
 The screens do not render turns themselves any more: `src/app/kassandra/` has the one composer (`<kassandra-composer>`) and the one conversation (`<kassandra-conversation [turns] [phase] [error] [usage]>`), used by every surface.
 
