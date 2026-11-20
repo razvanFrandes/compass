@@ -35,6 +35,10 @@ export class DurableWorkflowStore implements WorkflowStore {
     // One delete call takes at most 128 keys.
     for (let i = 0; i < keys.length; i += 128) await this.#storage.delete(keys.slice(i, i + 128));
   }
+  /** Removes the workflow alone: what it did (runs, proposals, audit entries) stays, for a workflow a person deleted. */
+  async forgetWorkflow(id: string): Promise<void> {
+    await this.#storage.delete(`wf:${id}`);
+  }
   getRun(id: string) {
     return this.#storage.get<WorkflowRun>(`run:${id}`);
   }
@@ -90,6 +94,14 @@ export class DurableWorkflowStore implements WorkflowStore {
   }
   async listAudit(): Promise<AuditEntry[]> {
     return [...(await this.#storage.list<AuditEntry>({ prefix: 'audit:', reverse: true })).values()];
+  }
+
+  // ---- flags (things done once: the templates seeded, the first runs started)
+  async flag(name: string): Promise<boolean> {
+    return (await this.#storage.get<boolean>(`flag:${name}`)) === true;
+  }
+  async setFlag(name: string): Promise<void> {
+    await this.#storage.put(`flag:${name}`, true);
   }
 
   // ---- email

@@ -30,11 +30,22 @@ afterAll(() => db.close());
 
 type Shown = { rows: Record<string, unknown>[]; evidence: Evidence; args: Record<string, unknown> };
 
-async function evidenceOf(tool: DataTool, raw: Record<string, unknown>): Promise<Shown> {
-  const args = tool.input.parse(raw);
-  const outcome = await tool.run(data, args as never);
-  if (!outcome.ok) throw new Error(`${tool.name} failed: ${outcome.text}`);
-  return { ...(outcome.structured as Omit<Shown, 'args'>), args };
+/** Each distinct call runs once: some of these queries are heavy, and the database is shared with the other suites. */
+const ran = new Map<string, Promise<Shown>>();
+
+function evidenceOf(tool: DataTool, raw: Record<string, unknown>): Promise<Shown> {
+  const key = `${tool.name} ${JSON.stringify(raw)}`;
+  let shown = ran.get(key);
+  if (!shown) {
+    shown = (async () => {
+      const args = tool.input.parse(raw);
+      const outcome = await tool.run(data, args as never);
+      if (!outcome.ok) throw new Error(`${tool.name} failed: ${outcome.text}`);
+      return { ...(outcome.structured as Omit<Shown, 'args'>), args };
+    })();
+    ran.set(key, shown);
+  }
+  return shown;
 }
 
 describe('tool views', () => {

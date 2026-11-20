@@ -21,3 +21,6 @@ export function routeOf(pathname: string): Route {
  * builder's Durable Object and is all that guards the draft, so a short, guessable id is refused.
  */
 export const isDraftId = (id: string): boolean => /^[A-Za-z0-9_-]{16,64}$/.test(id);
+
+/** A workflow id as the server makes them (`wf-1a2b3c4d`, `tpl-pace-guard`): 1–64 letters, digits, - or _. */
+export const isWorkflowId = (id: string): boolean => /^[A-Za-z0-9_-]{1,64}$/.test(id);

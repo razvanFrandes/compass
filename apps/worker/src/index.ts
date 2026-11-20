@@ -16,7 +16,7 @@ import { groupHotels, HOTELS_UNAVAILABLE, scopeFor } from './presentation/hotels
 import { preflight, withCors, withoutCors } from './presentation/http/cors.ts';
 import { internalError } from './presentation/http/errors.ts';
 import { isAllowedOrigin, PUBLIC_HOST, rejectCrossSite } from './presentation/http/origin.ts';
-import { isDraftId, routeOf } from './presentation/http/routes.ts';
+import { isDraftId, isWorkflowId, routeOf } from './presentation/http/routes.ts';
 import { voiceTokenResponse } from './presentation/http/voice.ts';
 import { createCompassMcpServer } from './presentation/mcp/server.ts';
 
@@ -154,6 +154,9 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     if (origin && !isAllowedOrigin(origin)) return new Response('Origin not allowed', { status: 403 });
     const draft = url.searchParams.get('draft') ?? '';
     if (!isDraftId(draft)) return new Response('Pass ?draft=<id> (16–64 letters, digits, - or _)', { status: 400 });
+    // &workflow=<id> opens a saved workflow in a new draft ("Edit"). The object loads it; here only its form is checked.
+    const workflow = url.searchParams.get('workflow');
+    if (workflow !== null && !isWorkflowId(workflow)) return new Response('Pass &workflow=<id> (letters, digits, - or _)', { status: 400 });
     return env.WORKFLOW_BUILDER.getByName(draft).fetch(request);
   }
 
@@ -226,7 +229,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   return error(404, 'Not found');
 }
 
-/** Workflows (Act): list, create, edit, run; proposals inbox, decisions, undo; audit log; run logs. */
+/** Workflows (Act): list, create, edit, duplicate, delete, run; proposals inbox, decisions, undo; audit log; run logs. */
 async function workflowRoutes(request: Request, url: URL, env: Env): Promise<Response> {
   const agents = env.WORKFLOWS.getByName('halcyon');
   const parts = url.pathname.split('/').filter(Boolean); // ['api', 'workflows', id?, action?]
@@ -260,6 +263,11 @@ async function workflowRoutes(request: Request, url: URL, env: Env): Promise<Res
       const b = await body();
       return b.ok ? json(await agents.update(id, b.value as never)) : b.response;
     }
+    if (id && !action && method === 'DELETE') {
+      const removed = await agents.remove(id);
+      return 'error' in removed ? json(removed) : new Response(null, { status: 204 });
+    }
+    if (id && action === 'duplicate' && method === 'POST') return json(await agents.duplicate(id));
     if (id && action === 'run' && method === 'POST') {
       const refused = (await limited()) ?? (await overBudget(env, request, 'workflow_run'));
       if (refused) return refused;

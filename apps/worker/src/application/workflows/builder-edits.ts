@@ -1,4 +1,4 @@
-import { specToGraph, WorkflowSpecShape, type WorkflowDraft } from '@compass/contracts';
+import { maskEmail, specToGraph, WorkflowSpecShape, type WorkflowDraft } from '@compass/contracts';
 import type { z } from 'zod';
 import type { EntryDraft } from '@earendil-works/pi-durable';
 import { chain } from './builder-tools.ts';
@@ -34,6 +34,30 @@ export function editEntry(draft: WorkflowDraft, changed: readonly string[], at: 
         timestamp: at,
       },
     ],
+  };
+}
+
+/**
+ * A patch from a client that edits a workflow opened from the list. The client only ever saw that workflow's address
+ * masked, so a patch that sends the masked address back means "the same address": it becomes the saved one again.
+ * Any other address is the person's new one.
+ */
+export function unmaskPatch(patch: WorkflowDraft, loadedRecipient: string | null): WorkflowDraft {
+  const to = patch.delivery?.to;
+  if (!to || !loadedRecipient || to.trim().toLowerCase() !== maskEmail(loadedRecipient).toLowerCase()) return patch;
+  return { ...patch, delivery: { ...patch.delivery!, to: loadedRecipient } };
+}
+
+/**
+ * The transcript entry for a saved workflow opened in the builder, so the agent knows what is on the canvas before
+ * the person's first message. It holds the chain's labels, so the address stays masked. No run starts for it.
+ */
+export function loadedEntry(draft: WorkflowDraft, at: number): EntryDraft {
+  const reads = chain(specToGraph(draft));
+  return {
+    kind: 'app.loaded',
+    data: { name: draft.name ?? '', chain: reads },
+    model: [{ role: 'user', content: `(I opened the saved workflow "${draft.name ?? ''}" to edit it. Chain now: ${reads})`, timestamp: at }],
   };
 }
 

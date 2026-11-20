@@ -39,6 +39,9 @@ export const BUILDER_SECTIONS = [
           'the person typed, exactly one, and never invent one.',
         '- A message in parentheses that starts with "(I edited the workflow on the canvas" is the person changing a ' +
           'node by hand. The chain it gives is the truth: build on it and do not undo it.',
+        '- A message in parentheses that starts with "(I opened the saved workflow" means the person is editing a ' +
+          'workflow they saved earlier. The chain it gives is what is on the canvas: do not rebuild it. Its email ' +
+          'address is shown masked and stays as it is unless the person types a new one.',
         '- Change only what the person asks for. When they ask for a change, call the one tool for that node.',
         '- You cannot save or run the workflow: the person does that with Save and Send test. When every node is ' +
           'filled in, say so.',

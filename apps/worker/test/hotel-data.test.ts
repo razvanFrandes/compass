@@ -46,12 +46,10 @@ describe('reference data', () => {
   });
 
   it('keeps only the brief findings of the hotels in scope', async () => {
-    const all = await data.getBriefItems();
-    const codes = [...new Set(all.rows.map((item) => item.hotel_code))];
-    expect(codes.length).toBeGreaterThan(1);
-    const scoped = await data.getBriefItems([codes[0]!]);
+    // Berlin's POS feed is stale (story S7), so the brief always has a finding for BER.
+    const scoped = await data.getBriefItems(['BER']);
     expect(scoped.rows.length).toBeGreaterThan(0);
-    expect(new Set(scoped.rows.map((item) => item.hotel_code))).toEqual(new Set([codes[0]]));
+    expect(new Set(scoped.rows.map((item) => item.hotel_code))).toEqual(new Set(['BER']));
     expect(scoped.evidence.rowCount).toBe(scoped.rows.length);
   });
 
