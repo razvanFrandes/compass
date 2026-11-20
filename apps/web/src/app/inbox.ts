@@ -7,7 +7,7 @@ import { KassandraComposer } from './kassandra/kassandra-composer';
 import { PickupBars, Spark } from './brief-charts';
 import { GROUP, NIGHTS, formatEur, utc } from './data';
 import { AMS_CONVERSION, BCN_OUT_OF_ORDER, DPS_KITCHEN, LIS_PACE, NYC_ACCOUNT, PULSE } from './halcyon-data';
-import { BriefRow, CompassStore, InboxItem, briefTitle, gopMonths, isoDay, shortHotel } from './store';
+import { BriefRow, CompassStore, PORTFOLIO_BOARD, InboxItem, briefTitle, gopMonths, isoDay, shortHotel } from './store';
 import { Live } from './live';
 import { ProposalCard } from './proposal-card';
 import { ScopeSwitcher } from './scope/scope-switcher';
@@ -86,7 +86,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
               </li>
             }
           </ul>
-          <p class="text-muted-foreground mt-2.5 text-[12px]">On the books vs last year · <button type="button" class="hover:text-foreground underline underline-offset-2" (click)="store.openBoard('portfolio')">Open the portfolio →</button></p>
+          <p class="text-muted-foreground mt-2.5 text-[12px]">On the books vs last year · <button type="button" class="hover:text-foreground underline underline-offset-2" (click)="store.openBoard(portfolioBoard)">Open the portfolio →</button></p>
         </div>
       </aside>
 
@@ -229,6 +229,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
 })
 export class InboxView {
   protected readonly store = inject(CompassStore);
+  protected readonly portfolioBoard = PORTFOLIO_BOARD;
   protected readonly live = inject(Live);
   protected readonly scope = inject(ScopeService);
   protected readonly group = GROUP;

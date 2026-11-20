@@ -11,7 +11,7 @@ import { KassandraComposer } from './kassandra/kassandra-composer';
 import { KassandraDescribeView } from './kassandra/kassandra-describe-view';
 import { MetricChart } from './metric-chart';
 import { Live, ago } from './live';
-import { CompassStore } from './store';
+import { CompassStore, DUBAI_BOARD, PORTFOLIO_BOARD } from './store';
 import { METRICS, MetricKey, NIGHTS, Range, metricSeries, metricTotal } from './data';
 import { ProposalCard } from './proposal-card';
 import { BoardsService } from './boards/boards.service';
@@ -21,8 +21,8 @@ import * as icons from './icons';
 
 /** Boards that come with the product, computed in the browser from the Halcyon extract (they have filters). */
 export const BUILT_IN = [
-  { id: 'portfolio', name: 'Portfolio', description: 'All 20 hotels: position against budget, pace, pickup, forecast, mix, comp-set index and P&L' },
-  { id: 'dubai', name: 'Dubai Business Bay', description: 'Pace and rates for one hotel, and the decisions waiting on it' },
+  { id: PORTFOLIO_BOARD, name: 'Portfolio', description: 'All 20 hotels: position against budget, pace, pickup, forecast, mix, comp-set index and P&L' },
+  { id: DUBAI_BOARD, name: 'Dubai Business Bay', description: 'Pace and rates for one hotel, and the decisions waiting on it' },
 ] as const;
 export const isBuiltIn = (id: string) => BUILT_IN.some((b) => b.id === id);
 
@@ -303,7 +303,7 @@ export class SavedWidget {
               } @empty {
                 <div class="text-muted-foreground border-border col-span-full rounded-xl border border-dashed p-8 text-center text-[14px]">
                   This board is empty. Describe a view above, or use “Add to …” on any chart.
-                  <button type="button" class="text-foreground mt-1 block w-full underline underline-offset-2" (click)="store.openBoard('portfolio')">Open the Portfolio board to add catalogue charts</button>
+                  <button type="button" class="text-foreground mt-1 block w-full underline underline-offset-2" (click)="store.openBoard(portfolioBoard)">Open the Portfolio board to add catalogue charts</button>
                 </div>
               }
             </div>
@@ -344,11 +344,12 @@ export class BoardView {
   protected readonly live = inject(Live);
   protected readonly filters = inject(Filters);
   protected readonly boards = inject(BoardsService);
+  protected readonly portfolioBoard = PORTFOLIO_BOARD;
   protected readonly wide = isWide;
   protected readonly specs = PORTFOLIO_SPECS;
   protected readonly kind = computed<'portfolio' | 'dubai' | 'saved'>(() => {
     const id = this.store.activeBoardId();
-    return id === 'portfolio' ? 'portfolio' : id === 'dubai' ? 'dubai' : 'saved';
+    return id === PORTFOLIO_BOARD ? 'portfolio' : id === DUBAI_BOARD ? 'dubai' : 'saved';
   });
   protected readonly kpis = computed(() => kpis(this.filters.state()));
   protected readonly loading = signal(false);

@@ -675,6 +675,13 @@ export interface NightDecision {
 const RATE_LATEST = { when: 'today 06:00', headline: 'Raise Dubai Business Bay to the comp-set median for 16–18 Dec', why: 'Gulf Tech Week · 0.78× the comp set · 3 competitors sold out' };
 const NEXT_RUN: Record<string, string> = { rate: 'next in 21 h 40 min', pace: 'next in 22 h 40 min', feeds: 'next in 40 min' };
 
+/**
+ * The ids of the boards computed in the browser. They are not slugs the server could give a saved board: its sample
+ * boards are `portfolio`, `dubai-business-bay` and `amsterdam-web`.
+ */
+export const PORTFOLIO_BOARD = 'built-in-portfolio';
+export const DUBAI_BOARD = 'built-in-dubai';
+
 export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watcher' | 'builder' | 'notfound' | 'orb-lab' | 'catalog';
 
 /** Views with an address of their own; the rest live at "/". The builder is at /workflows/new and /workflows/<id>/edit. */
@@ -693,8 +700,8 @@ function initialView(): View {
 export class CompassStore {
   readonly view = signal<View>(initialView());
   readonly activeThreadId = signal<string | null>(null);
-  /** 'portfolio' and 'dubai' are built in (board.ts BUILT_IN); anything else is a saved board's id. */
-  readonly activeBoardId = signal('portfolio');
+  /** PORTFOLIO_BOARD and DUBAI_BOARD are built in (board.ts BUILT_IN); anything else is a saved board's id. */
+  readonly activeBoardId = signal<string>(PORTFOLIO_BOARD);
   readonly depth = signal<'quick' | 'thinker'>('thinker');
   /** The watcher page that is open, and the section to land on. */
   readonly activeWatcherId = signal('');
@@ -863,7 +870,7 @@ export class CompassStore {
   applyScope(sc: AnswerScope) {
     if (!sc.patch) return;
     this.filters.set(sc.patch, 'kassandra', sc.said);
-    this.openBoard('portfolio');
+    this.openBoard(PORTFOLIO_BOARD);
   }
   scopeDiffers(sc: AnswerScope) {
     if (!sc.patch) return false;

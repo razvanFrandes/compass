@@ -47,6 +47,7 @@
   --icon-quiet: #c9ced6;
   --text-1: #e6edf3;
   --decision: #fe7637;
+  --decision-ink: #0d1117;
   --decision-tint: #292324;
   --overlay-hover: rgb(255 255 255 / 0.06);
   --overlay-pressed: rgb(255 255 255 / 0.11);
@@ -97,6 +98,7 @@
   --icon-quiet: #4b525b;
   --text-1: #101418;
   --decision: #c2410c;
+  --decision-ink: #ffffff;
   --decision-tint: #fff4ed;
   --overlay-hover: rgb(5 54 89 / 0.05);
   --overlay-pressed: rgb(5 54 89 / 0.1);
@@ -301,7 +303,7 @@
   .decision-card:hover { box-shadow: 0 10px 30px -16px rgb(0 0 0 / 0.6); }
 }
 /* Orange is a signal; the action on it uses ink text (7.1:1), never white (2.7:1). */
-.decision-btn { background: var(--decision); color: #0d1117; }
+.decision-btn { background: var(--decision); color: var(--decision-ink); }
 .dock-fade { background: linear-gradient(to top, var(--background) 62%, transparent); }
 
 /* ───────── Segmented control (Astryx ToggleButtonGroup look) ───────── */
