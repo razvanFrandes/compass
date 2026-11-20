@@ -44,6 +44,9 @@ wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=<id>
 
 `ChatLive`:
 - `running` — show the Stop button while it is true;
+- `phase` — what the agent is doing: `idle | waiting | thinking | writing | tools`.
+  - `waiting`: the model has sent nothing yet. `thinking`: it is reasoning, with no answer text yet. `writing`: `streamingText` is growing. `tools`: it is calling tools.
+  - Thinker (Sonnet) often sends its reasoning first and the whole answer at the end: `streamingText` stays empty for a few seconds while `phase` is `thinking`, then the `assistant` entry lands. Show a "Thinking…" state from `phase`, not from an empty `streamingText`. Quick answers stream.
 - `streamingText` — the answer being written, before it lands as an `assistant` entry;
 - `tools: [{ callId, name, status }]`, where `status` is `pending | running | done | sleeping | waiting`;
 - `turns`;
@@ -72,6 +75,7 @@ user entry
   └ assistant (stopReason toolUse)       → "Worked for 4s · 3 steps" (collapsed), one step per toolCall
       └ tool_result (matched by callId)  → step done ✓ / error; rows + evidence for widgets
   └ assistant (stopReason stop)          → the answer (Markdown)
+live.phase                               → "Thinking…" / "Writing…" / tool steps while the run is going
 live.streamingText                       → the answer while it is being written
 ```
 

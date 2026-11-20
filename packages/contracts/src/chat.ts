@@ -47,6 +47,12 @@ export type ChatEntry =
 export interface ChatLive {
   /** A run is going: the agent is thinking, calling tools or writing. */
   running: boolean;
+  /**
+   * What the agent is doing right now: `waiting` for the model's first output, `thinking` (reasoning, no answer text
+   * yet), `writing` (`streamingText` is growing), `tools` (calling tools), `idle` with no run. The server always sends
+   * it. Thinker answers can stay in `thinking` for seconds and then land whole: the model sends its reasoning first.
+   */
+  phase?: 'idle' | 'waiting' | 'thinking' | 'writing' | 'tools';
   /** The answer being streamed right now, before it is committed as an `assistant` entry. */
   streamingText: string;
   /** Tool calls of the current turn and their status. */

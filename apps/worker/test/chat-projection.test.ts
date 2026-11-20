@@ -65,7 +65,7 @@ describe('projectEntries', () => {
 
 describe('projectLive', () => {
   it('is idle with no run', () => {
-    expect(projectLive({})).toEqual({ running: false, streamingText: '', tools: [], turns: 0, failure: null, usage: { tokens: 0, costUsd: 0 } });
+    expect(projectLive({})).toEqual({ running: false, phase: 'idle', streamingText: '', tools: [], turns: 0, failure: null, usage: { tokens: 0, costUsd: 0 } });
   });
 
   it('shows a running run, its streamed text and its tools', () => {
@@ -79,6 +79,7 @@ describe('projectLive', () => {
     });
     expect(live).toEqual({
       running: true,
+      phase: 'tools',
       streamingText: 'Lisbon is ',
       tools: [{ callId: 'c1', name: 'get_pace', status: 'running' }],
       turns: 1,
@@ -91,6 +92,40 @@ describe('projectLive', () => {
     const live = projectLive({ 'pi.live': { runFailure: { reason: 'model_error', detail: 'boom' } } });
     expect(live.failure).toEqual({ reason: 'model_error', detail: 'boom' });
     expect(live.running).toBe(false);
+  });
+});
+
+describe('projectLive phase', () => {
+  const during = (generation?: unknown, tools: unknown[] = []) =>
+    projectLive({ 'pi.live': { run: { taskId: 9, turns: 0 }, ...(generation ? { generation } : {}), tools } });
+  const partial = (...content: unknown[]) => ({ attempt: 1, message: { role: 'assistant', content } });
+
+  it('is waiting until the model sends its first block', () => {
+    expect(during().phase).toBe('waiting');
+    expect(during({ attempt: 1 }).phase).toBe('waiting');
+  });
+
+  // Captured from a Thinker (Sonnet) turn: the provider sends the reasoning first and the answer only at the end,
+  // so for seconds the partial holds a thinking block and no text.
+  it('is thinking while the partial answer holds only reasoning, and streams none of it as text', () => {
+    const live = during(partial({ type: 'thinking', thinking: 'The brief shows…', thinkingSignature: '' }));
+    expect(live.phase).toBe('thinking');
+    expect(live.streamingText).toBe('');
+  });
+
+  it('is writing once answer text follows the reasoning', () => {
+    const live = during(partial({ type: 'thinking', thinking: 'The brief shows…' }, { type: 'text', text: 'Lisbon is ' }));
+    expect(live.phase).toBe('writing');
+    expect(live.streamingText).toBe('Lisbon is ');
+  });
+
+  it('is tools while the model writes a tool call or a tool runs', () => {
+    expect(during(partial({ type: 'text', text: 'Let me check.' }, { type: 'toolCall', id: 'c1', name: 'get_pace', arguments: {} })).phase).toBe('tools');
+    expect(during(undefined, [{ callId: 'c1', name: 'get_pace', status: 'running' }]).phase).toBe('tools');
+  });
+
+  it('is idle after a failed run, whatever partial was left', () => {
+    expect(projectLive({ 'pi.live': { runFailure: { reason: 'aborted' }, generation: partial({ type: 'text', text: 'Lis' }) } }).phase).toBe('idle');
   });
 });
 

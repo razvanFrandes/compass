@@ -73,6 +73,20 @@ function redactDetail(detail: string): string {
   return clean.length > 200 ? `${clean.slice(0, 199)}…` : clean;
 }
 
+/**
+ * What the agent is doing, from the partial answer's last block. A provider may send the reasoning first and the whole
+ * answer at the end (Thinker on Sonnet does), so `streamingText` can stay empty for seconds while this says why.
+ */
+function phaseOf(running: boolean, content: unknown, tools: readonly unknown[]): NonNullable<ChatLive['phase']> {
+  if (!running) return 'idle';
+  if (tools.length > 0) return 'tools';
+  const last = asArray<Part>(content).at(-1);
+  if (last?.type === 'toolCall') return 'tools';
+  if (last?.type === 'text' && last.text) return 'writing';
+  if (last?.type === 'thinking') return 'thinking';
+  return 'waiting';
+}
+
 export function projectLive(docs: Readonly<Record<string, unknown>>): ChatLive {
   const live = (docs['pi.live'] ?? {}) as Json;
   const run = live['run'] as { turns?: number } | undefined;
@@ -83,14 +97,16 @@ export function projectLive(docs: Readonly<Record<string, unknown>>): ChatLive {
     (sum, u) => ({ tokens: sum.tokens + (u.totalTokens ?? 0), costUsd: sum.costUsd + (u.cost?.total ?? 0) }),
     { tokens: 0, costUsd: 0 },
   );
+  const tools = asArray<{ callId: string; name: string; status: string }>(live['tools']).map((t) => ({
+    callId: t.callId,
+    name: t.name,
+    status: t.status,
+  }));
   return {
     running: run !== undefined,
+    phase: phaseOf(run !== undefined, generation?.message?.content, tools),
     streamingText: textOf(generation?.message?.content),
-    tools: asArray<{ callId: string; name: string; status: string }>(live['tools']).map((t) => ({
-      callId: t.callId,
-      name: t.name,
-      status: t.status,
-    })),
+    tools,
     turns: run?.turns ?? 0,
     failure: failure?.reason
       ? { reason: failure.reason, ...(typeof failure.detail === 'string' ? { detail: redactDetail(failure.detail) } : {}) }
