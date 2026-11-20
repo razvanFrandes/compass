@@ -1,3 +1,4 @@
+import type { Budget } from './presentation/budget.ts';
 import type { Kassandra } from './presentation/agents/kassandra.ts';
 import type { Briefs } from './presentation/briefs.ts';
 import type { WorkflowAgents } from './presentation/agents/workflow-agents.ts';
@@ -10,4 +11,9 @@ export interface Env {
   KASSANDRA: DurableObjectNamespace<Kassandra>;
   BRIEFS: DurableObjectNamespace<Briefs>;
   WORKFLOWS: DurableObjectNamespace<WorkflowAgents>;
+  BUDGET: DurableObjectNamespace<Budget>;
+  /** Per-UTC-day limits of the public demo, e.g. { "question": 300 }. Missing keys keep the defaults (domain/budget.ts). */
+  DAILY_LIMITS?: unknown;
+  /** Optional secret: requests with `x-compass-admin-key: <ADMIN_KEY>` skip the daily budget. */
+  ADMIN_KEY?: string;
 }

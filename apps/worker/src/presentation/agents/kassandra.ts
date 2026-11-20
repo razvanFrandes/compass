@@ -15,6 +15,9 @@ import { KASSANDRA_SECTIONS } from './kassandra-prompt.ts';
 import { agentChangeFor, THINKER_MODEL, type AnswerMode } from './modes.ts';
 import { createDataExtension } from './pi-data-extension.ts';
 import { createDraftWorkflowExtension } from '../../application/workflows/draft-tool.ts';
+import { BUDGET_NAME } from '../budget.ts';
+import { budgetMessage } from '../http/budget-response.ts';
+import { PublicError, publicMessage } from '../http/errors.ts';
 
 export interface KassandraAnswer {
   status: 'done' | 'unanswered';
@@ -87,9 +90,10 @@ export class Kassandra extends DurableObject<Env> {
     });
 
     socket.addEventListener('message', (event) => {
-      void this.#onClientMessage(event.data, client).catch((error: unknown) =>
-        send({ type: 'error', message: error instanceof Error ? error.message : String(error) }),
-      );
+      void this.#onClientMessage(event.data, client).catch((error: unknown) => {
+        if (!(error instanceof PublicError)) console.error('kassandra message failed', error);
+        send({ type: 'error', message: publicMessage(error) });
+      });
     });
 
     try {
@@ -113,7 +117,8 @@ export class Kassandra extends DurableObject<Env> {
       });
       await closed;
     } catch (error) {
-      send({ type: 'error', message: error instanceof Error ? error.message : String(error) });
+      console.error('kassandra socket failed', error);
+      send({ type: 'error', message: publicMessage(error) });
       socket.close(1011, 'Kassandra is unavailable');
     } finally {
       await watch?.stop();
@@ -121,18 +126,25 @@ export class Kassandra extends DurableObject<Env> {
   }
 
   async #onClientMessage(raw: unknown, client: string): Promise<void> {
-    const message = JSON.parse(String(raw)) as ChatClientMessage;
+    let message: ChatClientMessage;
+    try {
+      message = JSON.parse(String(raw)) as ChatClientMessage;
+    } catch {
+      throw new PublicError('Send a JSON message.');
+    }
     const session = this.harness.session();
     if (message.type === 'abort') {
       await session.abort();
       return;
     }
     const text = message.text?.trim();
-    if (!text || text.length > 2000) throw new Error('Send a question of 1–2000 characters.');
-    // Every question spends model tokens, so it is rate-limited per client.
+    if (typeof text !== 'string' || !text || text.length > 2000) throw new PublicError('Send a question of 1–2000 characters.');
+    // Every question spends model tokens: rate-limited per client and counted against the demo's daily budget.
     if (!(await this.env.ASK_RATE_LIMIT.limit({ key: client })).success) {
-      throw new Error('Too many questions. Wait a minute and try again.');
+      throw new PublicError('Too many questions. Wait a minute and try again.');
     }
+    const budget = await this.env.BUDGET.getByName(BUDGET_NAME).take('question');
+    if (!budget.ok) throw new PublicError(budgetMessage(budget));
     if (message.type === 'steer') await session.steer(text);
     else {
       await this.#useMode(message.mode ?? 'thinker');

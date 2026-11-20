@@ -2,6 +2,14 @@
 
 Base URL: `https://juyo.razvanfrandes.com`. Locally, `wrangler dev` in `apps/worker` serves `http://localhost:8787`.
 
+## Rules for every call
+
+- **Same origin.** `POST`, `PATCH`, `PUT` and `DELETE` under `/api/` are refused (403) when `Origin` is another site. CORS is allowed only for the Angular dev server (`http://localhost:4200`).
+- **Body size.** JSON bodies are at most 16 KB (413). Invalid JSON gets 400.
+- **Errors** are `{ "error": "…" }`. A 500 never carries internals.
+- **Daily budget.** Questions, workflow runs, decisions and brief refreshes are counted per UTC day for all visitors together. Over the limit: 429 with `{ error, resetsAt }` and `Retry-After`. Show `error` as is. See `docs/security.md`.
+- **`GET /api/budget`** returns today's usage: `{ question: { used, limit }, workflow_run: …, decision: …, brief_refresh: … }`.
+
 The types live in `packages/contracts` (`@compass/contracts`). Import them instead of redefining them.
 
 ## Kassandra chat: WebSocket
@@ -21,7 +29,7 @@ wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=<id>
 | `snapshot` | right after connecting | `entries: ChatEntry[]` (newest ≤ 50), `live: ChatLive` |
 | `entries` | a new transcript entry was committed | `entries: ChatEntry[]`. Entries never change. Append them by `id`. |
 | `live` | the run state changed | `live: ChatLive`. Replace the previous one. |
-| `error` | a rejected message (rate limit, empty question) | `message: string` |
+| `error` | a rejected message (rate limit, daily budget, empty question) | `message: string` |
 
 `ChatEntry` (discriminated by `kind`):
 - `user` — `{ text }`
@@ -54,7 +62,7 @@ wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=<id>
   - **`quick`:** Claude Haiku 5.5, only the governed-metric tools (plus `get_pnl` and `get_forecast`), at most 4 turns, three sentences. About 5–9 s and a few cents.
   - **`thinker`** (default): Claude Sonnet 5.5, all 24 data tools, cross-source diagnosis. About 8–20 s.
   - The mode applies from the next question. A question sent while an answer is running keeps the current mode.
-- **Rate limit:** 6 questions per minute per client. Over the limit, the server sends an `error` message.
+- **Rate limit:** 6 questions per minute per client, and the daily budget (`steer` counts as a question). Over a limit, the server sends an `error` message.
 
 ### Rendering a turn
 
@@ -99,20 +107,20 @@ Agents that watch the numbers, propose an action and act once a person approves.
 | Method | Path | What |
 |---|---|---|
 | GET | `/api/workflows` | `Workflow[]`. Five templates are seeded on first use, one per brief finding. |
-| POST | `/api/workflows` | Create from a `WorkflowSpec` (e.g. a Kassandra draft). Returns `Workflow`. |
+| POST | `/api/workflows` | Create from a `WorkflowSpec` (e.g. a Kassandra draft). Returns `Workflow`. At most 30 workflows (409 beyond). |
 | GET | `/api/workflows/:id` | `{ workflow, runs, proposals }` |
 | PATCH | `/api/workflows/:id` | Change fields, e.g. `{ "enabled": false }` or `{ "autonomy": "suggest" }`. |
-| POST | `/api/workflows/:id/run` | Run now ("Run now" button). Returns `WorkflowRun`. Rate-limited. |
+| POST | `/api/workflows/:id/run` | Run now ("Run now" button). Returns `WorkflowRun`. Rate-limited and budgeted. |
 | GET | `/api/runs/:runId` | `{ run, entries: ChatEntry[] }`: the run's log, projected like the chat. |
 | GET | `/api/proposals?status=pending` | The approval inbox: `Proposal[]` with `change: { before, after, scope }`, `rationale`, `impact_eur`, `risk`. |
-| POST | `/api/proposals/:id/decision` | `{ "approved": true, "by": "Ana Pop (RM)", "note": "" }`. Wakes the parked run. |
+| POST | `/api/proposals/:id/decision` | `{ "approved": true, "by": "Ana Pop (RM)", "note": "" }`. Wakes the parked run. Budgeted. |
 | POST | `/api/proposals/:id/undo` | `{ "by": "…" }` on an applied proposal: a compensating RMS task, audited. |
 | GET | `/api/audit` | `AuditEntry[]`, newest first. |
 
 **Autonomy** (per workflow) is how trust is earned gradually:
 - `suggest` only records proposals;
 - `approve` waits for a person;
-- `auto_low_risk` applies low-risk actions (tasks, notifications) alone and asks for prices or channels.
+- `auto_low_risk` applies low-risk actions (tasks, notifications) alone and asks for prices or channels. `adjust_bar`, `close_channel` and `open_channel` are always high risk, whatever the agent says.
 
 **Proposal status:** `pending → approved → applied`, or `denied`, `auto_approved`, `suggested`, `undone`. `superseded` means the agent replaced the proposal with an amended one, for example to meet a condition in the approver's note.
 
@@ -132,7 +140,9 @@ Agents that watch the numbers, propose an action and act once a person approves.
 - **F&B, M&E and guests:** `get_fnb`, `get_labor`, `get_meetings_events`, `get_review_scores`, `find_reviews` (by meaning), `search_reviews` (exact phrase).
 - **Brief and escape hatch:** `get_brief`, `run_readonly_query`.
 
-Connect Claude Desktop to it under Settings → Connectors → Add custom connector. Rate limit: 60 requests per minute per client.
+Connect Claude Desktop to it under Settings → Connectors → Add custom connector. Rate limit: 60 requests per minute per client. Bodies at most 64 KB. Browser requests from other origins get 403.
+
+Tools that return outside free text (`find_reviews`, `search_reviews`, `get_account_production`, `run_readonly_query`) wrap their rows in `<untrusted_data>` in the text content. `structuredContent` is not wrapped.
 
 ### `find_reviews`: guest reviews by meaning
 

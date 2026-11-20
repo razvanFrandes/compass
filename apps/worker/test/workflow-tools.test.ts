@@ -155,4 +155,24 @@ describe('workflow approval flow', () => {
     expect([...store.proposals.values()][0]!.status).toBe('auto_approved');
     await harness.close(context);
   });
+
+  it.each(['adjust_bar', 'close_channel', 'open_channel'])(
+    'never auto-applies %s, even when the model calls it low risk (e.g. after injected review text)',
+    async (action) => {
+      const { faux, harness, root, store } = await setup('auto_low_risk');
+      faux.setResponses([
+        fauxAssistantMessage(fauxToolCall('propose_action', { ...PROPOSAL, action, risk: 'low' }), { stopReason: 'toolUse' }),
+        fauxAssistantMessage(fauxText('Waiting.')),
+      ]);
+      const submission = await root.submit({ type: 'input', content: 'Run the workflow now.' }, context);
+      await expect.poll(() => [...store.proposals.values()][0]?.status, { timeout: 5000 }).toBe('pending');
+      const proposal = [...store.proposals.values()][0]!;
+      expect(proposal).toMatchObject({ action, risk: 'high', decidedBy: null });
+      expect(store.runs.get('run-1')!.status).toBe('waiting_approval');
+      await harness.signal(store.taskOf(proposal.id)!, DecisionSignal, 'decision', { approved: false, by: 'Ana', note: '' }, context);
+      await submission.wait(context);
+      expect(store.audit).toHaveLength(0);
+      await harness.close(context);
+    },
+  );
 });

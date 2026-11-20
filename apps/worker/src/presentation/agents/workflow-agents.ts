@@ -19,6 +19,9 @@ import { createDataExtension } from './pi-data-extension.ts';
 
 export type WorkflowError = { error: string; status: number };
 
+/** Enabled workflows run every morning from the cron, so their number bounds the daily spend: cap it. */
+export const MAX_WORKFLOWS = 30;
+
 /**
  * The workflow agents of the group, in one Durable Object. Each run is its own durable Pi session: it checks the data,
  * proposes an action and, when a person must approve, parks on a durable signal. The wait holds no invocation and
@@ -65,6 +68,9 @@ export class WorkflowAgents extends DurableObject<Env> {
   async create(input: WorkflowSpecInput, createdBy: Workflow['createdBy'] = 'user'): Promise<Workflow | WorkflowError> {
     const parsed = WorkflowSpec.safeParse(input);
     if (!parsed.success) return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '), status: 400 };
+    if ((await this.list()).length >= MAX_WORKFLOWS) {
+      return { error: `The demo holds at most ${MAX_WORKFLOWS} workflows. Disable or edit an existing one.`, status: 409 };
+    }
     const workflow: Workflow = { ...parsed.data, id: `wf-${crypto.randomUUID().slice(0, 8)}`, createdAt: new Date().toISOString(), createdBy, lastRun: null };
     await this.store.putWorkflow(workflow);
     return workflow;

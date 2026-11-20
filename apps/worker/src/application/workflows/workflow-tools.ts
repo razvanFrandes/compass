@@ -3,6 +3,7 @@ import type { Context } from '@earendil-works/chord/context';
 import { defineSignal, type Extension, type ToolExecutionApi, type ToolRegistration } from '@earendil-works/pi-durable';
 import { bool, obj, str } from '@earendil-works/pi-schema';
 import { z } from 'zod';
+import { proposalRisk, proposalStatus } from '../../domain/action-risk.ts';
 import type { WorkflowStore } from './store.ts';
 
 /**
@@ -27,7 +28,9 @@ const ProposeArgs = z.object({
   after: z.string().max(120).describe('The proposed state, e.g. "900–1,050 AED"'),
   scope: z.string().max(160).describe('Dates, room types or channels the change covers'),
   impact_eur: z.number().nullable().default(null).describe('EUR impact from a tool result, or null'),
-  risk: z.enum(['low', 'high']).describe('low: reversible and small (a notification, a task); high: prices, channels, contracts'),
+  risk: z
+    .enum(['low', 'high'])
+    .describe('low: reversible and small (a notification, a task); high: prices, channels, contracts. adjust_bar, close_channel and open_channel are always high.'),
 });
 
 const ApplyArgs = z.object({ proposal_id: z.string() });
@@ -70,8 +73,9 @@ export function createWorkflowExtension(store: WorkflowStore, now: () => Date = 
       }
 
       const args = ProposeArgs.parse(rawArgs);
-      const status: Proposal['status'] =
-        workflow.autonomy === 'suggest' ? 'suggested' : workflow.autonomy === 'auto_low_risk' && args.risk === 'low' ? 'auto_approved' : 'pending';
+      // The model's risk rating is advice: price and channel actions are always high risk, so they always need a person.
+      const risk = proposalRisk(args.action, args.risk);
+      const status = proposalStatus(workflow.autonomy, risk);
       const proposal: Proposal = {
         id: newId('prop'),
         workflowId: workflow.id,
@@ -82,7 +86,7 @@ export function createWorkflowExtension(store: WorkflowStore, now: () => Date = 
         rationale: args.rationale,
         change: { before: args.before, after: args.after, scope: args.scope },
         impact_eur: args.impact_eur,
-        risk: args.risk,
+        risk,
         status,
         createdAt: now().toISOString(),
         decidedBy: status === 'auto_approved' ? 'auto (low risk)' : null,

@@ -7,6 +7,7 @@ These are the decisions made so far, in the discussion phase (2026-11-20). No co
 | Area | Choice | Why |
 |---|---|---|
 | Repo | New repo `compass-mvp`, separate from the POC | Clean history. The POC stays as a reference at `/Users/razvan/Web/compass`. |
+| Public access | **No login.** Same-origin check on mutating calls, per-client rate limits and a **daily budget** for all visitors (Budget Durable Object). Price and channel actions are always high risk. Details: `docs/security.md`. | Reviewers must try the demo without signing up, and the owner's model spend must stay bounded. A visitor can still change demo state; nothing outside Compass changes. |
 | Framework | Angular 22 (standalone, signals, zoneless) + Tailwind CSS v4 | Same as the POC. Juyo's own product is built in Angular. |
 | Component kit | **Spartan UI** (spartan.ng: brain + helm), not Zard | Preferred by the user. More mature: about 3k stars, in the Thoughtworks Radar "Assess" ring. It already ships AI-oriented helm components: `message`, `message-scroller`, `bubble`, `attachment`, `code-block`, `trace`, `questionnaire`, `skeleton`, `sonner`, `command`. |
 | Icons | **Not Lucide.** The lead candidate is **Phosphor** (`@ng-icons/phosphor-icons`, MIT); the alternative is Hugeicons Pro | Lucide is on every shadcn-style app. Phosphor's 6 weights work as a system: Light for navigation, Regular for actions, Fill or Duotone for the active state. Spartan already renders icons through `ng-icons`, so swapping sets is cheap. |

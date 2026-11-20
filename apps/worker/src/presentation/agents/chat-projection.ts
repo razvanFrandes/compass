@@ -66,6 +66,12 @@ export function projectEntries(entries: readonly unknown[]): ChatEntry[] {
   return out;
 }
 
+/** A failure detail for the browser: no URLs (they carry account ids), at most 200 characters. */
+function redactDetail(detail: string): string {
+  const clean = detail.replace(/\b[a-z][\w+.-]*:\/\/\S+/gi, '[url]');
+  return clean.length > 200 ? `${clean.slice(0, 199)}…` : clean;
+}
+
 export function projectLive(docs: Readonly<Record<string, unknown>>): ChatLive {
   const live = (docs['pi.live'] ?? {}) as Json;
   const run = live['run'] as { turns?: number } | undefined;
@@ -86,7 +92,7 @@ export function projectLive(docs: Readonly<Record<string, unknown>>): ChatLive {
     })),
     turns: run?.turns ?? 0,
     failure: failure?.reason
-      ? { reason: failure.reason, ...(typeof failure.detail === 'string' ? { detail: failure.detail } : {}) }
+      ? { reason: failure.reason, ...(typeof failure.detail === 'string' ? { detail: redactDetail(failure.detail) } : {}) }
       : null,
     usage: { tokens: usage.tokens, costUsd: Math.round(usage.costUsd * 1e6) / 1e6 },
   };

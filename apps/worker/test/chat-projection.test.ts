@@ -83,3 +83,14 @@ describe('projectLive', () => {
     expect(live.running).toBe(false);
   });
 });
+
+describe('projectLive failure detail', () => {
+  it('drops URLs and long internals from a provider error before it reaches the browser', () => {
+    const detail = '502 from https://gateway.ai.cloudflare.com/v1/0123456789abcdef/compass/anthropic/v1/messages: ' + 'x'.repeat(500);
+    const live = projectLive({ 'pi.live': { runFailure: { reason: 'model_error', detail } } });
+    expect(live.failure?.reason).toBe('model_error');
+    expect(live.failure?.detail).not.toContain('0123456789abcdef');
+    expect(live.failure?.detail).toContain('[url]');
+    expect(live.failure!.detail!.length).toBeLessThanOrEqual(200);
+  });
+});
