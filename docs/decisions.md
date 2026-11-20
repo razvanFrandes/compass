@@ -450,3 +450,13 @@ Kassandra is drawn by the same components wherever she appears (`apps/web/src/ap
   - A dialog or popover that opens from the ink rail (the hotel picker) is paper again; it used to inherit the rail's inverse roles and showed white text on white.
 - **Open:** components should adopt the tokens so the bridge can shrink; the default themes should get the same non-colour tokens; the chart option builders should read `chartStyle()`.
 
+## Copy: one voice and one vocabulary (21 Nov 2026)
+
+- **`docs/copy-glossary.md` is the source for every word a hotelier reads:** the voice rules, the terms (agent, board, chart, finding, decision, scope, on the books, last year, comp set) and the formats for money, dates and changes. New strings follow it.
+- **"Agent", never workflow or watcher,** in anything shown. Identifiers, routes and API fields keep `workflow`.
+- **The panel beside an answer is "Behind the numbers".** It was "How this was computed".
+- **Autonomy reads Suggest / Ask first / Act alone.** "Approve" as a level sat next to the Approve button and meant something else. A decision is approved or declined.
+- **Builder steps are named for what the person decides:** When, Hotels, Data, Watch for, Approval, Action.
+- **What the models write follows the same rules.** Kassandra's prompt, the brief writer, the agents' run prompts and the builder prompt each carry a short voice block: money first, hotels by name, dates as "16–18 Dec", a rate against the comp set as a percentage, no tool, table or column names.
+- **Not covered:** the Inbox and the brief header (`inbox.ts`, `brief-charts.ts`) and the docs hub, which other branches rewrite.
+

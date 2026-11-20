@@ -15,7 +15,7 @@ Thank you for the assignment. Here is what I built: Compass, a hotel analytics a
 What to try first:
 
 1. Ask Kassandra "Why is Lisbon pacing behind?"
-2. Open the workflow builder and type "Email me every morning if Lisbon's pace falls more than 10% behind last year". Then press Send test now.
+2. Open the workflow builder and type "Email me every morning if Lisbon's pace falls more than 10% behind last year". Then press Run a test.
 
 A few notes. It is a public demo with no login. All data is fictional. There are daily limits on questions, workflow runs and emails, so if the app says the budget is spent, it resets at midnight UTC. The write-up says what is real, what is mocked and what I cut.
 
