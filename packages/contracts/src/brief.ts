@@ -10,7 +10,8 @@ export type BriefKind =
   | 'account_loss'
   | 'web_conversion_drop'
   | 'staffing_gap'
-  | 'rooms_out_of_order';
+  | 'rooms_out_of_order'
+  | 'gop_miss';
 
 export interface BriefItem {
   /** Stable for the day: `<kind>:<hotel>[:<detail>]`. */

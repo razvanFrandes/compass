@@ -31,9 +31,9 @@ describe('Compass MCP server', () => {
   it('lists read-only tools with descriptions', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
-      'get_account_production', 'get_brief', 'get_channel_mix', 'get_data_health', 'get_fnb', 'get_inventory', 'get_labor', 'get_metric',
-      'get_mix', 'get_pace', 'get_pickup', 'get_rate_position', 'get_review_scores', 'get_schema', 'get_web_funnel',
-      'list_hotels', 'list_metrics', 'run_readonly_query', 'search_reviews',
+      'get_account_production', 'get_brief', 'get_channel_mix', 'get_data_health', 'get_fnb', 'get_forecast', 'get_inventory', 'get_labor',
+      'get_lost_business', 'get_meetings_events', 'get_metric', 'get_mix', 'get_pace', 'get_pickup', 'get_pnl', 'get_rate_position',
+      'get_review_scores', 'get_schema', 'get_web_funnel', 'list_hotels', 'list_metrics', 'run_readonly_query', 'search_reviews',
     ]);
     for (const tool of tools) {
       expect(tool.description?.length).toBeGreaterThan(20);
@@ -48,6 +48,21 @@ describe('Compass MCP server', () => {
     expect(data.rows[0]!.value).toBeGreaterThan(30);
     expect(data.evidence.sql).toMatch(/v_hotel_day/);
     expect(result.content[0]!.text).toContain('LIS');
+  });
+
+  it('answers a finance question with GOP against budget', async () => {
+    const result = await call('get_pnl', { hotels: ['MIA'], from: '2026-10-01', to: '2026-10-31' });
+    expect(result.isError).toBeFalsy();
+    const data = result.structuredContent as { rows: { gop_var_eur: number; gop_margin_pct: number }[]; evidence: { sql: string } };
+    expect(data.rows[0]!.gop_var_eur).toBeLessThan(0);
+    expect(data.evidence.sql).toMatch(/pnl_monthly/);
+    expect(result.content[0]!.text).toMatch(/flowthrough/);
+  });
+
+  it('rejects a reversed P&L period with a message the model can act on', async () => {
+    const result = await call('get_pnl', { from: '2026-10-31', to: '2026-10-01' });
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toMatch(/from/);
   });
 
   it('validates arguments', async () => {

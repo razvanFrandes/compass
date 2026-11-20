@@ -14,6 +14,7 @@ export const BriefTriggerKind = z.enum([
   'web_conversion_drop',
   'staffing_gap',
   'rooms_out_of_order',
+  'gop_miss',
 ]);
 
 export const WorkflowTrigger = z.discriminatedUnion('kind', [

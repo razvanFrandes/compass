@@ -180,6 +180,31 @@ export const DETECTORS: Detector[] = [
     title: (r) => `${r.hotel_name} has ${r['avg_rooms_out']} of ${r['physical_rooms']} rooms out of order on average for the next 30 days`,
     question: (r) => `Why does ${r.hotel_name} have rooms out of order, and what are guests saying?`,
   },
+  {
+    kind: 'gop_miss',
+    severity: 'warning',
+    sources: ['hotel.pnl_monthly'],
+    impact_basis: 'GOP actual − budget in the last closed month, in EUR',
+    sql: `
+      with m as (select max(month) as month from hotel.pnl_monthly where scenario = 'actual'),
+      x as (
+        select p.hotel_code, m.month,
+               sum(p.amount * hotel.eur_rate(p.currency, p.month)) filter (where p.scenario = 'actual' and p.line = 'GOP') as gop,
+               sum(p.amount * hotel.eur_rate(p.currency, p.month)) filter (where p.scenario = 'budget' and p.line = 'GOP') as gop_b,
+               sum(p.amount * hotel.eur_rate(p.currency, p.month)) filter (where p.scenario = 'actual' and p.line = 'TOTAL_REVENUE') as rev,
+               sum(p.amount * hotel.eur_rate(p.currency, p.month)) filter (where p.scenario = 'budget' and p.line = 'TOTAL_REVENUE') as rev_b
+          from m join hotel.pnl_monthly p on p.month = m.month
+         where p.line in ('GOP', 'TOTAL_REVENUE') and p.scenario in ('actual', 'budget')
+         group by 1, 2)
+      select x.hotel_code, h.name as hotel_name, round(x.gop - x.gop_b)::float8 as impact_eur, to_char(x.month, 'YYYY-MM') as month,
+             round(100 * (x.gop - x.gop_b) / x.gop_b, 1)::float8 as gop_var_pct,
+             round(100 * (x.rev - x.rev_b) / x.rev_b, 1)::float8 as revenue_var_pct,
+             round(100 * x.gop / x.rev, 1)::float8 as gop_margin_pct, round(100 * x.gop_b / x.rev_b, 1)::float8 as gop_margin_budget_pct
+        from x join hotel.hotels h using (hotel_code)
+       where x.gop_b > 0 and x.gop < 0.9 * x.gop_b`,
+    title: (r) => `${r.hotel_name} missed its ${r['month']} GOP budget by ${Math.abs(Number(r['gop_var_pct']))}%`,
+    question: (r) => `Why did ${r.hotel_name} miss its GOP budget in ${r['month']}, and which P&L lines drove it?`,
+  },
 ];
 
 const MAX_ITEMS = 10;

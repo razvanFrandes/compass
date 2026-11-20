@@ -3,6 +3,7 @@ import { METRICS, metricByKey } from '../domain/metrics.ts';
 import { err, ok, type Result } from '../domain/result.ts';
 import { guardReadOnlySql, type GuardReason } from '../domain/sql-guard.ts';
 import { detectBriefItems } from './brief-detectors.ts';
+import { FinanceData } from './finance-data.ts';
 import type { Db } from './ports.ts';
 
 export type DataError =
@@ -66,6 +67,7 @@ const COMP_SET_METRICS = new Set(['mpi', 'ari', 'rgi']);
  */
 export class HotelData {
   #businessDate: Promise<string> | undefined;
+  #finance: FinanceData | undefined;
 
   private readonly db: Db;
 
@@ -78,6 +80,12 @@ export class HotelData {
       .query<{ d: string }>(`select to_char(hotel.business_date(), 'YYYY-MM-DD') as d`)
       .then((rows) => rows[0]!.d);
     return this.#businessDate;
+  }
+
+  /** The Finance, M&E, forecast and lost-business lenses (application/finance-data.ts). */
+  get finance(): FinanceData {
+    this.#finance ??= new FinanceData(this.db, () => this.businessDate());
+    return this.#finance;
   }
 
   async listHotels(): Promise<DataResult<Hotel>> {
