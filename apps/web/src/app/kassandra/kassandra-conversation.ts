@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, output, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorStopFill } from '@ng-icons/phosphor-icons/fill';
 import { phosphorArrowUpRightLight, phosphorCaretDownLight, phosphorCheckLight, phosphorCircleNotchLight } from '@ng-icons/phosphor-icons/light';
@@ -10,6 +10,7 @@ import { usageText } from '../chat-turn';
 import { Markdown } from '../markdown';
 import { CompassStore } from '../store';
 import { KassandraWidget } from './kassandra-widget';
+import { SkeletonHold, shownPhase, stepCount, widgetSlots } from './live-slots';
 import { failureText, followUps, modeOf, phaseText, stepDetail, stepStatus, stepTitle, workedText } from './turn-text';
 
 /** "How this was computed" was asked for one tool result of one turn. */
@@ -24,7 +25,8 @@ const AUTONOMY: Record<string, string> = { suggest: 'suggest only', approve: 'af
 
 /**
  * One turn: the question, the work collapsed to one line ("Worked for 4s · 3 steps"), what Kassandra is doing right
- * now, the charts she showed, the answer as Markdown, a failure in plain words, and a drafted workflow as a card.
+ * now, the charts she showed (a skeleton from the moment she starts one), the answer as Markdown, a failure in plain
+ * words, and a drafted workflow as a card.
  * Her narration between tool rounds is a step, never the answer. Tokens and cost sit behind "Details".
  */
 @Component({
@@ -45,15 +47,16 @@ const AUTONOMY: Record<string, string> = { suggest: 'suggest only', approve: 'af
       </div>
     }
 
-    @if (t.steps.length) {
+    <!-- The line is there from the first tool call, before its entry is committed, so what follows does not jump down -->
+    @if (count(); as n) {
       <div>
         <button type="button" class="k-link text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded text-[12.5px] transition-colors" [attr.aria-expanded]="open()" [attr.aria-controls]="stepsId" (click)="open.set(!open())">
           @if (t.running) {
             <ng-icon name="phosphorCircleNotchLight" class="animate-spin motion-reduce:animate-none" aria-hidden="true" />
-            Working · {{ t.steps.length }} {{ t.steps.length === 1 ? 'step' : 'steps' }} so far
+            Working · {{ n }} {{ n === 1 ? 'step' : 'steps' }} so far
           } @else {
             <ng-icon name="phosphorCheckLight" aria-hidden="true" />
-            Worked for {{ worked() }} · {{ t.steps.length }} {{ t.steps.length === 1 ? 'step' : 'steps' }}
+            Worked for {{ worked() }} · {{ n }} {{ n === 1 ? 'step' : 'steps' }}
           }
           <ng-icon name="phosphorCaretDownLight" class="transition-transform motion-reduce:transition-none" [class.rotate-180]="open()" aria-hidden="true" />
         </button>
@@ -88,7 +91,7 @@ const AUTONOMY: Record<string, string> = { suggest: 'suggest only', approve: 'af
     }
 
     @for (w of widgets(); track w.callId) {
-      <kassandra-widget [widget]="w.widget" [question]="t.question" [showEvidence]="showEvidence()" [addable]="addToBoard()" (evidence)="evidenceSelected.emit($event)" />
+      <kassandra-widget [slot]="w" [held]="hold.held().has(w.callId)" [question]="t.question" [showEvidence]="showEvidence()" [addable]="addToBoard()" (evidence)="evidenceSelected.emit($event)" />
     }
 
     @for (d of drafts(); track d.callId) {
@@ -171,6 +174,8 @@ export class KassandraTurn {
   readonly turn = input.required<ChatTurn>();
   /** What the agent is doing right now (`live.phase`), for the running turn only. */
   readonly phase = input<ChatLive['phase'] | null>(null);
+  /** The tool calls of the run in progress (`live.tools`), for the running turn only: a chart gets its skeleton here. */
+  readonly liveTools = input<ChatLive['tools'] | null | undefined>(null);
   /** "How this was computed" links are shown. */
   readonly showEvidence = input(true);
   /** Widgets offer "Add to board". */
@@ -201,12 +206,22 @@ export class KassandraTurn {
   protected readonly usage = usageText;
   protected readonly worked = computed(() => workedText(this.turn().workedMs) || '—');
   protected readonly doing = computed(() => phaseText(this.turn(), this.phase()));
-  /** Charts shown, and a skeleton for each one still being drawn. */
-  protected readonly widgets = computed(() =>
-    this.turn()
-      .steps.filter((step) => step.widget || (step.name === 'show_widget' && step.status !== 'done' && step.status !== 'error' && this.turn().running))
-      .map((step) => ({ callId: step.callId, widget: step.widget ?? null })),
-  );
+  protected readonly count = computed(() => stepCount(this.turn(), this.liveTools()));
+  /** Charts shown, and one in the making for each `show_widget` call that has started. */
+  protected readonly widgets = computed(() => widgetSlots(this.turn(), this.liveTools()));
+  /** A skeleton that has appeared stays for its minimum time, so a fast chart does not flicker in. */
+  protected readonly hold = new SkeletonHold();
+
+  constructor() {
+    effect(() => {
+      this.hold.show(
+        this.widgets()
+          .filter((slot) => shownPhase(slot.phase, false) !== 'ready')
+          .map((slot) => slot.callId),
+      );
+    });
+    inject(DestroyRef).onDestroy(() => this.hold.clear());
+  }
   protected readonly drafts = computed(() =>
     this.turn()
       .steps.filter((step): step is ChatStep & { draft: WorkflowSpec } => !!step.draft)
@@ -247,6 +262,7 @@ export class KassandraTurn {
       <kassandra-turn
         [turn]="t"
         [phase]="t.running ? phase() : null"
+        [liveTools]="t.running ? liveTools() : null"
         [showEvidence]="showEvidence()"
         [addToBoard]="addToBoard()"
         [stoppable]="stoppable()"
@@ -268,6 +284,8 @@ export class KassandraConversation {
   readonly turns = input.required<ChatTurn[]>();
   /** `live.phase` of the socket: what Kassandra is doing while no answer text has arrived. */
   readonly phase = input<ChatLive['phase'] | null | undefined>(null);
+  /** `live.tools` of the socket: a chart Kassandra has started on shows as a skeleton before its entry is committed. */
+  readonly liveTools = input<ChatLive['tools'] | null | undefined>(null);
   /** The last message the server rejected (rate limit, budget), shown as is. */
   readonly error = input<string | null>(null);
   /** Tokens and cost of the whole conversation, shown behind the last answer's "Details". */

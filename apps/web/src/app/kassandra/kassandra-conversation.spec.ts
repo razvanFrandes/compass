@@ -115,10 +115,67 @@ describe('KassandraConversation: widgets', () => {
     expect(button(render([withWidget()], { addToBoard: false }), 'Add to board')).toBeUndefined();
   });
 
-  it('shows a skeleton of the same shape while the chart is being drawn', () => {
-    const fixture = render([turn({ running: true, steps: [step({ callId: 'c2', name: 'show_widget', status: 'running' })] })], { phase: 'tools' });
-    expect(el(fixture).querySelector('kassandra-widget figure')).toBeNull();
-    expect(el(fixture).querySelector('kassandra-widget [aria-label="Kassandra is drawing a chart"]')).not.toBeNull();
+  describe('in three phases, in the same card', () => {
+    const ARGS = { kind: 'bar', title: 'Lisbon is 15.9% behind last year for December', subtitle: 'Arbor Lisbon Chiado · December 2026', sourceCallId: 'c1', x: 'segment', y: ['rooms'] };
+    const card = (fixture: ComponentFixture<unknown>) => el(fixture).querySelector('kassandra-widget')!;
+    const chartBusy = (fixture: ComponentFixture<unknown>) => card(fixture).querySelector('juyo-widget-chart [aria-busy=true]') !== null;
+
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('1. the call has started (live.tools): a skeleton of the card, chart area included', () => {
+      const fixture = render([turn({ running: true })], { phase: 'tools', liveTools: [{ callId: 'c2', name: 'show_widget', status: 'pending' }] });
+      expect(card(fixture).getAttribute('data-phase')).toBe('chosen');
+      expect(card(fixture).querySelector('h3')).toBeNull();
+      expect(text(card(fixture).querySelector('figcaption [role=status]'))).toBe('Kassandra is drawing a chart');
+      expect(chartBusy(fixture)).toBe(true);
+      expect(button(fixture, 'Add to board')).toBeUndefined();
+    });
+
+    it('2. the arguments are known: the title and subtitle are filled in, the chart area stays a skeleton', () => {
+      const fixture = render([turn({ running: true, steps: [step({ callId: 'c2', name: 'show_widget', status: 'running', args: ARGS })] })], { phase: 'tools' });
+      expect(card(fixture).getAttribute('data-phase')).toBe('described');
+      expect(text(card(fixture).querySelector('h3'))).toBe(ARGS.title);
+      expect(text(card(fixture).querySelector('figcaption p'))).toBe(ARGS.subtitle);
+      expect(chartBusy(fixture)).toBe(true);
+      expect(card(fixture).querySelector('juyo-widget-chart')!.getAttribute('data-kind')).toBe('bar');
+    });
+
+    it('3. the result is in: the chart takes the skeleton’s place in the same element, after the skeleton’s 300 ms', () => {
+      const fixture = render([turn({ running: true, steps: [step({ callId: 'c2', name: 'show_widget', status: 'running', args: ARGS })] })], { phase: 'tools' });
+      const figure = card(fixture).querySelector('figure');
+      const chart = card(fixture).querySelector('juyo-widget-chart');
+
+      // The result arrives 100 ms after the skeleton appeared: the skeleton stays, so it does not flicker.
+      vi.advanceTimersByTime(100);
+      fixture.componentRef.setInput('turns', [turn({ running: true, steps: [step({ callId: 'c2', name: 'show_widget', args: ARGS, widget: widget() })] })]);
+      fixture.detectChanges();
+      expect(card(fixture).getAttribute('data-phase')).toBe('described');
+      expect(chartBusy(fixture)).toBe(true);
+
+      vi.advanceTimersByTime(200);
+      fixture.detectChanges();
+      expect(card(fixture).getAttribute('data-phase')).toBe('ready');
+      expect(chartBusy(fixture)).toBe(false);
+      expect(text(card(fixture))).toContain('980');
+      expect(button(fixture, 'Add to board')).toBeDefined();
+      // Same card, same chart element: a swap inside the box, not a new box.
+      expect(card(fixture).querySelector('figure')).toBe(figure);
+      expect(card(fixture).querySelector('juyo-widget-chart')).toBe(chart);
+    });
+
+    it('a transcript loaded from the server shows its charts at once, with no skeleton', () => {
+      const fixture = render([withWidget()]);
+      expect(card(fixture).getAttribute('data-phase')).toBe('ready');
+      expect(chartBusy(fixture)).toBe(false);
+    });
+
+    it('a call that failed, or a run that was stopped, leaves no skeleton', () => {
+      const failed = render([turn({ running: true, steps: [step({ callId: 'c2', name: 'show_widget', status: 'error', args: ARGS, error: 'Unknown column.' })] })], { phase: 'thinking' });
+      expect(el(failed).querySelector('kassandra-widget')).toBeNull();
+      const stopped = render([turn({ failure: { reason: 'aborted' }, steps: [step({ callId: 'c2', name: 'show_widget', status: 'pending', args: ARGS })] })]);
+      expect(el(stopped).querySelector('kassandra-widget')).toBeNull();
+    });
   });
 
   it('reports which tool result a widget’s "How this was computed" is about', () => {

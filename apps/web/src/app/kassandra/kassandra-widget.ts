@@ -1,57 +1,71 @@
-import { Component, input, output } from '@angular/core';
-import type { ChatWidget } from '../api';
+import { Component, computed, input, output } from '@angular/core';
 import { WidgetChart } from '../charts/widget-chart';
 import { KassandraBoardPicker } from './kassandra-board-picker';
+import { shownPhase, type WidgetSlot } from './live-slots';
 
 /**
- * A chart, table or KPI in an answer (`show_widget`): the title is the conclusion, the numbers are the rows of the
- * tool result it names, and it can be kept on a board. `loading` draws the skeleton, with the same dimensions.
+ * A chart, table or KPI in an answer (`show_widget`), in the three phases of docs/decisions.md "Skeletons":
+ *
+ *   chosen     the call has started: skeleton lines for the title, a skeleton for the chart;
+ *   described  its arguments are known: the real title and subtitle, the chart still a skeleton, now with the
+ *              dimensions of that widget kind;
+ *   ready      the result is in: the chart takes the skeleton's place, in the same box.
+ *
+ * The card is the same element through all three, and the chart area is always `<juyo-widget-chart>` (its own
+ * skeleton while there are no rows), so nothing moves when the data arrives. `held` keeps a skeleton that has just
+ * appeared on screen for its minimum time. The title is the conclusion; the numbers are the tool's rows.
  */
 @Component({
   selector: 'kassandra-widget',
   imports: [WidgetChart, KassandraBoardPicker],
-  host: { class: 'block' },
+  host: { class: 'block', '[attr.data-phase]': 'phase()' },
   template: `
-    @if (widget(); as w) {
-      <figure class="insight-card gen-in p-4">
-        <figcaption class="min-h-[42px]">
-          <h3 class="text-[14.5px]/snug font-semibold tracking-[-0.005em] text-balance">{{ w.title }}</h3>
-          @if (w.subtitle) {
-            <p class="text-muted-foreground mt-0.5 text-[12.5px]">{{ w.subtitle }}</p>
+    @let s = slot();
+    <figure class="insight-card gen-in p-4" [attr.aria-busy]="phase() === 'ready' ? null : 'true'">
+      <figcaption class="min-h-[42px]">
+        @if (s.title) {
+          <h3 class="text-[14.5px]/snug font-semibold tracking-[-0.005em] text-balance">{{ s.title }}</h3>
+          @if (s.subtitle) {
+            <p class="text-muted-foreground mt-0.5 text-[12.5px]">{{ s.subtitle }}</p>
           }
-        </figcaption>
-        <juyo-widget-chart class="mt-3 block h-[240px]" [spec]="w" [rows]="w.rows" [columns]="w.columns" />
-        <div class="mt-3 flex min-h-8 flex-wrap items-center justify-between gap-2">
+        } @else {
+          <span class="sr-only" role="status">Kassandra is drawing a chart</span>
+          <span class="block pt-0.5">
+            <i class="k-skel block h-4 w-3/5"></i>
+            <i class="k-skel mt-2 block h-3 w-2/5"></i>
+          </span>
+        }
+      </figcaption>
+      <juyo-widget-chart class="mt-3 block" [spec]="s.spec" [rows]="s.widget?.rows ?? null" [columns]="s.widget?.columns ?? null" [loading]="phase() !== 'ready'" [header]="false" [compact]="true" />
+      <div class="mt-3 flex min-h-8 flex-wrap items-center justify-between gap-2">
+        @if (phase() === 'ready' && s.widget; as w) {
           @if (showEvidence()) {
             <button type="button" class="k-link text-muted-foreground hover:text-foreground text-[12.5px] underline underline-offset-2" (click)="evidence.emit(w.sourceCallId)">How this was computed</button>
           }
           @if (addable()) {
             <kassandra-board-picker class="ml-auto" [widget]="w" [question]="question()" />
           }
-        </div>
-      </figure>
-    } @else {
-      <div class="insight-card p-4" role="status" aria-label="Kassandra is drawing a chart">
-        <div class="min-h-[42px]">
-          <div class="skeleton-wave bg-muted h-4 w-3/5 rounded"></div>
-          <div class="skeleton-wave bg-muted mt-2 h-3 w-2/5 rounded"></div>
-        </div>
-        <div class="skeleton-wave bg-muted mt-3 h-[240px] rounded-lg"></div>
-        <div class="mt-3 flex min-h-8 items-center justify-between">
-          <div class="skeleton-wave bg-muted h-3 w-32 rounded"></div>
-          <div class="skeleton-wave bg-muted h-8 w-28 rounded-lg"></div>
-        </div>
+        } @else {
+          <i class="k-skel block h-3 w-32" aria-hidden="true"></i>
+          @if (addable()) {
+            <i class="k-skel block h-8 w-[124px] !rounded-lg" aria-hidden="true"></i>
+          }
+        }
       </div>
-    }
+    </figure>
   `,
 })
 export class KassandraWidget {
-  /** Null while the tool is still running: the skeleton shows. */
-  readonly widget = input.required<ChatWidget | null>();
+  /** The widget at the phase it has reached (see `widgetSlots`). */
+  readonly slot = input.required<WidgetSlot>();
+  /** Its skeleton has just appeared and must stay a little longer, even if the chart is already there. */
+  readonly held = input(false);
   readonly question = input<string | null>(null);
   readonly showEvidence = input(true);
   /** "Add to board" is offered. */
   readonly addable = input(true);
   /** "How this was computed": the call id of the tool result the widget draws. */
   readonly evidence = output<string>();
+
+  protected readonly phase = computed(() => shownPhase(this.slot().phase, this.held()));
 }

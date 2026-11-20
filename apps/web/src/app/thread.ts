@@ -1,9 +1,11 @@
-import { Component, ElementRef, afterRenderEffect, computed, inject, output, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, afterRenderEffect, computed, effect, inject, output, signal, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { EvidencePanel } from './evidence-panel';
 import { KassandraComposer } from './kassandra/kassandra-composer';
 import { KassandraConversation, type EvidenceSelection } from './kassandra/kassandra-conversation';
+import { KassandraEvidencePending } from './kassandra/kassandra-evidence-pending';
+import { SkeletonHold, evidenceSlots, stepsWithLive } from './kassandra/live-slots';
 import { Live } from './live';
 import { CompassStore } from './store';
 import * as icons from './icons';
@@ -17,7 +19,7 @@ import * as icons from './icons';
 */
 @Component({
   selector: 'app-thread',
-  imports: [NgIcon, KassandraComposer, KassandraConversation, EvidencePanel, HlmButtonImports],
+  imports: [NgIcon, KassandraComposer, KassandraConversation, KassandraEvidencePending, EvidencePanel, HlmButtonImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'flex h-full min-h-0' },
   template: `
@@ -51,6 +53,7 @@ import * as icons from './icons';
             <kassandra-conversation
               [turns]="chat.turns()"
               [phase]="chat.live()?.phase"
+              [liveTools]="chat.live()?.tools"
               [error]="chat.error()"
               [usage]="chat.usage()"
               [suggest]="true"
@@ -95,7 +98,9 @@ import * as icons from './icons';
           }
         </header>
         <div class="min-h-0 flex-1 overflow-y-auto p-5">
-          <app-evidence-panel [allSteps]="selectedSteps()" [focus]="focus()" />
+          <!-- Data calls that have not answered yet: a skeleton row each, from the moment the call starts -->
+          <kassandra-evidence-pending [slots]="pendingEvidence()" [held]="hold.held()" />
+          <app-evidence-panel [allSteps]="selectedSteps()" [focus]="focus()" [empty]="pendingEvidence().length ? '' : 'Numbers in the answer will show where they came from here.'" />
         </div>
       </aside>
     </div>
@@ -108,15 +113,43 @@ export class ThreadView {
   protected readonly store = inject(CompassStore);
   protected readonly live = inject(Live);
   protected readonly chat = this.live.chat;
-  private readonly selected = signal<string | null>(null);
+  /** The turn picked with "How this was computed", and how many turns there were then: a new question lets go of it. */
+  private readonly selected = signal<{ key: string; turns: number } | null>(null);
   protected readonly focus = signal<string | null>(null);
+  private readonly liveTools = computed(() => this.chat.live()?.tools ?? null);
   protected readonly turnsWithEvidence = computed(() => this.chat.turns().filter((t) => t.steps.some((s) => s.evidence)));
-  /** The turn the panel explains: the one picked, else the latest with evidence. */
+  /**
+   * The turn the panel explains: the one picked; else the answer in the making as soon as it reads data, so the
+   * panel follows it; else the latest with evidence.
+   */
   private readonly selectedTurn = computed(() => {
+    const turns = this.chat.turns();
+    const picked = this.selected();
+    const chosen = picked && picked.turns === turns.length ? turns.find((t) => t.key === picked.key) : undefined;
+    if (chosen) return chosen;
+    const running = turns.find((t) => t.running);
+    if (running && evidenceSlots(running, this.liveTools()).length) return running;
     const list = this.turnsWithEvidence();
-    return list.find((t) => t.key === this.selected()) ?? list[list.length - 1] ?? null;
+    return list[list.length - 1] ?? null;
   });
-  protected readonly selectedSteps = computed(() => this.selectedTurn()?.steps ?? []);
+  /** The data calls of that turn as the cards they are becoming: skeletons until each result is in. */
+  protected readonly pendingEvidence = computed(() => {
+    const turn = this.selectedTurn();
+    return turn ? evidenceSlots(turn, this.liveTools()) : [];
+  });
+  /** A skeleton row that has appeared stays for its minimum time. */
+  protected readonly hold = new SkeletonHold();
+  /**
+   * What the evidence panel is given: the turn's steps, plus the calls only `live.tools` knows (a panel that draws
+   * its own waiting cards shows them from the first moment). A result whose skeleton row is still held is kept
+   * back, so the row and its card never show together.
+   */
+  protected readonly selectedSteps = computed(() => {
+    const turn = this.selectedTurn();
+    if (!turn) return [];
+    const held = this.hold.held();
+    return stepsWithLive(turn, this.liveTools()).map((step) => (held.has(step.callId) && step.evidence ? { ...step, evidence: undefined, rows: undefined, status: 'running' } : step));
+  });
   protected readonly selectedLabel = computed(() => this.selectedTurn()?.question ?? '');
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
   /** The person is at the end of the conversation; false once they scroll up to read. */
@@ -125,6 +158,14 @@ export class ThreadView {
 
   constructor() {
     this.chat.connect();
+    effect(() => {
+      this.hold.show(
+        this.pendingEvidence()
+          .filter((slot) => slot.phase !== 'ready')
+          .map((slot) => slot.callId),
+      );
+    });
+    inject(DestroyRef).onDestroy(() => this.hold.clear());
     // Follow the conversation as it grows, unless the person scrolled up to read. A new turn always comes into view.
     afterRenderEffect(() => {
       const turns = this.chat.turns();
@@ -144,7 +185,7 @@ export class ThreadView {
   }
 
   protected showEvidence(selection: EvidenceSelection) {
-    this.selected.set(selection.turnKey);
+    this.selected.set({ key: selection.turnKey, turns: this.chat.turns().length });
     this.focus.set(selection.callId);
     this.evidenceSelected.emit(selection);
     setTimeout(() => document.getElementById('ev-' + selection.callId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30);

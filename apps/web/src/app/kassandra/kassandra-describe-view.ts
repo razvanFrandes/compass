@@ -47,7 +47,7 @@ export const BOARD_VIEW_PREFIX = 'Build a board view: ';
 
     @if (latest().length || chat.error()) {
       <div class="mt-1">
-        <kassandra-conversation [turns]="latest()" [phase]="chat.live()?.phase" [error]="chat.error()" [showEvidence]="false" [addToBoard]="false" [stoppable]="true" (stopped)="chat.abort()" />
+        <kassandra-conversation [turns]="latest()" [phase]="chat.live()?.phase" [liveTools]="chat.live()?.tools" [error]="chat.error()" [showEvidence]="false" [addToBoard]="false" [stoppable]="true" (stopped)="chat.abort()" />
       </div>
     }
   `,

@@ -267,7 +267,15 @@ Kassandra is drawn by the same components wherever she appears (`apps/web/src/ap
   - **Fallbacks:** if the token call or the stream fails before a word was heard, the browser's own recognition (Web Speech) takes over. A blocked microphone says so. The "demo transcript" plays only when there is no microphone at all, and its sample question is never sent: it lands in the field.
   - The CSP gains `wss://stt-rt.soniox.com` in `connect-src`.
 - **`kassandra-conversation`** draws the turns: the work collapsed to one line with human step titles, the phase ("Thinking…", "Checking the data…", "Writing…") with Stop beside it, the streaming text, the Markdown answer, widgets, a drafted workflow, a failure in plain words.
-  - **Widgets** (`show_widget`, contracts §3) are drawn by `<juyo-widget-chart>` from the tool's rows. A widget being drawn shows a skeleton of the same dimensions.
+  - **Widgets** (`show_widget`, contracts §3) are drawn by `<juyo-widget-chart>` from the tool's rows.
+  - **Widgets appear in three phases, in one card that never changes size** (the "Skeletons" rule above; the mapping is `kassandra/live-slots.ts`):
+    1. *Chosen*: `live.tools` has a `show_widget` call that is pending or running. The card shows skeleton lines for the title and the chart's skeleton. The kind is not known yet (`live.tools` carries no arguments), so the shape is a neutral bar chart.
+    2. *Described*: the call's entry is committed with its arguments. The title and subtitle are real, and the chart area is the skeleton of that widget kind (`<juyo-widget-chart [spec] [rows]="null" [loading]="true">`), already at its final dimensions.
+    3. *Ready*: the `tool_result` with `widget` is in. The chart takes the skeleton's place inside the same element, and "How this was computed" and "Add to board" take the place of their skeletons.
+  - A skeleton that has appeared stays at least 300 ms (`SkeletonHold`), so a fast result does not flicker in. A transcript loaded from the server shows its charts at once, with no skeleton. A failed call or a stopped run leaves no skeleton.
+  - The shimmer is a slow, faint sweep (`.k-skel`); under `prefers-reduced-motion` it is a static block.
+  - The "Working · N steps so far" line counts a call from the moment it starts, so nothing below it jumps when the entry is committed.
+  - **Data tool calls get the same treatment in "How this was computed"**: a skeleton row when the call starts, its human title and arguments with "Reading the data…" once they are known, then the evidence card. While an answer is being made the panel follows it. `stepsWithLive()` gives the evidence panel the calls only `live.tools` knows, so a panel that draws its own waiting cards starts at once.
   - **Add to board** on every widget: pick a board or "New board" (named after the widget's title). It is saved on the server with its rows; a toast offers View and Undo.
   - **Next questions** under the last answer are fixed wording chosen from the tools the answer used (another cut of the same data, "Show this as a chart", "Watch this and email me when it changes"). No model writes them.
   - **Tokens and cost** are only behind "Details", per answer and for the conversation.

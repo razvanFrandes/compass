@@ -682,3 +682,16 @@ textarea.field-input { height: auto; line-height: 1.5; }
   background: var(--field); border: 1px solid var(--focus-brand); outline: none; box-shadow: 0 0 0 3px rgb(153 106 213 / 0.2);
 }
 @media (prefers-reduced-motion: reduce) { .k-suggestion, .k-thread { transition: none; } }
+/* Skeletons of generative UI (docs/decisions.md "Skeletons"): a quiet block with a slow, faint sweep of light.
+   Static under reduced motion. */
+.k-skel {
+  border-radius: 6px;
+  background-color: var(--muted);
+  background-image: linear-gradient(100deg, transparent 30%, rgb(from var(--foreground) r g b / 0.06) 50%, transparent 70%);
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: k-shimmer 1.8s ease-in-out infinite;
+}
+.k-skel-stroke { stroke: var(--muted); animation: skeleton-wave 1.8s ease-in-out infinite; }
+@keyframes k-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+@media (prefers-reduced-motion: reduce) { .k-skel, .k-skel-stroke { animation: none; background-image: none; } }
