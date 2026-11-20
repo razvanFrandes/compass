@@ -247,3 +247,35 @@ Built strictly from stages 1 and 2 of `docs/research/reports/Filtre și grafice 
 - The initial bundle is 2.2 MB, because the extract is embedded. The build budget was raised to 3 MB for the prototype.
 
 **Checks:** headless Chrome against the dev server and the production build. It covers every chart and the filter flows (receipt, Edit, Undo, tri-state groups, tokens, "is not"), the drill and "Apply to dashboard", past ranges, the light theme and the phone sheet. Phone overflow is 0 px, and there are no console errors.
+
+## Round 2: one Kassandra component family (2026-11-20, late)
+
+Kassandra is drawn by the same components wherever she appears (`apps/web/src/app/kassandra/`). The old ask bar and the old chat turn are gone.
+
+- **`kassandra-composer`** is the only ask bar: Inbox (desktop and the phone dock), Thread, workflow builder, a workflow's page ("Ask about this"), a board ("Ask or filter" and "Describe a view").
+  - It keeps the calm bar of round 3 (56 px, the orb as the only colour, Send only when there is text, ⌘K).
+  - Under the bar, one line says what the question is asked for (the global hotel scope as chips, or the host's own subject) and how (Quick or Thinker, a radio group with roving tabindex, arrow keys, Home and End).
+  - It hosts the orb as `<juyo-orb [level] [state] [bands]>`: `listening` with the microphone's level and spectrum, `thinking` while Kassandra answers.
+  - Its behaviour is a pure state machine (`composer-machine.ts`), tested without a microphone.
+- **Voice is Soniox real-time**, read from docs.soniox.com on 20 Nov:
+  - `POST /api/voice/token` gives a temporary key; the browser opens Soniox's WebSocket with the protocols list `['soniox-api-key', key]`, so the key is in no URL and no message.
+  - Audio is raw 16-bit mono PCM from an AudioWorklet (`public/pcm-capture.worklet.js`), averaged down to 16 kHz when the device rate allows. Raw PCM works in every browser; MediaRecorder's container differs between Chrome and Safari.
+  - Language hints are English and Romanian, with language identification and endpoint detection on. The `<end>` token ends the question.
+  - Words show while they are spoken: final tokens plain, the provisional tail muted.
+  - Voice stops on silence (Soniox's endpoint, or 2.6 s of quiet as a backup), on Done, and on Esc or ✕, which drop the question. Nine seconds with nothing said gives up with a note.
+  - A voice question is sent when the person stops. In the workflow builder it lands in the field instead, because a description usually needs an address added.
+  - **Fallbacks:** if the token call or the stream fails before a word was heard, the browser's own recognition (Web Speech) takes over. A blocked microphone says so. The "demo transcript" plays only when there is no microphone at all, and its sample question is never sent: it lands in the field.
+  - The CSP gains `wss://stt-rt.soniox.com` in `connect-src`.
+- **`kassandra-conversation`** draws the turns: the work collapsed to one line with human step titles, the phase ("Thinking…", "Checking the data…", "Writing…") with Stop beside it, the streaming text, the Markdown answer, widgets, a drafted workflow, a failure in plain words.
+  - **Widgets** (`show_widget`, contracts §3) are drawn by `<juyo-widget-chart>` from the tool's rows. A widget being drawn shows a skeleton of the same dimensions.
+  - **Add to board** on every widget: pick a board or "New board" (named after the widget's title). It is saved on the server with its rows; a toast offers View and Undo.
+  - **Next questions** under the last answer are fixed wording chosen from the tools the answer used (another cut of the same data, "Show this as a chart", "Watch this and email me when it changes"). No model writes them.
+  - **Tokens and cost** are only behind "Details", per answer and for the conversation.
+  - The answer is announced to screen readers once, when it is whole, not token by token.
+- **Explore answers at once (A2).** Explore, a chart mark, a KPI tile and "Ask why" open the Thread and send the question, because the click is the person's own. Only `/ask?q=` (a link in an email) fills the composer and waits, in a fresh conversation.
+  - The same item under the same hotel scope reopens its thread instead of asking again. If that thread turns out empty (the first question was refused), it is asked again.
+  - Typed questions always start a new thread.
+- **Threads in the sidebar** have distinct titles (the scope in brackets is dropped, a taken title gets a number), a relative time, and ⋯ with Rename (in place) and Delete (with Undo). The list is this browser's; the transcripts stay on the server.
+- **The hotel scope goes with every question** (`scope.hotels`, contracts §1), read from `ScopeService`. An empty scope is left out: the whole group.
+- **Describe a view** on a board sends "Build a board view: …" on a conversation of its own, shows Kassandra's work under the bar, and saves every widget she answers with on that board, with a receipt and Undo.
+- **Placeholders, until the other branches land** (same path, selector and inputs, so each is replaced by taking the other branch's file): `orb/juyo-orb.ts` (an adapter over the round 3 shader orb), `charts/widget-chart.ts` (a KPI figure or a table of the rows), `scope/scope.service.ts` (`hotels` signal). The Round 2 types live in `api/round2-contracts.ts` until `@compass/contracts` exports them.
