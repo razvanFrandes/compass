@@ -166,7 +166,8 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     if (spent) return spent;
     const conversation = typeof body?.conversation === 'string' && /^[\w-]{1,64}$/.test(body.conversation) ? body.conversation : crypto.randomUUID();
     const mode = body?.mode === 'quick' ? 'quick' : 'thinker';
-    const answer = await env.KASSANDRA.getByName(conversation).ask(question, mode);
+    // `as object`: the RPC stub's type cannot describe the widgets' rows (unknown values), so the answer is not spreadable as typed.
+    const answer = (await env.KASSANDRA.getByName(conversation).ask(question, mode)) as object;
     return Response.json({ conversation, ...answer });
   }
 

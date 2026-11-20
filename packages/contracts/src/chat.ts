@@ -1,4 +1,5 @@
 import type { Evidence } from './evidence.ts';
+import type { Widget } from './widgets.ts';
 import type { WorkflowSpec } from './workflows.ts';
 
 /**
@@ -40,6 +41,11 @@ export type ChatEntry =
       draft?: WorkflowSpec;
       /** `send_email` only: whether a mail went out. False when nothing was to report, or a limit or the sender refused it. */
       sent?: boolean;
+      /**
+       * `show_widget` only: a chart, table or KPI to draw under the answer. Its rows, columns and evidence are copied by
+       * the server from the tool result `sourceCallId` names; the model chose only the kind, the title and the columns.
+       */
+      widget?: Widget;
       at: number;
     }
   | { id: number; kind: 'event'; type: string; data: unknown; at: number };
