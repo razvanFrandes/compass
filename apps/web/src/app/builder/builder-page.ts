@@ -1,13 +1,15 @@
-import { Component, DOCUMENT, DestroyRef, InjectionToken, computed, inject, resource, signal } from '@angular/core';
+import { Component, DOCUMENT, DestroyRef, InjectionToken, computed, effect, inject, resource, signal, untracked } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorWarningFill } from '@ng-icons/phosphor-icons/fill';
 import { phosphorArrowLeftLight, phosphorCheckLight, phosphorCircleNotchLight, phosphorPaperPlaneTiltLight, phosphorWifiSlashLight, phosphorXLight } from '@ng-icons/phosphor-icons/light';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import type { WorkflowDraft } from '@compass/contracts';
+import type { WorkflowDraft, WorkflowGraph } from '@compass/contracts';
 import { CanvasResult, WorkflowCanvas } from './builder-canvas';
 import { BuilderChat } from './builder-chat';
-import { BuilderSocket, BuilderSocketOptions, builderSocketUrl, ensureDraftId, type BuilderRun } from './builder-socket';
+import { BuilderSocket, BuilderSocketOptions, builderSocketUrl, ensureDraftId, workflowToEdit, type BuilderRun } from './builder-socket';
 import { issueText, maskAddress, toConversation } from './builder-steps';
+import { scopeLabel, shortName, type HotelRef } from '../scope/hotels';
+import { ScopeService } from '../scope/scope.service';
 
 /** Overrides for the socket (a fake one in a preview or a test). */
 export const BUILDER_SOCKET_OPTIONS = new InjectionToken<Partial<BuilderSocketOptions>>('BUILDER_SOCKET_OPTIONS');
@@ -62,6 +64,22 @@ export function missingSteps(issues: readonly string[]): string[] {
 }
 
 /**
+ * The Hotels step with hotel names instead of codes: "Arbor Lisbon Chiado", "Europe · 8 hotels" or
+ * "Lisbon Chiado + 2 more", with the names underneath. The server's graph carries the codes ("LIS, PAR, VIE").
+ */
+export function namedScope(graph: WorkflowGraph, hotels: readonly string[] | undefined, catalog: readonly HotelRef[]): WorkflowGraph {
+  if (!hotels?.length || hotels.includes('ALL')) return graph;
+  const chosen = catalog.filter((hotel) => hotels.includes(hotel.code));
+  // A code the catalog does not know stays as the server wrote it.
+  if (chosen.length !== new Set(hotels).size) return graph;
+  const label = scopeLabel(hotels, catalog);
+  const names = chosen.map(shortName).join(', ');
+  // The names go underneath unless the label already is the names.
+  const detail = chosen.length === 1 ? [chosen[0]!.city, chosen[0]!.country].filter(Boolean).join(', ') : names === label ? `${chosen.length} hotels` : names;
+  return { ...graph, nodes: graph.nodes.map((node) => (node.id === 'scope' && node.state !== 'empty' ? { ...node, label, detail } : node)) };
+}
+
+/**
  * The workflow builder: the person describes a workflow in the chat, the agent fills in the chain on the canvas one
  * node per tool call, and "Send test now" runs it once while the nodes light up in order.
  */
@@ -95,7 +113,7 @@ export function missingSteps(issues: readonly string[]): string[] {
   `,
   template: `
     <header class="border-border/70 flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-2 border-b px-3 py-2.5 sm:px-4 lg:min-h-14">
-      <a hlmBtn variant="ghost" size="sm" href="/" class="text-muted-foreground -ml-1"><ng-icon name="phosphorArrowLeftLight" aria-hidden="true" />Compass</a>
+      <a hlmBtn variant="ghost" size="sm" [href]="backHref" class="text-muted-foreground -ml-1"><ng-icon name="phosphorArrowLeftLight" aria-hidden="true" />Agent Studio</a>
       <span class="text-muted-foreground" aria-hidden="true">/</span>
       <h1 class="min-w-0 truncate text-[14px] font-medium">{{ title() }}</h1>
       <span class="wb-chip" [attr.data-tone]="chip().tone"><span class="sr-only">Status: </span>{{ chip().text }}</span>
@@ -138,6 +156,13 @@ export function missingSteps(issues: readonly string[]): string[] {
         <button hlmBtn type="button" variant="link" size="sm" (click)="socket.reconnect()">Retry now</button>
       </div>
     }
+    @if (editFailed()) {
+      <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-(--field-border) bg-(--decision-tint) px-4 py-2 text-[13px]/5" role="alert">
+        <ng-icon name="phosphorWarningFill" class="shrink-0 text-[16px] text-(--decision)" aria-hidden="true" />
+        <span>This workflow could not be opened for editing, so nothing here would change it.</span>
+        <a hlmBtn variant="link" size="sm" [href]="backHref">Back to Agent Studio</a>
+      </div>
+    }
     @if (socket.error(); as message) {
       <div class="flex shrink-0 items-start gap-2.5 border-b border-(--field-border) bg-(--decision-tint) px-4 py-2 text-[13px]/5" role="alert">
         <ng-icon name="phosphorWarningFill" class="mt-0.5 shrink-0 text-[16px] text-(--decision)" aria-hidden="true" />
@@ -153,7 +178,7 @@ export function missingSteps(issues: readonly string[]): string[] {
       <section class="border-border/70 min-w-0 max-lg:border-t lg:min-h-0" aria-label="Workflow">
         <app-workflow-canvas
           class="lg:h-full lg:overflow-y-auto"
-          [graph]="socket.graph()"
+          [graph]="graph()"
           [draft]="socket.draft()"
           [changed]="socket.changed()"
           [revision]="socket.revision()"
@@ -168,13 +193,24 @@ export function missingSteps(issues: readonly string[]): string[] {
 })
 export class WorkflowBuilder {
   private readonly doc = inject(DOCUMENT);
+  private readonly scope = inject(ScopeService);
+  /** The workflow being edited (`/workflows/<id>/edit`), or null for a new one. */
+  protected readonly editId = workflowToEdit(this.doc.defaultView!.location);
+  protected readonly backHref = this.editId ? `/studio/${encodeURIComponent(this.editId)}` : '/studio';
   protected readonly socket = this.connect();
   private static next = 0;
   protected readonly whyId = `wb-why-${WorkflowBuilder.next++}`;
   protected readonly why = signal(false);
 
   protected readonly conversation = computed(() => toConversation(this.socket.entries(), this.socket.live()));
-  protected readonly title = computed(() => this.socket.draft().name?.trim() || 'New workflow');
+  protected readonly title = computed(() => {
+    const name = this.socket.draft().name?.trim();
+    if (this.editId) return name ? `Edit · ${name}` : 'Edit workflow';
+    return name || 'New workflow';
+  });
+  protected readonly graph = computed(() => namedScope(this.socket.graph(), this.socket.draft().hotels, this.scope.catalog()));
+  /** An edit link whose workflow the server did not load: the draft came back empty and unsaved. */
+  protected readonly editFailed = computed(() => !!this.editId && this.socket.loaded() && this.socket.workflowId() === null && !this.socket.draft().name);
   protected readonly offline = computed(() => this.socket.state() === 'reconnecting' || this.socket.state() === 'closed');
   protected readonly testing = computed(() => this.socket.pending() === 'test' || this.socket.run()?.status === 'running');
   protected readonly isSaved = computed(() => this.socket.workflowId() !== null && this.socket.saved() && !this.socket.issues().length);
@@ -228,11 +264,23 @@ export class WorkflowBuilder {
   });
 
   protected readonly result = computed(() =>
-    testResult(this.socket.run(), this.socket.draft(), (id) => this.socket.graph().nodes.find((node) => node.id === id)?.label ?? '', this.summary.value() ?? null),
+    testResult(this.socket.run(), this.socket.draft(), (id) => this.graph().nodes.find((node) => node.id === id)?.label ?? '', this.summary.value() ?? null),
   );
 
   constructor() {
     inject(DestroyRef).onDestroy(() => this.socket.close());
+    // A new workflow starts on the hotels the person is working on (the sidebar scope), once, when the draft
+    // arrives untouched. It shows on the Hotels step and can be changed there like any other edit.
+    let decided = false;
+    effect(() => {
+      if (decided || !this.socket.loaded()) return;
+      decided = true;
+      untracked(() => {
+        const hotels = this.scope.hotels();
+        const untouched = !this.editId && this.socket.workflowId() === null && !this.socket.draft().hotels?.length && !this.socket.entries().length;
+        if (untouched && hotels.length) this.socket.edit({ hotels });
+      });
+    });
   }
 
   protected save() {
@@ -246,6 +294,6 @@ export class WorkflowBuilder {
   private connect(): BuilderSocket {
     const overrides = inject(BUILDER_SOCKET_OPTIONS, { optional: true }) ?? {};
     const view = this.doc.defaultView!;
-    return new BuilderSocket({ url: builderSocketUrl(view.location, ensureDraftId(view.location, view.history)), ...overrides });
+    return new BuilderSocket({ url: builderSocketUrl(view.location, ensureDraftId(view.location, view.history), this.editId), ...overrides });
   }
 }

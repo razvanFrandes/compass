@@ -56,6 +56,16 @@ export class WorkflowsApi {
     return this.api.patch(`workflows/${encodeURIComponent(id)}`, changes);
   }
 
+  /** A copy named "… (copy)", made by the user and turned off (contracts §5). */
+  duplicate(id: string): Promise<ApiResult<Workflow>> {
+    return this.api.post(`workflows/${encodeURIComponent(id)}/duplicate`);
+  }
+
+  /** Deletes the workflow. Its runs, proposals and audit entries stay, marked with its name. */
+  remove(id: string): Promise<ApiResult<null>> {
+    return this.api.delete(`workflows/${encodeURIComponent(id)}`);
+  }
+
   /** "Run now". 409 while the workflow has a run in progress; 429 over the budget. */
   run(id: string): Promise<ApiResult<WorkflowRun>> {
     return this.api.post(`workflows/${encodeURIComponent(id)}/run`);

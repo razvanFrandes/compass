@@ -5,6 +5,7 @@ import type { ChartSpec } from './portfolio';
 import { PORTFOLIO_SPECS, type Drill } from './portfolio';
 import { drillContent } from './drill';
 import { humanizeText } from './text';
+import { ScopeService } from './scope/scope.service';
 import { COMPARES, CompareKey, FilterState, Filters, Pill, RANGES, RangeKey, scopeChips } from './filters';
 import { AMS_BOOKING_SHARE, AMS_CONVERSION, BCN_OUT_OF_ORDER, BER_FEEDS, BRIEF, DPS_KITCHEN, GOP_MONTHLY, LIS_PACE, NYC_ACCOUNT } from './halcyon-data';
 
@@ -676,9 +677,10 @@ const NEXT_RUN: Record<string, string> = { rate: 'next in 21 h 40 min', pace: 'n
 
 export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watcher' | 'builder' | 'notfound';
 
-/** Views with an address of their own; the rest live at "/". */
+/** Views with an address of their own; the rest live at "/". The builder is at /workflows/new and /workflows/<id>/edit. */
 const BUILDER_PATH = '/workflows/new';
-export const isBuilderUrl = (loc: Pick<Location, 'pathname' | 'search'>) => loc.pathname.startsWith(BUILDER_PATH) || new URLSearchParams(loc.search).has('builder');
+const EDIT_PATH = /^\/workflows\/[A-Za-z0-9_-]{1,64}\/edit\/?$/;
+export const isBuilderUrl = (loc: Pick<Location, 'pathname' | 'search'>) => loc.pathname.startsWith(BUILDER_PATH) || EDIT_PATH.test(loc.pathname) || new URLSearchParams(loc.search).has('builder');
 function initialView(): View {
   const loc = globalThis.location;
   return loc && isBuilderUrl(loc) ? 'builder' : 'inbox';
@@ -699,13 +701,17 @@ export class CompassStore {
 
   /** The brief's rows: the 20 Nov snapshot until the live brief (GET /api/brief) loads. */
   // Empty until the live brief loads (or fails, then the saved copy): no flash of yesterday's items.
-  readonly briefRows = signal<readonly BriefRow[]>([]);
+  private readonly allBriefRows = signal<readonly BriefRow[]>([]);
+  /** The rows for the hotels in scope (contracts §1: the brief is filtered on the client by `hotel_code`). */
+  private readonly scope = inject(ScopeService);
+  readonly briefRows = computed(() => this.allBriefRows().filter((r) => this.scope.includes(r.hotel_code)));
+  private readonly briefIds = computed(() => new Set(this.briefRows().map((r) => r.id)));
   readonly briefSource = signal<'loading' | 'snapshot' | 'live'>('loading');
   readonly items = signal<InboxItem[]>([]);
 
   /** Swaps in a new brief, keeping what the person already did with items that are still there. */
   setBrief(rows: readonly BriefRow[], source: 'snapshot' | 'live') {
-    this.briefRows.set(rows);
+    this.allBriefRows.set(rows);
     this.briefSource.set(source);
     this.items.update((old) => toItems(rows, old.length ? old : readInboxState()));
   }
@@ -770,9 +776,11 @@ export class CompassStore {
   readonly nightDecisions = signal<Record<number, NightDecision>>({});
 
   readonly activeThread = computed(() => this.threads().find((t) => t.id === this.activeThreadId()) ?? null);
-  readonly needsYou = computed(() => this.items().filter((i) => i.status !== 'done'));
-  readonly earlier = computed(() => this.items().filter((i) => i.status === 'done'));
-  readonly unread = computed(() => this.items().filter((i) => i.status === 'new').length);
+  /** What the screens read is in scope; `items` keeps every hotel, so a status survives a change of scope. */
+  private readonly scoped = computed(() => this.items().filter((i) => this.briefIds().has(i.id)));
+  readonly needsYou = computed(() => this.scoped().filter((i) => i.status !== 'done'));
+  readonly earlier = computed(() => this.scoped().filter((i) => i.status === 'done'));
+  readonly unread = computed(() => this.scoped().filter((i) => i.status === 'new').length);
   readonly busy = computed(() => this.threads().some((t) => t.turns.some((x) => !x.answerVisible && !x.stopped)));
 
   private timers: ReturnType<typeof setTimeout>[] = [];
@@ -784,10 +792,14 @@ export class CompassStore {
     this.view.set(view);
   }
 
-  /** The workflow builder at /workflows/new. The address changes first: the builder reads its draft id from it. */
-  openBuilder() {
+  /**
+   * The workflow builder: a new workflow at /workflows/new, an existing one at /workflows/<id>/edit.
+   * The address changes first: the builder reads its draft id and the workflow to load from it.
+   */
+  openBuilder(workflowId?: string) {
     const loc = globalThis.location;
-    if (loc && !isBuilderUrl(loc)) globalThis.history?.pushState(null, '', BUILDER_PATH);
+    const path = workflowId ? `/workflows/${encodeURIComponent(workflowId)}/edit` : BUILDER_PATH;
+    if (loc && (workflowId ? loc.pathname !== path : !isBuilderUrl(loc))) globalThis.history?.pushState(null, '', this.scope.href(path));
     this.view.set('builder');
   }
 

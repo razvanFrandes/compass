@@ -62,6 +62,11 @@ export class ApiHttp {
     return this.settle(this.http.patch<T>(this.url(path), body));
   }
 
+  /** A `DELETE` answers 204 with no body: `value` is then null. */
+  delete<T = null>(path: string): Promise<ApiResult<T>> {
+    return this.settle(this.http.delete<T>(this.url(path)));
+  }
+
   private async settle<T>(request: ReturnType<HttpClient['get']>): Promise<ApiResult<T>> {
     try {
       return { ok: true, value: (await firstValueFrom(request)) as T };

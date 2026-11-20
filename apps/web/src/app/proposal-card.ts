@@ -5,6 +5,7 @@ import type { ActionType, Proposal } from '@compass/contracts';
 import { Live, ago } from './live';
 import { formatEurShort } from './data';
 import { humanizeText } from './text';
+import { ScopeService } from './scope/scope.service';
 import * as icons from './icons';
 
 export const ACTION_LABEL: Record<ActionType, string> = {
@@ -41,7 +42,7 @@ const STATUS: Record<Proposal['status'], string> = {
     <article class="relative flex h-full flex-col p-5" [class]="p.status === 'pending' ? 'decision-card' : 'insight-card'" [attr.aria-label]="p.title">
       <div class="flex items-center justify-between gap-3">
         <span class="card-eyebrow" [class]="p.status === 'pending' ? 'text-(--decision)' : 'text-muted-foreground'">{{ status() }}</span>
-        <span class="text-muted-foreground text-[12.5px]">{{ p.hotel_code }} · {{ action() }}{{ p.risk === 'high' ? ' · high risk' : '' }}</span>
+        <span class="text-muted-foreground text-right text-[12.5px]">{{ hotel() }} · {{ action() }}{{ p.risk === 'high' ? ' · high risk' : '' }}</span>
       </div>
       <h3 class="mt-2 text-[16px]/[1.35] font-semibold tracking-[-0.01em]">{{ p.title }}</h3>
       <p class="mt-3 text-[14px] tabular-nums">
@@ -72,6 +73,9 @@ const STATUS: Record<Proposal['status'], string> = {
 export class ProposalCard {
   readonly proposal = input.required<Proposal>();
   protected readonly live = inject(Live);
+  private readonly scope = inject(ScopeService);
+  /** The hotel by name ("Arbor Amsterdam Centraal"), not by code. */
+  protected readonly hotel = computed(() => this.scope.nameOf(this.proposal().hotel_code));
   protected readonly more = signal(false);
   protected readonly status = computed(() => STATUS[this.proposal().status]);
   protected readonly action = computed(() => ACTION_LABEL[this.proposal().action] ?? this.proposal().action);

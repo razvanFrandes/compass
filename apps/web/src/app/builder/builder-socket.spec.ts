@@ -1,6 +1,6 @@
 import type { BuilderServerMessage, ChatEntry, WorkflowGraph } from '@compass/contracts';
 import { specToGraph } from '@compass/contracts';
-import { BuilderSocket, EMPTY_GRAPH, IDLE_LIVE, builderSocketUrl, ensureDraftId, mergeEntries, type SocketLike } from './builder-socket';
+import { BuilderSocket, EMPTY_GRAPH, IDLE_LIVE, builderSocketUrl, ensureDraftId, mergeEntries, workflowToEdit, type SocketLike } from './builder-socket';
 
 class FakeSocket implements SocketLike {
   static all: FakeSocket[] = [];
@@ -260,6 +260,12 @@ describe('draft id and socket address', () => {
   it('builds the socket address from the page: wss on https, ws on http, through the dev proxy', () => {
     expect(builderSocketUrl({ protocol: 'https:', host: 'juyo.razvanfrandes.com' }, 'abc')).toBe('wss://juyo.razvanfrandes.com/api/workflows/builder/ws?draft=abc');
     expect(builderSocketUrl({ protocol: 'http:', host: 'localhost:4200' }, 'abc')).toBe('ws://localhost:4200/api/workflows/builder/ws?draft=abc');
+    // Editing: the workflow to load rides along, and the draft id stays a fresh one (round2-contracts.md §5).
+    expect(builderSocketUrl({ protocol: 'https:', host: 'x.test' }, 'abc', 'wf-8044fd15')).toBe('wss://x.test/api/workflows/builder/ws?draft=abc&workflow=wf-8044fd15');
+    expect(workflowToEdit({ pathname: '/workflows/wf-8044fd15/edit' })).toBe('wf-8044fd15');
+    expect(workflowToEdit({ pathname: '/workflows/tpl-pace-guard/edit/' })).toBe('tpl-pace-guard');
+    expect(workflowToEdit({ pathname: '/workflows/new' })).toBeNull();
+    expect(workflowToEdit({ pathname: '/workflows/a%2Fb/edit' })).toBeNull();
   });
 
   it('merges entries without touching the list it was given', () => {

@@ -137,6 +137,32 @@ This completes the Watchers spec in `docs/research/ui-round3/agents_pattern.md` 
   - Every path ends on a review card: the watcher in one sentence, the first run in bold, the autonomy level and one authorization line. Nothing is created until "Create watcher".
   - New watchers start at Alerts only or Recommends, never higher (Ramp, Relevance, Linear).
 - **Activity** on the Watchers page is a timeline: nodes joined by a rail, and on desktop the days sit side by side (Render event timeline, Cloudscape). "Add a watcher" is a row of template cards with their schedule (Unify, Gemini).
+
+## Hotel scope, the builder's pickers and Agent Studio (Round 2, 2026-11-20)
+
+Plan items A4, A5 and A6 (`docs/plan-round2.md`), against `docs/round2-contracts.md` §1 and §5.
+
+- **One scope for the whole app** (`apps/web/src/app/scope`).
+  - `ScopeService.hotels()` holds hotel codes; an empty list is the whole group. It lives in the address (`?hotels=LIS,PAR`), so a link carries it, and in local storage, so it is there on the next visit. The address wins over what was stored.
+  - Back and Forward change the place, not the scope: the scope is written again on the address they land on.
+  - The brief, the decisions waiting on a person, the audit log and the list of workflows are filtered on the client by hotel code. A workflow for the whole group is always in scope.
+  - A new workflow starts on the scope: the builder sends it as its first edit when the draft arrives untouched.
+- **The hotel picker is one component** (`HotelPicker`), used by the sidebar switcher, the chip in page headers and the builder's Hotels step.
+  - An ARIA combobox that keeps its listbox open: focus stays in the search box and `aria-activedescendant` names the option the arrow keys are on.
+  - Quick picks are the whole group, each region and each brand. A region or a brand adds its hotels, or removes them when they are all in. The hotels are listed under their region; the brand is the first word of each name, and typing a brand filters to it.
+  - A pick applies at once, so the page behind follows. On a phone the picker is a bottom sheet, and the search box does not take the focus, because the keyboard would cover half the sheet.
+- **Hotels come from `GET /api/hotels`.** Until that endpoint is deployed, and whenever it cannot be reached, the app uses a built-in list of the 20 Halcyon hotels behind the same `ScopeService.catalog()`. A test checks that the list agrees with the embedded data.
+- **The builder is edited by hand without typing codes.**
+  - The Hotels step opens the picker. The node shows names ("Lisbon Chiado + 2 more"), not codes.
+  - Any Check step opens the list of labelled checks (`CHECK_LABELS`), each with a line on what it reads. The placeholder opens it too, so a check can be chosen without the chat.
+  - **Editing** is `/workflows/<id>/edit`. The builder opens a new draft with `&workflow=<id>` and Save updates that workflow. The address of a saved email workflow arrives masked: an empty field keeps it, and a new address is saved as a new workflow, as before.
+- **"Agent Studio" is the one name** for what was Watchers and Workflows, in the navigation, the titles and the buttons. Its address is `/studio`; `/watchers` still opens it.
+  - Each workflow is a card: how the last run went, the latest finding, a strip of the last 14 runs, the next run, the switch and the autonomy level.
+  - A run is a finding when it proposed something or sent its mail. A test always sends its mail, so a test's mail is not a finding.
+  - The next run is computed from the 05:00 UTC schedule in `docs/api.md` and shown in the reader's time zone.
+  - The ⋯ menu has Edit, Duplicate, Pause or Resume, and Delete. Delete asks first, with Cancel in focus.
+  - **Raising autonomy asks first; lowering it is immediate and offers Undo.** This closes the rule from Round 3 on the live workflows.
+  - A paused card recedes with a dashed edge instead of lower opacity, so its text keeps its contrast.
 - **The ⋯ menu** holds View run history, Edit settings, Ask about this watcher, Pause until…, Duplicate and Delete. Delete offers Undo instead of a confirmation.
 - **Fix: the page no longer scrolls sideways on phones.** The hero glow pushed the layout viewport to 446 px on a 430 px phone. It now stays inside the screen, and `main` clips horizontal overflow as a safety net.
 - **Checks:** a headless smoke test (playwright-core with the system Chrome) runs against the dev server and the production build. It covers the watcher page, the strip with keyboard, approve, the create flow, Esc, and phone layouts with an overflow probe on five views. It found no console errors.

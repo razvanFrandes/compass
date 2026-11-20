@@ -108,6 +108,7 @@ Every call returns `Promise<ApiResult<T>>`:
 | `list()` · `get(id)` | `GET /api/workflows` · `/api/workflows/:id` → `{ workflow, runs, proposals }` |
 | `create(spec)` · `patch(id, changes)` | `POST /api/workflows` · `PATCH /api/workflows/:id` |
 | `run(id)` | `POST /api/workflows/:id/run` → `WorkflowRun` (409 while one is running) |
+| `duplicate(id)` · `remove(id)` | `POST /api/workflows/:id/duplicate` → `Workflow` (off, named "… (copy)") · `DELETE /api/workflows/:id` → 204, `value` is null |
 | `runLog(runId)` | `GET /api/runs/:runId` → `{ run, entries }` |
 | `proposals(status?)` | `GET /api/proposals?status=…` |
 | `decide(id, { approved, by, note? })` · `undo(id, by)` | `POST /api/proposals/:id/decision` · `/undo` |
@@ -136,6 +137,16 @@ export class Inbox {
 ```
 
 Also `listResource()`, `detailResource(() => id())`, `runLogResource(() => runId())` (both idle while the id is undefined) and `auditResource()`. A resource's failure as a value: `toApiError(resource.error())`.
+
+## Hotels — `HotelsApi`
+
+`list()` and `listResource()` wrap `GET /api/hotels` → `HotelRef[]` (`docs/round2-contracts.md` §1). `HotelRef` is declared in `hotels-api.ts` until `@compass/contracts` exports it. Screens do not call this client: they read `ScopeService` (`src/app/scope`), which falls back to a built-in list while the endpoint is missing.
+
+```ts
+protected readonly scope = inject(ScopeService);
+// scope.hotels()  → string[] of hotel codes, empty for the whole group: send it as `scope.hotels` with an ask
+// scope.includes(row.hotel_code), scope.label(), scope.nameOf('LIS'), scope.href('/ask?c=…')
+```
 
 ## Tests
 
