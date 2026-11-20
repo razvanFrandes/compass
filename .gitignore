@@ -10,3 +10,7 @@ dist/
 *.log
 .DS_Store
 .wrangler/
+
+# Cloudflare local secrets
+.dev.vars
+.dev.vars.*

@@ -1,0 +1,217 @@
+{
+ "conversation": {
+  "id": 1
+ },
+ "entries": [
+  {
+   "model": [
+    {
+     "role": "user",
+     "content": "How is Lisbon?",
+     "timestamp": 1795192975084
+    }
+   ],
+   "kind": "pi.user",
+   "id": 7,
+   "conversationId": 1
+  },
+  {
+   "model": [
+    {
+     "role": "system",
+     "content": "",
+     "toolsAdded": [
+      {
+       "name": "list_hotels",
+       "description": "List the hotels of the group: code, name, brand, city, region, currency, rooms, meeting space.",
+       "parameters": {
+        "type": "object",
+        "properties": {}
+       }
+      }
+     ],
+     "timestamp": 1795192975087
+    }
+   ],
+   "kind": "pi.system",
+   "id": 10,
+   "conversationId": 1,
+   "byTaskId": 9
+  },
+  {
+   "model": [
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "text",
+       "text": "Let me check."
+      },
+      {
+       "type": "toolCall",
+       "id": "tool:1795192975079:93je6iwg7w",
+       "name": "get_pace",
+       "arguments": {
+        "hotels": [
+         "LIS"
+        ],
+        "daysAhead": 44
+       }
+      }
+     ],
+     "api": "faux:1795192975076:9f7sk6sb2hm",
+     "provider": "faux",
+     "model": "faux-1",
+     "usage": {
+      "input": 0,
+      "output": 14,
+      "cacheRead": 0,
+      "cacheWrite": 4044,
+      "totalTokens": 4058,
+      "cost": {
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "total": 0
+      }
+     },
+     "stopReason": "toolUse",
+     "timestamp": 1795192975079,
+     "thinkingLevel": "off"
+    }
+   ],
+   "kind": "pi.assistant",
+   "id": 11,
+   "conversationId": 1,
+   "byTaskId": 9
+  },
+  {
+   "model": [
+    {
+     "role": "toolResult",
+     "toolCallId": "tool:1795192975079:93je6iwg7w",
+     "toolName": "get_pace",
+     "content": [
+      {
+       "type": "text",
+       "text": "[{\"hotel_code\":\"LIS\",\"rooms_otb\":2203,\"rooms_otb_stly\":2677,\"pace_pct\":-17.7,\"revenue_otb\":386410,\"revenue_otb_stly\":425535}]\nDefinitions: pace: Room nights on the books for the next 44 nights vs on the books at the same point last year (\u2212364 days). Revenue in local currency.\nBusiness date: 2026-11-20. Sources: hotel.pace_vs_stly()."
+      }
+     ],
+     "details": {
+      "rows": [
+       {
+        "hotel_code": "LIS",
+        "rooms_otb": 2203,
+        "rooms_otb_stly": 2677,
+        "pace_pct": -17.7,
+        "revenue_otb": 386410,
+        "revenue_otb_stly": 425535
+       }
+      ],
+      "evidence": {
+       "sources": [
+        "hotel.pace_vs_stly()"
+       ],
+       "definitions": {
+        "pace": "Room nights on the books for the next 44 nights vs on the books at the same point last year (\u2212364 days). Revenue in local currency."
+       },
+       "period": null,
+       "sql": "select hotel_code, sum(rooms_otb)::int as rooms_otb, sum(rooms_otb_stly)::int as rooms_otb_stly, round(100.0 * (sum(rooms_otb) - sum(rooms_otb_stly)) / nullif(sum(rooms_otb_stly), 0), 1)::float8 as pace_pct, round(sum(revenue_otb), 0)::float8 as revenue_otb, round(sum(revenue_otb_stly), 0)::float8 as revenue_otb_stly from hotel.pace_vs_stly(null, $1::int) where $2::text[] is null or hotel_code = any($2::text[]) group by 1 order by 1",
+       "params": [
+        44,
+        [
+         "LIS"
+        ]
+       ],
+       "rowCount": 1,
+       "businessDate": "2026-11-20",
+       "notes": []
+      }
+     },
+     "isError": false,
+     "durationMs": 956,
+     "timestamp": 1795192976048
+    }
+   ],
+   "data": {
+    "diagnostics": []
+   },
+   "kind": "pi.tool-result",
+   "id": 13,
+   "conversationId": 1,
+   "byTaskId": 12
+  },
+  {
+   "model": [
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "text",
+       "text": "Lisbon is behind."
+      }
+     ],
+     "api": "faux:1795192975076:9f7sk6sb2hm",
+     "provider": "faux",
+     "model": "faux-1",
+     "usage": {
+      "input": 0,
+      "output": 5,
+      "cacheRead": 4044,
+      "cacheWrite": 106,
+      "totalTokens": 4155,
+      "cost": {
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "total": 0
+      }
+     },
+     "stopReason": "stop",
+     "timestamp": 1795192975079,
+     "thinkingLevel": "off"
+    }
+   ],
+   "kind": "pi.assistant",
+   "id": 15,
+   "conversationId": 1,
+   "byTaskId": 14
+  }
+ ],
+ "docs": {
+  "pi.agent": {
+   "model": {
+    "provider": "faux",
+    "modelId": "faux-1"
+   }
+  },
+  "pi.live": {},
+  "pi.inbox": {
+   "items": []
+  },
+  "pi.provider": {
+   "sessionId": "01a1f9d6-eee9-743b-b106-42acd95eb3e7"
+  },
+  "pi.usage": {
+   "models": {
+    "faux/faux-1": {
+     "input": 0,
+     "output": 19,
+     "cacheRead": 4044,
+     "cacheWrite": 4150,
+     "totalTokens": 8213,
+     "cost": {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0
+     }
+    }
+   },
+   "tools": {}
+  }
+ }
+}

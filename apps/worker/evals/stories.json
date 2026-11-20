@@ -1,0 +1,44 @@
+[
+  {
+    "id": "S1",
+    "question": "Why is Lisbon pacing behind last year?",
+    "mustMention": [["Lisbon"], ["comp set", "competitor", "market", "median"], ["pickup", "pace", "behind", "on the books"]],
+    "why": "Manual BAR override +22% above the comp set slows pickup; pace about -20% vs STLY."
+  },
+  {
+    "id": "S2",
+    "question": "Which hotel lost its biggest corporate account, and what did it cost?",
+    "mustMention": [["New York", "NYC"], ["Vantor"]],
+    "why": "Vantor Consulting left Arbor New York Midtown; corporate share 30% to 21%, OTA up."
+  },
+  {
+    "id": "S3",
+    "question": "Why are food scores dropping in Bali?",
+    "mustMention": [["Bali", "DPS"], ["kitchen"], ["staff", "hours", "short"]],
+    "why": "Kitchen at 68% of required hours for 5 weeks; dinner covers per occupied room -40%; food score 8.6 to 6.0."
+  },
+  {
+    "id": "S4",
+    "question": "Amsterdam is getting more Booking.com bookings lately. Why?",
+    "mustMention": [["Amsterdam", "AMS"], ["mobile"], ["checkout", "conversion"]],
+    "why": "A booking engine release broke mobile checkout; mobile conversion 1.8% to 0.8%; Booking.com share up."
+  },
+  {
+    "id": "S5",
+    "question": "Why do guests at Barcelona complain lately?",
+    "mustMention": [["Barcelona", "BCN"], ["construction", "renovation"], ["noise"]],
+    "why": "24 rooms out of order for renovation; construction noise in reviews."
+  },
+  {
+    "id": "S6",
+    "question": "How is Dubai Business Bay priced for 15-19 December?",
+    "mustMention": [["Business Bay", "DXB2"], ["below", "under", "cheaper"], ["comp set", "competitor", "market", "median"]],
+    "why": "Gulf Tech Week is missing from the pricing calendar: 0.76x the comp set while 83% full three weeks out."
+  },
+  {
+    "id": "S7",
+    "question": "Is anything wrong with the data in Berlin?",
+    "mustMention": [["Berlin", "BER"], ["POS"], ["stale", "sync", "behind", "missing"]],
+    "why": "The POS feed is stale: no F&B rows for the last 3 days."
+  }
+]

@@ -1,0 +1,32 @@
+{
+  "name": "@compass/worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc -p .",
+    "eval": "node --experimental-strip-types evals/run.ts",
+    "embed:reviews": "node --experimental-strip-types scripts/embed-reviews.ts"
+  },
+  "dependencies": {
+    "@compass/contracts": "workspace:*",
+    "@earendil-works/chord": "1.6.0",
+    "@earendil-works/pi-ai": "1.6.0",
+    "@earendil-works/pi-durable": "1.6.0",
+    "@earendil-works/pi-schema": "1.6.0",
+    "@modelcontextprotocol/server": "2.4.0",
+    "agents": "0.34.0",
+    "postgres": "4.1.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261120.1",
+    "@modelcontextprotocol/client": "2.4.0",
+    "@types/node": "24.19.2",
+    "typescript": "6.0.3",
+    "vitest": "5.1.1",
+    "wrangler": "4.165.0"
+  }
+}
