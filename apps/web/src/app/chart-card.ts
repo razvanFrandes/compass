@@ -27,7 +27,7 @@ import * as icons from './icons';
     <article class="insight-card flex h-full flex-col p-5" [attr.aria-labelledby]="spec().id + '-t'">
       <header class="flex items-start gap-3">
         <div class="min-w-0 flex-1">
-          <h3 [id]="spec().id + '-t'" class="text-[15.5px]/snug font-semibold tracking-[-0.005em]">{{ r.title }}</h3>
+          <h2 [id]="spec().id + '-t'" class="text-[15.5px]/snug font-semibold tracking-[-0.005em]">{{ r.title }}</h2>
           <p class="text-muted-foreground mt-1 text-[12.5px]/snug">{{ r.subtitle }}</p>
         </div>
         <div class="flex shrink-0 items-center gap-1">

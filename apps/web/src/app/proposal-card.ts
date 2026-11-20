@@ -4,6 +4,7 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import type { ActionType, Proposal } from '@compass/contracts';
 import { Live, ago } from './live';
 import { formatEurShort } from './data';
+import { humanizeText } from './text';
 import * as icons from './icons';
 
 export const ACTION_LABEL: Record<ActionType, string> = {
@@ -50,7 +51,7 @@ const STATUS: Record<Proposal['status'], string> = {
       @if (p.impact_eur !== null) {
         <p class="text-muted-foreground mt-1 text-[13px] tabular-nums">Impact {{ money() }}</p>
       }
-      <p class="text-muted-foreground mt-2 text-[13.5px]" [class.line-clamp-3]="!more()">{{ p.rationale }}</p>
+      <p class="text-muted-foreground mt-2 text-[13.5px]" [class.line-clamp-3]="!more()">{{ rationale() }}</p>
       @if (p.rationale.length > 220) {
         <button type="button" class="text-muted-foreground hover:text-foreground self-start text-[12.5px] underline underline-offset-2" (click)="more.set(!more())">{{ more() ? 'Less' : 'Why, in full' }}</button>
       }
@@ -79,5 +80,6 @@ export class ProposalCard {
     const v = this.proposal().impact_eur ?? 0;
     return `${v < 0 ? '−' : '+'}${formatEurShort(v)}`;
   });
+  protected readonly rationale = computed(() => humanizeText(this.proposal().rationale));
   protected readonly when = computed(() => ago(this.proposal().decidedAt ?? this.proposal().createdAt));
 }

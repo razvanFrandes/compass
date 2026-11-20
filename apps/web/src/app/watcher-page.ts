@@ -2,6 +2,8 @@ import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import type { Workflow, WorkflowRun } from '@compass/contracts';
+import { CHECK_LABELS } from '@compass/contracts';
+import { inline } from './markdown';
 import { groupTurns, toApiError } from './api';
 import { ChatTurnView } from './chat-turn';
 import { EvidencePanel } from './evidence-panel';
@@ -61,15 +63,20 @@ import * as icons from './icons';
           </div>
           <div>
             <p class="text-muted-foreground text-[12px]" id="aut-label">Autonomy</p>
-            <div class="op-toggle mt-1" role="radiogroup" aria-labelledby="aut-label">
-              @for (a of autonomies; track a) {
-                <button type="button" role="radio" [attr.aria-checked]="w.autonomy === a" [attr.aria-pressed]="w.autonomy === a" (click)="live.setAutonomy(w, a).then(reload)">{{ autonomyShort(a) }}</button>
-              }
-            </div>
-            <p class="text-muted-foreground mt-1 text-[12.5px]">{{ autonomy(w) }} · approver: {{ w.approver === 'gm' ? 'general manager' : 'revenue manager' }}</p>
+            @if (w.action.type === 'email') {
+              <!-- Email is low risk: it needs no approval (contracts: approvalNode) -->
+              <p>Sends an email · no approval needed</p>
+            } @else {
+              <div class="op-toggle mt-1" role="radiogroup" aria-labelledby="aut-label">
+                @for (a of autonomies; track a) {
+                  <button type="button" role="radio" [attr.aria-checked]="w.autonomy === a" [attr.tabindex]="w.autonomy === a ? 0 : -1" (click)="live.setAutonomy(w, a).then(reload)" (keydown)="autonomyKey($event, w)">{{ autonomyShort(a) }}</button>
+                }
+              </div>
+              <p class="text-muted-foreground mt-1 text-[12.5px]">{{ autonomy(w) }} · approver: {{ w.approver === 'gm' ? 'general manager' : 'revenue manager' }}</p>
+            }
           </div>
           @if (w.checks.length) {
-            <div class="sm:col-span-2"><p class="text-muted-foreground text-[12px]">Checks first</p><p class="font-mono text-[12.5px]">{{ w.checks.join(' · ') }}</p></div>
+            <div class="sm:col-span-2"><p class="text-muted-foreground text-[12px]">Checks first</p><p>{{ checks(w) }}</p></div>
           }
         </section>
 
@@ -87,16 +94,16 @@ import * as icons from './icons';
         <section aria-labelledby="wp-runs" class="grid gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
           <div>
             <h2 id="wp-runs" class="mb-3 text-[15px] font-semibold">Runs</h2>
-            <ul class="flex flex-col gap-2" role="listbox" aria-label="Runs">
+            <ul class="flex flex-col gap-2" aria-label="Runs">
               @for (r of runs(); track r.id) {
-                <li role="option" [attr.aria-selected]="r.id === runId()">
-                  <button type="button" class="w-full rounded-[10px] border p-3 text-left text-[13px] transition-colors" [class]="r.id === runId() ? 'border-(--focus-brand) bg-(--overlay-hover)' : 'border-border hover:bg-(--overlay-hover)'" (click)="pickRun(r.id)">
+                <li>
+                  <button type="button" class="w-full rounded-[10px] border p-3 text-left text-[13px] transition-colors" [attr.aria-pressed]="r.id === runId()" [class]="r.id === runId() ? 'border-(--focus-brand) bg-(--overlay-hover)' : 'border-border hover:bg-(--overlay-hover)'" (click)="pickRun(r.id)">
                     <span class="flex items-center justify-between gap-2">
                       <span [class]="r.status === 'failed' ? 'text-(--negative) font-medium' : r.status === 'waiting_approval' ? 'text-(--decision) font-medium' : 'font-medium'">{{ status(r.status) }}{{ r.test ? ' · test' : '' }}</span>
                       <span class="text-muted-foreground text-[12px]">{{ ago(r.startedAt) }} · {{ r.trigger }}</span>
                     </span>
                     @if (r.summary) {
-                      <span class="text-muted-foreground mt-1 line-clamp-2 block">{{ r.summary }}</span>
+                      <span class="text-muted-foreground md-inline mt-1 line-clamp-3" [innerHTML]="summary(r.summary)"></span>
                     }
                   </button>
                 </li>
@@ -192,6 +199,27 @@ export class WatcherPage {
   }
   protected autonomy(w: Workflow) {
     return AUTONOMY_LABEL[w.autonomy];
+  }
+  /** "Pace vs last year · Review scores", not tool names. */
+  protected checks(w: Workflow) {
+    return w.checks.map((c) => CHECK_LABELS[c] ?? c.replace(/^get_/, '').replace(/_/g, ' ')).join(' · ');
+  }
+  /** A run's last word, as one line of safe Markdown with internal tokens turned into words. */
+  protected summary(s: string) {
+    return inline(s.replace(/\s*\n+\s*[-*•]\s+/g, ' · ').replace(/\s*\n+\s*/g, ' '));
+  }
+  /** Arrow keys move the choice, as in any radio group. */
+  protected autonomyKey(e: KeyboardEvent, w: Workflow) {
+    const i = this.autonomies.indexOf(w.autonomy);
+    const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = this.autonomies[(i + step + this.autonomies.length) % this.autonomies.length];
+    const group = (e.currentTarget as HTMLElement).parentElement;
+    void this.live.setAutonomy(w, next).then(() => {
+      this.reload();
+      setTimeout(() => group?.querySelectorAll<HTMLElement>('[role=radio]')[this.autonomies.indexOf(next)]?.focus(), 50);
+    });
   }
   protected autonomyShort(a: Workflow['autonomy']) {
     return a === 'suggest' ? 'Suggest' : a === 'approve' ? 'Approve' : 'Act alone (low risk)';

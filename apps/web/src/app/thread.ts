@@ -3,7 +3,7 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import type { AnswerMode } from '@compass/contracts';
 import { AskBar } from './ask-bar';
-import { ChatTurnView } from './chat-turn';
+import { ChatTurnView, usageText } from './chat-turn';
 import { EvidencePanel } from './evidence-panel';
 import { Live } from './live';
 import { CompassStore } from './store';
@@ -77,10 +77,10 @@ import * as icons from './icons';
             <div class="flex items-center justify-between gap-3">
               <div class="op-toggle" role="radiogroup" aria-label="Answer mode">
                 @for (m of modes; track m.id) {
-                  <button type="button" role="radio" [attr.aria-checked]="live.mode() === m.id" [attr.aria-pressed]="live.mode() === m.id" [title]="m.hint" (click)="live.mode.set(m.id)">{{ m.label }}</button>
+                  <button type="button" role="radio" [attr.aria-checked]="live.mode() === m.id" [attr.tabindex]="live.mode() === m.id ? 0 : -1" [title]="m.hint" (click)="live.mode.set(m.id)" (keydown)="modeKey($event)">{{ m.label }}</button>
                 }
               </div>
-              <span class="text-muted-foreground text-[12px] tabular-nums">{{ modeHint() }}@if (chat.usage().tokens) { · {{ chat.usage().tokens.toLocaleString('en-GB') }} tokens · \${{ chat.usage().costUsd.toFixed(4) }}}</span>
+              <span class="text-muted-foreground text-[12px] tabular-nums" [title]="usageTitle()">{{ modeHint() }}@if (chat.usage().tokens) { · {{ usageShort() }}}</span>
             </div>
           </div>
         </footer>
@@ -135,6 +135,19 @@ export class ThreadView {
       if (nearBottom || turns.length !== this.lastCount) el.scrollTop = el.scrollHeight;
       this.lastCount = size;
     });
+  }
+
+  protected readonly usageShort = computed(() => usageText(this.chat.usage()));
+  protected readonly usageTitle = computed(() => `This conversation: ${this.chat.usage().tokens.toLocaleString('en-GB')} tokens · $${this.chat.usage().costUsd.toFixed(4)}`);
+
+  /** Arrow keys move between Quick and Thinker, as in any radio group. */
+  protected modeKey(e: KeyboardEvent) {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+    e.preventDefault();
+    const next: AnswerMode = this.live.mode() === 'quick' ? 'thinker' : 'quick';
+    this.live.mode.set(next);
+    const group = (e.currentTarget as HTMLElement).parentElement;
+    setTimeout(() => group?.querySelector<HTMLElement>('[aria-checked=true]')?.focus(), 0);
   }
 
   protected showEvidence(turnKey: string, callId: string) {

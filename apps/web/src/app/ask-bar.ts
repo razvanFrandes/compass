@@ -38,19 +38,22 @@ const DEMO_PHRASE = 'Which nights next month are furthest behind last year?';
       (submit)="$event.preventDefault(); voice() === 'off' ? send() : finish()"
     >
       @if (voice() === 'off' || sheet()) {
-        <div class="flex h-full items-center gap-2.5 pr-2 pl-3.5">
+        <div class="flex min-h-[54px] items-center gap-2.5 py-1.5 pr-2 pl-3.5 max-sm:min-h-[50px]">
           <span class="orb-mark shrink-0" [class.orb-mark--busy]="busy()" aria-hidden="true"></span>
           <label [for]="inputId()" class="sr-only">{{ label() }}</label>
-          <input
+          <!-- A textarea that grows with its text (a pre-filled question can be long; on a phone a one-line input showed only its end) -->
+          <textarea
             #field
+            rows="1"
             [id]="inputId()"
-            class="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-[16px] outline-none sm:text-[15px]"
+            class="ask-textarea placeholder:text-muted-foreground min-w-0 flex-1 resize-none bg-transparent py-1 text-[16px]/[1.45] outline-none sm:text-[15px]/[1.45]"
             [placeholder]="placeholder()"
             autocomplete="off"
             enterkeyhint="send"
             [value]="draft()"
             (input)="draft.set($any($event.target).value)"
-          />
+            (keydown.enter)="onEnter($event)"
+          ></textarea>
           @if (shortcut()) {
             <kbd hlmKbd class="hidden group-focus-within:hidden sm:inline-flex">⌘K</kbd>
           }
@@ -133,7 +136,7 @@ export class AskBar {
   private level = 0;
 
   private readonly doc = inject(DOCUMENT);
-  private readonly field = viewChild<ElementRef<HTMLInputElement>>('field');
+  private readonly field = viewChild<ElementRef<HTMLTextAreaElement>>('field');
   private readonly cancelBtn = viewChild<ElementRef<HTMLButtonElement>>('cancelBtn');
   private stream?: MediaStream;
   private audio?: AudioContext;
@@ -153,6 +156,10 @@ export class AskBar {
       this.draft.set(p.text);
       if (p.text) setTimeout(() => this.focus(), 30);
     });
+    afterRenderEffect(() => {
+      this.draft();
+      this.fit();
+    });
     // Open the phone sheet as a modal as soon as it renders.
     afterRenderEffect(() => {
       const d = this.sheetDlg()?.nativeElement;
@@ -161,7 +168,26 @@ export class AskBar {
   }
 
   focus() {
-    this.field()?.nativeElement.focus();
+    const el = this.field()?.nativeElement;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }
+
+  /** Enter sends; Shift+Enter starts a new line; an IME composition is left alone. */
+  protected onEnter(e: Event) {
+    const k = e as KeyboardEvent;
+    if (k.shiftKey || k.isComposing) return;
+    k.preventDefault();
+    this.send();
+  }
+
+  /** Height follows the text, up to six lines; then it scrolls. */
+  private fit() {
+    const el = this.field()?.nativeElement;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 6 * 22 + 8)}px`;
   }
 
   protected send() {

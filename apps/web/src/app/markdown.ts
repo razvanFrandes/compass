@@ -1,4 +1,5 @@
 import { Component, computed, input } from '@angular/core';
+import { humanizeText } from './text';
 
 /*
   Kassandra's answers are Markdown. A small renderer for what the model writes (paragraphs, headings, lists,
@@ -7,10 +8,11 @@ import { Component, computed, input } from '@angular/core';
 */
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-function inline(s: string): string {
-  let t = esc(s);
+/** One line of Markdown (bold, italic, code, links) as safe HTML; also for a short summary inside a button. */
+export function inline(s: string): string {
   const codes: string[] = [];
-  t = t.replace(/`([^`]+)`/g, (_, c) => `\u0000${codes.push(`<code>${c}</code>`) - 1}\u0000`);
+  let t = s.replace(/`([^`]+)`/g, (_, c) => `\u0000${codes.push(`<code>${esc(c)}</code>`) - 1}\u0000`);
+  t = esc(humanizeText(t));
   t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/__([^_]+)__/g, '<strong>$1</strong>');
   t = t.replace(/(^|[^*\w])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
   t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');

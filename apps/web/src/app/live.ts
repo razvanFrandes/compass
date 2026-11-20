@@ -3,7 +3,7 @@ import { toast } from '@spartan-ng/brain/sonner';
 import type { AnswerMode, Proposal, Workflow } from '@compass/contracts';
 import { BriefApi, KassandraChat, WorkflowsApi, toApiError } from './api';
 import { FilterState, scopeChips } from './filters';
-import { AnswerScope, BriefRow, CompassStore, scopeForRow } from './store';
+import { AnswerScope, BriefRow, CompassStore, isBuilderUrl, scopeForRow } from './store';
 import { Drill } from './portfolio';
 import { drillContent } from './drill';
 
@@ -100,7 +100,72 @@ export class Live {
       }
     }, 10_000);
     void timer;
-    this.readAskUrl();
+    // Every place has an address, so reload and Back work: /ask?c=…, /watchers/:id, /boards/:id, /workflows/new.
+    this.applyUrl();
+    effect(() => {
+      const target = this.urlFor();
+      const loc = globalThis.location;
+      if (!target || !loc) return;
+      const params = new URLSearchParams(loc.search);
+      const here = target.c ? loc.pathname === target.path && params.get('c') === target.c : loc.pathname === target.path;
+      if (!here) globalThis.history?.pushState(null, '', target.c ? `${target.path}?c=${encodeURIComponent(target.c)}` : target.path);
+    });
+    globalThis.addEventListener?.('popstate', () => this.applyUrl());
+  }
+
+  /** The address of what's on screen (null for the builder, which keeps its own ?draft=). */
+  private urlFor(): { path: string; c?: string } | null {
+    switch (this.store.view()) {
+      case 'thread':
+        return { path: '/ask', c: this.chat.conversation() };
+      case 'boards':
+        return { path: '/boards' };
+      case 'board':
+        return { path: `/boards/${encodeURIComponent(this.store.activeBoardId())}` };
+      case 'watchers':
+        return { path: '/watchers' };
+      case 'watcher':
+        return { path: `/watchers/${encodeURIComponent(this.store.activeWatcherId())}` };
+      case 'builder':
+        return null;
+      default:
+        return { path: '/' };
+    }
+  }
+  /** Opens what the address names. `/ask?q=…` (links in alert emails) fills the composer and never sends. */
+  private applyUrl() {
+    const loc = globalThis.location;
+    if (!loc) return;
+    const path = loc.pathname.replace(/\/+$/, '') || '/';
+    const params = new URLSearchParams(loc.search);
+    const seg = (re: RegExp) => {
+      const m = path.match(re);
+      return m ? decodeURIComponent(m[1]) : null;
+    };
+    if (isBuilderUrl(loc)) return this.store.view.set('builder');
+    if (path === '/ask') {
+      const c = params.get('c');
+      if (c) this.chat.open(c);
+      const q = params.get('q');
+      if (q !== null) {
+        this.prefill(q);
+        globalThis.history?.replaceState(null, '', `/ask?c=${encodeURIComponent(this.chat.conversation())}`);
+      }
+      return this.store.view.set('thread');
+    }
+    if (path === '/watchers') return this.store.view.set('watchers');
+    const wid = seg(/^\/watchers\/([^/]+)$/);
+    if (wid) {
+      this.store.activeWatcherId.set(wid);
+      return this.store.view.set('watcher');
+    }
+    if (path === '/boards') return this.store.view.set('boards');
+    const bid = seg(/^\/boards\/([^/]+)$/);
+    if (bid && this.store.boards().some((b) => b.id === bid)) {
+      this.store.activeBoardId.set(bid);
+      return this.store.view.set('board');
+    }
+    this.store.view.set('inbox');
   }
 
   /* ── Chat actions ── */
@@ -162,15 +227,6 @@ export class Live {
       if (old && old.title === next.title && old.scope === next.scope) return list;
       return [next, ...list.filter((c) => c.id !== id)];
     });
-  }
-  /** `/ask?q=…` (links in alert emails) fills the composer and never sends. */
-  private readAskUrl() {
-    const loc = globalThis.location;
-    if (!loc?.pathname.startsWith('/ask')) return;
-    const q = new URLSearchParams(loc.search).get('q') ?? '';
-    globalThis.history?.replaceState(null, '', '/');
-    this.prefill(q);
-    this.store.go('thread');
   }
 
   /* ── Brief actions ── */

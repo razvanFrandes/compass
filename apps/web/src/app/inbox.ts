@@ -67,7 +67,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
           <ul class="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-2">
             @for (m of pulse; track m.key) {
               <li>
-                <button type="button" class="clickable-card grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 p-3 text-left sm:flex sm:flex-col sm:items-stretch sm:gap-1 sm:p-3.5" (click)="live.askNew('What drove the portfolio’s ' + m.label.toLowerCase() + ' for the next 30 nights?')" [attr.aria-label]="m.label + ' ' + m.value + ', ' + m.deltaText + ' versus last year. Ask what drove it'">
+                <button type="button" class="clickable-card grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 p-3 text-left sm:flex sm:flex-col sm:items-stretch sm:gap-1 sm:p-3.5" (click)="live.askNew('What drove the portfolio’s ' + m.label.toLowerCase() + ' for the next 30 nights?')">
                   <span class="text-muted-foreground col-span-2 text-[12px]">{{ m.label }}</span>
                   <span class="text-[20px]/tight font-semibold tracking-[-0.02em] tabular-nums sm:text-[24px]/tight">{{ m.value }}</span>
                   <svg viewBox="0 0 120 40" preserveAspectRatio="none" class="row-span-2 h-8 w-14 sm:order-last sm:mt-1 sm:h-10 sm:w-full" aria-hidden="true">
@@ -75,6 +75,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
                     <path [attr.d]="m.ty" fill="none" class="stroke-(--series)" stroke-width="1.75" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
                   </svg>
                   <span class="text-muted-foreground text-[12px] tabular-nums">{{ m.arrow }} {{ m.deltaText }}</span>
+                  <span class="sr-only">versus last year. Ask what drove it</span>
                 </button>
               </li>
             }

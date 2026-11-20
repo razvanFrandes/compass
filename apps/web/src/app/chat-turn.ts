@@ -20,6 +20,9 @@ export const argsLine = (args: Record<string, unknown>) =>
     .slice(0, 4)
     .map(([, v]) => String(v))
     .join(' · ');
+/** "52.6k tokens · $0.05": the cost, kept quiet (the exact figures are in the tooltip). */
+export const usageText = (u: { tokens: number; costUsd: number }) =>
+  `${u.tokens >= 1000 ? `${(u.tokens / 1000).toFixed(1)}k` : u.tokens} tokens · $${u.costUsd < 0.01 ? u.costUsd.toFixed(3) : u.costUsd.toFixed(2)}`;
 const seconds = (ms: number | null) => (ms === null ? '' : ms < 1000 ? '<1s' : `${Math.round(ms / 1000)}s`);
 const TRIGGER = (w: WorkflowSpec) => (w.trigger.kind === 'schedule' ? `Every ${w.trigger.every}` : w.trigger.kind === 'brief' ? `When the brief finds ${w.trigger.finding.replace(/_/g, ' ')}` : 'When you run it');
 
@@ -119,7 +122,7 @@ const TRIGGER = (w: WorkflowSpec) => (w.trigger.kind === 'schedule' ? `Every ${w
       </p>
     }
     @if (!t.running && (t.answer || t.steps.length) && t.model) {
-      <p class="text-muted-foreground text-[11.5px] tabular-nums">{{ t.model }} · {{ tokens() }} tokens · \${{ t.usage.costUsd.toFixed(4) }}</p>
+      <p class="text-muted-foreground/80 text-[11.5px] tabular-nums" [title]="t.model + ' · ' + tokens() + ' tokens · $' + t.usage.costUsd.toFixed(4)">{{ modeOf(t.model) }} · {{ usage() }}</p>
     }
   `,
 })
@@ -137,6 +140,11 @@ export class ChatTurnView {
   protected readonly trigger = TRIGGER;
   protected readonly worked = computed(() => seconds(this.turn().workedMs) || '—');
   protected readonly tokens = computed(() => this.turn().usage.tokens.toLocaleString('en-GB'));
+  protected readonly usage = computed(() => usageText(this.turn().usage));
+  /** The answer mode, read from the model that wrote it: Quick runs on Haiku, Thinker on Sonnet. */
+  protected modeOf(model: string) {
+    return /haiku/i.test(model) ? 'Quick' : /sonnet|opus/i.test(model) ? 'Thinker' : model.replace(/^.*\//, '');
+  }
   protected readonly drafts = computed(() => this.turn().steps.filter((s): s is ChatStep & { draft: WorkflowSpec } => !!s.draft).map((s) => ({ callId: s.callId, draft: s.draft })));
   protected readonly runningLabel = computed(() => {
     const steps = this.turn().steps;

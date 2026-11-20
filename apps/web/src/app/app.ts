@@ -46,13 +46,13 @@ import * as icons from './icons';
           <span class="text-[14px] font-semibold tracking-[-0.02em]">Compass</span>
         </div>
 
-        <button type="button" class="hover:bg-foreground/4 flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors">
+        <button type="button" aria-disabled="true" hlmTooltip="Coming soon: switch between hotel groups" aria-describedby="soon-note" class="flex cursor-not-allowed items-center gap-2.5 rounded-lg px-2 py-1.5 text-left">
           <span class="bg-foreground/90 text-background grid size-7 place-items-center rounded-md text-[12px] font-semibold">H</span>
           <span class="min-w-0 flex-1">
             <span class="block truncate text-[13px] font-medium">{{ group.name }}</span>
             <span class="text-muted-foreground block truncate text-[12px]">All {{ group.hotels }} hotels</span>
           </span>
-          <ng-icon name="phosphorCaretUpDownLight" class="text-muted-foreground" />
+          <ng-icon name="phosphorCaretUpDownLight" class="text-muted-foreground opacity-50" />
         </button>
 
         <ul class="flex flex-col gap-px text-[14px]">
@@ -92,7 +92,8 @@ import * as icons from './icons';
           <button type="button" class="hover:text-foreground hover:bg-foreground/4 flex items-center gap-2.5 rounded-md px-2 py-1.5" (click)="toggleTheme()">
             <ng-icon [name]="dark() ? 'phosphorSunLight' : 'phosphorMoonLight'" class="text-[16px]" />{{ dark() ? 'Light theme' : 'Dark theme' }}
           </button>
-          <button type="button" class="hover:text-foreground hover:bg-foreground/4 flex items-center gap-2.5 rounded-md px-2 py-1.5"><ng-icon name="phosphorGearSixLight" class="text-[16px]" />Settings</button>
+          <button type="button" aria-disabled="true" hlmTooltip="Coming soon" aria-describedby="soon-note" class="flex cursor-not-allowed items-center gap-2.5 rounded-md px-2 py-1.5 opacity-60"><ng-icon name="phosphorGearSixLight" class="text-[16px]" />Settings<span class="ml-auto text-[11.5px]">Soon</span></button>
+          <span id="soon-note" class="sr-only">Coming soon</span>
           <p class="px-2 pt-3 text-[12px]/relaxed">Fictional group, generated data. Business date 20 Nov 2026.</p>
         </div>
       </nav>
@@ -124,7 +125,12 @@ import * as icons from './icons';
             <app-watchers />
           }
           @case ('watcher') {
-            <app-watcher-page />
+            <!-- Loads on first visit: it reads CHECK_LABELS from @compass/contracts, which brings zod -->
+            @defer (on immediate) {
+              <app-watcher-page />
+            } @placeholder {
+              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading…</p>
+            }
           }
         }
       </main>

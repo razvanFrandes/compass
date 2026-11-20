@@ -5,6 +5,7 @@ import type { Workflow } from '@compass/contracts';
 import { Live, ago } from './live';
 import { ACTION_LABEL, ProposalCard } from './proposal-card';
 import { CompassStore } from './store';
+import { humanizeText } from './text';
 import * as icons from './icons';
 
 export const AUTONOMY_LABEL: Record<Workflow['autonomy'], string> = {
@@ -126,7 +127,7 @@ export const hotelsText = (h: string[]) => (h.includes('ALL') ? 'All hotels' : h
                     <td class="px-4 py-2">{{ a.hotel_code }}</td>
                     <td class="px-4 py-2 whitespace-nowrap">{{ actionLabel(a.action) }}</td>
                     <td class="text-muted-foreground px-4 py-2 whitespace-nowrap">{{ a.by }}</td>
-                    <td class="px-4 py-2"><span class="font-medium">{{ outcome(a.outcome) }}</span><span class="text-muted-foreground block max-w-[60ch] text-[12.5px]">{{ a.receipt }}</span></td>
+                    <td class="px-4 py-2"><span class="font-medium">{{ outcome(a.outcome) }}</span><span class="text-muted-foreground block max-w-[60ch] text-[12.5px]">{{ human(a.receipt) }}</span></td>
                   </tr>
                 }
               </tbody>
@@ -163,13 +164,16 @@ export class WatchersView {
     return ACTION_LABEL[a] ?? a;
   }
   protected autonomy(w: Workflow) {
-    return AUTONOMY_LABEL[w.autonomy];
+    return w.action.type === 'email' ? 'No approval needed' : AUTONOMY_LABEL[w.autonomy];
   }
   protected runStatus(s: string) {
     return RUN_STATUS[s] ?? s;
   }
   protected outcome(o: string) {
     return ({ sent_to_rms: 'Sent to the RMS', suggested: 'Suggested', undone: 'Undone', emailed: 'Emailed' } as Record<string, string>)[o] ?? o;
+  }
+  protected human(s: string) {
+    return humanizeText(s);
   }
   protected busy(id: string) {
     return this.live.busy()[id] ?? '';
