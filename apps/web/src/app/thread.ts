@@ -4,7 +4,7 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import type { AnswerMode } from '@compass/contracts';
 import { AskBar } from './ask-bar';
 import { ChatTurnView, usageText } from './chat-turn';
-import { EvidencePanel } from './evidence-panel';
+import { EvidenceLayout } from './evidence';
 import { Live } from './live';
 import { CompassStore } from './store';
 import * as icons from './icons';
@@ -17,18 +17,23 @@ import * as icons from './icons';
 */
 @Component({
   selector: 'app-thread',
-  imports: [NgIcon, AskBar, ChatTurnView, EvidencePanel, HlmButtonImports],
+  imports: [NgIcon, AskBar, ChatTurnView, EvidenceLayout, HlmButtonImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'flex h-full min-h-0' },
   template: `
-    <div class="grid min-h-0 w-full grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(380px,1fr)_minmax(0,0.9fr)]">
-      <section class="flex min-h-0 min-w-0 flex-col" aria-label="Conversation">
+    <!-- Evidence integration point 1 of 3: the layout wraps the conversation; the evidence is its second pane (a sheet on phones) -->
+    <juyo-evidence-layout #evidence [entries]="selectedSteps()" [answer]="selectedAnswer()" [question]="selectedLabel()">
+      <section class="flex min-h-0 min-w-0 flex-1 flex-col" aria-label="Conversation">
         <header class="border-border/70 flex h-14 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
           <button hlmBtn variant="ghost" size="sm" class="text-muted-foreground -ml-1" (click)="store.go('inbox')"><ng-icon name="phosphorArrowLeftLight" />Inbox</button>
           <span class="text-muted-foreground">/</span>
           <h1 class="min-w-0 flex-1 truncate text-[14px] font-medium">{{ live.title() }}</h1>
           @if (chat.status() === 'reconnecting' || chat.status() === 'connecting') {
             <span class="text-muted-foreground shrink-0 text-[12px]" role="status">{{ chat.status() === 'reconnecting' ? 'Reconnecting…' : 'Connecting…' }}</span>
+          }
+          @if (turnsWithEvidence().length) {
+            <!-- Evidence integration point 2 of 3: on phones the evidence is a sheet, opened from here or from a step -->
+            <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground shrink-0 lg:hidden" aria-haspopup="dialog" aria-label="How this was computed" title="How this was computed" (click)="evidence.open()"><ng-icon name="phosphorDatabaseLight" /></button>
           }
           <button hlmBtn variant="ghost" size="sm" class="shrink-0" (click)="live.newChat()"><ng-icon name="phosphorPlusLight" />New</button>
         </header>
@@ -85,19 +90,7 @@ import * as icons from './icons';
           </div>
         </footer>
       </section>
-
-      <aside class="border-border/70 hidden min-h-0 flex-col border-l lg:flex" aria-label="How this was computed">
-        <header class="border-border/70 flex h-14 shrink-0 items-center border-b px-5">
-          <h2 class="text-[14px] font-medium">How this was computed</h2>
-          @if (turnsWithEvidence().length > 1) {
-            <span class="text-muted-foreground ml-2 text-[12.5px]">· {{ selectedLabel() }}</span>
-          }
-        </header>
-        <div class="min-h-0 flex-1 overflow-y-auto p-5">
-          <app-evidence-panel [allSteps]="selectedSteps()" [focus]="focus()" />
-        </div>
-      </aside>
-    </div>
+    </juyo-evidence-layout>
   `,
 })
 export class ThreadView {
@@ -110,7 +103,7 @@ export class ThreadView {
   ];
   protected readonly modeHint = computed(() => (this.live.mode() === 'quick' ? 'Fast, governed metrics' : 'Reasons across every source'));
   private readonly selected = signal<string | null>(null);
-  protected readonly focus = signal<string | null>(null);
+  private readonly evidenceLayout = viewChild.required<EvidenceLayout>('evidence');
   protected readonly turnsWithEvidence = computed(() => this.chat.turns().filter((t) => t.steps.some((s) => s.evidence)));
   /** The turn the panel explains: the one picked, else the latest with evidence. */
   private readonly selectedTurn = computed(() => {
@@ -119,6 +112,7 @@ export class ThreadView {
   });
   protected readonly selectedSteps = computed(() => this.selectedTurn()?.steps ?? []);
   protected readonly selectedLabel = computed(() => this.selectedTurn()?.question ?? '');
+  protected readonly selectedAnswer = computed(() => this.selectedTurn()?.answer ?? null);
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
   private lastCount = 0;
 
@@ -150,9 +144,9 @@ export class ThreadView {
     setTimeout(() => group?.querySelector<HTMLElement>('[aria-checked=true]')?.focus(), 0);
   }
 
+  /** Evidence integration point 3 of 3: "How this was computed" on a step picks the turn and opens that tool call's card. */
   protected showEvidence(turnKey: string, callId: string) {
     this.selected.set(turnKey);
-    this.focus.set(callId);
-    setTimeout(() => document.getElementById('ev-' + callId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30);
+    this.evidenceLayout().open(callId);
   }
 }
