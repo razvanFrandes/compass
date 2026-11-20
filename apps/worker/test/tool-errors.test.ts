@@ -57,6 +57,8 @@ describe('a database failure', () => {
   it.each([
     ['a missing column', 'column "nope" does not exist', '42703'],
     ['a statement timeout', 'canceling statement due to statement timeout', '57014'],
+    ['a division by zero', 'division by zero', '22012'],
+    ['a write in a read-only transaction', 'cannot execute DELETE in a read-only transaction', '25006'],
   ])('run_readonly_query still shows a SQL error (%s), with the hint to fix the query', async (_what, message, code) => {
     const outcome = await call('run_readonly_query', new HotelData(failingDb(sqlError(message, code))), { sql: 'select nope from hotels' });
     expect(outcome).toEqual({ ok: false, text: `${message} Fix the query and try again; call get_schema for table and column names.` });
@@ -68,6 +70,12 @@ describe('a database failure', () => {
     ['a driver error code', sqlError(DB_ERROR, 'CONNECTION_CLOSED')],
     ['a refused connection', sqlError('connect ECONNREFUSED db.internal:5432', 'ECONNREFUSED')],
     ['a connection exception from the server', sqlError('connection to db.internal failed', '08006')],
+    ['a refused login', sqlError('no pg_hba.conf entry for host "db.internal", user "compass_ro", database "compass"', '28000')],
+    ['a wrong password', sqlError('password authentication failed for user "compass_ro" at db.internal', '28P01')],
+    ['a missing database', sqlError('database "compass" does not exist on db.internal', '3D000')],
+    ['too many connections', sqlError('too many connections for role "compass_ro" on db.internal', '53300')],
+    ['a server shutting down', sqlError('terminating connection due to administrator command (db.internal)', '57P01')],
+    ['a server starting up', sqlError('the database system is starting up (db.internal)', '57P03')],
   ])('run_readonly_query hides an error that is not a SQL error (%s)', async (_what, error) => {
     const outcome = await call('run_readonly_query', new HotelData(failingDb(error)), { sql: 'select 1' });
     expect(outcome).toEqual({ ok: false, text: TOOL_FAILURE });

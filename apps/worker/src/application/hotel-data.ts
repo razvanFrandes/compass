@@ -32,13 +32,22 @@ export interface Hotel {
 const MAX_ROWS = 200;
 
 /**
- * Whether Postgres itself refused the statement: the error then carries a five-character SQLSTATE (42703 undefined
- * column, 57014 statement timeout, …). Driver and network errors (CONNECTION_CLOSED, ECONNREFUSED, Hyperdrive) carry
- * none, and class 08 is the server's own "connection exception": neither is about the query, and both may name hosts.
+ * SQLSTATE classes that describe the statement itself: 0A feature not supported, 21 cardinality violation, 22 data
+ * exception, 23 integrity constraint, 25 invalid transaction state (a write in a read-only transaction), 2B dependent
+ * privileges, 42 syntax error or access rule violation, 54 program limit exceeded.
+ */
+const STATEMENT_CLASSES = new Set(['0A', '21', '22', '23', '25', '2B', '42', '54']);
+const STATEMENT_TIMEOUT = '57014';
+
+/**
+ * Whether Postgres refused the statement for a reason the model can fix in its SQL. Everything else is not about
+ * the query and may name hosts, roles or databases: driver and network errors without a SQLSTATE (CONNECTION_CLOSED,
+ * ECONNREFUSED, Hyperdrive), and server errors about the connection or the server's state (08 connection, 28 login,
+ * 3D database, 53 resources, 57P shutdown or startup). The client connects lazily, so those land on a query too.
  */
 function isSqlError(error: unknown): error is Error & { code: string } {
   const code = error instanceof Error ? (error as { code?: unknown }).code : undefined;
-  return typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code) && !code.startsWith('08');
+  return typeof code === 'string' && code.length === 5 && (STATEMENT_CLASSES.has(code.slice(0, 2)) || code === STATEMENT_TIMEOUT);
 }
 
 /** Bucket size for time series; `total` gives one row for the whole period. */
@@ -552,7 +561,7 @@ export class HotelData {
       );
     } catch (error) {
       // The one place where database error text goes back to the caller: the model needs it to fix its query.
-      // Only what Postgres says about the statement; a lost connection is not the query's fault and may name hosts.
+      // Only what Postgres says about the statement; anything else goes to the logs behind the generic failure.
       return isSqlError(error) ? err({ kind: 'database', message: error.message }) : err({ kind: 'internal', cause: error });
     }
   }
