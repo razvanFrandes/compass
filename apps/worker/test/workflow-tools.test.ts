@@ -90,6 +90,26 @@ describe('workflow approval flow', () => {
     await harness.close(context);
   });
 
+  it('supersedes an approved proposal when the agent amends it to meet the approver’s condition', async () => {
+    const { faux, harness, root, store } = await setup('approve');
+    faux.setResponses([
+      fauxAssistantMessage(fauxToolCall('propose_action', PROPOSAL), { stopReason: 'toolUse' }),
+      fauxAssistantMessage(fauxToolCall('propose_action', { ...PROPOSAL, after: '900–845 AED' }), { stopReason: 'toolUse' }),
+      fauxAssistantMessage(fauxText('Waiting.')),
+    ]);
+    const submission = await root.submit({ type: 'input', content: 'Run the workflow now.' }, context);
+    await expect.poll(() => store.proposals.size, { timeout: 5000 }).toBe(1);
+    const first = [...store.proposals.values()][0]!;
+    await expect.poll(() => store.proposals.get(first.id)?.status, { timeout: 5000 }).toBe('pending');
+    await harness.signal(store.taskOf(first.id)!, DecisionSignal, 'decision', { approved: true, by: 'Ana', note: 'keep it under 850' }, context);
+    await expect.poll(() => store.proposals.size, { timeout: 5000 }).toBe(2);
+    expect(store.proposals.get(first.id)!.status).toBe('superseded');
+    const second = [...store.proposals.values()].find((p) => p.id !== first.id)!;
+    await harness.signal(store.taskOf(second.id)!, DecisionSignal, 'decision', { approved: false, by: 'Ana', note: '' }, context);
+    await submission.wait(context);
+    await harness.close(context);
+  });
+
   it('tells the model when a person denies, and applies nothing', async () => {
     const { faux, harness, root, store } = await setup('approve');
     let afterDecision = '';

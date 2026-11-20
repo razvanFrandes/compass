@@ -1,5 +1,6 @@
 import type { Kassandra } from './presentation/agents/kassandra.ts';
 import type { Briefs } from './presentation/briefs.ts';
+import type { WorkflowAgents } from './presentation/agents/workflow-agents.ts';
 
 export interface Env {
   AI: Ai;
@@ -8,4 +9,5 @@ export interface Env {
   ASK_RATE_LIMIT: RateLimit;
   KASSANDRA: DurableObjectNamespace<Kassandra>;
   BRIEFS: DurableObjectNamespace<Briefs>;
+  WORKFLOWS: DurableObjectNamespace<WorkflowAgents>;
 }

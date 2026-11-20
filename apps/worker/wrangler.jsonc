@@ -19,12 +19,14 @@
   "durable_objects": {
     "bindings": [
       { "name": "KASSANDRA", "class_name": "Kassandra" },
-      { "name": "BRIEFS", "class_name": "Briefs" }
+      { "name": "BRIEFS", "class_name": "Briefs" },
+      { "name": "WORKFLOWS", "class_name": "WorkflowAgents" }
     ]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["Kassandra"] },
-    { "tag": "v2", "new_sqlite_classes": ["Briefs"] }
+    { "tag": "v2", "new_sqlite_classes": ["Briefs"] },
+    { "tag": "v3", "new_sqlite_classes": ["WorkflowAgents"] }
   ],
 
   // The morning brief is regenerated at 05:00 UTC (06:00–07:00 in Europe).

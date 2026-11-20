@@ -92,6 +92,36 @@ It waits for the whole answer, with no streaming. Use the WebSocket in the UI.
 - **"Explore":** open Kassandra with `item.question`.
 - **Regeneration:** a cron regenerates the brief every morning at 05:00 UTC. `POST /api/brief/refresh` regenerates it now (rate-limited).
 
+## Workflows (Act)
+
+Agents that watch the numbers, propose an action and act once a person approves. Each run is a durable Pi session. While it waits for approval it holds no compute, and the wait survives deploys. Compass is read-only: an approved action is handed to the revenue manager as an RMS task and written to the audit log.
+
+| Method | Path | What |
+|---|---|---|
+| GET | `/api/workflows` | `Workflow[]`. Five templates are seeded on first use, one per brief finding. |
+| POST | `/api/workflows` | Create from a `WorkflowSpec` (e.g. a Kassandra draft). Returns `Workflow`. |
+| GET | `/api/workflows/:id` | `{ workflow, runs, proposals }` |
+| PATCH | `/api/workflows/:id` | Change fields, e.g. `{ "enabled": false }` or `{ "autonomy": "suggest" }`. |
+| POST | `/api/workflows/:id/run` | Run now ("Run now" button). Returns `WorkflowRun`. Rate-limited. |
+| GET | `/api/runs/:runId` | `{ run, entries: ChatEntry[] }`: the run's log, projected like the chat. |
+| GET | `/api/proposals?status=pending` | The approval inbox: `Proposal[]` with `change: { before, after, scope }`, `rationale`, `impact_eur`, `risk`. |
+| POST | `/api/proposals/:id/decision` | `{ "approved": true, "by": "Ana Pop (RM)", "note": "" }`. Wakes the parked run. |
+| POST | `/api/proposals/:id/undo` | `{ "by": "…" }` on an applied proposal: a compensating RMS task, audited. |
+| GET | `/api/audit` | `AuditEntry[]`, newest first. |
+
+**Autonomy** (per workflow) is how trust is earned gradually:
+- `suggest` only records proposals;
+- `approve` waits for a person;
+- `auto_low_risk` applies low-risk actions (tasks, notifications) alone and asks for prices or channels.
+
+**Proposal status:** `pending → approved → applied`, or `denied`, `auto_approved`, `suggested`, `undone`. `superseded` means the agent replaced the proposal with an amended one, for example to meet a condition in the approver's note.
+
+**Run status:** `running → waiting_approval → running → done | failed`. Poll `/api/runs/:id` or `/api/proposals?status=pending` every few seconds.
+
+**From chat:** Kassandra's `draft_workflow` tool returns a `tool_result` entry with `draft: WorkflowSpec`. Show it as an editable card; **Save** sends it to `POST /api/workflows`.
+
+**Schedule:** every morning at 05:00 UTC the cron regenerates the brief, then runs the enabled workflows whose trigger matches a brief finding for their hotels, plus the daily ones.
+
 ## MCP (public, read-only)
 
 `https://juyo.razvanfrandes.com/mcp` (Streamable HTTP) exposes 19 data tools (including `get_brief`). Kassandra uses the same tools. Connect Claude Desktop to it under Settings → Connectors → Add custom connector. Rate limit: 60 requests per minute per client.

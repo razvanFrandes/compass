@@ -71,7 +71,8 @@ export interface WorkflowRun {
   summary: string | null;
 }
 
-export type ProposalStatus = 'pending' | 'approved' | 'denied' | 'auto_approved' | 'suggested' | 'applied' | 'undone';
+/** superseded: the agent replaced it with an amended proposal (e.g. to meet an approver's condition). */
+export type ProposalStatus = 'pending' | 'approved' | 'denied' | 'auto_approved' | 'suggested' | 'applied' | 'undone' | 'superseded';
 
 export interface Proposal {
   id: string;

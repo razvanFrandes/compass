@@ -1,4 +1,4 @@
-import type { ChatEntry, ChatLive, Evidence } from '@compass/contracts';
+import type { ChatEntry, ChatLive, Evidence, WorkflowSpec } from '@compass/contracts';
 
 /**
  * Projects Pi's durable transcript (entries) and live documents into the chat protocol the UI speaks.
@@ -45,7 +45,7 @@ export function projectEntries(entries: readonly unknown[]): ChatEntry[] {
       });
     } else if (kind === 'pi.tool-result') {
       const isError = message['isError'] === true;
-      const details = (message['details'] ?? {}) as { rows?: Record<string, unknown>[]; evidence?: Evidence };
+      const details = (message['details'] ?? {}) as { rows?: Record<string, unknown>[]; evidence?: Evidence; workflowDraft?: WorkflowSpec };
       out.push({
         id,
         kind: 'tool_result',
@@ -55,6 +55,7 @@ export function projectEntries(entries: readonly unknown[]): ChatEntry[] {
         ...(isError ? { error: textOf(message['content']) } : {}),
         ...(details.rows ? { rows: details.rows } : {}),
         ...(details.evidence ? { evidence: details.evidence } : {}),
+        ...(details.workflowDraft ? { draft: details.workflowDraft } : {}),
         at,
       });
     } else if (!kind.startsWith('pi.')) {

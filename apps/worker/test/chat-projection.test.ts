@@ -38,6 +38,13 @@ describe('projectEntries', () => {
     expect(result.callId).toBe(entries[1]?.kind === 'assistant' ? entries[1].toolCalls[0]?.callId : '');
   });
 
+  it('passes a drafted workflow through to the UI', () => {
+    const [entry] = projectEntries([
+      { id: 50, kind: 'pi.tool-result', model: [{ role: 'toolResult', toolCallId: 'c9', toolName: 'draft_workflow', content: [{ type: 'text', text: 'Draft ready' }], details: { workflowDraft: { name: 'Dubai watch' } }, timestamp: 1 }] },
+    ]);
+    expect(entry).toMatchObject({ kind: 'tool_result', name: 'draft_workflow', draft: { name: 'Dubai watch' } });
+  });
+
   it('projects our own labelled inputs as events', () => {
     const [event] = projectEntries([
       { id: 99, kind: 'app.approval', data: { approved: true, by: 'rm' }, model: [{ role: 'user', content: 'Approved', timestamp: 1 }] },

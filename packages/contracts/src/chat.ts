@@ -1,4 +1,5 @@
 import type { Evidence } from './evidence.ts';
+import type { WorkflowSpec } from './workflows.ts';
 
 /**
  * The Kassandra chat protocol over WebSocket: `wss://<host>/api/kassandra/ws?conversation=<id>`.
@@ -35,6 +36,8 @@ export type ChatEntry =
       error?: string;
       rows?: Record<string, unknown>[];
       evidence?: Evidence;
+      /** A workflow Kassandra drafted (draft_workflow): show it as an editable card with Save → POST /api/workflows. */
+      draft?: WorkflowSpec;
       at: number;
     }
   | { id: number; kind: 'event'; type: string; data: unknown; at: number };

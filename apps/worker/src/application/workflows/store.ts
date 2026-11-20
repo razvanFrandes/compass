@@ -14,6 +14,7 @@ export interface WorkflowStore {
   /** Saves a changed proposal, keeping the task it was created by. */
   updateProposal(proposal: Proposal): Promise<void>;
   getProposal(id: string): Promise<Proposal | null>;
+  proposalsForRun(runId: string): Promise<Proposal[]>;
   auditForProposal(proposalId: string): Promise<AuditEntry | null>;
   appendAudit(entry: AuditEntry): Promise<void>;
 }

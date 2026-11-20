@@ -89,6 +89,12 @@ export function createWorkflowExtension(store: WorkflowStore, now: () => Date = 
         decidedAt: status === 'auto_approved' ? now().toISOString() : null,
         note: null,
       };
+      // An amended proposal for the same hotel and action replaces any earlier one of this run not yet applied.
+      for (const earlier of await store.proposalsForRun(run.id)) {
+        if (earlier.hotel_code === proposal.hotel_code && earlier.action === proposal.action && ['pending', 'approved', 'auto_approved'].includes(earlier.status)) {
+          await store.updateProposal({ ...earlier, status: 'superseded' });
+        }
+      }
       await store.saveProposal(proposal, api.taskId);
 
       if (status === 'suggested') {

@@ -13,6 +13,7 @@ import { projectEntries, projectLive } from './chat-projection.ts';
 import { KASSANDRA_SECTIONS } from './kassandra-prompt.ts';
 import { agentChangeFor, THINKER_MODEL, type AnswerMode } from './modes.ts';
 import { createDataExtension } from './pi-data-extension.ts';
+import { createDraftWorkflowExtension } from '../../application/workflows/draft-tool.ts';
 
 export interface KassandraAnswer {
   status: 'done' | 'unanswered';
@@ -167,5 +168,6 @@ function createKassandraRegistry(data: Extension) {
   const registry = createRegistry();
   registry.install({ name: 'kassandra', sections: KASSANDRA_SECTIONS });
   registry.install(data);
+  registry.install(createDraftWorkflowExtension());
   return registry;
 }

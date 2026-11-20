@@ -33,6 +33,9 @@ export class MemoryWorkflowStore implements WorkflowStore {
   async updateProposal(proposal: Proposal) {
     this.proposals.set(proposal.id, proposal);
   }
+  async proposalsForRun(runId: string) {
+    return [...this.proposals.values()].filter((p) => p.runId === runId);
+  }
   async getProposal(id: string) {
     return this.proposals.get(id) ?? null;
   }
