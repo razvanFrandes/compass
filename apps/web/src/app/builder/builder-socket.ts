@@ -76,10 +76,20 @@ export function ensureDraftId(location: Pick<Location, 'href'>, history: Pick<Hi
   return id;
 }
 
-/** Same origin as the page: production serves the API itself, and `ng serve` proxies `/api`, sockets included. */
-export function builderSocketUrl(location: Pick<Location, 'protocol' | 'host'>, draftId: string): string {
+/** `/workflows/<id>/edit` → the id of the workflow to open in the builder; null at `/workflows/new`. */
+export function workflowToEdit(location: Pick<Location, 'pathname'>): string | null {
+  const match = location.pathname.match(/^\/workflows\/([A-Za-z0-9_-]{1,64})\/edit\/?$/);
+  return match && match[1] !== 'new' ? match[1]! : null;
+}
+
+/**
+ * Same origin as the page: production serves the API itself, and `ng serve` proxies `/api`, sockets included.
+ * With `workflowId`, the server loads that workflow into the draft, and Save updates it (round2-contracts.md §5).
+ */
+export function builderSocketUrl(location: Pick<Location, 'protocol' | 'host'>, draftId: string, workflowId?: string | null): string {
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${scheme}://${location.host}/api/workflows/builder/ws?draft=${encodeURIComponent(draftId)}`;
+  const workflow = workflowId ? `&workflow=${encodeURIComponent(workflowId)}` : '';
+  return `${scheme}://${location.host}/api/workflows/builder/ws?draft=${encodeURIComponent(draftId)}${workflow}`;
 }
 
 export class BuilderSocket {

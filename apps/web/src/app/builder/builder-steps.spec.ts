@@ -1,7 +1,9 @@
 import { CHECK_LABELS, maskEmail, specToGraph, type ChatEntry, type ChatLive } from '@compass/contracts';
 import { edgeFlow, isEditable, nodeRunState } from './builder-canvas';
 import { richText } from './builder-chat';
-import { editorValues, nodePatch, parseHotels } from './builder-node-editor';
+import { checkOptions, editorValues, isMasked, nodePatch } from './builder-node-editor';
+import { namedScope } from './builder-page';
+import { HALCYON_HOTELS } from '../scope/hotels';
 import { missingSteps, statusChip, testResult } from './builder-page';
 import { IDLE_LIVE, type BuilderRun } from './builder-socket';
 import { DATA_TOOL_LABELS, issueText, maskAddress, stepLabel, stepsSummary, toConversation } from './builder-steps';
@@ -181,20 +183,25 @@ describe('canvas', () => {
   it('opens a form on the nodes a person can set by hand', () => {
     expect(isEditable(trigger)).toBe(true);
     expect(isEditable(check)).toBe(true);
-    expect(isEditable(specToGraph({}).nodes[2]!)).toBe(false);
+    // The placeholder check opens the list of labelled checks, so a check can be chosen without the chat.
+    expect(isEditable(specToGraph({}).nodes[2]!)).toBe(true);
     const withApproval = specToGraph({ action: { type: 'adjust_bar' } }).nodes.find((node) => node.kind === 'approval')!;
     expect(isEditable(withApproval)).toBe(false);
   });
 
   it('builds the edit patch for each node, or says what is wrong', () => {
-    const values = { trigger: 'week' as const, hotels: 'lis, opo', name: 'Lisbon pace alert', goal: 'Email when Lisbon is more than 10% behind.', email: 'ana@example.com' };
+    const values = { trigger: 'week' as const, hotels: ['LIS', 'PAR'], checks: ['get_pickup', 'get_pnl'], name: 'Lisbon pace alert', goal: 'Email when Lisbon is more than 10% behind.', email: 'ana@example.com' };
     const draft = { checks: ['get_pace', 'get_pickup'], action: { type: 'email' as const, guidance: 'Keep it short' } };
     expect(nodePatch({ id: 'trigger', kind: 'trigger' }, draft, values)).toEqual({ patch: { trigger: { kind: 'schedule', every: 'week' } } });
     expect(nodePatch({ id: 'trigger', kind: 'trigger' }, draft, { ...values, trigger: 'manual' })).toEqual({ patch: { trigger: { kind: 'manual' } } });
     expect(nodePatch({ id: 'trigger', kind: 'trigger' }, draft, { ...values, trigger: null })).toHaveProperty('error');
-    expect(nodePatch({ id: 'scope', kind: 'scope' }, draft, values)).toEqual({ patch: { hotels: ['LIS', 'OPO'] } });
-    expect(nodePatch({ id: 'scope', kind: 'scope' }, draft, { ...values, hotels: ' , ' })).toHaveProperty('error');
-    expect(nodePatch({ id: 'check:get_pace', kind: 'check' }, draft, values)).toEqual({ patch: { checks: ['get_pickup'] } });
+    expect(nodePatch({ id: 'scope', kind: 'scope' }, draft, values)).toEqual({ patch: { hotels: ['LIS', 'PAR'] } });
+    // No hotel picked is the whole group.
+    expect(nodePatch({ id: 'scope', kind: 'scope' }, draft, { ...values, hotels: [] })).toEqual({ patch: { hotels: ['ALL'] } });
+    // Any check node edits the whole list of checks, the placeholder included.
+    expect(nodePatch({ id: 'check:get_pace', kind: 'check' }, draft, values)).toEqual({ patch: { checks: ['get_pickup', 'get_pnl'] } });
+    expect(nodePatch({ id: 'check', kind: 'check' }, {}, { ...values, checks: [] })).toEqual({ patch: { checks: [] } });
+    expect(nodePatch({ id: 'check', kind: 'check' }, {}, { ...values, checks: 'abcdefghi'.split('') })).toHaveProperty('error');
     expect(nodePatch({ id: 'analyze', kind: 'analyze' }, draft, values)).toEqual({ patch: { name: 'Lisbon pace alert', goal: 'Email when Lisbon is more than 10% behind.' } });
     expect(nodePatch({ id: 'analyze', kind: 'analyze' }, draft, { ...values, goal: 'short' })).toHaveProperty('error');
     expect(nodePatch({ id: 'action', kind: 'action' }, draft, values)).toEqual({
@@ -205,18 +212,53 @@ describe('canvas', () => {
     expect(nodePatch({ id: 'approval', kind: 'approval' }, draft, values)).toHaveProperty('error');
   });
 
-  it('reads the editor values from the draft and parses hotel codes', () => {
-    expect(editorValues({ trigger: { kind: 'schedule', every: 'day' }, hotels: ['LIS', 'OPO'], delivery: { channel: 'email', to: 'a@b.co' } })).toEqual({
+  it('keeps the masked address of a saved email workflow when the field is left empty', () => {
+    const values = { trigger: null, hotels: [], checks: [], name: '', goal: '', email: '' };
+    const saved = { action: { type: 'email' as const, guidance: '' }, delivery: { channel: 'email' as const, to: 'si****@gmail.com' } };
+    expect(isMasked(saved.delivery.to)).toBe(true);
+    expect(editorValues(saved).email).toBe('');
+    expect(nodePatch({ id: 'action', kind: 'action' }, saved, values)).toEqual({ patch: {} });
+    expect(nodePatch({ id: 'action', kind: 'action' }, saved, { ...values, email: 'new@example.com' })).toMatchObject({ patch: { delivery: { to: 'new@example.com' } } });
+    // A new workflow has no address to keep.
+    expect(nodePatch({ id: 'action', kind: 'action' }, {}, values)).toHaveProperty('error');
+  });
+
+  it('offers the labelled checks, and keeps a check the agent chose that has no label', () => {
+    const options = checkOptions({ checks: ['get_pace', 'get_labor'] });
+    expect(options[0]).toEqual({ tool: 'get_pace', label: 'Pace vs last year', hint: expect.any(String) });
+    expect(options.at(-1)).toMatchObject({ tool: 'get_labor', label: 'labor' });
+    expect(options.every((option) => option.hint.length > 0)).toBe(true);
+    expect(checkOptions({}).some((option) => option.tool === 'get_labor')).toBe(false);
+  });
+
+  it('names the hotels on the Hotels step instead of showing codes', () => {
+    const scopeOf = (hotels: string[]) => namedScope(specToGraph({ hotels }), hotels, HALCYON_HOTELS).nodes.find((node) => node.id === 'scope')!;
+    expect(scopeOf(['LIS'])).toMatchObject({ label: 'Arbor Lisbon Chiado', detail: 'Lisbon, Portugal' });
+    expect(scopeOf(['LIS', 'PAR', 'VIE'])).toMatchObject({ label: 'Lisbon Chiado + 2 more', detail: 'Lisbon Chiado, Paris Opera, Vienna Ring' });
+    expect(scopeOf(['DOH', 'DXB1', 'DXB2']).label).toBe('Middle East · 3 hotels');
+    expect(scopeOf(['LIS', 'PAR'])).toMatchObject({ label: 'Lisbon Chiado, Paris Opera', detail: '2 hotels' });
+    expect(scopeOf(['ALL']).label).toBe('All 20 hotels');
+    // An unknown code stays as the server wrote it.
+    expect(scopeOf(['LIS', 'OPO']).label).toBe('LIS, OPO');
+    const empty = specToGraph({});
+    expect(namedScope(empty, undefined, HALCYON_HOTELS)).toBe(empty);
+  });
+
+  it('reads the editor values from the draft', () => {
+    expect(editorValues({ trigger: { kind: 'schedule', every: 'day' }, hotels: ['LIS', 'OPO'], checks: ['get_pace', 'get_pace'], delivery: { channel: 'email', to: 'a@b.co' } })).toEqual({
       trigger: 'day',
-      hotels: 'LIS, OPO',
+      hotels: ['LIS', 'OPO'],
+      checks: ['get_pace'],
       name: '',
       goal: '',
       email: 'a@b.co',
     });
     expect(editorValues({ trigger: { kind: 'brief', finding: 'pace_behind' } }).trigger).toBe('brief');
     expect(editorValues({}).trigger).toBeNull();
-    expect(parseHotels('lis; opo  lis')).toEqual(['LIS', 'OPO']);
-    expect(parseHotels('lis, all')).toEqual(['ALL']);
+    // The whole group is an empty selection; a draft with no hotels yet starts from the scope in the sidebar.
+    expect(editorValues({ hotels: ['ALL'] }, ['LIS']).hotels).toEqual([]);
+    expect(editorValues({}, ['LIS', 'PAR']).hotels).toEqual(['LIS', 'PAR']);
+    expect(editorValues({}).hotels).toEqual([]);
   });
 
   it('splits bold out of a reply and leaves the rest as text', () => {

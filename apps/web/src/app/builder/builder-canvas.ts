@@ -34,10 +34,9 @@ export function edgeFlow(run: BuilderRun | null, from: WorkflowNode, to: Workflo
   return from.state === 'empty' || to.state === 'empty' ? 'placeholder' : 'idle';
 }
 
-/** Which nodes open a form: a placeholder check and an approval are set from the chat. */
+/** Which nodes open a form: every step but the approval, which follows from the action and the autonomy. */
 export function isEditable(node: WorkflowNode): boolean {
-  if (node.kind === 'approval') return false;
-  return node.kind !== 'check' || node.id.startsWith('check:');
+  return node.kind !== 'approval';
 }
 
 const KIND_NAMES: Record<WorkflowNodeKind, string> = { trigger: 'Trigger', scope: 'Hotels', check: 'Check', analyze: 'Analyze', approval: 'Approval', action: 'Action' };
