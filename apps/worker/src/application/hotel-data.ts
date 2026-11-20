@@ -10,7 +10,12 @@ import { findReviews, type FindReviewsInput, type ReviewMatch } from './review-s
 export type DataError =
   | { kind: 'invalid'; message: string }
   | { kind: 'rejected'; reason: GuardReason; message: string }
-  | { kind: 'database'; message: string };
+  /** Postgres refused a model-written query (run_readonly_query only): the message helps the model fix its SQL. */
+  | { kind: 'database'; message: string }
+  /** A part of the service is down. `message` is written for the reader; `cause` is for the logs only. */
+  | { kind: 'unavailable'; message: string; cause: unknown }
+  /** The database failed under a governed tool. `cause` may name hosts or connection details: for the logs only. */
+  | { kind: 'internal'; cause: unknown };
 
 export interface Hotel {
   hotel_code: string;
@@ -510,11 +515,17 @@ export class HotelData {
 
   /** A compact description of schema `hotel` for writing custom queries: every table and view with its columns. */
   async getSchema(): Promise<string> {
-    const rows = await this.db.query<{ table_name: string; columns: string }>(
-      `select table_name, string_agg(column_name || ' ' || data_type, ', ' order by ordinal_position) as columns
-         from information_schema.columns where table_schema = 'hotel' group by 1 order by 1`,
+    const rows = await this.db.query<{ table_name: string; column_name: string; data_type: string; udt_name: string }>(
+      `select table_name, column_name, data_type, udt_name
+         from information_schema.columns where table_schema = 'hotel' order by table_name, ordinal_position`,
     );
-    const tables = rows.map((r) => `- hotel.${r.table_name}(${r.columns})`).join('\n');
+    const columns = new Map<string, string[]>();
+    for (const r of rows) {
+      // An embedding is 1024 numbers: selecting one would flood the answer.
+      const column = r.udt_name === 'vector' ? `${r.column_name} (vector; never select it)` : `${r.column_name} ${r.data_type}`;
+      columns.set(r.table_name, [...(columns.get(r.table_name) ?? []), column]);
+    }
+    const tables = [...columns].map(([table, list]) => `- hotel.${table}(${list.join(', ')})`).join('\n');
     return `${tables}\n\n${SCHEMA_NOTES}\nBusiness date: ${await this.businessDate()}.`;
   }
 
@@ -522,10 +533,17 @@ export class HotelData {
   async runReadonlyQuery(sql: string): Promise<Result<DataResult, DataError>> {
     const guarded = guardReadOnlySql(sql, { maxRows: MAX_ROWS });
     if (!guarded.ok) return err({ kind: 'rejected', ...guarded.error });
-    return this.#tryRun(guarded.value, [], {
-      sources: ['hotel.*'],
-      notes: [`Custom query written by the assistant, capped at ${MAX_ROWS} rows.`],
-    });
+    try {
+      return ok(
+        await this.#run(guarded.value, [], {
+          sources: ['hotel.*'],
+          notes: [`Custom query written by the assistant, capped at ${MAX_ROWS} rows.`],
+        }),
+      );
+    } catch (error) {
+      // The one place where database error text goes back to the caller: the model needs it to fix its query.
+      return err({ kind: 'database', message: error instanceof Error ? error.message : String(error) });
+    }
   }
 
   async #run<Row>(sql: string, params: unknown[], meta: Partial<Evidence>): Promise<DataResult<Row>> {
@@ -537,7 +555,7 @@ export class HotelData {
     try {
       return ok(await this.#run<Row>(sql, params, meta));
     } catch (error) {
-      return err({ kind: 'database', message: error instanceof Error ? error.message : String(error) });
+      return err({ kind: 'internal', cause: error });
     }
   }
 

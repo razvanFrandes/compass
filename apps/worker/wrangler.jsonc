@@ -35,7 +35,7 @@
   // Daily limits for every visitor together, per UTC day (docs/security.md). A missing key keeps its default.
   // Optional secret ADMIN_KEY (wrangler secret put ADMIN_KEY): the x-compass-admin-key header then skips these limits.
   "vars": {
-    "DAILY_LIMITS": { "question": 300, "workflow_run": 60, "decision": 120, "brief_refresh": 24 }
+    "DAILY_LIMITS": { "question": 300, "workflow_run": 60, "decision": 120, "brief_refresh": 24, "embedding": 2000 }
   },
 
   // The morning brief is regenerated at 05:00 UTC (06:00–07:00 in Europe).

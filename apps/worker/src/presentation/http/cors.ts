@@ -25,6 +25,18 @@ export function preflight(request: Request): Response | null {
   });
 }
 
+/**
+ * A response with every Access-Control-* header removed. For /mcp: its clients (Claude Desktop and other MCP
+ * clients) are not browsers, so no web page gets to read its answers.
+ */
+export function withoutCors(response: Response): Response {
+  const names = [...response.headers.keys()].filter((name) => name.toLowerCase().startsWith('access-control-'));
+  if (!names.length) return response;
+  const copy = new Response(response.body, response);
+  for (const name of names) copy.headers.delete(name);
+  return copy;
+}
+
 /** Adds the CORS headers for `origin` to a response (a copy, since fetched responses are immutable). */
 export function withCors(response: Response, origin: string | null): Response {
   const headers = corsHeaders(origin);

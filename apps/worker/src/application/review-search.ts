@@ -66,6 +66,8 @@ export const DEFAULT_DAYS = 90;
  * the asked topic score 0.60–0.75 (e.g. "noise from building works" → "Construction noise from the floor below…" 0.752).
  */
 export const MIN_SIMILARITY = 0.55;
+/** What the caller reads when the embedder fails or its budget is spent. The provider's error stays in the logs. */
+export const SEMANTIC_UNAVAILABLE = 'Semantic search is unavailable right now. Use search_reviews with a phrase.';
 
 /**
  * $1 question vector, $2 hotels (null = all), $3 from, $4 to, $5 sentiment, $6 model, $7 k, $8 min similarity.
@@ -203,7 +205,7 @@ export async function findReviews(
   try {
     [vector] = (await embedder.embed([question])) as [number[]];
   } catch (error) {
-    return err({ kind: 'database', message: `Could not embed the question: ${error instanceof Error ? error.message : String(error)}` });
+    return err({ kind: 'unavailable', message: SEMANTIC_UNAVAILABLE, cause: error });
   }
   const query = buildFindReviewsQuery({ ...input, question }, vector, embedder.model, businessDate);
   let raw: FindReviewsRow[];
@@ -214,7 +216,7 @@ export async function findReviews(
     if (/review_passages|type "?public\.vector"? does not exist|schema "public"/.test(message)) {
       return err({ kind: 'invalid', message: 'This database has no review embeddings (hotel.review_passages), so semantic search is unavailable. Use search_reviews with a phrase.' });
     }
-    return err({ kind: 'database', message });
+    return err({ kind: 'internal', cause: error });
   }
   const shaped = shapeFindReviews(raw, { model: embedder.model, question, period: query.period });
   const evidence: Evidence = {

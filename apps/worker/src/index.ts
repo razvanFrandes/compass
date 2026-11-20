@@ -1,6 +1,8 @@
 import { Decision } from '@compass/contracts';
 import { createMcpHandler } from 'agents/mcp/server';
+import { budgetedEmbedder } from './application/budgeted-embedder.ts';
 import { HotelData } from './application/hotel-data.ts';
+import type { Embedder } from './application/ports.ts';
 import type { BudgetKind } from './domain/budget.ts';
 import { openPostgres } from './infrastructure/postgres.ts';
 import { WorkersAiEmbedder } from './infrastructure/workers-ai-embedder.ts';
@@ -8,7 +10,7 @@ import { BUDGET_NAME } from './presentation/budget.ts';
 import { hasAdminKey } from './presentation/http/admin.ts';
 import { MAX_MCP_BYTES, readJson, withBodyLimit } from './presentation/http/body.ts';
 import { budgetExceeded } from './presentation/http/budget-response.ts';
-import { preflight, withCors } from './presentation/http/cors.ts';
+import { preflight, withCors, withoutCors } from './presentation/http/cors.ts';
 import { internalError } from './presentation/http/errors.ts';
 import { isAllowedOrigin, PUBLIC_HOST, rejectCrossSite } from './presentation/http/origin.ts';
 import { createCompassMcpServer } from './presentation/mcp/server.ts';
@@ -25,11 +27,16 @@ export { Budget } from './presentation/budget.ts';
  * MCP answers stream (SSE) and the tool runs while the body streams, so the client is closed only once
  * the whole body has been sent, not when the Response object is returned.
  */
-async function withData(env: Env, ctx: ExecutionContext, run: (data: HotelData) => Promise<Response>): Promise<Response> {
+async function withData(
+  env: Env,
+  ctx: ExecutionContext,
+  run: (data: HotelData) => Promise<Response>,
+  embedder: Embedder = new WorkersAiEmbedder(env.AI),
+): Promise<Response> {
   const db = openPostgres(env.HYPERDRIVE.connectionString);
   let response: Response;
   try {
-    response = await run(new HotelData(db, new WorkersAiEmbedder(env.AI)));
+    response = await run(new HotelData(db, embedder));
   } catch (error) {
     ctx.waitUntil(db.close());
     throw error;
@@ -61,12 +68,13 @@ async function overBudget(env: Env, request: Request, kind: BudgetKind): Promise
 export default {
   async fetch(request, env, ctx): Promise<Response> {
     const origin = request.headers.get('Origin');
+    // MCP clients are not browsers: /mcp answers never carry CORS headers, not even for the dev server.
+    const cors = new URL(request.url).pathname === '/mcp' ? withoutCors : (response: Response) => withCors(response, origin);
     try {
-      const response = await route(request, env, ctx);
-      return withCors(response, origin);
+      return cors(await route(request, env, ctx));
     } catch (e) {
       // Never send a stack trace, SQL or a connection string to the client: they go to the Worker logs.
-      return withCors(internalError(e), origin);
+      return cors(internalError(e));
     }
   },
 
@@ -94,12 +102,19 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     if (limited) return limited;
     const bounded = await withBodyLimit(request, MAX_MCP_BYTES);
     if (!bounded.ok) return error(bounded.error.status, bounded.error.error);
-    return withData(env, ctx, (data) =>
-      createMcpHandler(() => createCompassMcpServer(data), {
-        route: '/mcp',
-        allowedHostnames: [PUBLIC_HOST],
-        allowedOriginHostnames: [PUBLIC_HOST],
-      })(bounded.value, env, ctx),
+    // The tools spend no model tokens of ours, except find_reviews: its Workers AI embedding has a daily budget.
+    // Kassandra and the workflows need none: their questions and runs are budgeted already.
+    const embedder = budgetedEmbedder(new WorkersAiEmbedder(env.AI), () => env.BUDGET.getByName(BUDGET_NAME).take('embedding'));
+    return withData(
+      env,
+      ctx,
+      (data) =>
+        createMcpHandler(() => createCompassMcpServer(data), {
+          route: '/mcp',
+          allowedHostnames: [PUBLIC_HOST],
+          allowedOriginHostnames: [PUBLIC_HOST],
+        })(bounded.value, env, ctx),
+      embedder,
     );
   }
 

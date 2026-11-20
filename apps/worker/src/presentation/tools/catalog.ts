@@ -1,9 +1,10 @@
 import { Grain, MetricKey, type DataResult } from '@compass/contracts';
 import { z } from 'zod';
-import { PNL_LINES } from '../../application/finance-data.ts';
+import { PNL_LINES, type FinanceError } from '../../application/finance-data.ts';
 import type { DataError, HotelData } from '../../application/hotel-data.ts';
 import type { Result } from '../../domain/result.ts';
 import { untrustedBlock } from '../../domain/untrusted.ts';
+import { TOOL_FAILURE } from './run-tool.ts';
 
 /**
  * The data tools, defined once. Two adapters expose them: the public MCP server (Claude Desktop and any other
@@ -13,7 +14,8 @@ import { untrustedBlock } from '../../domain/untrusted.ts';
 
 export type ToolOutcome =
   | { ok: true; text: string; structured: Record<string, unknown> }
-  | { ok: false; text: string };
+  /** `text` is all a model or an MCP client may read. `cause` is the real error, for runTool to log. */
+  | { ok: false; text: string; cause?: unknown };
 
 export interface DataTool<S extends z.ZodObject = z.ZodObject> {
   name: string;
@@ -23,6 +25,8 @@ export interface DataTool<S extends z.ZodObject = z.ZodObject> {
 }
 
 const MAX_TEXT_ROWS = 60;
+/** Once the rows in the model text reach this many characters, no more are added. */
+const MAX_TEXT_CHARS = 50_000;
 
 const hotels = z
   .array(z.string())
@@ -38,11 +42,19 @@ const bucket = z.enum(['day', 'week', 'month', 'total']).describe('Bucket size; 
  * reads them inside <untrusted_data>, as data. The structured rows for the UI stay as they are.
  */
 export function success(result: DataResult<object>, untrusted?: string): ToolOutcome {
-  const shown = result.rows.slice(0, MAX_TEXT_ROWS);
-  const more = result.rows.length > shown.length ? `\n(${result.rows.length - shown.length} more rows not shown)` : '';
+  const shown: string[] = [];
+  let length = 0;
+  for (const row of result.rows) {
+    if (shown.length >= MAX_TEXT_ROWS || length >= MAX_TEXT_CHARS) break;
+    const rowJson = JSON.stringify(row);
+    shown.push(rowJson);
+    length += rowJson.length;
+  }
+  const hidden = result.rows.length - shown.length;
+  const more = hidden ? `\n… ${hidden} more rows not shown.` : '';
   const ev = result.evidence;
   const definitions = Object.entries(ev.definitions).map(([k, v]) => `${k}: ${v}`);
-  const json = JSON.stringify(shown);
+  const json = `[${shown.join(',')}]`;
   const text = [
     untrusted ? untrustedBlock(json, untrusted) : json,
     more,
@@ -53,12 +65,24 @@ export function success(result: DataResult<object>, untrusted?: string): ToolOut
   return { ok: true, text, structured: { rows: result.rows, evidence: ev } };
 }
 
-export function failure(error: DataError): ToolOutcome {
-  const hint = error.kind === 'database' ? ' Fix the query and try again; call get_schema for table and column names.' : '';
-  return { ok: false, text: `${error.message}${hint}` };
+/**
+ * What the model reads when a tool fails. Only a failing custom query (`database`, from run_readonly_query) shows
+ * database error text. Any other database or embedder failure shows a fixed message, and its cause goes to the logs.
+ */
+export function failure(error: DataError | FinanceError): ToolOutcome {
+  switch (error.kind) {
+    case 'internal':
+      return { ok: false, text: TOOL_FAILURE, cause: error.cause };
+    case 'unavailable':
+      return { ok: false, text: error.message, cause: error.cause };
+    case 'database':
+      return { ok: false, text: `${error.message} Fix the query and try again; call get_schema for table and column names.` };
+    default:
+      return { ok: false, text: error.message };
+  }
 }
 
-const fromResult = (result: Result<DataResult<object>, DataError>, untrusted?: string) =>
+const fromResult = (result: Result<DataResult<object>, DataError | FinanceError>, untrusted?: string) =>
   result.ok ? success(result.value, untrusted) : failure(result.error);
 
 function tool<S extends z.ZodObject>(definition: DataTool<S>): DataTool<S> {
@@ -308,7 +332,7 @@ export const DATA_TOOLS = [
       'in EUR and ranked by money. ' +
       'Start here for "what should I look at today?"',
     input: z.object({}),
-    run: async (data) => success(await data.getBriefItems()),
+    run: async (data) => success(await data.getBriefItems(), 'account names'),
   }),
   tool({
     name: 'get_data_health',

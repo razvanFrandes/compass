@@ -163,10 +163,7 @@ describe('runReadonlyQuery', () => {
   it('returns a database error as a value the model can repair', async () => {
     const result = await data.runReadonlyQuery('select no_such_column from hotels');
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.kind).toBe('database');
-      expect(result.error.message).toMatch(/no_such_column/);
-    }
+    if (!result.ok) expect(result.error).toEqual({ kind: 'database', message: expect.stringMatching(/no_such_column/) });
   });
 
   it('runs analytic SQL with the helper functions through the wrapper', async () => {
@@ -184,7 +181,7 @@ describe('runReadonlyQuery', () => {
   it('fails a query whose rows are too large instead of streaming them to the Worker', async () => {
     const result = await data.runReadonlyQuery("select repeat('x', 1000000) as huge");
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.message).toMatch(/Result row larger than/);
+    if (!result.ok) expect(result.error).toMatchObject({ kind: 'database', message: expect.stringMatching(/Result row larger than/) });
   });
 
   it('caps the rows even when the query asks for more', async () => {

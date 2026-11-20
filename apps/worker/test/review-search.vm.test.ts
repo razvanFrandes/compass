@@ -38,7 +38,7 @@ describe.skipIf(!enabled)('find_reviews on the production database', () => {
 
   async function ask(input: Parameters<HotelData['findReviews']>[0]): Promise<ReviewMatch[]> {
     const result = await data.findReviews(input);
-    if (!result.ok) throw new Error(result.error.message);
+    if (!result.ok) throw new Error(JSON.stringify(result.error));
     return result.value.rows;
   }
 

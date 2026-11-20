@@ -4,7 +4,7 @@
  * whatever the number of clients. Pure logic: the Budget Durable Object stores the state.
  */
 
-export const BUDGET_KINDS = ['question', 'workflow_run', 'decision', 'brief_refresh'] as const;
+export const BUDGET_KINDS = ['question', 'workflow_run', 'decision', 'brief_refresh', 'embedding'] as const;
 export type BudgetKind = (typeof BUDGET_KINDS)[number];
 export type DailyLimits = Record<BudgetKind, number>;
 
@@ -14,6 +14,7 @@ export const DEFAULT_DAILY_LIMITS: DailyLimits = {
   workflow_run: 60, // "Run now"
   decision: 120, // approve or deny: each one wakes a workflow agent
   brief_refresh: 24, // "Refresh brief"
+  embedding: 2000, // find_reviews through the public MCP server: one Workers AI embedding each
 };
 
 export const BUDGET_LABELS: Record<BudgetKind, string> = {
@@ -21,6 +22,7 @@ export const BUDGET_LABELS: Record<BudgetKind, string> = {
   workflow_run: 'workflow runs',
   decision: 'approval decisions',
   brief_refresh: 'brief refreshes',
+  embedding: 'semantic searches',
 };
 
 export interface BudgetState {

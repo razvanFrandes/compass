@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { corsHeaders, preflight } from '../src/presentation/http/cors.ts';
+import { corsHeaders, preflight, withoutCors } from '../src/presentation/http/cors.ts';
 import { readJson, withBodyLimit } from '../src/presentation/http/body.ts';
 import { constantTimeEqual, hasAdminKey } from '../src/presentation/http/admin.ts';
 import { isAllowedOrigin, rejectCrossSite } from '../src/presentation/http/origin.ts';
@@ -103,6 +103,33 @@ describe('withBodyLimit', () => {
 });
 
 describe('CORS', () => {
+  it('strips every CORS header from an /mcp response: MCP clients are not browsers', async () => {
+    const response = new Response('{"ok":true}', {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, mcp-session-id',
+        'Access-Control-Expose-Headers': 'mcp-session-id',
+        'Access-Control-Max-Age': '86400',
+        'mcp-session-id': 'abc',
+      },
+    });
+    const stripped = withoutCors(response);
+    expect([...stripped.headers.keys()].filter((name) => name.startsWith('access-control-'))).toEqual([]);
+    expect(stripped.headers.get('access-control-allow-origin')).toBeNull();
+    expect(stripped.headers.get('content-type')).toBe('application/json');
+    expect(stripped.headers.get('mcp-session-id')).toBe('abc');
+    expect(stripped.status).toBe(200);
+    expect(await stripped.text()).toBe('{"ok":true}');
+  });
+
+  it('returns a response without CORS headers as it is', () => {
+    const response = new Response('ok');
+    expect(withoutCors(response)).toBe(response);
+  });
+
   it('adds no CORS headers in production: the app is same-origin', () => {
     expect(corsHeaders(`https://${HOST}`)).toEqual({});
     expect(corsHeaders('https://evil.example')).toEqual({});

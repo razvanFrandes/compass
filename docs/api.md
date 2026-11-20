@@ -4,11 +4,11 @@ Base URL: `https://juyo.razvanfrandes.com`. Locally, `wrangler dev` in `apps/wor
 
 ## Rules for every call
 
-- **Same origin.** `POST`, `PATCH`, `PUT` and `DELETE` under `/api/` are refused (403) when `Origin` is another site. CORS is allowed only for the Angular dev server (`http://localhost:4200`).
+- **Same origin.** `POST`, `PATCH`, `PUT` and `DELETE` under `/api/` are refused (403) when `Origin` is another site. CORS is allowed only for the Angular dev server (`http://localhost:4200`), and never on `/mcp`.
 - **Body size.** JSON bodies are at most 16 KB (413). Invalid JSON gets 400.
 - **Errors** are `{ "error": "…" }`. A 500 never carries internals.
 - **Daily budget.** Questions, workflow runs, decisions and brief refreshes are counted per UTC day for all visitors together. Over the limit: 429 with `{ error, resetsAt }` and `Retry-After`. Show `error` as is. See `docs/security.md`.
-- **`GET /api/budget`** returns today's usage: `{ question: { used, limit }, workflow_run: …, decision: …, brief_refresh: … }`.
+- **`GET /api/budget`** returns today's usage: `{ question: { used, limit }, workflow_run: …, decision: …, brief_refresh: …, embedding: … }`. `embedding` counts `find_reviews` calls made through `/mcp`.
 
 The types live in `packages/contracts` (`@compass/contracts`). Import them instead of redefining them.
 
@@ -140,9 +140,13 @@ Agents that watch the numbers, propose an action and act once a person approves.
 - **F&B, M&E and guests:** `get_fnb`, `get_labor`, `get_meetings_events`, `get_review_scores`, `find_reviews` (by meaning), `search_reviews` (exact phrase).
 - **Brief and escape hatch:** `get_brief`, `run_readonly_query`.
 
-Connect Claude Desktop to it under Settings → Connectors → Add custom connector. Rate limit: 60 requests per minute per client. Bodies at most 64 KB. Browser requests from other origins get 403.
+Connect Claude Desktop to it under Settings → Connectors → Add custom connector. Rate limit: 60 requests per minute per client. Bodies at most 64 KB. Browser requests from other origins get 403, and responses carry no CORS headers: MCP clients are not browsers.
 
-Tools that return outside free text (`find_reviews`, `search_reviews`, `get_account_production`, `run_readonly_query`) wrap their rows in `<untrusted_data>` in the text content. `structuredContent` is not wrapped.
+Tools that return outside free text (`find_reviews`, `search_reviews`, `get_account_production`, `get_brief`, `run_readonly_query`) wrap their rows in `<untrusted_data>` in the text content. `structuredContent` is not wrapped.
+
+- **Text cap.** The text content holds at most 60 rows and stops adding rows at 50,000 characters, then ends the rows with `… N more rows not shown.` `structuredContent` keeps every row.
+- **Errors.** A failed call has `isError: true`. Only `run_readonly_query` returns the database's error text, with a hint to fix the query. Every other tool answers `The data source failed to answer. Try again in a moment, or use another tool.` when the database fails.
+- **Embedding budget.** Each `find_reviews` call through `/mcp` takes one of 2000 daily embeddings (all clients together, per UTC day). When they are spent, or the embedder fails, the tool answers `Semantic search is unavailable right now. Use search_reviews with a phrase.`
 
 ### `find_reviews`: guest reviews by meaning
 

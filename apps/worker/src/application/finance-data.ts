@@ -8,7 +8,8 @@ import type { Db } from './ports.ts';
  * HotelData: rows plus the evidence of how they were computed, money in EUR, ratios from sums.
  */
 
-export type FinanceError = { kind: 'invalid'; message: string } | { kind: 'database'; message: string };
+/** `internal`: the database failed. `cause` may name hosts or connection details, so it is for the logs only. */
+export type FinanceError = { kind: 'invalid'; message: string } | { kind: 'internal'; cause: unknown };
 
 export type RollUp = 'hotel' | 'region' | 'brand' | 'group';
 export type MonthBucket = 'month' | 'total';
@@ -488,7 +489,7 @@ export class FinanceData {
     try {
       return ok(await this.#run<Row>(sql, params, meta));
     } catch (error) {
-      return err({ kind: 'database', message: error instanceof Error ? error.message : String(error) });
+      return err({ kind: 'internal', cause: error });
     }
   }
 }

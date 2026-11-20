@@ -22,6 +22,13 @@ describe('parseDailyLimits', () => {
   });
 });
 
+describe('the embedding budget', () => {
+  it('allows 2000 semantic searches a day by default and can be configured', () => {
+    expect(DEFAULT_DAILY_LIMITS.embedding).toBe(2000);
+    expect(parseDailyLimits({ embedding: 10 }).embedding).toBe(10);
+  });
+});
+
 describe('spend', () => {
   const limits = { ...DEFAULT_DAILY_LIMITS, question: 2 };
 

@@ -172,13 +172,19 @@ describe('findReviews', () => {
     expect(embedder.calls).toHaveLength(0);
   });
 
-  it('turns a model or database failure into an error the tool can report', async () => {
-    const failing: Embedder = { model: 'm', dimensions: 1, embed: async () => Promise.reject(new Error('AI down')) };
+  it('turns a model or database failure into an error that keeps the cause out of the message', async () => {
+    const aiDown = new Error('AI down at https://api.cloudflare.com/accounts/abc123');
+    const failing: Embedder = { model: 'm', dimensions: 1, embed: async () => Promise.reject(aiDown) };
     const modelDown = await findReviews(fakeDb([]), failing, { question: 'noise' }, '2026-11-20');
-    expect(modelDown.ok ? null : modelDown.error.message).toMatch(/Could not embed the question: AI down/);
+    expect(modelDown.ok ? null : modelDown.error).toEqual({
+      kind: 'unavailable',
+      message: 'Semantic search is unavailable right now. Use search_reviews with a phrase.',
+      cause: aiDown,
+    });
     const noStore = await findReviews(fakeDb(new Error('relation "hotel.review_passages" does not exist')), fakeEmbedder(), { question: 'noise' }, '2026-11-20');
     expect(noStore.ok ? null : noStore.error).toMatchObject({ kind: 'invalid', message: expect.stringMatching(/search_reviews/) });
-    const dbDown = await findReviews(fakeDb(new Error('timeout')), fakeEmbedder(), { question: 'noise' }, '2026-11-20');
-    expect(dbDown.ok ? null : dbDown.error).toEqual({ kind: 'database', message: 'timeout' });
+    const timeout = new Error('timeout');
+    const dbDown = await findReviews(fakeDb(timeout), fakeEmbedder(), { question: 'noise' }, '2026-11-20');
+    expect(dbDown.ok ? null : dbDown.error).toEqual({ kind: 'internal', cause: timeout });
   });
 });
