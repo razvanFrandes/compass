@@ -41,6 +41,8 @@ export function agentChangeFor(mode: AnswerMode, data: Extension): AgentChange {
   }
   return {
     model: { provider: 'cloudflare', modelId: THINKER_MODEL },
+    // Not 'off': Sonnet 5.5 rejects `thinking: { type: "disabled" }`, which pi-ai sends for it (model_error). With
+    // reasoning on, the provider sends the answer text in one piece at the end of the turn: see `ChatLive.phase`.
     thinkingLevel: 'low',
     modelTools: null,
     maxTurns: 10,
