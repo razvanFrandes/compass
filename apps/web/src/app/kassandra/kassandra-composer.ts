@@ -1,8 +1,8 @@
 import { Component, DOCUMENT, DestroyRef, ElementRef, afterRenderEffect, computed, effect, inject, input, model, output, signal, untracked, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { phosphorArrowUpBold, phosphorCheckBold } from '@ng-icons/phosphor-icons/bold';
+import { phosphorArrowUpBold } from '@ng-icons/phosphor-icons/bold';
 import { phosphorStopFill } from '@ng-icons/phosphor-icons/fill';
-import { phosphorMicrophoneLight, phosphorXLight } from '@ng-icons/phosphor-icons/light';
+import { phosphorMicrophoneLight } from '@ng-icons/phosphor-icons/light';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmKbdImports } from '@spartan-ng/helm/kbd';
 import type { AnswerMode } from '@compass/contracts';
@@ -24,15 +24,16 @@ let nextId = 0;
   12 px radius, hairline border, the orb as the only colour, a neutral mic, Send only when there is text. Under
   it, one line says what the question is asked for (the hotel scope) and how (Quick or Thinker).
   Voice grows the bar in place; on a phone it opens a full-screen sheet. The words appear while they are spoken
-  (Soniox, English and Romanian), and the question goes when the person stops: Esc or ✕ drops it.
+  (Soniox, English and Romanian) and keep adding up through any pause. Voice never sends on its own: the question
+  goes when the person taps Send (or presses Enter); Stop or Esc leaves the words in the field, to edit and send.
 */
 @Component({
   selector: 'kassandra-composer',
   imports: [NgIcon, JuyoOrb, HlmButtonImports, HlmKbdImports],
-  providers: [VoiceInput, provideIcons({ phosphorArrowUpBold, phosphorCheckBold, phosphorMicrophoneLight, phosphorStopFill, phosphorXLight })],
+  providers: [VoiceInput, provideIcons({ phosphorArrowUpBold, phosphorMicrophoneLight, phosphorStopFill })],
   host: { class: 'block', '(document:keydown.escape)': 'onEscape($event)' },
   template: `
-    <form class="ask-field group" [class.ask-field--voice]="voiceOn() && !sheet()" (submit)="$event.preventDefault(); dispatch({ type: voiceOn() ? 'voice.done' : 'submit' })">
+    <form class="ask-field group" [class.ask-field--voice]="voiceOn() && !sheet()" (submit)="$event.preventDefault(); voiceOn() ? sendVoice() : dispatch({ type: 'submit' })">
       @if (!voiceOn() || sheet()) {
         <div class="flex min-h-[54px] items-center gap-2.5 py-1.5 pr-2 pl-3.5 max-sm:min-h-[50px]">
           <!-- At rest the mark is CSS: the WebGL orb exists only while voice is on -->
@@ -66,24 +67,31 @@ let nextId = 0;
           }
         </div>
       } @else {
-        <!-- Desktop voice: the bar grows in place and the mark becomes the orb -->
+        <!-- Desktop voice: the bar grows in place and the mark becomes the orb. Stop and Send stay in view. -->
         <div class="flex h-full items-center gap-3 pr-3 pl-2">
           <juyo-orb class="shrink-0" [size]="104" [level]="level()" [bands]="bands()" [state]="orbState()" />
           <div class="min-w-0 flex-1">
-            <p class="text-muted-foreground text-[12px] font-medium" role="status">{{ statusText() }}</p>
-            <p class="mt-0.5 line-clamp-2 text-[16px]/snug" aria-live="off">
-              @if (heard() || partial()) {
-                <span>{{ heard() }}</span><span class="text-muted-foreground">{{ partial() }}</span>
-              } @else {
-                <span class="text-muted-foreground">Speak your question</span>
-              }
-            </p>
+            <p class="text-muted-foreground text-[12px] font-medium">{{ statusText() }}</p>
+            <!-- Two lines, and always the latest ones: a long question keeps its end in view -->
+            <div class="mt-0.5 flex max-h-[44px] flex-col-reverse overflow-hidden">
+              <p class="voice-words text-[16px]/[22px]">
+                @if (heard() || partial()) {
+                  <span>{{ heard() }}</span><span class="text-muted-foreground">{{ partial() }}</span>
+                } @else {
+                  <span class="text-muted-foreground">Speak your question</span>
+                }
+              </p>
+            </div>
+            <p class="voice-hint text-muted-foreground mt-0.5 truncate text-[12px]">{{ voiceHint() }}</p>
           </div>
-          <button #cancelBtn hlmBtn type="button" variant="ghost" size="icon-sm" aria-label="Cancel voice input" (click)="dispatch({ type: 'voice.cancel' })"><ng-icon name="phosphorXLight" class="text-[18px]" /></button>
-          <button hlmBtn type="submit" size="icon-sm" class="ask-send" [attr.aria-label]="doneLabel()" [disabled]="!heardAnything()"><ng-icon [name]="voiceSends() ? 'phosphorArrowUpBold' : 'phosphorCheckBold'" class="text-[14px]" /></button>
+          <button hlmBtn type="button" variant="outline" size="sm" class="shrink-0 gap-1.5" aria-label="Stop listening" (click)="dispatch({ type: 'voice.stop' })"><ng-icon name="phosphorStopFill" class="text-[11px]" />Stop</button>
+          <button #sendBtn hlmBtn type="submit" size="icon-sm" class="ask-send shrink-0" aria-label="Send what I said" [attr.aria-disabled]="heardAnything() ? null : 'true'" [class.opacity-45]="!heardAnything()"><ng-icon name="phosphorArrowUpBold" class="text-[14px]" /></button>
         </div>
       }
     </form>
+
+    <!-- Always in the page, so a screen reader hears voice start and stop -->
+    <p class="voice-announcer sr-only" role="status">{{ announcement() }}</p>
 
     @if (state().notice; as notice) {
       <p [id]="noticeId" class="text-muted-foreground mt-1.5 px-1 text-[12.5px]" role="status">{{ notice }}</p>
@@ -114,24 +122,27 @@ let nextId = 0;
     @if (voiceOn() && sheet()) {
       <!-- Phone voice: a calm full-screen sheet with the controls at the bottom. A native modal dialog sits in the
            top layer, so no stacking context (the docked bar, the tab bar) can cover it; Esc and the Android back
-           gesture cancel it, and the page behind is inert. -->
-      <dialog #sheetDlg class="voice-sheet text-foreground m-0 hidden h-dvh max-h-none w-full max-w-none flex-col border-0 bg-(--background) px-6 pt-[max(24px,env(safe-area-inset-top,0px))] pb-[max(24px,env(safe-area-inset-bottom,0px))] open:flex" aria-label="Voice question" (cancel)="$event.preventDefault(); dispatch({ type: 'voice.cancel' })" (close)="voiceOn() && dispatch({ type: 'voice.cancel' })">
+           gesture stop listening (the words stay in the field), and the page behind is inert. -->
+      <dialog #sheetDlg class="voice-sheet text-foreground m-0 hidden h-dvh max-h-none w-full max-w-none flex-col border-0 bg-(--background) px-6 pt-[max(24px,env(safe-area-inset-top,0px))] pb-[max(24px,env(safe-area-inset-bottom,0px))] open:flex" aria-label="Voice question" (cancel)="$event.preventDefault(); dispatch({ type: 'voice.stop' })" (close)="voiceOn() && dispatch({ type: 'voice.stop' })">
         <div class="flex flex-1 flex-col items-center justify-center gap-6 pb-[10vh]">
           <juyo-orb [size]="200" [level]="level()" [bands]="bands()" [state]="orbState()" />
           <div class="max-w-[22rem] text-center">
             <p class="text-muted-foreground text-[13px] font-medium" role="status">{{ statusText() }}</p>
-            <p class="mt-2 text-[20px]/snug font-medium">
-              @if (heard() || partial()) {
-                <span>{{ heard() }}</span><span class="text-muted-foreground">{{ partial() }}</span>
-              } @else {
-                <span class="text-muted-foreground">Speak your question</span>
-              }
-            </p>
+            <div class="mt-2 flex max-h-[40dvh] flex-col-reverse overflow-hidden">
+              <p class="voice-words text-[20px]/snug font-medium">
+                @if (heard() || partial()) {
+                  <span>{{ heard() }}</span><span class="text-muted-foreground">{{ partial() }}</span>
+                } @else {
+                  <span class="text-muted-foreground">Speak your question</span>
+                }
+              </p>
+            </div>
           </div>
         </div>
+        <p class="voice-hint text-muted-foreground mb-4 text-center text-[14px]">{{ voiceHint() }}</p>
         <div class="flex items-center justify-between">
-          <button hlmBtn type="button" variant="secondary" size="icon-lg" class="size-14 rounded-full" aria-label="Cancel voice input" (click)="dispatch({ type: 'voice.cancel' })"><ng-icon name="phosphorXLight" class="text-[22px]" /></button>
-          <button hlmBtn type="button" size="icon-lg" class="ask-send size-14 rounded-full" [attr.aria-label]="doneLabel()" [disabled]="!heardAnything()" (click)="dispatch({ type: 'voice.done' })"><ng-icon [name]="voiceSends() ? 'phosphorArrowUpBold' : 'phosphorCheckBold'" class="text-[20px]" /></button>
+          <button hlmBtn type="button" variant="secondary" class="h-14 gap-2 rounded-full px-6 text-[16px]" aria-label="Stop listening" (click)="dispatch({ type: 'voice.stop' })"><ng-icon name="phosphorStopFill" class="text-[14px]" />Stop</button>
+          <button hlmBtn type="button" size="icon-lg" class="ask-send size-14 rounded-full" autofocus aria-label="Send what I said" [attr.aria-disabled]="heardAnything() ? null : 'true'" [class.opacity-45]="!heardAnything()" (click)="sendVoice()"><ng-icon name="phosphorArrowUpBold" class="text-[20px]" /></button>
         </div>
       </dialog>
     }
@@ -157,8 +168,6 @@ export class KassandraComposer {
   /** What the question is asked for. Null shows the global hotel scope. */
   readonly scope = input<readonly string[] | null>(null);
   readonly showScope = input(true);
-  /** A voice question is sent when the person stops speaking. False leaves it in the field to be completed. */
-  readonly voiceSends = input(true);
   readonly maxLength = input<number | null>(null);
   readonly submitted = output<string>();
   readonly stopped = output<void>();
@@ -179,7 +188,9 @@ export class KassandraComposer {
   protected readonly hasText = computed(() => !!this.state().draft.trim());
   protected readonly sendable = computed(() => canSend(this.context()));
   protected readonly modeHint = computed(() => MODES.find((m) => m.id === this.mode())!.hint);
-  protected readonly doneLabel = computed(() => (this.voiceSends() ? 'Send what I said' : 'Use what I said'));
+  /** What a screen reader hears when voice starts and stops. */
+  protected readonly announcement = signal('');
+  protected readonly voiceHint = computed(() => (this.state().voice === 'listening' ? 'Tap send when you’re done' : ''));
   protected readonly orbState = computed<OrbState>(() => {
     const voice = this.state().voice;
     if (voice === 'starting' || voice === 'listening') return 'listening';
@@ -197,10 +208,9 @@ export class KassandraComposer {
   private readonly doc = inject(DOCUMENT);
   private readonly voice = inject(VoiceInput);
   private readonly field = viewChild<ElementRef<HTMLTextAreaElement>>('field');
-  private readonly cancelBtn = viewChild<ElementRef<HTMLButtonElement>>('cancelBtn');
+  private readonly sendBtn = viewChild<ElementRef<HTMLButtonElement>>('sendBtn');
   private readonly sheetDlg = viewChild<ElementRef<HTMLDialogElement>>('sheetDlg');
   private raf = 0;
-  private settle: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     inject(DestroyRef).onDestroy(() => this.closeVoice());
@@ -232,8 +242,13 @@ export class KassandraComposer {
 
   /** Feeds the state machine and carries out what it asks for. */
   protected dispatch(event: ComposerEvent) {
+    const before = this.state().voice;
     const { state, effects } = step(this.state(), event, this.context());
     this.state.set(state);
+    if (state.voice !== before) {
+      if (state.voice === 'listening') this.announcement.set('Listening');
+      else if (state.voice === 'off') this.announcement.set(effects.some((effect) => effect.type === 'emit') ? 'Stopped. Sent.' : 'Stopped');
+    }
     for (const effect of effects) {
       switch (effect.type) {
         case 'emit':
@@ -245,8 +260,8 @@ export class KassandraComposer {
         case 'voice.close':
           this.closeVoice();
           break;
-        case 'settle':
-          this.settle = setTimeout(() => this.dispatch({ type: 'voice.settled' }), 280);
+        case 'voice.finish':
+          this.voice.finish(() => this.dispatch({ type: 'voice.settled' }));
           break;
         case 'focus':
           setTimeout(() => this.focus(), 30);
@@ -256,7 +271,7 @@ export class KassandraComposer {
   }
 
   private context(): ComposerContext {
-    return { busy: this.busy(), steerable: this.steerable(), online: this.online(), voiceSends: this.voiceSends() };
+    return { busy: this.busy(), steerable: this.steerable(), online: this.online() };
   }
 
   /** Enter sends; Shift+Enter starts a new line; an IME composition is left alone. */
@@ -267,10 +282,16 @@ export class KassandraComposer {
     this.dispatch({ type: 'submit' });
   }
 
+  /** Send, or Enter, while listening: the only way a voice question is sent. */
+  protected sendVoice() {
+    if (this.heardAnything()) this.dispatch({ type: 'voice.done' });
+  }
+
+  /** Esc stops listening and keeps the words in the field. */
   protected onEscape(event: Event) {
     if (!this.voiceOn()) return;
     event.preventDefault();
-    this.dispatch({ type: 'voice.cancel' });
+    this.dispatch({ type: 'voice.stop' });
   }
 
   /** Arrow keys move between Quick and Thinker and select, as in any radio group; Home and End jump to the ends. */
@@ -295,13 +316,13 @@ export class KassandraComposer {
 
   private openVoice() {
     this.sheet.set(this.doc.defaultView?.matchMedia?.('(max-width: 640px)').matches ?? false);
-    setTimeout(() => this.cancelBtn()?.nativeElement.focus(), 60);
+    // Focus goes to Send, so Enter sends; Stop is one Shift+Tab away, and Esc always stops.
+    setTimeout(() => this.sendBtn()?.nativeElement.focus(), 60);
     void this.voice.start({
       onListening: (engine) => this.dispatch({ type: 'voice.listening', engine }),
       onEngine: (engine) => this.dispatch({ type: 'voice.engine', engine }),
       onTranscript: (final, partial) => this.dispatch({ type: 'voice.transcript', final, partial }),
-      onEndpoint: () => this.dispatch({ type: 'voice.endpoint' }),
-      onNothingHeard: () => this.dispatch({ type: 'voice.nothing' }),
+      onTimeout: () => this.dispatch({ type: 'voice.timeout' }),
       onUnavailable: (message) => this.dispatch({ type: 'voice.unavailable', message }),
     });
     // The orb follows the voice: loudness and spectrum, once per frame, only while voice is on.
@@ -316,8 +337,6 @@ export class KassandraComposer {
 
   private closeVoice() {
     cancelAnimationFrame(this.raf);
-    if (this.settle !== null) clearTimeout(this.settle);
-    this.settle = null;
     this.voice.stop();
     this.level.set(0);
     this.bands.set(null);

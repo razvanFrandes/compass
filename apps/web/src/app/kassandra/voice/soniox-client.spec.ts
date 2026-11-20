@@ -37,10 +37,9 @@ class FakeVoiceSocket implements VoiceSocketLike {
 
 function setup() {
   let socket!: FakeVoiceSocket;
-  const seen = { transcripts: [] as [string, string][], endpoints: 0, finished: 0, errors: [] as [string, number | undefined][] };
+  const seen = { transcripts: [] as [string, string][], finished: 0, errors: [] as [string, number | undefined][] };
   const handlers: SonioxHandlers = {
     onTranscript: (final, partial) => seen.transcripts.push([final, partial]),
-    onEndpoint: () => seen.endpoints++,
     onFinished: () => seen.finished++,
     onError: (message, status) => seen.errors.push([message, status]),
   };
@@ -72,7 +71,7 @@ describe('SonioxStream', () => {
       num_channels: 1,
       language_hints: ['en', 'ro'],
       enable_language_identification: true,
-      enable_endpoint_detection: true,
+      enable_endpoint_detection: false,
     });
   });
 
@@ -106,12 +105,17 @@ describe('SonioxStream', () => {
     ]);
   });
 
-  it('reports the end of speech from the <end> token and never shows the marker', () => {
+  it('does not ask for endpoint detection, and an <end> token is never shown nor ends anything', () => {
     const { socket, seen } = setup();
     socket.open();
     socket.serve({ tokens: [{ text: 'Show pace', is_final: true }, { text: '<end>', is_final: true }] });
-    expect(seen.transcripts).toEqual([['Show pace', '']]);
-    expect(seen.endpoints).toBe(1);
+    socket.serve({ tokens: [{ text: ' for Dubai', is_final: true }] });
+    expect(seen.transcripts).toEqual([
+      ['Show pace', ''],
+      ['Show pace for Dubai', ''],
+    ]);
+    expect(seen.finished).toBe(0);
+    expect(socket.closed).toBe(false);
   });
 
   it('ends the stream with an empty text frame and reports finished once the service confirms', () => {

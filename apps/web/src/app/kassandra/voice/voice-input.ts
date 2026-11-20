@@ -13,11 +13,9 @@ export interface VoiceEvents {
   onListening: (engine: VoiceEngine | null) => void;
   onEngine: (engine: VoiceEngine) => void;
   onTranscript: (final: string, partial: string) => void;
-  /** The person stopped speaking. */
-  onEndpoint: () => void;
-  /** Nothing was said for a while. */
-  onNothingHeard: () => void;
-  /** Voice cannot start, or stopped working with nothing heard. `message` is for the person. */
+  /** The safety cap: listening went on for `MAX_LISTEN_MS`. Listening has stopped; nothing is sent. */
+  onTimeout: () => void;
+  /** Voice cannot start, or stopped working. `message` is for the person; words already heard are theirs to keep. */
   onUnavailable: (message: string) => void;
 }
 
@@ -30,16 +28,20 @@ export const DEMO_PHRASE = 'Which nights next month are furthest behind last yea
 export const VOICE_BLOCKED = 'The microphone is blocked for this page. Allow it in the browser’s site settings, or type your question.';
 export const VOICE_FAILED = 'Voice isn’t available right now. Type your question instead.';
 
-/** With nothing said for this long, voice gives up. */
-const NOTHING_HEARD_MS = 9000;
-/** With words heard, this much quiet ends the question even if the recogniser did not say so. */
-const QUIET_MS = 2600;
-const QUIET_LEVEL = 0.07;
+export const VOICE_LOST = 'Voice stopped working. Your words are in the field: finish typing, then send.';
+
+/** A forgotten microphone is closed after this long. It is the only timer: silence, however long, ends nothing. */
+export const MAX_LISTEN_MS = 5 * 60_000;
+/** After Send, how long to wait for the recogniser's last words. */
+const FINALISE_MS = 1500;
 
 /**
  * One voice question at a time, for one composer. It opens the microphone, asks the server for a temporary Soniox
  * key and streams the audio there; when Soniox cannot be reached it falls back to the browser's recognition; with no
  * microphone at all it plays a sample question, labelled as a demo.
+ *
+ * It never decides that the question is over. Pauses and endpoints are ignored; listening ends when the composer
+ * calls `finish()` (Send) or `stop()` (Stop, Esc), or after `MAX_LISTEN_MS`.
  */
 @Injectable()
 export class VoiceInput {
@@ -55,7 +57,8 @@ export class VoiceInput {
   private stream: SonioxStream | null = null;
   private speech: WebSpeechSession | null = null;
   private timers: ReturnType<typeof setTimeout>[] = [];
-  private watch: ReturnType<typeof setInterval> | null = null;
+  /** Set by `finish()`: called when the recogniser has handed over its last words. */
+  private finished: (() => void) | null = null;
   private demoLevel = 0;
   private demoSpeaking = false;
   private demoAt = 0;
@@ -83,6 +86,13 @@ export class VoiceInput {
     const run = ++this.generation;
     this.active = true;
     const live = () => this.active && run === this.generation;
+    this.timers.push(
+      setTimeout(() => {
+        if (!live()) return;
+        this.stop();
+        events.onTimeout();
+      }, MAX_LISTEN_MS),
+    );
 
     let mic: MicCapture;
     try {
@@ -105,7 +115,6 @@ export class VoiceInput {
     const early: ArrayBuffer[] = [];
     mic.onPcm = (chunk) => early.push(chunk);
     let heard = '';
-    this.watchSilence(events, live, () => heard);
 
     const fallBack = () => {
       if (!live()) return;
@@ -118,8 +127,7 @@ export class VoiceInput {
           heard = `${final}${partial}`;
           events.onTranscript(final, partial);
         },
-        onEnd: () => live() && (heard.trim() ? events.onEndpoint() : events.onNothingHeard()),
-        onError: () => live() && (heard.trim() ? events.onEndpoint() : this.unavailable(events)),
+        onError: () => live() && this.unavailable(events, heard.trim() ? VOICE_LOST : VOICE_FAILED),
       });
       if (this.speech) events.onEngine('webspeech');
       else this.unavailable(events);
@@ -137,10 +145,15 @@ export class VoiceInput {
             heard = `${final}${partial}`;
             events.onTranscript(final, partial);
           },
-          onEndpoint: () => live() && heard.trim() && events.onEndpoint(),
-          onFinished: () => live() && heard.trim() && events.onEndpoint(),
-          // With words already heard, keep them; with none, try the browser's recognition.
-          onError: () => live() && (heard.trim() ? events.onEndpoint() : fallBack()),
+          onFinished: () => live() && this.finished?.(),
+          onError: () => {
+            if (!live()) return;
+            // After Send, what was heard so far is the question.
+            if (this.finished) this.finished();
+            // With words already heard, the person keeps them; with none, try the browser's recognition.
+            else if (heard.trim()) this.unavailable(events, VOICE_LOST);
+            else fallBack();
+          },
         },
         this.createSocket,
       );
@@ -153,14 +166,32 @@ export class VoiceInput {
     events.onEngine('soniox');
   }
 
+  /**
+   * Send was tapped: no more audio is taken, and `done` is called once the recogniser has finalised its last words
+   * (they still arrive through `onTranscript`), or at once when there is nothing to wait for. `stop()` cancels it.
+   */
+  finish(done: () => void): void {
+    const run = this.generation;
+    const stream = this.stream;
+    if (!this.active || !stream) return done();
+    if (this.mic) this.mic.onPcm = null;
+    let called = false;
+    this.finished = () => {
+      if (called || run !== this.generation) return;
+      called = true;
+      done();
+    };
+    this.timers.push(setTimeout(this.finished, FINALISE_MS));
+    stream.finish();
+  }
+
   /** Stops everything: the microphone, the stream and every timer. Safe to call again. */
   stop(): void {
     this.generation++;
     this.active = false;
     this.timers.forEach(clearTimeout);
     this.timers = [];
-    if (this.watch !== null) clearInterval(this.watch);
-    this.watch = null;
+    this.finished = null;
     this.stream?.close();
     this.stream = null;
     this.speech?.stop();
@@ -171,31 +202,9 @@ export class VoiceInput {
     this.demoLevel = 0;
   }
 
-  private unavailable(events: VoiceEvents): void {
+  private unavailable(events: VoiceEvents, message = VOICE_FAILED): void {
     this.stop();
-    events.onUnavailable(VOICE_FAILED);
-  }
-
-  /** Ends the question after a long quiet, and gives up when nothing is said at all. */
-  private watchSilence(events: VoiceEvents, live: () => boolean, heard: () => string): void {
-    const started = performance.now();
-    let quietSince: number | null = null;
-    this.watch = setInterval(() => {
-      if (!live() || !this.mic) return;
-      const now = performance.now();
-      // Read here too, so the check does not depend on the orb being drawn (a hidden tab draws no frames).
-      const level = this.mic.level();
-      if (!heard().trim()) {
-        if (now - started > NOTHING_HEARD_MS) events.onNothingHeard();
-        return;
-      }
-      if (level > QUIET_LEVEL) quietSince = null;
-      else quietSince ??= now;
-      if (quietSince !== null && now - quietSince > QUIET_MS) {
-        quietSince = null;
-        events.onEndpoint();
-      }
-    }, 200);
+    events.onUnavailable(message);
   }
 
   /** No microphone here (a sandboxed preview, a desktop without one): a sample question, typed out and labelled. */
@@ -210,8 +219,8 @@ export class VoiceInput {
       events.onTranscript('', DEMO_PHRASE.slice(0, shown));
       if (shown < DEMO_PHRASE.length) return void this.timers.push(setTimeout(type, 65));
       this.demoSpeaking = false;
+      // It stays on screen until the person taps Send or Stop.
       events.onTranscript(DEMO_PHRASE, '');
-      this.timers.push(setTimeout(() => live() && events.onEndpoint(), 1200));
     };
     this.timers.push(setTimeout(type, 900));
   }

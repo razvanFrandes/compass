@@ -5,7 +5,8 @@
   - audio follows as binary frames; an empty text frame ends the stream, and the server answers with
     `finished: true` before it closes;
   - each response carries tokens: final ones are sent once and kept, non-final ones replace the previous
-    non-final ones; with endpoint detection, a final "<end>" token marks the end of what the person said.
+    non-final ones.
+  Endpoint detection stays off: a pause is not the end of a question. The person ends it, with Send or Stop.
 */
 
 /** The part of a `WebSocket` the client uses, so tests can pass a fake. */
@@ -36,8 +37,6 @@ export interface SonioxConfig {
 export interface SonioxHandlers {
   /** `final` never changes again; `partial` is the provisional tail and is replaced on every call. */
   onTranscript: (final: string, partial: string) => void;
-  /** The person stopped speaking (endpoint detection). */
-  onEndpoint: () => void;
   /** The stream ended cleanly after `finish()`. */
   onFinished: () => void;
   /** The service refused or dropped the stream. `status` is Soniox's HTTP-like code when it sent one. */
@@ -58,7 +57,7 @@ interface SonioxResponse {
 }
 
 const OPEN = 1;
-/** "<end>" (endpoint) and "<fin>" (manual finalisation) are markers, never words. */
+/** "<end>" and "<fin>" are markers, never words, and never a reason to stop. */
 const MARKER = /^<[a-z_]+>$/;
 /** About 20 s of 16 kHz audio: what may wait while the socket opens. */
 const MAX_QUEUED_BYTES = 640_000;
@@ -128,7 +127,7 @@ export class SonioxStream {
         num_channels: 1,
         language_hints: this.config.languageHints ?? SONIOX_LANGUAGES,
         enable_language_identification: true,
-        enable_endpoint_detection: true,
+        enable_endpoint_detection: false,
       }),
     );
     for (const chunk of this.queue) this.socket.send(chunk);
@@ -150,18 +149,13 @@ export class SonioxStream {
       return;
     }
     let partial = '';
-    let endpoint = false;
     for (const token of response.tokens ?? []) {
       if (typeof token?.text !== 'string') continue;
-      if (MARKER.test(token.text)) {
-        endpoint ||= token.text === '<end>';
-        continue;
-      }
+      if (MARKER.test(token.text)) continue;
       if (token.is_final) this.finalText += token.text;
       else partial += token.text;
     }
     if (response.tokens?.length) this.handlers.onTranscript(this.finalText.trimStart(), this.finalText ? partial : partial.trimStart());
-    if (endpoint) this.handlers.onEndpoint();
     if (response.finished) {
       this.close();
       this.handlers.onFinished();

@@ -151,7 +151,6 @@ export function richText(text: string): { text: string; bold: boolean }[] {
         [prefill]="starter()"
         [showMode]="false"
         [showScope]="false"
-        [voiceSends]="false"
         [maxLength]="4000"
         (submitted)="ask.emit($event)"
         (stopped)="stop.emit()"

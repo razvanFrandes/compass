@@ -3,7 +3,7 @@ import type { ApiResult, VoiceToken } from '../../api';
 import { MIC_OPENER, type MicCapture } from './mic-capture';
 import type { VoiceSocketLike } from './soniox-client';
 import { VoiceApi } from './voice-api';
-import { DEMO_PHRASE, VOICE_BLOCKED, VOICE_FAILED, VOICE_SOCKET_FACTORY, VoiceInput, type VoiceEvents } from './voice-input';
+import { DEMO_PHRASE, MAX_LISTEN_MS, VOICE_BLOCKED, VOICE_FAILED, VOICE_LOST, VOICE_SOCKET_FACTORY, VoiceInput, type VoiceEvents } from './voice-input';
 import { WEB_SPEECH, type WebSpeechHandlers } from './web-speech';
 
 class FakeMic implements MicCapture {
@@ -75,8 +75,7 @@ function setup(world: Partial<World> = {}) {
     onListening: (engine) => log.push(`listening:${engine}`),
     onEngine: (engine) => log.push(`engine:${engine}`),
     onTranscript: (final, partial) => log.push(`heard:${final}|${partial}`),
-    onEndpoint: () => log.push('endpoint'),
-    onNothingHeard: () => log.push('nothing'),
+    onTimeout: () => log.push('timeout'),
     onUnavailable: (message) => log.push(`unavailable:${message}`),
   };
   TestBed.resetTestingModule();
@@ -128,14 +127,109 @@ describe('VoiceInput', () => {
     expect(socket.url).toBe(TOKEN.wsUrl);
     expect(socket.protocols).toEqual(['soniox-api-key', 'snx_temp_1']);
     socket.open();
-    expect(JSON.parse(socket.sent[0] as string)).toMatchObject({ model: 'stt-rt-v6', sample_rate: 16_000, language_hints: ['en', 'ro'] });
+    expect(JSON.parse(socket.sent[0] as string)).toMatchObject({ model: 'stt-rt-v6', sample_rate: 16_000, language_hints: ['en', 'ro'], enable_endpoint_detection: false });
     expect((socket.sent[1] as ArrayBuffer).byteLength).toBe(320);
     (mic as FakeMic).say(80);
     expect((socket.sent[2] as ArrayBuffer).byteLength).toBe(160);
 
     socket.serve({ tokens: [{ text: 'Why is', is_final: true }, { text: ' Lisbon', is_final: false }] });
     socket.serve({ tokens: [{ text: ' Lisbon behind?', is_final: true }, { text: '<end>', is_final: true }] });
-    expect(log.slice(2)).toEqual(['heard:Why is| Lisbon', 'heard:Why is Lisbon behind?|', 'endpoint']);
+    expect(log.slice(2)).toEqual(['heard:Why is| Lisbon', 'heard:Why is Lisbon behind?|']);
+  });
+
+  it('never ends the question by itself: not on an endpoint, not on a long silence', async () => {
+    vi.useFakeTimers();
+    const { voice, mic, sockets, log, events } = setup();
+    await voice.start(events);
+    const socket = sockets[0]!;
+    socket.open();
+    socket.serve({ tokens: [{ text: 'Why is Lisbon', is_final: true }, { text: '<end>', is_final: true }] });
+    (mic as FakeMic).loud = 0; // the person pauses to think
+    vi.advanceTimersByTime(4 * 60_000);
+    expect(log).toEqual(['listening:null', 'engine:soniox', 'heard:Why is Lisbon|']);
+    expect(socket.closed).toBe(false);
+    expect((mic as FakeMic).stopped).toBe(false);
+    // Still listening: what is said after the pause is added.
+    const frames = socket.sent.length;
+    (mic as FakeMic).say(80);
+    expect(socket.sent.length).toBe(frames + 1);
+    socket.serve({ tokens: [{ text: ' behind?', is_final: true }] });
+    expect(log.at(-1)).toBe('heard:Why is Lisbon behind?|');
+  });
+
+  it('keeps waiting when nothing has been said yet', async () => {
+    vi.useFakeTimers();
+    const { voice, mic, log, events } = setup();
+    await voice.start(events);
+    (mic as FakeMic).loud = 0;
+    vi.advanceTimersByTime(60_000);
+    expect(log).toEqual(['listening:null', 'engine:soniox']);
+    expect((mic as FakeMic).stopped).toBe(false);
+  });
+
+  it('stops listening after five minutes, and says so instead of sending', async () => {
+    vi.useFakeTimers();
+    const { voice, mic, sockets, log, events } = setup();
+    await voice.start(events);
+    sockets[0]!.open();
+    sockets[0]!.serve({ tokens: [{ text: 'A long question', is_final: true }] });
+    vi.advanceTimersByTime(MAX_LISTEN_MS - 1);
+    expect(log).not.toContain('timeout');
+    vi.advanceTimersByTime(1);
+    expect(log.at(-1)).toBe('timeout');
+    expect((mic as FakeMic).stopped).toBe(true);
+    expect(sockets[0]!.closed).toBe(true);
+  });
+
+  it('on Send, takes no more audio and waits for the last words before it is done', async () => {
+    vi.useFakeTimers();
+    const { voice, mic, sockets, log, events } = setup();
+    await voice.start(events);
+    const socket = sockets[0]!;
+    socket.open();
+    socket.serve({ tokens: [{ text: 'Why is', is_final: true }, { text: ' Lisbon', is_final: false }] });
+    let done = 0;
+    voice.finish(() => done++);
+    expect(socket.sent.at(-1)).toBe(''); // the empty frame asks Soniox to finalise
+    const frames = socket.sent.length;
+    (mic as FakeMic).say(80);
+    expect(socket.sent.length).toBe(frames);
+    expect(done).toBe(0);
+    socket.serve({ tokens: [{ text: ' Lisbon behind?', is_final: true }], finished: true });
+    expect(log.at(-1)).toBe('heard:Why is Lisbon behind?|');
+    expect(done).toBe(1);
+    vi.advanceTimersByTime(5000);
+    expect(done).toBe(1);
+  });
+
+  it('on Send, does not wait for ever, and waits for nothing without a stream', async () => {
+    vi.useFakeTimers();
+    const slow = setup();
+    await slow.voice.start(slow.events);
+    slow.sockets[0]!.open();
+    let done = 0;
+    slow.voice.finish(() => done++);
+    vi.advanceTimersByTime(1400);
+    expect(done).toBe(0);
+    vi.advanceTimersByTime(200);
+    expect(done).toBe(1);
+
+    const browser = setup({ token: failed });
+    await browser.voice.start(browser.events);
+    browser.voice.finish(() => done++);
+    expect(done).toBe(2);
+  });
+
+  it('forgets a pending Send when stopped', async () => {
+    vi.useFakeTimers();
+    const { voice, sockets, events } = setup();
+    await voice.start(events);
+    sockets[0]!.open();
+    let done = 0;
+    voice.finish(() => done++);
+    voice.stop();
+    vi.advanceTimersByTime(5000);
+    expect(done).toBe(0);
   });
 
   it('falls back to the browser’s recognition when the token call fails', async () => {
@@ -144,8 +238,10 @@ describe('VoiceInput', () => {
     expect(sockets).toHaveLength(0);
     expect(log).toEqual(['listening:null', 'engine:webspeech']);
     speech.handlers!.onTranscript('Show pace', '');
-    speech.handlers!.onEnd();
-    expect(log.slice(2)).toEqual(['heard:Show pace|', 'endpoint']);
+    expect(log.slice(2)).toEqual(['heard:Show pace|']);
+    // The browser's recognition gave up for good: the words are kept, nothing is sent.
+    speech.handlers!.onError();
+    expect(log.slice(3)).toEqual([`unavailable:${VOICE_LOST}`]);
   });
 
   it('falls back when Soniox refuses the stream before a word was heard, and keeps the words otherwise', async () => {
@@ -160,7 +256,7 @@ describe('VoiceInput', () => {
     dropped.sockets[0]!.open();
     dropped.sockets[0]!.serve({ tokens: [{ text: 'Why is Lisbon', is_final: false }] });
     dropped.sockets[0]!.drop();
-    expect(dropped.log.slice(2)).toEqual(['heard:|Why is Lisbon', 'endpoint']);
+    expect(dropped.log.slice(2)).toEqual(['heard:|Why is Lisbon', `unavailable:${VOICE_LOST}`]);
     expect(dropped.speech.handlers).toBeNull();
   });
 
@@ -176,9 +272,9 @@ describe('VoiceInput', () => {
     const { voice, sockets, speech, log, events } = setup({ mic: named('NotFoundError') });
     await voice.start(events);
     expect(log).toEqual(['listening:demo']);
-    vi.advanceTimersByTime(900 + 65 * 40 + 1300);
-    expect(log.at(-1)).toBe('endpoint');
-    expect(log.at(-2)).toBe(`heard:${DEMO_PHRASE}|`);
+    vi.advanceTimersByTime(900 + 65 * 40 + 60_000);
+    // The sample stays until the person taps Send or Stop.
+    expect(log.at(-1)).toBe(`heard:${DEMO_PHRASE}|`);
     expect(sockets).toHaveLength(0);
     expect(speech.handlers).toBeNull();
   });
@@ -187,24 +283,6 @@ describe('VoiceInput', () => {
     const { voice, log, events } = setup({ mic: named('NotAllowedError') });
     await voice.start(events);
     expect(log).toEqual([`unavailable:${VOICE_BLOCKED}`]);
-  });
-
-  it('gives up when nothing is said, and ends the question after a long quiet', async () => {
-    vi.useFakeTimers();
-    const silent = setup();
-    await silent.voice.start(silent.events);
-    vi.advanceTimersByTime(9500);
-    expect(silent.log).toContain('nothing');
-
-    const quiet = setup();
-    await quiet.voice.start(quiet.events);
-    quiet.sockets[0]!.open();
-    quiet.sockets[0]!.serve({ tokens: [{ text: 'Why is Lisbon behind', is_final: false }] });
-    vi.advanceTimersByTime(2000);
-    expect(quiet.log).not.toContain('endpoint'); // still speaking: the level is up
-    (quiet.mic as FakeMic).loud = 0;
-    vi.advanceTimersByTime(3200);
-    expect(quiet.log).toContain('endpoint');
   });
 
   it('reports nothing after stop(), even when the key arrives late', async () => {

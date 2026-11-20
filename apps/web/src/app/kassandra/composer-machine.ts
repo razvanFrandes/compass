@@ -4,9 +4,12 @@ import type { VoiceEngine } from './voice/voice-input';
   The composer as a state machine, pure so it can be tested without a microphone: typed text on one side, a voice
   question on the other. The component feeds it events and carries out the effects it returns.
 
-    off ──mic──▶ starting ──microphone open──▶ listening ──silence / Done──▶ sending ──▶ off (question sent)
+  Voice never sends on its own. A pause, however long, changes nothing: the words keep adding up until the person
+  taps Send (the question goes) or Stop / Esc (the words land in the field, to be edited and sent by hand).
+
+    off ──mic──▶ starting ──microphone open──▶ listening ──Send──▶ sending ──last words in──▶ off (question sent)
                      │                              │
-                     └────────── Esc / ✕ / nothing heard / unavailable ──────────▶ off (nothing sent)
+                     └──── Stop / Esc / five minutes / voice lost ────▶ off (words in the field, nothing sent)
 */
 
 export type VoicePhase = 'off' | 'starting' | 'listening' | 'sending';
@@ -32,8 +35,6 @@ export interface ComposerContext {
   steerable: boolean;
   /** False while the connection is down: typing stays possible, sending waits. */
   online: boolean;
-  /** A voice question is sent when the person stops speaking; otherwise it lands in the field to be edited. */
-  voiceSends: boolean;
 }
 
 export type ComposerEvent =
@@ -44,15 +45,14 @@ export type ComposerEvent =
   | { type: 'voice.listening'; engine: VoiceEngine | null }
   | { type: 'voice.engine'; engine: VoiceEngine }
   | { type: 'voice.transcript'; final: string; partial: string }
-  /** The person stopped speaking. */
-  | { type: 'voice.endpoint' }
-  /** The person pressed Done. */
+  /** The person tapped Send (or pressed Enter) while listening. */
   | { type: 'voice.done' }
-  /** Esc, or the ✕ button. */
-  | { type: 'voice.cancel' }
-  | { type: 'voice.nothing' }
+  /** The person tapped Stop, or pressed Esc. */
+  | { type: 'voice.stop' }
+  /** The safety cap: listening went on for five minutes. */
+  | { type: 'voice.timeout' }
   | { type: 'voice.unavailable'; message: string }
-  /** The short "Sending…" beat is over. */
+  /** The recogniser handed over its last words after Send. */
   | { type: 'voice.settled' };
 
 export type ComposerEffect =
@@ -60,8 +60,8 @@ export type ComposerEffect =
   | { type: 'emit'; text: string }
   | { type: 'voice.open' }
   | { type: 'voice.close' }
-  /** Come back with `voice.settled` after the "Sending…" beat. */
-  | { type: 'settle' }
+  /** Stop listening, let the recogniser finalise its last words, then come back with `voice.settled`. */
+  | { type: 'voice.finish' }
   | { type: 'focus' };
 
 export interface ComposerStep {
@@ -70,6 +70,7 @@ export interface ComposerStep {
 }
 
 export const NOTHING_HEARD = 'I didn’t hear anything. Try again, or type your question.';
+export const LISTENED_LONG = 'Listening stopped after five minutes. Your words are in the field: send them when you’re ready.';
 
 export const initialComposer = (): ComposerState => ({ draft: '', voice: 'off', engine: null, heard: '', partial: '', notice: null });
 
@@ -87,16 +88,13 @@ const same = (state: ComposerState): ComposerStep => ({ state, effects: [] });
 
 export function step(state: ComposerState, event: ComposerEvent, context: ComposerContext): ComposerStep {
   const listening = state.voice === 'starting' || state.voice === 'listening';
-
-  /** Voice ends with words: send them, or leave them in the field when they cannot or should not be sent. */
-  const finish = (): ComposerStep => {
-    const text = transcript(state);
-    if (!text) return same(state);
-    // The demo's sample question is not something the person said: it is never sent for them.
-    if (context.voiceSends && state.engine !== 'demo' && canSend(context)) return { state: { ...state, voice: 'sending', heard: text, partial: '' }, effects: [{ type: 'voice.close' }, { type: 'settle' }] };
-    const draft = state.draft.trim() ? `${state.draft.trimEnd()} ${text}` : text;
-    return { state: off(state, { draft }), effects: [{ type: 'voice.close' }, { type: 'focus' }] };
-  };
+  /** What is typed, then what was said. */
+  const whole = (): string => [state.draft.trim(), transcript(state)].filter(Boolean).join(' ');
+  /** Voice ends without sending: whatever was said lands in the field, after what was typed. */
+  const keep = (notice: string | null = null): ComposerStep => ({
+    state: off(state, { draft: transcript(state) ? whole() : state.draft, notice }),
+    effects: [{ type: 'voice.close' }, { type: 'focus' }],
+  });
 
   switch (event.type) {
     case 'input':
@@ -116,20 +114,23 @@ export function step(state: ComposerState, event: ComposerEvent, context: Compos
     case 'voice.engine':
       return listening ? same({ ...state, engine: event.engine }) : same(state);
     case 'voice.transcript':
-      return listening ? same({ ...state, heard: event.final, partial: event.partial }) : same(state);
-    case 'voice.endpoint':
-      // A pause before the first word is not an end: keep listening.
-      return state.voice === 'listening' ? finish() : same(state);
+      // Also while sending: the recogniser's last words arrive after Send.
+      return state.voice === 'off' ? same(state) : same({ ...state, heard: event.final, partial: event.partial });
     case 'voice.done':
       if (!listening) return same(state);
-      return transcript(state) ? finish() : { state: off(state), effects: [{ type: 'voice.close' }, { type: 'focus' }] };
-    case 'voice.cancel':
-      return state.voice === 'off' ? same(state) : { state: off(state), effects: [{ type: 'voice.close' }, { type: 'focus' }] };
-    case 'voice.nothing':
-      return listening ? { state: off(state, { notice: NOTHING_HEARD }), effects: [{ type: 'voice.close' }, { type: 'focus' }] } : same(state);
+      // The demo's sample question is not something the person said: it is never sent for them.
+      if (!transcript(state) || state.engine === 'demo' || !canSend(context)) return keep();
+      return { state: { ...state, voice: 'sending' }, effects: [{ type: 'voice.finish' }] };
+    case 'voice.stop':
+      return state.voice === 'off' ? same(state) : keep();
+    case 'voice.timeout':
+      return state.voice === 'off' ? same(state) : keep(transcript(state) ? LISTENED_LONG : NOTHING_HEARD);
     case 'voice.unavailable':
-      return state.voice === 'off' ? same(state) : { state: off(state, { notice: event.message }), effects: [{ type: 'voice.close' }, { type: 'focus' }] };
-    case 'voice.settled':
-      return state.voice === 'sending' ? { state: off(state), effects: [{ type: 'emit', text: state.heard }] } : same(state);
+      return state.voice === 'off' ? same(state) : keep(event.message);
+    case 'voice.settled': {
+      if (state.voice !== 'sending') return same(state);
+      if (!canSend(context)) return keep();
+      return { state: off(state, { draft: '', notice: null }), effects: [{ type: 'voice.close' }, { type: 'emit', text: whole() }] };
+    }
   }
 }

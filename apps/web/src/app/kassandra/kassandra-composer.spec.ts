@@ -13,8 +13,14 @@ class FakeVoice {
     this.starts++;
     this.events = events;
   }
+  finishing: (() => void) | null = null;
+  /** Like Soniox: the last words arrive a moment after Send. */
+  finish(done: () => void) {
+    this.finishing = done;
+  }
   stop() {
     this.stops++;
+    this.finishing = null;
   }
   level() {
     return 0.5;
@@ -170,7 +176,14 @@ describe('KassandraComposer: voice', () => {
     rendered.fixture.detectChanges();
     return rendered;
   }
-  const status = (fixture: ComponentFixture<unknown>) => text(el(fixture).querySelector('[role=status]'));
+  const status = (fixture: ComponentFixture<unknown>) => text(el(fixture).querySelector('form p'));
+  const announced = (fixture: ComponentFixture<unknown>) => text(el(fixture).querySelector('.voice-announcer'));
+  const hint = (fixture: ComponentFixture<unknown>) => text(el(fixture).querySelector('.voice-hint'));
+  function say(fixture: ComponentFixture<unknown>, final: string, partial = '') {
+    voice.events!.onListening(null);
+    voice.events!.onTranscript(final, partial);
+    fixture.detectChanges();
+  }
 
   it('opens the microphone on the mic button and hosts the orb, fed with the voice', () => {
     const { fixture } = listen();
@@ -185,68 +198,120 @@ describe('KassandraComposer: voice', () => {
 
   it('shows the words while they are spoken: final ones plain, the provisional tail muted', () => {
     const { fixture } = listen();
-    voice.events!.onListening(null);
-    voice.events!.onTranscript('Why is', ' Lisabona în urmă');
-    fixture.detectChanges();
-    const spans = [...el(fixture).querySelectorAll('form p:not([role]) span')];
+    say(fixture, 'Why is', ' Lisabona în urmă');
+    const spans = [...el(fixture).querySelectorAll('.voice-words span')];
     expect(spans.map((s) => s.textContent)).toEqual(['Why is', ' Lisabona în urmă']);
     expect(spans[1]!.className).toContain('text-muted-foreground');
   });
 
-  it('sends the question when the person stops speaking, and closes the microphone', () => {
-    const { fixture, sent } = listen();
-    voice.events!.onListening(null);
-    voice.events!.onTranscript('Why is Lisbon behind?', '');
-    voice.events!.onEndpoint();
-    fixture.detectChanges();
-    expect(status(fixture)).toBe('Sending…');
-    expect(voice.stops).toBeGreaterThan(0);
-    expect(sent).toEqual([]);
-    vi.advanceTimersByTime(300);
-    fixture.detectChanges();
-    expect(sent).toEqual(['Why is Lisbon behind?']);
-    expect(field(fixture)).not.toBeNull();
+  it('while listening, shows Stop and Send side by side with the hint, and puts the focus on Send', () => {
+    const { fixture } = listen();
+    document.body.appendChild(el(fixture));
+    say(fixture, 'Why is Lisbon behind?');
+    expect(text(byLabel(fixture, 'Stop listening'))).toBe('Stop');
+    expect(byLabel(fixture, 'Send what I said')!.getAttribute('type')).toBe('submit');
+    expect(hint(fixture)).toBe('Tap send when you’re done');
+    vi.advanceTimersByTime(100);
+    expect(document.activeElement).toBe(byLabel(fixture, 'Send what I said'));
+    el(fixture).remove();
   });
 
-  it('drops the question on Esc', () => {
+  it('never sends on its own: the person pauses for minutes and the words just stay', () => {
+    const { fixture, sent } = listen();
+    say(fixture, 'Why is Lisbon');
+    vi.advanceTimersByTime(4 * 60_000);
+    say(fixture, 'Why is Lisbon', ' behind last year?');
+    vi.advanceTimersByTime(30_000);
+    fixture.detectChanges();
+    expect(sent).toEqual([]);
+    expect(voice.stops).toBe(0);
+    expect(voice.finishing).toBeNull();
+    expect(status(fixture)).toBe('Listening…');
+    expect(text(el(fixture).querySelector('.voice-words'))).toBe('Why is Lisbon behind last year?');
+  });
+
+  it('sends on Send: listening stops, the last words are waited for, then the whole question goes', () => {
+    const { fixture, sent } = listen();
+    say(fixture, 'Why is Lisbon', ' behind');
+    byLabel(fixture, 'Send what I said')!.click();
+    fixture.detectChanges();
+    expect(status(fixture)).toBe('Sending…');
+    expect(sent).toEqual([]);
+    voice.events!.onTranscript('Why is Lisbon behind last year?', '');
+    voice.finishing!();
+    fixture.detectChanges();
+    expect(sent).toEqual(['Why is Lisbon behind last year?']);
+    expect(voice.stops).toBeGreaterThan(0);
+    expect(field(fixture).value).toBe('');
+    expect(announced(fixture)).toBe('Stopped. Sent.');
+  });
+
+  it('sends on Enter while listening', () => {
+    const { fixture, sent } = listen();
+    say(fixture, 'Show pace for Dubai');
+    el(fixture).querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    voice.finishing!();
+    expect(sent).toEqual(['Show pace for Dubai']);
+  });
+
+  it('does nothing on Send before a word was heard', () => {
     const { fixture, sent } = listen();
     voice.events!.onListening(null);
-    voice.events!.onTranscript('Why is', '');
+    fixture.detectChanges();
+    expect(byLabel(fixture, 'Send what I said')!.getAttribute('aria-disabled')).toBe('true');
+    byLabel(fixture, 'Send what I said')!.click();
+    fixture.detectChanges();
+    expect(sent).toEqual([]);
+    expect(voice.finishing).toBeNull();
+    expect(status(fixture)).toBe('Listening…');
+  });
+
+  it('keeps the words in the field on Stop, to be edited and sent by hand', () => {
+    const { fixture, sent } = listen();
+    say(fixture, 'Why is Lisbon', ' behind?');
+    byLabel(fixture, 'Stop listening')!.click();
+    vi.advanceTimersByTime(400);
+    fixture.detectChanges();
+    expect(sent).toEqual([]);
+    expect(voice.stops).toBeGreaterThan(0);
+    expect(field(fixture).value).toBe('Why is Lisbon behind?');
+    byLabel(fixture, 'Send')!.click();
+    expect(sent).toEqual(['Why is Lisbon behind?']);
+  });
+
+  it('keeps the words in the field on Esc', () => {
+    const { fixture, sent } = listen();
+    say(fixture, 'Why is', ' Lisbon');
     key(document, 'Escape');
     vi.advanceTimersByTime(400);
     fixture.detectChanges();
     expect(sent).toEqual([]);
     expect(voice.stops).toBeGreaterThan(0);
+    expect(field(fixture).value).toBe('Why is Lisbon');
     expect(byLabel(fixture, 'Ask with your voice')).not.toBeNull();
   });
 
-  it('drops the question on the cancel button, and sends it on Done', () => {
-    const cancelled = listen();
-    voice.events!.onListening(null);
-    voice.events!.onTranscript('Why', '');
-    cancelled.fixture.detectChanges();
-    byLabel(cancelled.fixture, 'Cancel voice input')!.click();
-    vi.advanceTimersByTime(400);
-    expect(cancelled.sent).toEqual([]);
-
-    const done = listen();
-    voice.events!.onListening(null);
-    voice.events!.onTranscript('Show pace for Dubai', '');
-    done.fixture.detectChanges();
-    byLabel(done.fixture, 'Send what I said')!.click();
-    vi.advanceTimersByTime(400);
-    expect(done.sent).toEqual(['Show pace for Dubai']);
-  });
-
-  it('leaves the words in the field where the host wants them completed first', () => {
-    const { fixture, sent } = listen({ voiceSends: false });
-    voice.events!.onListening(null);
-    voice.events!.onTranscript('Email me when Lisbon falls behind', '');
-    voice.events!.onEndpoint();
-    vi.advanceTimersByTime(400);
+  it('stops after five minutes without sending, and says where the words are', () => {
+    const { fixture, sent } = listen();
+    say(fixture, 'A long question');
+    voice.events!.onTimeout();
     fixture.detectChanges();
     expect(sent).toEqual([]);
-    expect(field(fixture).value).toBe('Email me when Lisbon falls behind');
+    expect(field(fixture).value).toBe('A long question');
+    expect(text(el(fixture).querySelector(`#${field(fixture).getAttribute('aria-describedby')}`))).toContain('five minutes');
+  });
+
+  it('tells a screen reader when listening starts and stops', () => {
+    const { fixture } = listen();
+    const live = el(fixture).querySelector('.voice-announcer')!;
+    expect(live.getAttribute('role')).toBe('status');
+    expect(announced(fixture)).toBe('');
+    say(fixture, 'Why');
+    expect(announced(fixture)).toBe('Listening');
+    byLabel(fixture, 'Stop listening')!.click();
+    fixture.detectChanges();
+    expect(announced(fixture)).toBe('Stopped');
+    expect(el(fixture).querySelector('.voice-announcer')).toBe(live); // the same node: a live region must stay in the page
   });
 
   it('labels the demo transcript, which plays only without a microphone', () => {
@@ -260,7 +325,8 @@ describe('KassandraComposer: voice', () => {
     const { fixture } = listen();
     voice.events!.onUnavailable('The microphone is blocked for this page.');
     fixture.detectChanges();
-    expect(status(fixture)).toBe('The microphone is blocked for this page.');
-    expect(field(fixture).getAttribute('aria-describedby')).toBe(el(fixture).querySelector('[role=status]')!.id);
+    const notice = el(fixture).querySelector(`#${field(fixture).getAttribute('aria-describedby')}`)!;
+    expect(text(notice)).toBe('The microphone is blocked for this page.');
+    expect(notice.getAttribute('role')).toBe('status');
   });
 });
