@@ -2,7 +2,8 @@ import { Component, DOCUMENT, DestroyRef, ElementRef, afterRenderEffect, compute
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmKbdImports } from '@spartan-ng/helm/kbd';
-import { KassandraOrb } from './orb';
+import { JuyoOrb } from './orb/juyo-orb';
+import { type MicAnalyser, createMicAnalyser, envelope } from './orb/mic-analyser';
 import { phosphorArrowUpBold, phosphorMicrophoneLight, phosphorStopFill, phosphorXLight } from './icons';
 
 interface SpeechRecognitionLike {
@@ -28,7 +29,7 @@ const DEMO_PHRASE = 'Which nights next month are furthest behind last year?';
 */
 @Component({
   selector: 'app-ask-bar',
-  imports: [NgIcon, KassandraOrb, HlmButtonImports, HlmKbdImports],
+  imports: [NgIcon, JuyoOrb, HlmButtonImports, HlmKbdImports],
   providers: [provideIcons({ phosphorArrowUpBold, phosphorMicrophoneLight, phosphorStopFill, phosphorXLight })],
   host: { class: 'block', '(keydown.escape)': 'cancel()' },
   template: `
@@ -69,7 +70,7 @@ const DEMO_PHRASE = 'Which nights next month are furthest behind last year?';
       } @else {
         <!-- Desktop voice: the bar grows in place; the mark becomes the orb -->
         <div class="flex h-full items-center gap-3 pr-3 pl-2">
-          <app-kassandra-orb class="size-[104px] shrink-0" [levelSource]="levelFn" [active]="voice() === 'listening'" />
+          <juyo-orb [size]="104" [state]="orbState()" [level]="level()" [bands]="mic()?.bands() ?? null" />
           <div class="min-w-0 flex-1">
             <p class="text-muted-foreground text-[12px] font-medium" role="status">{{ statusText() }}</p>
             <p class="mt-0.5 line-clamp-2 text-[16px]/snug" [class.text-muted-foreground]="!transcript()">{{ transcript() || 'Speak your question' }}</p>
@@ -86,7 +87,7 @@ const DEMO_PHRASE = 'Which nights next month are furthest behind last year?';
            Android back gesture cancel it, and the page behind is inert. -->
       <dialog #sheetDlg class="voice-sheet text-foreground m-0 hidden h-dvh max-h-none w-full max-w-none flex-col border-0 bg-(--background) px-6 pt-[max(24px,env(safe-area-inset-top,0px))] pb-[max(24px,env(safe-area-inset-bottom,0px))] open:flex" aria-label="Voice question" (cancel)="$event.preventDefault(); cancel()" (close)="voice() !== 'off' && cancel()">
         <div class="flex flex-1 flex-col items-center justify-center gap-6 pb-[10vh]">
-          <app-kassandra-orb class="size-[200px]" [levelSource]="levelFn" [active]="voice() === 'listening'" />
+          <juyo-orb [size]="200" [state]="orbState()" [level]="level()" [bands]="mic()?.bands() ?? null" />
           <div class="max-w-[22rem] text-center">
             <p class="text-muted-foreground text-[13px] font-medium" role="status">{{ statusText() }}</p>
             <p class="mt-2 text-[20px]/snug font-medium" [class.text-muted-foreground]="!transcript()">{{ transcript() || 'Speak your question' }}</p>
@@ -131,15 +132,16 @@ export class AskBar {
     }
   });
 
-  /** The orb reads this every frame. */
-  protected readonly levelFn = () => this.level;
-  private level = 0;
+  /** What the orb shows: the microphone while there is one, the demo voice otherwise. */
+  protected readonly mic = signal<MicAnalyser | null>(null);
+  private readonly demoLevel = signal(0);
+  protected readonly level = computed(() => this.mic()?.level() ?? this.demoLevel());
+  protected readonly orbState = computed(() => (this.voice() === 'listening' ? 'listening' : this.voice() === 'sending' ? 'thinking' : 'idle'));
 
   private readonly doc = inject(DOCUMENT);
   private readonly field = viewChild<ElementRef<HTMLTextAreaElement>>('field');
   private readonly cancelBtn = viewChild<ElementRef<HTMLButtonElement>>('cancelBtn');
   private stream?: MediaStream;
-  private audio?: AudioContext;
   private raf = 0;
   private timers: ReturnType<typeof setTimeout>[] = [];
   private recognition?: SpeechRecognitionLike;
@@ -207,28 +209,9 @@ export class AskBar {
     try {
       // getUserMedia and AudioContext.resume() run inside the click (autoplay rules).
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-      this.audio = new AudioContext();
-      await this.audio.resume();
-      const analyser = this.audio.createAnalyser();
-      analyser.fftSize = 1024;
-      this.audio.createMediaStreamSource(this.stream).connect(analyser);
-      const buf = new Float32Array(analyser.fftSize);
+      // Level and frequency bands for the orb: 60 ms attack, 300 ms release (orb/mic-analyser.ts).
+      this.mic.set(createMicAnalyser(this.stream));
       this.voice.set('listening');
-      let last = performance.now();
-      const loop = (now: number) => {
-        const dt = (now - last) / 1000;
-        last = now;
-        analyser.getFloatTimeDomainData(buf);
-        let sum = 0;
-        for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
-        const db = 20 * Math.log10(Math.sqrt(sum / buf.length) + 1e-8);
-        const target = Math.min(1, Math.max(0, (db + 55) / 40));
-        // Fast attack (60 ms), slow release (300 ms), frame-rate independent.
-        const tau = target > this.level ? 0.06 : 0.3;
-        this.level += (target - this.level) * (1 - Math.exp(-dt / tau));
-        this.raf = requestAnimationFrame(loop);
-      };
-      this.raf = requestAnimationFrame(loop);
       this.startRecognition();
     } catch {
       this.voice.set('blocked');
@@ -269,8 +252,7 @@ export class AskBar {
       t += dt;
       const speaking = this.transcript().length > 0 && this.transcript().length < DEMO_PHRASE.length;
       const target = speaking ? Math.max(0, 0.45 + 0.35 * Math.sin(t * 9) * Math.sin(t * 2.3)) : 0;
-      const tau = target > this.level ? 0.06 : 0.3;
-      this.level += (target - this.level) * (1 - Math.exp(-dt / tau));
+      this.demoLevel.update((level) => envelope(level, target, dt));
       this.raf = requestAnimationFrame(loop);
     };
     this.raf = requestAnimationFrame(loop);
@@ -327,8 +309,8 @@ export class AskBar {
     this.recognition = undefined;
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = undefined;
-    this.audio?.close().catch(() => undefined);
-    this.audio = undefined;
-    this.level = 0;
+    this.mic()?.stop();
+    this.mic.set(null);
+    this.demoLevel.set(0);
   }
 }
