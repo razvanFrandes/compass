@@ -241,7 +241,7 @@ export class OrbLab {
   constructor() {
     const theme = this.params.get('theme');
     if (theme === 'light' || theme === 'dark') this.doc.documentElement.dataset['theme'] = theme;
-    this.doc.title = 'Kassandra orb · Compass';
+    this.doc.title = 'Kassandra orb · Juyo';
     if (this.source() === 'simulated') this.startSimulated();
     inject(DestroyRef).onDestroy(() => {
       this.stopMic();

@@ -92,7 +92,6 @@ import * as icons from './icons';
           <button type="button" class="hover:text-foreground hover:bg-foreground/4 flex items-center gap-2.5 rounded-md px-2 py-1.5" (click)="toggleTheme()">
             <ng-icon [name]="dark() ? 'phosphorSunLight' : 'phosphorMoonLight'" class="text-[16px]" />{{ dark() ? 'Light theme' : 'Dark theme' }}
           </button>
-          <span id="soon-note" class="sr-only">Coming soon</span>
           <p class="px-2 pt-3 text-[12px]/relaxed">Halcyon Hospitality is a fictional group with generated data. Business date Fri 20 Nov 2026.</p>
         </div>
       </nav>
@@ -232,7 +231,7 @@ export function pageTitle(view: View, thread: string, board: string): string {
     case 'notfound':
       return 'Not found · Juyo';
     case 'orb-lab':
-      return 'Orb lab · Juyo';
+      return 'Kassandra orb · Juyo';
     default:
       return 'Morning brief · Juyo';
   }
