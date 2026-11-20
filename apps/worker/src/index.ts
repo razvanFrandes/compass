@@ -2,9 +2,11 @@ import { Decision } from '@compass/contracts';
 import { createMcpHandler } from 'agents/mcp/server';
 import { budgetedEmbedder } from './application/budgeted-embedder.ts';
 import { HotelData } from './application/hotel-data.ts';
+import { issueVoiceToken, VOICE_UNAVAILABLE } from './application/voice.ts';
 import type { Embedder } from './application/ports.ts';
 import type { BudgetKind } from './domain/budget.ts';
 import { openPostgres } from './infrastructure/postgres.ts';
+import { sonioxMinter } from './infrastructure/soniox.ts';
 import { WorkersAiEmbedder } from './infrastructure/workers-ai-embedder.ts';
 import { BUDGET_NAME } from './presentation/budget.ts';
 import { hasAdminKey } from './presentation/http/admin.ts';
@@ -15,6 +17,7 @@ import { preflight, withCors, withoutCors } from './presentation/http/cors.ts';
 import { internalError } from './presentation/http/errors.ts';
 import { isAllowedOrigin, PUBLIC_HOST, rejectCrossSite } from './presentation/http/origin.ts';
 import { isDraftId, routeOf } from './presentation/http/routes.ts';
+import { voiceTokenResponse } from './presentation/http/voice.ts';
 import { createCompassMcpServer } from './presentation/mcp/server.ts';
 
 import type { Env } from './env.ts';
@@ -196,6 +199,18 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     const spent = await overBudget(env, request, 'brief_refresh');
     if (spent) return spent;
     return Response.json(await env.BRIEFS.getByName('halcyon').regenerate());
+  }
+
+  if (url.pathname === '/api/voice/token' && request.method === 'POST') {
+    // A temporary speech-to-text key for one dictation. Each one lets a browser stream up to three minutes of audio
+    // on the owner's account, so keys are limited per client and counted against a daily budget of their own.
+    const limited = await rateLimited(env.VOICE_RATE_LIMIT, request, 'Too many voice requests. Wait a minute and try again.');
+    if (limited) return limited;
+    // Without the secret nothing is spent: the app falls back to the browser's own speech recognition.
+    if (!env.SONIOX_API_KEY?.trim()) return Response.json({ error: VOICE_UNAVAILABLE }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    const spent = await overBudget(env, request, 'voice');
+    if (spent) return spent;
+    return voiceTokenResponse(await issueVoiceToken({ apiKey: env.SONIOX_API_KEY, mint: sonioxMinter() }));
   }
 
   if (url.pathname === '/api/budget' && request.method === 'GET') {
