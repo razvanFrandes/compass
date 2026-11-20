@@ -1,13 +1,16 @@
 import { maskEmail } from '@compass/contracts';
 import type { Extension, ToolExecutionApi, ToolRegistration } from '@earendil-works/pi-durable';
 import { z } from 'zod';
-import { composeWorkflowEmail, type EmailQuota, type EmailSender } from './email.ts';
+import { composeWorkflowEmail, emailWorkflowBlocked, type EmailQuota, type EmailSender } from './email.ts';
 import type { WorkflowStore } from './store.ts';
 
 /**
  * The tool an email workflow acts with. The mail is a fixed template: the model fills in the summary, the facts and
- * the labels, never the recipient or the layout. One mail per run: the receipt is stored under the run id, so a
- * replayed or repeated call returns the first receipt and sends nothing. Email is low risk, so no approval.
+ * the labels, never the recipient or the layout. Email is low risk, so no approval.
+ *
+ * At most one mail per run. The run is marked pending before the send and gets its receipt only when the send is
+ * confirmed. A replayed or repeated call returns the receipt, or, when an earlier attempt never confirmed (a crash
+ * mid-send, a sender error), sends nothing: a missing mail is better than the same mail twice.
  */
 
 const SendEmailArgs = z.object({
@@ -56,6 +59,7 @@ export function createEmailExtension({ store, sender, quota, appUrl, now = () =>
       const send = async (): Promise<string> => {
         const earlier = await store.emailForRun(run.id);
         if (earlier) return earlier;
+        if (await store.emailPending(run.id)) return 'An earlier attempt to send this email did not confirm; not sending again.';
         if (workflow.action.type !== 'email' || !workflow.delivery) return 'This workflow has no email action; no email sent.';
 
         const args = SendEmailArgs.parse(rawArgs);
@@ -67,10 +71,13 @@ export function createEmailExtension({ store, sender, quota, appUrl, now = () =>
         const allowed = await quota.take(to, run.client ?? 'manual');
         if (!allowed.ok) return `${allowed.reason} No email sent.`;
 
+        // The last mail says so: with this send the workflow reaches its 5 emails, or its 7 days are over.
+        const final = !test && emailWorkflowBlocked({ ...workflow, emailsSent: (workflow.emailsSent ?? 0) + 1 }, now()) !== null;
         const mail = composeWorkflowEmail({
           workflow, test, wouldFire: args.would_fire, summary: args.summary, facts: args.facts,
-          definition: args.definition, period: args.period, question: args.question, appUrl,
+          definition: args.definition, period: args.period, question: args.question, appUrl, final,
         });
+        await store.markEmailPending(run.id);
         const sent = await sender.send({ to, ...mail });
         if ('error' in sent) return `${sent.error} No email sent.`;
 

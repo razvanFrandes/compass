@@ -9,6 +9,7 @@ export class MemoryWorkflowStore implements WorkflowStore {
   readonly audit: AuditEntry[] = [];
   readonly #tasks = new Map<string, TaskRef>();
   readonly #emails = new Map<string, string>();
+  readonly #pendingEmails = new Set<string>();
 
   taskOf(proposalId: string): TaskRef | undefined {
     return this.#tasks.get(proposalId);
@@ -48,6 +49,12 @@ export class MemoryWorkflowStore implements WorkflowStore {
   }
   async emailForRun(runId: string) {
     return this.#emails.get(runId) ?? null;
+  }
+  async markEmailPending(runId: string) {
+    this.#pendingEmails.add(runId);
+  }
+  async emailPending(runId: string) {
+    return this.#pendingEmails.has(runId);
   }
   async recordEmail(runId: string, workflowId: string, receipt: string, test: boolean) {
     this.#emails.set(runId, receipt);

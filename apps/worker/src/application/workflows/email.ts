@@ -37,7 +37,11 @@ export interface WorkflowEmailInput {
   question: string;
   /** The app's origin, e.g. https://juyo.razvanfrandes.com. */
   appUrl: string;
+  /** The workflow's last mail: with it the workflow reaches its limit and stops. */
+  final?: boolean;
 }
+
+export const LAST_EMAIL = 'This was the last email from this workflow: it has reached its limit of 7 days or 5 emails and is now paused.';
 
 export const FOOTER = 'Compass demo · fictional data · you got this because someone entered your address in a Compass workflow.';
 
@@ -63,6 +67,7 @@ export function composeWorkflowEmail(input: WorkflowEmailInput): Omit<OutgoingEm
     input.summary,
     ...(input.facts.length ? [input.facts.map((fact) => `- ${fact}`).join('\n')] : []),
     `Definition: ${input.definition}\nPeriod: ${input.period}`,
+    ...(input.final ? [LAST_EMAIL] : []),
     `Explore in Kassandra: ${link}`,
     `--\n${FOOTER}`,
   ].join('\n\n');
@@ -81,6 +86,7 @@ export function composeWorkflowEmail(input: WorkflowEmailInput): Omit<OutgoingEm
     facts,
     `<p style="margin:0 0 4px;${MUTED}">${escapeHtml(input.definition)}</p>`,
     `<p style="margin:0 0 24px;${MUTED}">Period: ${escapeHtml(input.period)}</p>`,
+    input.final ? `<p style="margin:0 0 24px;font-size:14px;line-height:1.5;font-weight:600;color:#92400e">${escapeHtml(LAST_EMAIL)}</p>` : '',
     `<p style="margin:0"><a href="${escapeHtml(link)}" style="display:inline-block;padding:10px 18px;background:#111827;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px">Explore in Kassandra</a></p>`,
     '</div>',
     `<p style="max-width:560px;margin:16px auto 0;text-align:center;${MUTED}">${escapeHtml(FOOTER)}</p>`,

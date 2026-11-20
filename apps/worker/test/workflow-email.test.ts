@@ -24,6 +24,17 @@ const input: WorkflowEmailInput = {
 };
 
 describe('composeWorkflowEmail', () => {
+  it('the last mail says the workflow is now paused', () => {
+    const LAST = 'This was the last email from this workflow: it has reached its limit of 7 days or 5 emails and is now paused.';
+    const last = composeWorkflowEmail({ ...input, final: true });
+    expect(last.text).toContain(LAST);
+    expect(last.html).toContain(LAST);
+    const usual = composeWorkflowEmail(input);
+    expect(usual.text).not.toContain('last email');
+    expect(usual.html).not.toContain('last email');
+    expect(composeWorkflowEmail({ ...input, final: false }).text).toBe(usual.text);
+  });
+
   it('subject says Test on a test run', () => {
     expect(composeWorkflowEmail({ ...input, test: true }).subject).toBe('Test · Lisbon pace watch');
     expect(composeWorkflowEmail({ ...input, test: false }).subject).toBe('Lisbon pace watch');

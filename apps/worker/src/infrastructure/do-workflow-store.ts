@@ -80,6 +80,12 @@ export class DurableWorkflowStore implements WorkflowStore {
   async emailForRun(runId: string) {
     return (await this.#storage.get<string>(`email:${runId}`)) ?? null;
   }
+  async markEmailPending(runId: string) {
+    await this.#storage.put(`emailpending:${runId}`, true);
+  }
+  async emailPending(runId: string) {
+    return (await this.#storage.get<boolean>(`emailpending:${runId}`)) === true;
+  }
   /** The receipt and the workflow's count go in one write, so a mail is never recorded without being counted. */
   async recordEmail(runId: string, workflowId: string, receipt: string, test: boolean) {
     const workflow = test ? undefined : await this.getWorkflow(workflowId);

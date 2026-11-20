@@ -209,6 +209,98 @@ describe('send_email', () => {
   });
 });
 
+describe('send_email, at most once', () => {
+  it('a call that finds a pending marker sends nothing', async () => {
+    const { faux, harness, root, store, sender, taken } = await setup();
+    await store.markEmailPending('run-1');
+    let seen: string[] = [];
+    faux.setResponses([
+      callSendEmail(),
+      (ctx) => {
+        seen = toolTexts(ctx);
+        return fauxAssistantMessage(fauxText('Not sent again.'));
+      },
+    ]);
+    await (await root.submit({ type: 'input', content: 'Run the workflow now.' }, context)).wait(context);
+
+    expect(sender.sent).toHaveLength(0);
+    expect(taken).toHaveLength(0);
+    expect(store.audit).toHaveLength(0);
+    expect(seen.join()).toContain('An earlier attempt to send this email did not confirm; not sending again.');
+    await harness.close(context);
+  });
+
+  it('marks the run pending before the send, and only a confirmed send writes the receipt', async () => {
+    const { faux, harness, root, store } = await setup({
+      sender: {
+        send: async () => {
+          // At the moment of the send the marker is already there and no receipt is.
+          expect(await store.emailPending('run-1')).toBe(true);
+          expect(await store.emailForRun('run-1')).toBeNull();
+          return { error: 'The email could not be sent.' };
+        },
+      },
+    });
+    let seen: string[] = [];
+    faux.setResponses([
+      callSendEmail(),
+      callSendEmail(),
+      (ctx) => {
+        seen = toolTexts(ctx);
+        return fauxAssistantMessage(fauxText('Not sent.'));
+      },
+    ]);
+    await (await root.submit({ type: 'input', content: 'Run the workflow now.' }, context)).wait(context);
+
+    expect(seen[0]).toContain('The email could not be sent.');
+    expect(seen[1]).toContain('did not confirm; not sending again.');
+    expect(await store.emailForRun('run-1')).toBeNull();
+    await harness.close(context);
+  });
+});
+
+describe('send_email, the last mail', () => {
+  const LAST = 'This was the last email from this workflow';
+
+  it('the fifth email says it is the last', async () => {
+    const { faux, harness, root, store, sender } = await setup();
+    store.workflows.set(WORKFLOW.id, { ...WORKFLOW, emailsSent: 4 });
+    faux.setResponses([callSendEmail(), fauxAssistantMessage(fauxText('Emailed.'))]);
+    await (await root.submit({ type: 'input', content: 'Run the workflow now.' }, context)).wait(context);
+    expect(sender.sent).toHaveLength(1);
+    expect(sender.sent[0]!.text).toContain(LAST);
+    expect(sender.sent[0]!.html).toContain(LAST);
+    expect(store.workflows.get(WORKFLOW.id)!.emailsSent).toBe(5);
+    await harness.close(context);
+  });
+
+  it('an email sent after the 7 days says it is the last', async () => {
+    const { faux, harness, root, store, sender } = await setup();
+    store.workflows.set(WORKFLOW.id, { ...WORKFLOW, createdAt: '2026-11-13T05:00:00.000Z' });
+    faux.setResponses([callSendEmail(), fauxAssistantMessage(fauxText('Emailed.'))]);
+    await (await root.submit({ type: 'input', content: 'Run the workflow now.' }, context)).wait(context);
+    expect(sender.sent[0]!.text).toContain(LAST);
+    await harness.close(context);
+  });
+
+  it('an earlier email does not, and neither does a test', async () => {
+    const first = await setup();
+    first.store.workflows.set(WORKFLOW.id, { ...WORKFLOW, emailsSent: 3 });
+    first.faux.setResponses([callSendEmail(), fauxAssistantMessage(fauxText('Emailed.'))]);
+    await (await first.root.submit({ type: 'input', content: 'Run the workflow now.' }, context)).wait(context);
+    expect(first.sender.sent[0]!.text).not.toContain(LAST);
+    await first.harness.close(context);
+
+    const test = await setup({ test: true });
+    test.store.workflows.set(WORKFLOW.id, { ...WORKFLOW, emailsSent: 4 });
+    test.faux.setResponses([callSendEmail(), fauxAssistantMessage(fauxText('Test sent.'))]);
+    await (await test.root.submit({ type: 'input', content: 'Run the workflow now.' }, context)).wait(context);
+    expect(test.sender.sent).toHaveLength(1);
+    expect(test.sender.sent[0]!.text).not.toContain(LAST);
+    await test.harness.close(context);
+  });
+});
+
 describe('emailWorkflowBlocked', () => {
   const at = (iso: string) => new Date(iso);
 
