@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Compass</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Geist+Mono:wght@400;500&display=swap">
+  <script>
+    // Theme: an explicit data-theme on <html> wins, otherwise follow the OS. Spartan reads the .dark class.
+    (function () {
+      var root = document.documentElement;
+      // Dark-first, like Juyo's product; an explicit data-theme="light" switches to the light palette.
+      function apply() {
+        var light = root.getAttribute('data-theme') === 'light';
+        root.classList.toggle('light', light);
+        root.classList.toggle('dark', !light);
+      }
+      apply();
+      new MutationObserver(apply).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    })();
+  </script>
+</head>
+<body>
+  <app-root></app-root>
+</body>
+</html>

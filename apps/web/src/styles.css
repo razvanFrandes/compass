@@ -1,0 +1,581 @@
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css';
+@import 'tw-animate-css';
+@import '@spartan-ng/brain/hlm-tailwind-preset.css';
+
+@source './app';
+@source '../libs/ui';
+
+/*
+  Compass tokens, aligned with Juyo's own palette (sampled from the Juyo mobile app and app CSS):
+  ink #0D1117 · surfaces #161C22 / #1E2429 / #2A2E33 · purple #996AD5 · blue #477EE3 · orange #FE7637.
+  Dark is the default, like Juyo's product. Every text token is checked against WCAG AA (≥ 4.5:1 on its
+  surfaces) and every chart/graphic token against 3:1. Purple buttons are a step darker than Juyo's #996AD5
+  so white text passes (5.0:1 instead of 3.9:1).
+*/
+:root {
+  color-scheme: dark;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --radius: 0.75rem;
+
+  --background: #0d1117;
+  --foreground: #eef1f4;
+  --card: #161c22;
+  --card-foreground: var(--foreground);
+  --popover: #1e2429;
+  --popover-foreground: var(--foreground);
+  --primary: #8556c9;
+  --primary-foreground: #ffffff;
+  --secondary: #2a2e33;
+  --secondary-foreground: var(--foreground);
+  --muted: #2a2e33;
+  --muted-foreground: #9ba3ad;
+  --accent: #1e2429;
+  --accent-foreground: var(--foreground);
+  --destructive: #f0616d;
+  --border: rgb(255 255 255 / 0.08);
+  --input: rgb(255 255 255 / 0.14);
+  --ring: #a97ee6;
+
+  --field: #1e2429;
+  --field-border: #2a2e33;
+  --field-border-hover: rgb(255 255 255 / 0.14);
+  --focus-brand: #996ad5;
+  --icon-quiet: #c9ced6;
+  --text-1: #e6edf3;
+  --decision: #fe7637;
+  --decision-tint: #292324;
+  --overlay-hover: rgb(255 255 255 / 0.06);
+  --overlay-pressed: rgb(255 255 255 / 0.11);
+  --rail: #0a0e13;
+  --grid: rgb(255 255 255 / 0.06);
+  --brand: #a97ee6;
+  --series: #5b8deb;
+  --series-muted: #8b949e;
+  --series-3: #32bebf;
+  --brass: #fe7637;
+  --brass-ink: #fe7637;
+  --brass-wash: rgb(254 118 55 / 0.12);
+  --positive: #4cc38a;
+  --negative: #f0616d;
+
+  --chart-1: var(--series);
+  --chart-2: var(--series-muted);
+  --chart-3: var(--series-3);
+  --chart-4: var(--brass);
+  --chart-5: var(--negative);
+}
+
+:root.light {
+  color-scheme: light;
+  --background: #fafafa;
+  --foreground: #101418;
+  --card: #ffffff;
+  --popover: #ffffff;
+  --primary: #7a4dc0;
+  --primary-foreground: #ffffff;
+  --secondary: #eeeff2;
+  --muted: #eeeff2;
+  --muted-foreground: #5e6670;
+  --accent: #f3f3f5;
+  --destructive: #c2333f;
+  --border: #e3e5e8;
+  --input: #cfd3d8;
+  --ring: #7a4dc0;
+
+  --field: #ffffff;
+  --field-border: #d9dce1;
+  --field-border-hover: #c3c8cf;
+  --focus-brand: #7a4dc0;
+  --icon-quiet: #4b525b;
+  --text-1: #101418;
+  --decision: #c2410c;
+  --decision-tint: #fff4ed;
+  --overlay-hover: rgb(5 54 89 / 0.05);
+  --overlay-pressed: rgb(5 54 89 / 0.1);
+  --rail: #f3f3f5;
+  --grid: rgb(16 20 24 / 0.07);
+  --brand: #7a4dc0;
+  --series: #2f66d0;
+  --series-muted: #8c959f;
+  --series-3: #1f8f90;
+  --brass: #e8621e;
+  --brass-ink: #b5480f;
+  --brass-wash: rgb(232 98 30 / 0.1);
+  --positive: #1f7a55;
+  --negative: #c2333f;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    /* Inter: disambiguated l (cv05), open digits; numbers line up in columns */
+    font-feature-settings: 'cv05' on, 'cv08' on;
+    font-optical-sizing: auto;
+  }
+  .tabular-nums, [class*='tabular-nums'] {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  ::selection {
+    background: rgb(150 133 228 / 0.35);
+  }
+}
+
+/* Generated UI: content settles in, never pops. */
+@keyframes gen-in {
+  from { opacity: 0; transform: translateY(3px); filter: blur(2px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+.gen-in { animation: gen-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@keyframes chart-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.chart-draw { stroke-dasharray: 1; animation: chart-draw 700ms cubic-bezier(0.3, 0.7, 0.2, 1) both; }
+@keyframes chart-fade { from { opacity: 0; } }
+.chart-fade { animation: chart-fade 600ms 200ms ease-out both; }
+
+@keyframes skeleton-wave { 50% { opacity: 0.55; } }
+.skeleton-wave { animation: skeleton-wave 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gen-in, .chart-draw, .chart-fade, .skeleton-wave { animation: none; }
+}
+
+@keyframes sheet-in { from { transform: translateY(16px); opacity: 0; } }
+.sheet-in { animation: sheet-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) { .sheet-in { animation: none; } }
+@media (min-width: 80rem) { .sheet-in { animation: none; } }
+
+@keyframes bar-grow { from { transform: scaleX(0); } }
+.bar-grow { transform-origin: left; animation: bar-grow 600ms cubic-bezier(0.3, 0.7, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) { .bar-grow { animation: none; } }
+
+/* Touch: every control reaches the 44pt / 48dp minimum (Apple HIG, Material, WCAG 2.5.8). */
+@media (pointer: coarse) {
+  [data-slot='button'][data-size^='icon'] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  [data-slot='button']:not([data-size^='icon']):not([data-variant='link']) {
+    min-height: 44px;
+  }
+}
+
+/* ───────── Ask bar (voice_and_composer.md §A.4): quiet at rest, no gradient, static focus ring ───────── */
+.ask-field {
+  display: block;
+  height: 56px;
+  border-radius: 12px;
+  border: 1px solid var(--field-border);
+  background: var(--field);
+  transition: height 220ms cubic-bezier(0.2, 0.8, 0.2, 1), border-color 150ms ease, box-shadow 150ms ease;
+}
+@media (max-width: 640px) { .ask-field { height: 52px; } }
+.ask-field:hover { border-color: var(--field-border-hover); }
+.ask-field:focus-within { border-color: var(--focus-brand); box-shadow: 0 0 0 3px rgb(153 106 213 / 0.2); }
+.ask-field--voice { height: 120px; }
+.ask-mic { color: var(--icon-quiet); }
+.ask-send { background: var(--primary); color: var(--primary-foreground); animation: ask-send-in 120ms ease-out both; }
+@keyframes ask-send-in { from { opacity: 0; transform: scale(0.96); } }
+
+/* The 18 px Kassandra mark: the only place the brand gradient lives at rest. */
+.orb-mark {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 32% 28%, rgb(255 255 255 / 0.75) 0 12%, transparent 42%),
+    linear-gradient(135deg, #6fa0fb, #a78cfb 55%, #eb75be);
+  box-shadow: inset 0 -2px 4px rgb(13 17 23 / 0.35);
+}
+.orb-mark--busy { animation: orb-turn 3.2s linear infinite; }
+@keyframes orb-turn { to { transform: rotate(360deg); } }
+.orb-fallback {
+  background:
+    radial-gradient(circle at 32% 28%, rgb(255 255 255 / 0.55) 0 10%, transparent 40%),
+    linear-gradient(135deg, #6fa0fb, #a78cfb 55%, #eb75be);
+  transition: transform 90ms linear;
+}
+.voice-sheet { animation: sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes sheet-up { from { opacity: 0; transform: translateY(12px); } }
+@media (prefers-reduced-motion: reduce) {
+  .ask-field, .ask-send, .orb-mark--busy, .voice-sheet { animation: none; transition: none; }
+}
+
+/* Clickable card (Astryx ClickableCard): 12px radius, 1px border, the whole surface is the target,
+   hover/press painted as an overlay; hover only where hover exists, so touch never sticks. */
+.clickable-card,
+.clickable-row {
+  position: relative;
+  isolation: isolate;
+  outline: none;
+}
+.clickable-card {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  overflow: hidden;
+  transition: border-color 175ms ease, box-shadow 175ms ease, transform 175ms ease;
+}
+.clickable-card::after,
+.clickable-row::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  transition: background-color 130ms ease;
+}
+.clickable-row { background: var(--card); }
+@media (hover: hover) {
+  .clickable-card:hover { border-color: rgb(169 126 230 / 0.45); box-shadow: 0 8px 24px -12px rgb(0 0 0 / 0.5); }
+  .clickable-card:hover::after,
+  .clickable-row:hover::after { background: var(--overlay-hover); }
+}
+.clickable-card:active::after,
+.clickable-row:active::after { background: var(--overlay-pressed); }
+@media (pointer: fine) {
+  .clickable-card:active { transform: scale(0.99); }
+}
+.clickable-card:focus-visible,
+.clickable-row:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring); }
+@media (prefers-reduced-motion: reduce) {
+  .clickable-card, .clickable-card:active { transition: none; transform: none; }
+}
+
+/* ───────── Home brief (insight_feed.md §5) ───────── */
+.hero-glow::before {
+  content: '';
+  position: absolute;
+  inset: -48px -32px -24px -64px;
+  z-index: -1;
+  pointer-events: none;
+  background: none;
+}
+@media (max-width: 1023.98px) { .hero-glow::before { inset: -40px -16px -24px -16px; } }
+.stake-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--field);
+  border: 1px solid var(--field-border);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.stake-chip--decision { color: var(--decision); border-color: rgb(254 118 55 / 0.45); background: var(--decision-tint); transition: background-color 150ms ease; }
+@media (hover: hover) { .stake-chip--decision:hover { background: rgb(254 118 55 / 0.16); } }
+.card-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); }
+.money-chip { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; padding: 2px 8px; border-radius: 6px; background: var(--field); }
+.insight-card,
+.decision-card {
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  transition: border-color 175ms ease, box-shadow 175ms ease;
+}
+.decision-card { border-color: rgb(254 118 55 / 0.6); background: var(--decision-tint); }
+.decision-card:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--decision); }
+@media (hover: hover) {
+  .insight-card:hover { border-color: rgb(255 255 255 / 0.18); box-shadow: 0 10px 30px -16px rgb(0 0 0 / 0.6); }
+  .decision-card:hover { box-shadow: 0 10px 30px -16px rgb(0 0 0 / 0.6); }
+}
+/* Orange is a signal; the action on it uses ink text (7.1:1), never white (2.7:1). */
+.decision-btn { background: var(--decision); color: #0d1117; }
+.dock-fade { background: linear-gradient(to top, var(--background) 62%, transparent); }
+
+/* ───────── Segmented control (Astryx ToggleButtonGroup look) ───────── */
+.seg { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--muted); }
+.seg > button {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 6px;
+  font-size: 13px; color: var(--muted-foreground); transition: background-color 150ms ease, color 150ms ease;
+}
+.seg > button:hover { color: var(--foreground); }
+.seg > button[aria-selected='true'], .seg > button[aria-checked='true'] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 2px rgb(0 0 0 / 0.25); }
+.seg > button span { color: var(--muted-foreground); }
+
+/* ───────── Decision table (tables_and_rate_calendar.md C2) ───────── */
+.dec-table { border-collapse: separate; border-spacing: 0; }
+.dec-table th {
+  position: sticky; top: 0; z-index: 1; background: var(--card);
+  padding: 0 12px 8px; font-size: 12px; font-weight: 500; color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+}
+.dec-table th:first-child, .dec-table td:first-child { padding-left: 16px; }
+.dec-table th:last-child, .dec-table td:last-child { padding-right: 12px; }
+.dec-table td { padding: 10px 12px; height: 56px; border-bottom: 1px solid rgb(255 255 255 / 0.06); vertical-align: middle; }
+.dec-table tbody tr { cursor: pointer; transition: background-color 120ms ease; outline: none; }
+@media (hover: hover) { .dec-table tbody tr:not(.is-empty):hover { background: rgb(255 255 255 / 0.04); } }
+.dec-table tbody tr.is-selected { background: rgb(153 106 213 / 0.12); }
+.dec-table tbody tr:focus-visible { box-shadow: inset 0 0 0 2px var(--ring); }
+.dec-table tbody tr:last-child td { border-bottom: 0; }
+@layer components {
+  .cell-1 { display: block; font-size: 14px; line-height: 20px; color: var(--text-1); }
+  .cell-2 { display: block; font-size: 12px; line-height: 16px; color: var(--muted-foreground); margin-top: 2px; }
+}
+.row-act { color: var(--muted-foreground); }
+.dec-table tbody tr:hover .row-act { color: var(--text-1); }
+
+/* Bullet graph (Few): track = 0–100%, fill = on the books now, tick = last year at the same lead time */
+.bullet { position: relative; display: inline-block; width: 112px; height: 6px; border-radius: 3px; background: var(--muted); flex-shrink: 0; }
+.bullet--sm { width: 72px; }
+.bullet-fill { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--series); }
+.bullet-tick { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--series-muted); box-shadow: 0 0 0 1px var(--card); }
+
+/* ───────── Rate calendar (C3) ───────── */
+.cal-cell {
+  position: relative; display: flex; flex-direction: column; gap: 2px; min-height: 88px; padding: 8px;
+  border-radius: 8px; background: var(--muted); text-align: left; outline: none;
+  transition: box-shadow 120ms ease, filter 120ms ease;
+}
+.cal-cell:disabled { cursor: default; background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+.cal-cell.is-today { box-shadow: inset 0 0 0 1px var(--text-1); }
+.cal-cell.is-selected { box-shadow: inset 0 0 0 2px var(--text-1); }
+.cal-cell:focus-visible { box-shadow: inset 0 0 0 2px var(--ring); }
+@media (hover: hover) { .cal-cell:not(:disabled):hover { filter: brightness(1.12); } }
+.cal-dot { display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background: var(--decision); box-shadow: 0 0 0 2px var(--card); }
+.cal-dot--legend { box-shadow: none; }
+.cal-dot--corner { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; }
+@media (max-width: 639.98px) {
+  .cal-cell { min-height: 60px; padding: 6px 5px; border-radius: 6px; }
+}
+
+/* ───────── Night panel (C4) ───────── */
+.night-panel { background: var(--card); border-left: 1px solid var(--border); box-shadow: -24px 0 48px -24px rgb(0 0 0 / 0.6); animation: panel-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes panel-in { from { transform: translateX(24px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .night-panel { animation: none; } }
+
+/* ───────── Watchers (agents_pattern.md §5.3) ───────── */
+.watcher-card { border-radius: 16px; border: 1px solid var(--field-border); background: var(--card); }
+.watcher-card--needs { border-color: rgb(254 118 55 / 0.6); }
+.watcher-glyph { background: var(--field); color: var(--icon-quiet); }
+:root.light .watcher-glyph { color: #57606a; }
+.latest-panel { background: var(--field); }
+.status-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 9999px;
+  font-size: 12px; font-weight: 500; color: #9aa4ae; background: rgb(255 255 255 / 0.05);
+}
+.status-chip--needs { color: var(--decision); background: rgb(254 118 55 / 0.12); }
+.status-chip--running { color: var(--foreground); }
+.status-chip--failed { color: #f0645a; background: rgb(240 100 90 / 0.12); }
+.run-strip { display: flex; align-items: flex-end; gap: 3px; height: 20px; }
+.run { flex: 1; border-radius: 2px; height: 8px; background: #6b7580; }
+.run--finding { height: 20px; background: #aeb6bf; }
+:root.light .run--finding { background: #57606a; }
+.run--pending { height: 20px; background: var(--decision); }
+.run--failed { height: 20px; background: repeating-linear-gradient(135deg, #f0645a 0 3px, rgb(240 100 90 / 0.35) 3px 6px); }
+.run--skipped { height: 8px; background: transparent; box-shadow: inset 0 0 0 1px #6b7580; }
+.meter-seg { display: inline-block; width: 18px; height: 6px; border-radius: 3px; background: var(--muted); box-shadow: inset 0 0 0 1px #6b7580; }
+.meter-seg.is-on { background: var(--foreground); box-shadow: none; }
+.autonomy-row { padding: 2px 4px; margin: -2px -4px; outline: none; }
+@media (hover: hover) { .autonomy-row:hover { background: var(--overlay-hover); } }
+.autonomy-row:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+/* Juyo's primary actions are neutral pills; brand colour stays an accent and orange stays a signal. */
+.review-btn { background: #f2f4f7; color: #0d1117; border-radius: 9999px; }
+:root.light .review-btn { background: #101418; color: #ffffff; }
+.filter-chip {
+  display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 9999px;
+  font-size: 13px; color: var(--muted-foreground); border: 1px solid var(--field-border); transition: background-color 150ms ease, color 150ms ease;
+}
+.filter-chip span { color: var(--muted-foreground); }
+.filter-chip[aria-checked='true'] { color: var(--foreground); background: var(--field); border-color: rgb(255 255 255 / 0.16); }
+@media (hover: hover) { .filter-chip:hover { color: var(--foreground); } }
+.confirm-dialog {
+  margin: auto; max-width: min(440px, calc(100vw - 32px)); padding: 24px; border-radius: 16px;
+  border: 1px solid var(--field-border); background: var(--popover); color: var(--foreground);
+}
+.confirm-dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+
+/* ───────── Watcher card link, timeline, watcher page, create flow (agents_pattern.md §5.2–5.8) ───────── */
+/* The title is the link; a pseudo-element stretches its click area over the card (NN/g; §5.11),
+   and the nested controls sit above it so they stay separate targets. */
+.watcher-card--link { position: relative; transition: border-color 175ms ease; }
+.card-link { outline: none; text-align: left; }
+.card-link::after { content: ''; position: absolute; inset: 0; border-radius: 16px; }
+.card-link:focus-visible::after { box-shadow: 0 0 0 2px var(--ring); }
+.above-link { position: relative; z-index: 1; }
+@media (hover: hover) {
+  .watcher-card--link:hover { border-color: rgb(255 255 255 / 0.18); }
+  :root.light .watcher-card--link:hover { border-color: rgb(0 0 0 / 0.22); }
+  .watcher-card--needs.watcher-card--link:hover { border-color: rgb(254 118 55 / 0.9); }
+}
+.schedule-chip {
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 9999px;
+  font-size: 12px; color: var(--muted-foreground); background: var(--field); font-variant-numeric: tabular-nums;
+}
+
+/* Activity timeline (Render "Event timeline", Cloudscape timeline): a rail joins the nodes, day dividers above. */
+.timeline-day { padding: 2px 0 4px 44px; font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); }
+.timeline-items { position: relative; }
+.timeline-items::before { content: ''; position: absolute; left: 15.5px; top: 18px; bottom: 18px; width: 1px; background: var(--field-border); }
+.timeline-item { position: relative; display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+.timeline-node {
+  position: relative; z-index: 1; display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 10px;
+  background: var(--field); color: var(--icon-quiet); box-shadow: 0 0 0 4px var(--card);
+}
+:root.light .timeline-node { color: #57606a; }
+.timeline-node--you { border-radius: 9999px; background: var(--secondary); color: var(--foreground); font-size: 12px; font-weight: 600; }
+
+/* Watcher page: interactive run strip (same encoding as the card), tooltip, run log */
+.run-strip--lg { height: 44px; gap: 2px; }
+.run-hit { flex: 1; height: 100%; min-width: 0; display: flex; align-items: flex-end; padding: 0; border-radius: 3px; outline: none; cursor: pointer; }
+.run-hit .run { width: 100%; height: 14px; }
+.run-hit .run--finding, .run-hit .run--pending, .run-hit .run--failed { height: 44px; }
+.run-hit:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+.run-hit[aria-pressed='true'] .run { outline: 2px solid var(--foreground); outline-offset: 1px; }
+@media (hover: hover) { .run-hit:hover .run { filter: brightness(1.3); } }
+.run-tip {
+  position: absolute; bottom: calc(100% + 8px); transform: translateX(-50%); z-index: 5; white-space: nowrap; pointer-events: none;
+  padding: 5px 10px; border-radius: 8px; font-size: 12px; font-variant-numeric: tabular-nums;
+  background: var(--popover); border: 1px solid var(--field-border); box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.5);
+}
+.legend-run.run { flex: none; width: 6px; height: 8px; }
+.legend-run.run--finding, .legend-run.run--pending, .legend-run.run--failed { height: 14px; }
+.run-row {
+  display: grid; grid-template-columns: 136px minmax(0, 1fr) 44px 16px; align-items: center; gap: 12px; width: 100%;
+  padding: 10px 6px; border-radius: 8px; text-align: left; font-size: 13.5px; outline: none;
+}
+@media (hover: hover) { .run-row:hover { background: var(--overlay-hover); } }
+.run-row:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+.run-row__when { color: var(--muted-foreground); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.run-row__what { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.run-row__dur { text-align: right; color: var(--muted-foreground); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+@media (max-width: 639.98px) {
+  .run-row { grid-template-columns: minmax(0, 1fr) auto 16px; row-gap: 2px; }
+  .run-row__when { grid-column: 1 / -1; }
+}
+.run-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 9999px; background: #6b7580; }
+.run-dot--finding { background: #aeb6bf; }
+:root.light .run-dot--finding { background: #57606a; }
+.run-dot--pending { background: var(--decision); }
+.run-dot--failed { background: #f0645a; }
+.run-dot--skipped { background: transparent; box-shadow: inset 0 0 0 1px #6b7580; }
+.run-steps {
+  display: grid; gap: 4px; margin: 2px 0 12px; padding: 10px 14px 10px 32px; border-radius: 10px;
+  list-style: decimal; background: var(--field); font-size: 13px; color: var(--muted-foreground);
+}
+.run-steps li:last-child { color: var(--foreground); }
+.evidence-chip { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 9999px; font-size: 12.5px; background: var(--card); border: 1px solid var(--field-border); }
+
+/* Settings rows: label and help on the left, the control on the right (one column on phones) */
+.settings-row { display: grid; gap: 10px 24px; padding: 18px 0; border-top: 1px solid var(--border); }
+.settings-row:first-of-type { margin-top: 12px; }
+@media (min-width: 768px) { .settings-row { grid-template-columns: minmax(0, 200px) minmax(0, 1fr); } }
+.settings-label { font-size: 14px; font-weight: 500; }
+.settings-help { margin-top: 2px; font-size: 12.5px; line-height: 1.4; color: var(--muted-foreground); }
+.scope-chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px; font-size: 13px; background: var(--field); }
+.day-toggle {
+  width: 36px; height: 36px; border-radius: 9999px; font-size: 13px; font-weight: 500; color: var(--muted-foreground);
+  border: 1px solid var(--field-border); transition: background-color 150ms ease, color 150ms ease; outline: none;
+}
+.day-toggle[aria-pressed='true'] { background: var(--primary); border-color: transparent; color: var(--primary-foreground); }
+.day-toggle:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring); }
+@media (pointer: coarse) { .day-toggle { width: 44px; height: 44px; } }
+
+/* Radio cards (native radios, so arrow keys work): settings, the create flow's questions */
+.option-card {
+  display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 12px 14px; border-radius: 12px; cursor: pointer;
+  border: 1px solid var(--field-border); background: var(--card); transition: border-color 150ms ease, background-color 150ms ease;
+}
+.option-card:has(input:checked) { border-color: var(--focus-brand); background: color-mix(in srgb, var(--focus-brand) 10%, var(--card)); }
+.option-card:has(input:focus-visible) { box-shadow: 0 0 0 2px var(--ring); }
+.option-card:has(input:disabled) { cursor: not-allowed; }
+.option-radio { display: grid; place-items: center; flex-shrink: 0; width: 18px; height: 18px; margin-top: 1px; border-radius: 9999px; border: 1.5px solid #6b7580; }
+.option-card:has(input:checked) .option-radio { border-color: var(--focus-brand); }
+.option-card:has(input:checked) .option-radio::after { content: ''; width: 8px; height: 8px; border-radius: 9999px; background: var(--focus-brand); }
+.option-card:has(input:disabled) .option-radio { border-style: dashed; }
+.rec-badge { flex-shrink: 0; align-self: center; height: 22px; padding: 0 8px; border-radius: 9999px; font-size: 11.5px; font-weight: 500; line-height: 22px; color: var(--muted-foreground); background: var(--field); }
+
+/* Form fields */
+.field-label { font-size: 13px; font-weight: 500; }
+.field-input, .field-select {
+  height: 36px; padding: 0 12px; border-radius: 8px; font-size: 14px; color: var(--foreground);
+  border: 1px solid var(--field-border); background: var(--field); outline: none; transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+textarea.field-input { height: auto; line-height: 1.5; }
+.field-select {
+  appearance: none; padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 256 256'%3E%3Cpath fill='%239ba3ad' d='M212.24 100.24l-80 80a6 6 0 0 1-8.48 0l-80-80a6 6 0 0 1 8.48-8.48L128 167.51l75.76-75.75a6 6 0 0 1 8.48 8.48Z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.field-input:focus-visible, .field-select:focus-visible { border-color: var(--focus-brand); box-shadow: 0 0 0 3px rgb(153 106 213 / 0.25); }
+@media (pointer: coarse) { .field-input, .field-select { font-size: 16px; min-height: 44px; } }
+.name-input { width: 100%; padding: 2px 6px; margin: -2px -6px; border-radius: 6px; font-size: 16px; font-weight: 600; background: transparent; outline: none; }
+.name-input:hover { background: var(--overlay-hover); }
+.name-input:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+
+/* New watcher: a native modal dialog (top layer); full screen on phones */
+.create-dialog {
+  margin: auto; padding: 0; width: min(600px, calc(100vw - 32px)); max-width: none; max-height: min(780px, calc(100dvh - 32px));
+  border-radius: 16px; border: 1px solid var(--field-border); background: var(--popover); color: var(--foreground);
+}
+.create-dialog[open] { display: flex; flex-direction: column; animation: sheet-up 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.create-dialog::backdrop { background: rgb(0 0 0 / 0.55); }
+@media (max-width: 639.98px) {
+  .create-dialog { width: 100vw; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .create-dialog[open] { animation: none; } }
+.bubble-user { max-width: 85%; padding: 10px 14px; border-radius: 16px 16px 4px 16px; background: var(--muted); font-size: 14px; line-height: 1.5; }
+
+/* ───────── Morning brief on real data: quiet chips, data-health banner, compact tiles ───────── */
+.money-chip { color: var(--foreground); }
+.feed-banner {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--field-border); background: var(--card);
+}
+.feed-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 9999px; background: var(--negative); box-shadow: 0 0 0 3px rgb(240 97 109 / 0.18); }
+.brief-tile { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 14px; }
+
+/* ───────── Filter bar, chart cards (report "Filtre și grafice pentru Compass") ───────── */
+.filter-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 11px; border-radius: 8px; font-size: 13px; white-space: nowrap;
+  border: 1px solid var(--field-border); background: var(--card); transition: border-color 150ms ease, background-color 150ms ease; outline: none;
+}
+@media (hover: hover) { .filter-btn:hover { border-color: rgb(255 255 255 / 0.2); } :root.light .filter-btn:hover { border-color: rgb(0 0 0 / 0.25); } }
+.filter-btn:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+.filter-btn[aria-expanded='true'] { border-color: var(--focus-brand); }
+.filter-btn--set { background: var(--field); }
+@media (pointer: coarse) { .filter-btn { height: 44px; } }
+.filter-pop {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; padding: 12px; border-radius: 12px; max-width: calc(100vw - 32px);
+  border: 1px solid var(--field-border); background: var(--popover); box-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.55);
+}
+.filter-opt { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 4px 6px; border-radius: 6px; font-size: 13.5px; cursor: pointer; }
+@media (hover: hover) { label.filter-opt:hover { background: var(--overlay-hover); } }
+.filter-opt input { accent-color: var(--primary); width: 16px; height: 16px; flex-shrink: 0; }
+@media (pointer: coarse) { .filter-opt { min-height: 44px; } }
+.filter-sheet {
+  margin: auto auto 0; padding: 0; width: 100vw; max-width: none; max-height: 85dvh; border: 0; border-radius: 16px 16px 0 0;
+  background: var(--popover); color: var(--foreground);
+}
+.filter-sheet[open] { display: flex; flex-direction: column; animation: sheet-up 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.filter-sheet::backdrop { background: rgb(0 0 0 / 0.5); }
+@media (prefers-reduced-motion: reduce) { .filter-sheet[open] { animation: none; } }
+.scope-badge {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 9999px; font-size: 12px;
+  color: var(--muted-foreground); background: var(--field); border: 1px dashed var(--field-border);
+}
+.scope-badge:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+.receipt { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--field-border); background: var(--card); }
+.legend-mark { display: inline-block; flex-shrink: 0; }
+.legend-mark--solid { width: 14px; height: 3px; border-radius: 2px; background: var(--series); }
+.legend-mark--dashed { width: 14px; height: 0; border-top: 2px dashed var(--series-muted); }
+.legend-mark--light { width: 12px; height: 10px; border-radius: 2px; background: color-mix(in srgb, var(--series) 28%, transparent); }
+.legend-mark--band { width: 14px; height: 10px; border-radius: 2px; background: color-mix(in srgb, var(--series) 16%, transparent); }
+.legend-mark--tick { width: 3px; height: 12px; border-radius: 1px; background: var(--series-muted); }
+.legend-mark--tick-fg { width: 3px; height: 12px; border-radius: 1px; background: var(--foreground); }
+.legend-mark--grey { width: 12px; height: 10px; border-radius: 2px; background: var(--series-muted); }
+.legend-mark--pos { width: 12px; height: 10px; border-radius: 2px; background: var(--series-3); }
+.legend-mark--neg { width: 12px; height: 10px; border-radius: 2px; background: var(--negative); }

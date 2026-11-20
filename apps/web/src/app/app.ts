@@ -1,0 +1,174 @@
+import { Component, DOCUMENT, computed, inject, signal } from '@angular/core';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmToasterImports } from '@spartan-ng/helm/sonner';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
+import { provideBrnTooltipGroup } from '@spartan-ng/brain/tooltip';
+import { BoardView, BoardsList } from './board';
+import { InboxView } from './inbox';
+import { CompassStore, View } from './store';
+import { ThreadView } from './thread';
+import { WatchersView } from './watchers';
+import { WatcherCreate } from './watcher-create';
+import { WatcherPage } from './watcher-page';
+import { GROUP } from './data';
+import * as icons from './icons';
+
+/**
+ * Shell. Inbox → Thread → Board maps Juyo's Ask → Analyze → Act:
+ * answers come to you, a conversation builds the artifact, boards keep what matters.
+ */
+@Component({
+  selector: 'app-root',
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WatcherCreate, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
+  providers: [provideIcons({ ...icons }), provideBrnTooltipGroup()],
+  host: { class: 'block', '(document:keydown)': 'onKey($event)' },
+  template: `
+    <a href="#content" class="bg-foreground text-background sr-only z-50 rounded-md px-3 py-2 focus:not-sr-only focus:fixed focus:top-3 focus:left-3">Skip to content</a>
+    <div class="lg:grid lg:h-dvh lg:grid-cols-[232px_minmax(0,1fr)] lg:overflow-hidden">
+      <!-- Navigation recedes: dimmer surface, light icons, Fill only for the current place -->
+      <nav class="bg-(--rail) border-border/70 hidden min-h-0 flex-col gap-5 border-r px-3 py-4 lg:flex" aria-label="Main">
+        <div class="flex items-center gap-2 px-2">
+          <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" class="text-foreground">
+            <circle cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" stroke-width="1.25" />
+            <path d="M10 3.5 L12 10 L10 16.5 L8 10 Z" fill="currentColor" />
+            <path d="M10 3.5 L12 10 L8 10 Z" fill="var(--brass)" />
+          </svg>
+          <span class="text-[14px] font-semibold tracking-[-0.02em]">Compass</span>
+        </div>
+
+        <button type="button" class="hover:bg-foreground/4 flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors">
+          <span class="bg-foreground/90 text-background grid size-7 place-items-center rounded-md text-[12px] font-semibold">H</span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-[13px] font-medium">{{ group.name }}</span>
+            <span class="text-muted-foreground block truncate text-[12px]">All {{ group.hotels }} hotels</span>
+          </span>
+          <ng-icon name="phosphorCaretUpDownLight" class="text-muted-foreground" />
+        </button>
+
+        <ul class="flex flex-col gap-px text-[14px]">
+          @for (n of nav(); track n.view) {
+            <li>
+              <button
+                type="button"
+                class="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors"
+                [class]="isActive(n.view) ? 'bg-foreground/6 text-foreground font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-foreground/4'"
+                [attr.aria-current]="isActive(n.view) ? 'page' : null"
+                (click)="store.go(n.view)"
+              >
+                <ng-icon [name]="isActive(n.view) ? n.iconActive : n.icon" class="text-[16px]" />
+                <span class="flex-1 text-left">{{ n.label }}</span>
+                @if (n.count) {
+                  <span class="text-(--brass-ink) text-[12px] font-medium tabular-nums">{{ n.count }}</span>
+                }
+              </button>
+            </li>
+          }
+        </ul>
+
+        @if (store.threads().length) {
+          <div class="flex min-h-0 flex-col gap-1">
+            <p class="text-muted-foreground px-2 text-[12px] font-medium tracking-[0.04em] uppercase">Threads</p>
+            <ul class="flex min-h-0 flex-col gap-px overflow-y-auto text-[13px]">
+              @for (t of store.threads().slice(0, 8); track t.id) {
+                <li>
+                  <button type="button" class="block w-full truncate rounded-md px-2 py-1 text-left transition-colors" [class]="store.view() === 'thread' && store.activeThreadId() === t.id ? 'bg-foreground/6 text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-foreground/4'" (click)="store.openThread(t.id)">{{ t.title }}</button>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        <div class="text-muted-foreground mt-auto flex flex-col gap-px text-[14px]">
+          <button type="button" class="hover:text-foreground hover:bg-foreground/4 flex items-center gap-2.5 rounded-md px-2 py-1.5" (click)="toggleTheme()">
+            <ng-icon [name]="dark() ? 'phosphorSunLight' : 'phosphorMoonLight'" class="text-[16px]" />{{ dark() ? 'Light theme' : 'Dark theme' }}
+          </button>
+          <button type="button" class="hover:text-foreground hover:bg-foreground/4 flex items-center gap-2.5 rounded-md px-2 py-1.5"><ng-icon name="phosphorGearSixLight" class="text-[16px]" />Settings</button>
+          <p class="px-2 pt-3 text-[12px]/relaxed">Fictional group, generated data. Business date 20 Nov 2026.</p>
+        </div>
+      </nav>
+
+      <main id="content" class="min-w-0 max-lg:overflow-x-clip lg:min-h-0" [class]="store.view() === 'thread' ? 'h-dvh' : 'lg:overflow-y-auto'">
+        @if (store.view() !== 'thread') {
+          <header class="flex h-14 items-center justify-between px-[max(16px,env(safe-area-inset-left,0px))] lg:hidden">
+            <div class="flex items-center gap-2">
+              <span class="text-[14px] font-semibold tracking-[-0.02em]">Compass</span>
+              <span class="text-muted-foreground text-[14px]">/ Halcyon</span>
+            </div>
+            <button hlmBtn variant="ghost" size="icon" [attr.aria-label]="dark() ? 'Switch to light theme' : 'Switch to dark theme'" (click)="toggleTheme()"><ng-icon [name]="dark() ? 'phosphorSunLight' : 'phosphorMoonLight'" /></button>
+          </header>
+        }
+        @switch (store.view()) {
+          @case ('inbox') {
+            <app-inbox />
+          }
+          @case ('thread') {
+            <app-thread class="h-full" />
+          }
+          @case ('boards') {
+            <app-boards-list />
+          }
+          @case ('board') {
+            <app-board />
+          }
+          @case ('watchers') {
+            <app-watchers />
+          }
+          @case ('watcher') {
+            <app-watcher-page />
+          }
+        }
+      </main>
+    </div>
+
+    <!-- Phone: bottom tab bar (hidden inside a thread, which has its own back button) -->
+    @if (store.view() !== 'thread') {
+      <nav class="bg-background/90 border-border/70 fixed inset-x-0 bottom-0 z-30 grid grid-cols-3 border-t pb-[env(safe-area-inset-bottom,0px)] backdrop-blur lg:hidden" aria-label="Main">
+        @for (n of nav(); track n.view) {
+          <button type="button" class="relative flex flex-col items-center gap-0.5 py-2 text-[12px]" [class]="isActive(n.view) ? 'text-foreground font-medium' : 'text-muted-foreground'" [attr.aria-current]="isActive(n.view) ? 'page' : null" (click)="store.go(n.view)">
+            <ng-icon [name]="isActive(n.view) ? n.iconActive : n.icon" class="text-[20px]" />
+            {{ n.label }}
+            @if (n.count) {
+              <span class="bg-(--brass) text-background absolute top-1 left-1/2 ml-2 rounded-full px-1.5 text-[11px] font-semibold tabular-nums">{{ n.count }}</span>
+            }
+          </button>
+        }
+      </nav>
+    }
+
+    <app-watcher-create />
+    <hlm-toaster [theme]="dark() ? 'dark' : 'light'" position="bottom-center" [offset]="'72px'" />
+  `,
+})
+export class App {
+  protected readonly store = inject(CompassStore);
+  private readonly doc = inject(DOCUMENT);
+  protected readonly group = GROUP;
+  protected readonly dark = signal(this.doc.documentElement.classList.contains('dark'));
+
+  protected readonly nav = computed(() => [
+    { view: 'inbox' as View, label: 'Inbox', icon: 'phosphorTrayLight', iconActive: 'phosphorTrayFill', count: this.store.unread() },
+    { view: 'boards' as View, label: 'Boards', icon: 'phosphorSquaresFourLight', iconActive: 'phosphorSquaresFourFill', count: 0 },
+    { view: 'watchers' as View, label: 'Watchers', icon: 'phosphorLightningLight', iconActive: 'phosphorLightningFill', count: this.store.watchers().filter((w) => w.status === 'needs').length },
+  ]);
+
+  protected isActive(v: View) {
+    const cur = this.store.view();
+    return cur === v || (v === 'inbox' && cur === 'thread') || (v === 'boards' && cur === 'board') || (v === 'watchers' && cur === 'watcher');
+  }
+
+  /** ⌘K / Ctrl+K: ask from anywhere. */
+  protected onKey(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      this.store.go('inbox');
+      setTimeout(() => (this.doc.getElementById('global-ask') as HTMLInputElement | null)?.focus(), 30);
+    }
+  }
+
+  protected toggleTheme() {
+    const next = this.dark() ? 'light' : 'dark';
+    this.doc.documentElement.dataset['theme'] = next;
+    this.dark.set(next === 'dark');
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "/api": {
+    "target": "https://juyo.razvanfrandes.com",
+    "secure": true,
+    "changeOrigin": true,
+    "ws": true
+  }
+}
