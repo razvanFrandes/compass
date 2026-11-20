@@ -19,6 +19,22 @@ export class DurableWorkflowStore implements WorkflowStore {
   putWorkflow(workflow: Workflow) {
     return this.#storage.put(`wf:${workflow.id}`, workflow);
   }
+  /**
+   * Deletes a workflow with its runs (and their session and email marks) and its proposals. The audit log keeps its
+   * entries, and the runs' Pi sessions stay where Pi keeps them.
+   */
+  async deleteWorkflow(id: string): Promise<void> {
+    const runs = await this.listRuns(id);
+    const proposals = (await this.listProposals()).filter((p) => p.workflowId === id);
+    const keys = [`wf:${id}`];
+    for (const run of runs) keys.push(`run:${run.id}`, `session:${run.sessionId}`, `email:${run.id}`, `emailpending:${run.id}`);
+    for (const proposal of proposals) {
+      const taskId = await this.taskForProposal(proposal.id);
+      keys.push(`prop:${proposal.id}`, `proptask:${proposal.id}`, ...(taskId === undefined ? [] : [`task:${taskId}`]));
+    }
+    // One delete call takes at most 128 keys.
+    for (let i = 0; i < keys.length; i += 128) await this.#storage.delete(keys.slice(i, i + 128));
+  }
   getRun(id: string) {
     return this.#storage.get<WorkflowRun>(`run:${id}`);
   }

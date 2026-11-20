@@ -1,12 +1,13 @@
 import { maskEmail } from '@compass/contracts';
 import type { Extension, ToolExecutionApi, ToolRegistration } from '@earendil-works/pi-durable';
 import { z } from 'zod';
-import { composeWorkflowEmail, emailWorkflowBlocked, type EmailQuota, type EmailSender } from './email.ts';
+import { composeWorkflowEmail, isLastEmail, MAX_SUMMARY_CHARS, type EmailQuota, type EmailSender } from './email.ts';
 import type { WorkflowStore } from './store.ts';
 
 /**
  * The tool an email workflow acts with. The mail is a fixed template: the model fills in the summary, the facts and
- * the labels, never the recipient or the layout. Email is low risk, so no approval.
+ * the labels, never the recipient, the subject or the layout, and what it writes loses its links before it is sent
+ * (`composeWorkflowEmail`). Email is low risk, so no approval.
  *
  * At most one mail per run. The run is marked pending before the send and gets its receipt only when the send is
  * confirmed. A replayed or repeated call returns the receipt, or, when an earlier attempt never confirmed (a crash
@@ -15,7 +16,7 @@ import type { WorkflowStore } from './store.ts';
 
 const SendEmailArgs = z.object({
   would_fire: z.boolean().describe("Whether the workflow's condition holds today, from your tool results"),
-  summary: z.string().min(20).max(800).describe('What you found, in two or three sentences, quoting numbers from tool results'),
+  summary: z.string().min(20).max(MAX_SUMMARY_CHARS).describe('What you found, in two or three sentences, quoting numbers from tool results'),
   facts: z.array(z.string().max(160)).min(1).max(6).describe('The key numbers, one per line, copied from tool results'),
   definition: z.string().max(300).describe('How the numbers are defined, from the tool result'),
   period: z.string().max(80).describe('The period the numbers cover, e.g. "December 2026"'),
@@ -72,11 +73,13 @@ export function createEmailExtension({ store, sender, quota, appUrl, now = () =>
 
         // One spelling of the address for the limits and for the send, so a variant cannot get its own allowance.
         const to = workflow.delivery.to.trim().toLowerCase();
-        const allowed = await quota.take(to, run.client ?? 'manual');
+        // A run a person started is also limited by its client. The morning cron's runs have no client to limit.
+        const client = run.trigger === 'manual' ? (run.client ?? 'manual') : null;
+        const allowed = await quota.take(to, client);
         if (!allowed.ok) return notSent(`${allowed.reason} No email sent.`);
 
-        // The last mail says so: with this send the workflow reaches its 5 emails, or its 7 days are over.
-        const final = !test && emailWorkflowBlocked({ ...workflow, emailsSent: (workflow.emailsSent ?? 0) + 1 }, now()) !== null;
+        // The last mail says so: with this send the workflow reaches its 5 emails, or its 7 days end before its next run.
+        const final = !test && isLastEmail(workflow, now());
         const mail = composeWorkflowEmail({
           workflow, test, wouldFire: args.would_fire, summary: args.summary, facts: args.facts,
           definition: args.definition, period: args.period, question: args.question, appUrl, final,

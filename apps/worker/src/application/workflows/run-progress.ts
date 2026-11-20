@@ -51,3 +51,11 @@ export function runProgress(entries: readonly ChatEntry[], graph: WorkflowGraph,
     failed: status === 'failed' ? running : null,
   };
 }
+
+/**
+ * Whether the builder stops following a run: it ended, or it is parked until a person decides on its proposal. A
+ * parked run can wait for days, so it is not followed (and not reported as failed after 3 minutes).
+ */
+export function followEnds(status: WorkflowRun['status']): boolean {
+  return status === 'done' || status === 'failed' || status === 'waiting_approval';
+}

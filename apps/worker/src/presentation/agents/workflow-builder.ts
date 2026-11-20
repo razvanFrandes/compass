@@ -18,7 +18,7 @@ import { HotelData } from '../../application/hotel-data.ts';
 import { clientPatch, editEntry, EditLimiter, mergeChanged, savePlan } from '../../application/workflows/builder-edits.ts';
 import { createBuilderExtension, type DraftHost } from '../../application/workflows/builder-tools.ts';
 import { applyDraftPatch, draftIssues } from '../../application/workflows/draft.ts';
-import { runProgress } from '../../application/workflows/run-progress.ts';
+import { followEnds, runProgress } from '../../application/workflows/run-progress.ts';
 import type { Env } from '../../env.ts';
 import { openPostgres } from '../../infrastructure/postgres.ts';
 import { WorkersAiEmbedder } from '../../infrastructure/workers-ai-embedder.ts';
@@ -294,8 +294,9 @@ export class WorkflowBuilder extends DurableObject<Env> {
     let following = false;
     try {
       const { workflowId, draft } = await this.#save();
-      // A run spends model tokens: rate-limited per client and counted against the daily budget, like "Run now".
-      if (!(await this.env.ASK_RATE_LIMIT.limit({ key: client })).success) throw new PublicError('Too many runs. Wait a minute.');
+      // A run spends model tokens: counted against the daily budget, like "Run now". It does not take from the
+      // per-minute limit of the questions, or a person who has just talked the workflow through could not test it.
+      // What bounds tests: this budget, one test at a time per draft (`#testing`), and the email limits.
       const budget = await this.env.BUDGET.getByName(BUDGET_NAME).take('workflow_run');
       if (!budget.ok) throw new PublicError(budgetMessage(budget));
 
@@ -318,9 +319,10 @@ export class WorkflowBuilder extends DurableObject<Env> {
   }
 
   /**
-   * Polls the run's log and sends its place on the graph each time it changes, until the run ends, nobody is
-   * listening any more, or 3 minutes pass. After 3 minutes the builder gives up on the run (which may still finish):
-   * it sends a last `run` message as failed on the node the run was on, and an `error` saying where to look.
+   * Polls the run's log and sends its place on the graph each time it changes, until the run ends or parks for an
+   * approval (the last `run` message carries that status), nobody is listening any more, or 3 minutes pass. After
+   * 3 minutes the builder gives up on the run (which may still finish): it sends a last `run` message as failed on
+   * the node the run was on, and an `error` saying where to look.
    */
   async #follow(runId: string, graph: WorkflowGraph): Promise<void> {
     const agents = this.env.WORKFLOWS.getByName('halcyon');
@@ -337,7 +339,7 @@ export class WorkflowBuilder extends DurableObject<Env> {
         last = text;
         this.#broadcast(message);
       }
-      if (status === 'done' || status === 'failed' || this.#sockets.size === 0) return;
+      if (followEnds(status) || this.#sockets.size === 0) return;
       if (Date.now() >= until) {
         this.#broadcast({ type: 'run', runId, status: 'failed', ...runProgress(log.entries, graph, 'failed') });
         this.#broadcast({ type: 'error', message: 'The test run is taking too long; check the run log.' });

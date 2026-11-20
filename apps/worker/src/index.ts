@@ -139,8 +139,8 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   }
 
   if (target === 'builder') {
-    // The workflow builder's WebSocket: one Durable Object per draft id, with Kassandra's origin rule. Questions and
-    // test runs sent over it are rate-limited and budgeted inside the object.
+    // The workflow builder's WebSocket: one Durable Object per draft id, with Kassandra's origin rule. Questions sent
+    // over it are rate-limited and budgeted inside the object; test runs are budgeted there.
     const origin = request.headers.get('Origin');
     if (origin && !isAllowedOrigin(origin)) return new Response('Origin not allowed', { status: 403 });
     const draft = url.searchParams.get('draft') ?? '';
@@ -228,7 +228,8 @@ async function workflowRoutes(request: Request, url: URL, env: Env): Promise<Res
     if (id && action === 'run' && method === 'POST') {
       const refused = (await limited()) ?? (await overBudget(env, request, 'workflow_run'));
       if (refused) return refused;
-      return json(await agents.run(id, 'manual'));
+      // The client goes with the run: an email workflow's sends are limited per client, not for all "Run now" together.
+      return json(await agents.run(id, 'manual', '', { client: clientOf(request) }));
     }
   }
   if (parts[1] === 'runs' && parts[2] && method === 'GET') return json(await agents.runLog(parts[2]));

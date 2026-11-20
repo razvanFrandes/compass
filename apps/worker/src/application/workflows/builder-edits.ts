@@ -1,4 +1,5 @@
-import { specToGraph, type WorkflowDraft } from '@compass/contracts';
+import { specToGraph, WorkflowSpecShape, type WorkflowDraft } from '@compass/contracts';
+import type { z } from 'zod';
 import type { EntryDraft } from '@earendil-works/pi-durable';
 import { chain } from './builder-tools.ts';
 
@@ -75,7 +76,10 @@ export type SavePlan =
   | { kind: 'create' }
   /** The draft is as saved. */
   | { kind: 'none' }
-  /** Same recipient: change the saved workflow. The patch carries no `delivery`. */
+  /**
+   * Same recipient: change the saved workflow. The patch carries no `delivery`. A field that was saved and is no
+   * longer in the draft is in the patch with its default, so the stored workflow loses it too.
+   */
   | { kind: 'update'; patch: WorkflowDraft }
   /** Another recipient (or one added or removed): a saved workflow keeps its recipient, so this is a new workflow. */
   | { kind: 'replace' };
@@ -88,5 +92,24 @@ export function savePlan(draft: WorkflowDraft, saved: WorkflowDraft | null, work
   if (recipient(draft) !== recipient(saved)) return { kind: 'replace' };
   if (JSON.stringify(draft) === JSON.stringify(saved)) return { kind: 'none' };
   const { delivery: _fixed, ...patch } = draft;
-  return { kind: 'update', patch };
+  return { kind: 'update', patch: { ...patch, ...removedFields(draft, saved) } };
+}
+
+const fields: Record<string, z.ZodType> = WorkflowSpecShape.shape;
+
+/**
+ * The fields `saved` had and `draft` no longer has, each with the value the spec gives a missing field ('' for the
+ * description, no checks, …). An update merges the patch over the stored workflow, so a field left out of the patch
+ * would keep its old value there, and the workflow would differ from the draft it was saved from.
+ */
+function removedFields(draft: WorkflowDraft, saved: WorkflowDraft): WorkflowDraft {
+  const present = (source: WorkflowDraft, key: string) => (source as Record<string, unknown>)[key] !== undefined;
+  const reset: Record<string, unknown> = {};
+  for (const key of Object.keys(saved)) {
+    if (key === 'delivery' || !present(saved, key) || present(draft, key)) continue;
+    const parsed = fields[key]?.safeParse(undefined);
+    // A required field has no default: it cannot be missing from a draft that is being saved.
+    if (parsed?.success) reset[key] = parsed.data;
+  }
+  return reset as WorkflowDraft;
 }

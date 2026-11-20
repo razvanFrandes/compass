@@ -14,11 +14,12 @@ export interface EmailSender {
 }
 
 /**
- * The send limits of the public demo: per recipient, per client and for everyone together.
- * `take` uses one unit from all three windows, or from none when any of them is full.
+ * The send limits of the public demo: per recipient (an hour, a day), per client and for everyone together.
+ * `take` uses one unit from every window, or from none when any of them is full. `client` is null for a run nobody
+ * asked for (the morning cron): it has no client window, and the other limits still apply.
  */
 export interface EmailQuota {
-  take(recipient: string, client: string): Promise<{ ok: true } | { ok: false; reason: string }>;
+  take(recipient: string, client: string | null): Promise<{ ok: true } | { ok: false; reason: string }>;
 }
 
 export interface WorkflowEmailInput {
@@ -51,13 +52,60 @@ const escapeHtml = (value: string) =>
 /** One line, so a name can never add a header. */
 const oneLine = (value: string) => value.replace(/[\r\n]+/g, ' ').trim();
 
+export const LINK_REMOVED = '[link removed]';
+export const MAX_NAME_CHARS = 60;
+export const MAX_SUMMARY_CHARS = 500;
+
+/**
+ * Anything a mail client would turn into a link: an http(s) URL, a `www.` host, or a bare domain (`word.tld`, the
+ * tld 2–24 letters, in any script), with the path that follows it.
+ */
+const LINK = /(?:https?:\/\/|www\.)[^\s<>"']+|[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.\p{L}{2,24}(?![\p{L}\p{N}-])(?::\d+)?(?:[/?#][^\s<>"']*)?/giu;
+
+const hostOf = (value: string): string | null => {
+  try {
+    return new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Pure: `text` with every link and domain replaced by "[link removed]", except links to the app itself (the host of
+ * `appUrl`). The mail goes from our address to an address a stranger typed, and its words come from a model that
+ * read a stranger's goal: whatever it was talked into writing, the mail must not lead anywhere but the app.
+ * Numbers ("182.50"), abbreviations ("e.g.") and sentences are left as they are.
+ */
+export function neutraliseLinks(text: string, appUrl: string): string {
+  const own = hostOf(appUrl);
+  return text.replace(LINK, (match) => {
+    if (!own || hostOf(match) !== own) return LINK_REMOVED;
+    // The app's own link is kept only when nothing after the host is itself a link (…/go?to=https://elsewhere).
+    const rest = match.slice(match.toLowerCase().indexOf(own) + own.length);
+    return rest.replace(LINK, '') === rest ? match : LINK_REMOVED;
+  });
+}
+
 const FONT = "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const MUTED = 'color:#6b7280;font-size:13px;line-height:1.5';
 
-/** Pure: the subject and both bodies of a workflow's mail. Every value from the model or the user is escaped in the HTML. */
-export function composeWorkflowEmail(input: WorkflowEmailInput): Omit<OutgoingEmail, 'to'> {
-  const name = oneLine(input.workflow.name);
-  const subject = input.test ? `Test · ${name}` : name;
+/**
+ * Pure: the subject and both bodies of a workflow's mail. The subject has a fixed form. Every value from the model
+ * or the user loses its links (`neutraliseLinks`) and is escaped in the HTML; the name is cut to 60 characters and
+ * the summary to 500.
+ */
+export function composeWorkflowEmail(raw: WorkflowEmailInput): Omit<OutgoingEmail, 'to'> {
+  const clean = (value: string) => neutraliseLinks(value, raw.appUrl);
+  const input = {
+    ...raw,
+    summary: clean(raw.summary).slice(0, MAX_SUMMARY_CHARS).trim(),
+    facts: raw.facts.map(clean),
+    definition: clean(raw.definition),
+    period: clean(raw.period),
+    question: clean(raw.question),
+  };
+  const name = clean(oneLine(input.workflow.name)).slice(0, MAX_NAME_CHARS).trim();
+  const subject = `${input.test ? 'Test · ' : ''}Compass alert · ${name}`;
   const note = input.test ? `Test run · ${input.wouldFire ? 'Would fire today' : 'Would not fire today'}` : null;
   const link = `${input.appUrl.replace(/\/+$/, '')}/ask?q=${encodeURIComponent(input.question)}`;
 
@@ -113,6 +161,33 @@ export function emailWorkflowBlocked(workflow: Workflow, now: Date): string | nu
     return `Email workflows stop after ${EMAIL_WORKFLOW_LIMITS.days} days and this one is now off. Create a new workflow to keep getting them.`;
   }
   return null;
+}
+
+/** The hour (UTC) of the morning cron that regenerates the brief and runs the workflows: `triggers.crons` in wrangler.jsonc. */
+export const MORNING_HOUR_UTC = 5;
+
+/**
+ * Pure: when the workflow would next run on its own after a run at `now`, or null for a manual one. A daily workflow
+ * runs again in a day and a weekly one in 7 days; one that waits for a brief finding may run the next morning.
+ */
+export function nextScheduledRun(workflow: Pick<Workflow, 'trigger'>, now: Date): Date | null {
+  const { trigger } = workflow;
+  if (trigger.kind === 'schedule') return new Date(now.getTime() + (trigger.every === 'week' ? 7 : 1) * DAY_MS);
+  if (trigger.kind === 'brief') {
+    const morning = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), MORNING_HOUR_UTC);
+    return new Date(morning > now.getTime() ? morning : morning + DAY_MS);
+  }
+  return null;
+}
+
+/**
+ * Pure: whether a mail sent at `now` (not a test) is the workflow's last: with it the workflow reaches its 5 emails,
+ * its 7 days are over, or they will be over before it would run again.
+ */
+export function isLastEmail(workflow: Workflow, now: Date): boolean {
+  if (emailWorkflowBlocked({ ...workflow, emailsSent: (workflow.emailsSent ?? 0) + 1 }, now) !== null) return true;
+  const next = nextScheduledRun(workflow, now);
+  return next !== null && next.getTime() > Date.parse(workflow.createdAt) + EMAIL_WORKFLOW_LIMITS.days * DAY_MS;
 }
 
 /** A workflow as the open API shows it: the recipient masked, in a copy. Storage keeps the real address for the runs. */

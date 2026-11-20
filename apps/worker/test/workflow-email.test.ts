@@ -1,8 +1,8 @@
 import type { Workflow } from '@compass/contracts';
 import { describe, expect, it, vi } from 'vitest';
-import { composeWorkflowEmail, FOOTER, type WorkflowEmailInput } from '../src/application/workflows/email.ts';
+import { composeWorkflowEmail, FOOTER, neutraliseLinks, type WorkflowEmailInput } from '../src/application/workflows/email.ts';
 import { CloudflareEmailSender } from '../src/infrastructure/cloudflare-email-sender.ts';
-import { DurableEmailQuota, type EmailQuotaStorage } from '../src/infrastructure/do-email-quota.ts';
+import { DurableEmailQuota, EMAIL_LIMITS, type EmailQuotaStorage } from '../src/infrastructure/do-email-quota.ts';
 
 const workflow: Workflow = {
   id: 'wf-lisbon', name: 'Lisbon pace watch', description: '', hotels: ['LIS1'], trigger: { kind: 'manual' },
@@ -35,14 +35,57 @@ describe('composeWorkflowEmail', () => {
     expect(composeWorkflowEmail({ ...input, final: false }).text).toBe(usual.text);
   });
 
-  it('subject says Test on a test run', () => {
-    expect(composeWorkflowEmail({ ...input, test: true }).subject).toBe('Test · Lisbon pace watch');
-    expect(composeWorkflowEmail({ ...input, test: false }).subject).toBe('Lisbon pace watch');
+  it('the subject has a fixed form, and says Test on a test run', () => {
+    expect(composeWorkflowEmail({ ...input, test: true }).subject).toBe('Test · Compass alert · Lisbon pace watch');
+    expect(composeWorkflowEmail({ ...input, test: false }).subject).toBe('Compass alert · Lisbon pace watch');
   });
 
   it('keeps line breaks out of the subject', () => {
-    const subject = composeWorkflowEmail({ ...input, workflow: { ...workflow, name: 'Pace\r\nBcc: x@example.com' } }).subject;
-    expect(subject).toBe('Pace Bcc: x@example.com');
+    const subject = composeWorkflowEmail({ ...input, workflow: { ...workflow, name: 'Pace\r\nBcc: someone' } }).subject;
+    expect(subject).toBe('Compass alert · Pace Bcc: someone');
+  });
+
+  it('cuts the name to 60 characters, in the subject and in the bodies', () => {
+    const name = `${'Lisbon pace watch '.repeat(4)}END`; // 75 characters
+    const e = composeWorkflowEmail({ ...input, workflow: { ...workflow, name } });
+    expect(e.subject).toBe(`Compass alert · ${name.slice(0, 60).trim()}`);
+    expect(e.subject).not.toContain('END');
+    expect(e.text).not.toContain('END');
+    expect(e.html).not.toContain('END');
+  });
+
+  it('cuts the summary to 500 characters', () => {
+    const e = composeWorkflowEmail({ ...input, summary: `${'Pace is behind. '.repeat(40)}END` });
+    expect(e.text).toContain('Pace is behind.');
+    expect(e.text).not.toContain('END');
+    expect(e.html).not.toContain('END');
+  });
+
+  it('removes links and domains from every field the model or the person wrote', () => {
+    const e = composeWorkflowEmail({
+      ...input,
+      workflow: { ...workflow, name: 'Claim prize at evil.example' },
+      summary: 'Lisbon is 12% behind. Log in at https://phish.example/login?u=1 or www.phish.example now.',
+      facts: ['Rooms: 1,240 vs 1,410. Details: bad-site.io/offer', 'ADR: 182.50 EUR vs 176 EUR, see HTTP://Shout.Example'],
+      definition: 'Pace, as defined on defs.example.org.',
+      period: 'December 2026 (cal.example)',
+      question: 'Why is pace behind? Ask at ask.example',
+    });
+    for (const body of [e.subject, e.text, e.html]) {
+      expect(body).not.toMatch(/evil\.example|phish\.example|bad-site\.io|shout\.example|defs\.example\.org|cal\.example|ask\.example/i);
+    }
+    for (const body of [e.text, e.html]) {
+      expect(body).toContain('[link removed]');
+      // The numbers stay as they are.
+      expect(body).toContain('Rooms: 1,240 vs 1,410.');
+      expect(body).toContain('ADR: 182.50 EUR vs 176 EUR');
+      expect(body).toContain('Lisbon is 12% behind.');
+    }
+    expect(e.subject).toBe('Compass alert · Claim prize at [link removed]');
+    expect(decodeURIComponent(e.text.match(/ask\?q=(\S+)/)![1]!)).toBe('Why is pace behind? Ask at [link removed]');
+    // The app's own link is still there.
+    expect(e.text).toContain('https://juyo.razvanfrandes.com/ask?q=');
+    expect(e.html).toContain('href="https://juyo.razvanfrandes.com/ask?q=');
   });
 
   it('a test that would not fire says so', () => {
@@ -113,14 +156,50 @@ describe('composeWorkflowEmail', () => {
   });
 });
 
-/** The two calls DurableEmailQuota makes on a Durable Object's storage, over a Map. */
+describe('neutraliseLinks', () => {
+  const APP = 'https://juyo.razvanfrandes.com';
+  const clean = (text: string) => neutraliseLinks(text, APP);
+
+  it.each([
+    ['see https://evil.example/a?b=c now', 'see [link removed] now'],
+    ['see http://evil.example', 'see [link removed]'],
+    ['go to www.evil.example/x', 'go to [link removed]'],
+    ['evil.example is down', '[link removed] is down'],
+    ['mail bob@evil.example', 'mail bob@[link removed]'],
+    ['a.b.evil.co.uk/path', '[link removed]'],
+    ['пример.рф', '[link removed]'],
+    ['HTTPS://EVIL.EXAMPLE', '[link removed]'],
+  ])('%s → %s', (text, expected) => {
+    expect(clean(text)).toBe(expected);
+  });
+
+  it('keeps the app\'s own host, and nothing that only looks like it', () => {
+    expect(clean('open https://juyo.razvanfrandes.com/ask?q=pace')).toBe('open https://juyo.razvanfrandes.com/ask?q=pace');
+    expect(clean('open juyo.razvanfrandes.com')).toBe('open juyo.razvanfrandes.com');
+    expect(clean('https://juyo.razvanfrandes.com.evil.example/x')).toBe('[link removed]');
+    expect(clean('https://juyo.razvanfrandes.com@evil.example/x')).toBe('[link removed]');
+    expect(clean('https://juyo.razvanfrandes.com/go?to=https://evil.example')).toBe('[link removed]');
+    expect(clean('razvanfrandes.com')).toBe('[link removed]');
+  });
+
+  it('leaves numbers, percentages, abbreviations and hotel codes alone', () => {
+    for (const text of ['Rooms: 1,240 vs 1,410 (12.5% down)', 'ADR 182.50 EUR', 'e.g. LIS1, i.e. Lisbon', 'RevPAR 96.4 at 9 a.m.', 'Pace is behind. Pickup is flat.']) {
+      expect(clean(text)).toBe(text);
+    }
+  });
+});
+
+/** The calls DurableEmailQuota makes on a Durable Object's storage, over a Map. */
 class FakeStorage implements EmailQuotaStorage {
   readonly data = new Map<string, unknown>();
-  async get<T>(keys: string[]) {
-    return new Map(keys.filter((k) => this.data.has(k)).map((k) => [k, structuredClone(this.data.get(k)) as T]));
+  async list<T>({ prefix }: { prefix: string }) {
+    return new Map([...this.data].filter(([k]) => k.startsWith(prefix)).map(([k, v]) => [k, structuredClone(v) as T]));
   }
   async put<T>(entries: Record<string, T>) {
     for (const [k, v] of Object.entries(entries)) this.data.set(k, structuredClone(v));
+  }
+  async delete(keys: string[]) {
+    return keys.filter((k) => this.data.delete(k)).length;
   }
 }
 
@@ -185,6 +264,76 @@ describe('DurableEmailQuota', () => {
     expect((await quota.take('late@example.com', 'ip-late')).ok).toBe(false);
     advance(MINUTE); // 00:00 UTC, the next day
     expect(await quota.take('late@example.com', 'ip-late')).toEqual({ ok: true });
+  });
+
+  it('refuses the 7th mail of the UTC day to one address, and allows it the next day', async () => {
+    expect(EMAIL_LIMITS.perRecipientPerDay).toBe(6);
+    const { quota, advance } = quotaAt('2026-11-20T00:00:00Z');
+    // One every 30 minutes, so the hourly limit of 3 never applies.
+    for (let i = 0; i < 6; i++) {
+      expect(await quota.take('a@example.com', `ip-${i}`)).toEqual({ ok: true });
+      advance(30 * MINUTE);
+    }
+    const refused = await quota.take('a@example.com', 'ip-9'); // 03:00 UTC
+    expect(refused.ok).toBe(false);
+    expect(refused.ok ? '' : refused.reason).toBe('This address already got 6 emails today. Try again tomorrow.');
+    expect(await quota.take('b@example.com', 'ip-9')).toEqual({ ok: true });
+    advance(20 * HOUR + 59 * MINUTE); // 23:59 UTC, same day
+    expect((await quota.take('a@example.com', 'ip-9')).ok).toBe(false);
+    advance(MINUTE); // 00:00 UTC, the next day
+    expect(await quota.take('a@example.com', 'ip-9')).toEqual({ ok: true });
+  });
+
+  it('a refusal for the day changes nothing', async () => {
+    const { quota, storage, advance } = quotaAt('2026-11-20T00:00:00Z');
+    for (let i = 0; i < 6; i++) {
+      await quota.take('a@example.com', 'ip-1');
+      advance(30 * MINUTE);
+    }
+    const before = structuredClone([...storage.data.entries()]);
+    expect((await quota.take('a@example.com', 'ip-1')).ok).toBe(false);
+    expect([...storage.data.entries()]).toEqual(before);
+  });
+
+  it('a scheduled run has no client: only the address and the day are counted', async () => {
+    const { quota, storage } = quotaAt('2026-11-20T05:00:00Z');
+    for (let i = 0; i < 12; i++) expect(await quota.take(`r${i}@example.com`, null)).toEqual({ ok: true });
+    expect([...storage.data.keys()].filter((k) => k.startsWith('emailq:client:'))).toEqual([]);
+    for (let i = 0; i < 2; i++) await quota.take('a@example.com', null);
+    expect((await quota.take('a@example.com', null)).ok).toBe(true);
+    expect((await quota.take('a@example.com', null)).ok).toBe(false); // 3 per hour per address still holds
+    for (let i = 15; i < 50; i++) await quota.take(`s${i}@example.com`, null);
+    expect((await quota.take('late@example.com', null)).ok).toBe(false); // and so do the 50 per day
+  });
+
+  it('stores no address: the key of an address is its SHA-256 hash', async () => {
+    const { quota, storage } = quotaAt('2026-11-20T10:00:00Z');
+    await quota.take(' Silviu@Example.com ', 'ip-1');
+    const keys = [...storage.data.keys()];
+    expect(JSON.stringify([...storage.data.entries()]).toLowerCase()).not.toContain('silviu');
+    // sha256('silviu@example.com')
+    const hash = Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('silviu@example.com'))).toString('hex');
+    expect(keys).toContain(`emailq:to:${hash}`);
+  });
+
+  it('a write drops the keys that hold nothing any more', async () => {
+    const { quota, storage, advance } = quotaAt('2026-11-20T10:00:00Z');
+    storage.data.set('emailq:to:old@example.com', [Date.parse('2026-11-20T09:59:00Z')]); // a key from before the hash
+    await quota.take('a@example.com', 'ip-1');
+    await quota.take('b@example.com', 'ip-2');
+    expect([...storage.data.keys()].some((k) => k.includes('old@example.com'))).toBe(false);
+    expect(storage.data.size).toBe(5); // 2 addresses, 2 clients, the day
+
+    advance(HOUR); // 11:00: ip-1 and ip-2 have nothing in the last hour; the addresses still count for today
+    await quota.take('c@example.com', 'ip-3');
+    expect([...storage.data.keys()].filter((k) => k.startsWith('emailq:client:'))).toEqual(['emailq:client:ip-3']);
+    expect([...storage.data.keys()].filter((k) => k.startsWith('emailq:to:'))).toHaveLength(3);
+
+    advance(24 * HOUR); // the next day: yesterday's count and addresses go
+    await quota.take('d@example.com', 'ip-4');
+    expect([...storage.data.keys()].filter((k) => k.startsWith('emailq:day:'))).toEqual(['emailq:day:2026-11-21']);
+    expect([...storage.data.keys()].filter((k) => k.startsWith('emailq:to:'))).toHaveLength(1);
+    expect([...storage.data.keys()].filter((k) => k.startsWith('emailq:client:'))).toEqual(['emailq:client:ip-4']);
   });
 
   it('takes from all three windows or none', async () => {

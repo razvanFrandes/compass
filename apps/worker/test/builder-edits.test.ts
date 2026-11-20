@@ -1,4 +1,4 @@
-import type { WorkflowDraft } from '@compass/contracts';
+import { WorkflowSpec, type WorkflowDraft } from '@compass/contracts';
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context';
 import { fauxAssistantMessage, fauxProvider, fauxText } from '@earendil-works/pi-ai';
 import { createModels } from '@earendil-works/pi-ai/models';
@@ -44,6 +44,25 @@ describe('savePlan', () => {
     const plan = savePlan({ ...saved, hotels: ['OPO1'] }, saved, 'wf-1');
     const { delivery: _fixed, ...rest } = saved;
     expect(plan).toStrictEqual({ kind: 'update', patch: { ...rest, hotels: ['OPO1'] } });
+  });
+
+  it('resets a field that was taken out of the draft, so the stored workflow matches what was saved', () => {
+    const before: WorkflowDraft = { ...saved, description: 'Watches Lisbon.', checks: ['get_pace'], approver: 'gm', autonomy: 'suggest', enabled: false };
+    const plan = savePlan(saved, before, 'wf-1');
+    const { delivery: _fixed, ...rest } = saved;
+    expect(plan).toStrictEqual({
+      kind: 'update',
+      patch: { ...rest, description: '', checks: [], approver: 'revenue_manager', autonomy: 'approve', enabled: true },
+    });
+    // What WorkflowAgents.update does with the patch: the stored workflow, the patch over it, parsed.
+    const stored = WorkflowSpec.parse(before);
+    const patch = plan.kind === 'update' ? plan.patch : {};
+    expect(WorkflowSpec.parse({ ...stored, ...patch })).toEqual(WorkflowSpec.parse(saved));
+  });
+
+  it('leaves alone what the draft never set (a workflow the system turned off stays off)', () => {
+    const plan = savePlan({ ...saved, hotels: ['OPO1'] }, saved, 'wf-1');
+    expect(plan.kind === 'update' && 'enabled' in plan.patch).toBe(false);
   });
 
   it('treats the same address in another spelling as the same recipient', () => {

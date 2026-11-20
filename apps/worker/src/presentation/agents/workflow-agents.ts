@@ -6,8 +6,10 @@ import { PiHarness } from 'agents/harness/pi';
 import { Lifecycle } from 'agents/lifecycle';
 import { createAI } from 'agents/models/pi-ai';
 import { HotelData } from '../../application/hotel-data.ts';
+import { admitWorkflow, mayEnable } from '../../application/workflows/capacity.ts';
 import { createEmailExtension } from '../../application/workflows/email-tool.ts';
 import { emailWorkflowBlocked, publicRun, publicWorkflow, recipientChanged } from '../../application/workflows/email.ts';
+import { lazySettlement, type RunProbe } from '../../application/workflows/run-settle.ts';
 import { templateWorkflows, workflowInstructions } from '../../application/workflows/templates.ts';
 import { createWorkflowExtension, DecisionSignal } from '../../application/workflows/workflow-tools.ts';
 import type { Env } from '../../env.ts';
@@ -23,8 +25,8 @@ import { createDataExtension } from './pi-data-extension.ts';
 
 export type WorkflowError = { error: string; status: number };
 
-/** Enabled workflows run every morning from the cron, so their number bounds the daily spend: cap it. */
-export const MAX_WORKFLOWS = 30;
+/** How long a read waits to learn whether a run's Pi operation has already ended. */
+const PROBE_MS = 250;
 
 /**
  * The workflow agents of the group, in one Durable Object. Each run is its own durable Pi session: it checks the data,
@@ -80,9 +82,10 @@ export class WorkflowAgents extends DurableObject<Env> {
   async create(input: WorkflowSpecInput, createdBy: Workflow['createdBy'] = 'user'): Promise<Workflow | WorkflowError> {
     const parsed = WorkflowSpec.safeParse(input);
     if (!parsed.success) return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '), status: 400 };
-    if ((await this.#workflows()).length >= MAX_WORKFLOWS) {
-      return { error: `The demo holds at most ${MAX_WORKFLOWS} workflows. Disable or edit an existing one.`, status: 409 };
-    }
+    // Only enabled workflows count towards the cap; at 100 stored, the oldest that is off makes room (capacity.ts).
+    const admitted = admitWorkflow(await this.#workflows(), parsed.data.enabled);
+    if (!admitted.ok) return { error: admitted.error, status: 409 };
+    for (const evicted of admitted.evict) await this.store.deleteWorkflow(evicted);
     const workflow: Workflow = { ...parsed.data, id: `wf-${crypto.randomUUID().slice(0, 8)}`, createdAt: new Date().toISOString(), createdBy, lastRun: null };
     await this.store.putWorkflow(workflow);
     return publicWorkflow(workflow);
@@ -98,6 +101,11 @@ export class WorkflowAgents extends DurableObject<Env> {
     }
     const parsed = WorkflowSpec.safeParse({ ...current, ...rest });
     if (!parsed.success) return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '), status: 400 };
+    // Turning a workflow on is held to the same cap as creating one, or a PATCH would be the way around it.
+    if (parsed.data.enabled && !current.enabled) {
+      const allowed = mayEnable(await this.#workflows(), id);
+      if (!allowed.ok) return { error: allowed.error, status: 409 };
+    }
     const workflow: Workflow = { ...current, ...parsed.data };
     await this.store.putWorkflow(workflow);
     return publicWorkflow(workflow);
@@ -108,7 +116,7 @@ export class WorkflowAgents extends DurableObject<Env> {
   /**
    * Starts a run. `opts.test` is a "send test now" run: an email workflow then always sends, marked as a test.
    * `opts.client` is who asked (the client address), for the email limits; without it a scheduled or brief run counts
-   * as 'cron' and any other as 'manual'.
+   * as 'cron' and any other as 'manual'. Only a manual run is held to the per-client email limit (email-tool.ts).
    */
   async run(
     id: string,
@@ -125,7 +133,10 @@ export class WorkflowAgents extends DurableObject<Env> {
       if (workflow.enabled) await this.store.putWorkflow({ ...workflow, enabled: false });
       return { error: blocked, status: 400 };
     }
-    const active = (await this.store.listRuns(id)).find((r) => r.status === 'running' || r.status === 'waiting_approval');
+    // A run still stored as running may have ended while nobody waited for it (a deploy, an eviction): settle it first.
+    const runs: WorkflowRun[] = [];
+    for (const stored of await this.store.listRuns(id)) runs.push(await this.#settleLazily(stored));
+    const active = runs.find((r) => r.status === 'running' || r.status === 'waiting_approval');
     if (active) return { error: `This workflow already has a run in progress (${active.id}).`, status: 409 };
 
     const session = await this.harness.sessions.create({ agent: { instructions: workflowInstructions(workflow, test) } });
@@ -150,8 +161,9 @@ export class WorkflowAgents extends DurableObject<Env> {
 
   /** The run's log: its transcript, projected like the chat. */
   async runLog(runId: string): Promise<{ run: WorkflowRun; entries: ChatEntry[] } | WorkflowError> {
-    const run = await this.store.getRun(runId);
-    if (!run) return { error: 'No such run.', status: 404 };
+    const stored = await this.store.getRun(runId);
+    if (!stored) return { error: 'No such run.', status: 404 };
+    const run = await this.#settleLazily(stored);
     const entries = projectEntries(await this.harness.session(run.sessionId).messages());
     return { run: publicRun((await this.store.getRun(runId)) ?? run), entries };
   }
@@ -227,15 +239,44 @@ export class WorkflowAgents extends DurableObject<Env> {
     const run = await this.store.getRun(runId);
     if (!run || run.status === 'done' || run.status === 'failed') return;
     const result = await this.harness.session(run.sessionId).wait(run.id, AbortSignal.timeout(14 * 60_000)).catch(() => null);
-    if (!result) return; // still waiting (e.g. for approval); the decision settles it later
-    const status = result.status === 'done' ? 'done' : 'failed';
-    const endedAt = new Date().toISOString();
-    await this.store.updateRun(runId, { status, endedAt, summary: result.text ?? result.reason ?? null });
+    if (!result) return; // still waiting (e.g. for approval); the decision settles it later, or the next read does
+    await this.#record(runId, {
+      status: result.status === 'done' ? 'done' : 'failed',
+      endedAt: new Date().toISOString(),
+      summary: result.text ?? result.reason ?? null,
+    });
+  }
+
+  /**
+   * `#settle` waits in memory, so a deploy or an eviction loses it and the run would stay `running` for good. Called
+   * wherever a run is read: a run stored as `running` whose Pi operation has ended is recorded with its outcome, and
+   * one older than 15 minutes whose session is not working is recorded as failed. Returns the run as it now is.
+   */
+  async #settleLazily(run: WorkflowRun): Promise<WorkflowRun> {
+    if (run.status !== 'running') return run;
+    const session = this.harness.session(run.sessionId);
+    const result = await session.wait(run.id, AbortSignal.timeout(PROBE_MS)).catch(() => null);
+    const probe: RunProbe = result
+      ? { finished: { status: result.status === 'done' ? 'done' : 'failed', summary: result.text ?? result.reason ?? null } }
+      : { live: await session.busy().catch(() => false) };
+    const outcome = lazySettlement(run, probe, new Date());
+    if (!outcome) return run;
+    await this.#record(run.id, outcome);
+    return (await this.store.getRun(run.id)) ?? run;
+  }
+
+  /** Records how a run ended, on the run and on its workflow. A run already recorded as ended is left as it is. */
+  async #record(runId: string, outcome: Pick<WorkflowRun, 'status' | 'endedAt' | 'summary'>): Promise<void> {
+    const run = await this.store.getRun(runId);
+    if (!run || run.status === 'done' || run.status === 'failed') return;
+    await this.store.updateRun(runId, outcome);
     const workflow = await this.store.getWorkflow(run.workflowId);
     if (!workflow) return;
     // An email workflow that has used up its days or its emails turns itself off here, not only at its next run.
     const enabled = workflow.enabled && !emailWorkflowBlocked(workflow, new Date());
-    await this.store.putWorkflow({ ...workflow, enabled, lastRun: { runId, at: run.startedAt, status } });
+    // A later run of the workflow may have started since: only this run's own `lastRun` is updated.
+    const lastRun = workflow.lastRun?.runId === runId || !workflow.lastRun ? { runId, at: run.startedAt, status: outcome.status } : workflow.lastRun;
+    await this.store.putWorkflow({ ...workflow, enabled, lastRun });
   }
 
   #createRegistry() {

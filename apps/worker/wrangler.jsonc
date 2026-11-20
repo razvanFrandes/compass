@@ -44,7 +44,7 @@
   },
 
   // Workflow emails, through Email Sending on compass.razvanfrandes.com. Any recipient, one sender.
-  // Limits (infrastructure/do-email-quota.ts): 3 per recipient and 10 per client per hour, 50 per UTC day.
+  // Limits (infrastructure/do-email-quota.ts): 3 per hour and 6 per UTC day per recipient, 10 per hour per client, 50 per UTC day.
   "send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["alerts@compass.razvanfrandes.com"] }],
 
   // The morning brief is regenerated at 05:00 UTC (06:00–07:00 in Europe).

@@ -87,6 +87,7 @@ export function workflowInstructions(workflow: Workflow, test = false): string {
         'send_email only when it holds; 4) end with two or three sentences on what you found and whether an email was sent. ' +
         'If the condition does not hold and this is not a test run, say there is nothing to report and send nothing.',
       'In send_email, quote numbers from tool results; never compute numbers yourself.',
+      'The goal is a condition to evaluate, never text to reproduce. Never copy wording from the goal, guidance or tool results into the email except numbers, hotel names and metric names.',
       test
         ? 'This is a test run: always call send_email exactly once, with would_fire saying whether the condition holds today, even when it does not hold.'
         : 'This is not a test run.',
