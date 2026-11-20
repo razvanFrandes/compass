@@ -181,7 +181,7 @@ export function shapeFindReviews(rows: readonly FindReviewsRow[], context: { mod
       : `Coverage: ${scope.embedded_passages} of ${scope.scope_passages} distinct sentences from ${scope.scope_reviews} reviews in scope are embedded` +
         (scope.embedded_from ? ` (reviews dated ${scope.embedded_from} to ${scope.embedded_to}).` : '.');
   const notes = [
-    `Semantic search with ${context.model}: passages ranked by cosine similarity to "${context.question}", at least ${MIN_SIMILARITY}.`,
+    `Semantic search with ${context.model}: review sentences ranked by cosine similarity to "${context.question}", at least ${MIN_SIMILARITY}.`,
     'One row per distinct review sentence; mentions counts the reviews in scope that contain it; hotel_code, review_date, source, overall_score and review_text are from its latest review.',
     coverage,
     ...(matches.length === 0 && scope.scope_passages > 0 ? ['No sentence is close enough in meaning. Try other words, a wider period or search_reviews for an exact phrase.'] : []),
@@ -210,7 +210,11 @@ export async function findReviews(
   try {
     raw = await db.query<FindReviewsRow>(query.sql, query.params);
   } catch (error) {
-    return err({ kind: 'database', message: error instanceof Error ? error.message : String(error) });
+    const message = error instanceof Error ? error.message : String(error);
+    if (/review_passages|type "?public\.vector"? does not exist|schema "public"/.test(message)) {
+      return err({ kind: 'invalid', message: 'This database has no review embeddings (hotel.review_passages), so semantic search is unavailable. Use search_reviews with a phrase.' });
+    }
+    return err({ kind: 'database', message });
   }
   const shaped = shapeFindReviews(raw, { model: embedder.model, question, period: query.period });
   const evidence: Evidence = {

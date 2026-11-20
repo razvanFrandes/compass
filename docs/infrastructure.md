@@ -88,7 +88,7 @@ create index review_passages_embedding_hnsw on hotel.review_passages
   RAG_VM=1 pnpm --filter @compass/worker exec vitest run test/review-search.vm.test.ts
   ```
   - They cover the planted stories S3 (DPS kitchen shortage) and S5 (BCN renovation noise), asked in other words than the reviews use.
-  - The local Postgres 16 has no pgvector. Locally, `find_reviews` is offered but reports that it is unavailable until an embedder is wired in.
+  - The local Postgres 16 has no pgvector. Against it, `find_reviews` answers that semantic search is unavailable and points to `search_reviews`. To try it under `wrangler dev`, point `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` at the tunnel.
 
 ## Local development
 

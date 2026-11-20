@@ -144,7 +144,7 @@ Each row is one distinct review sentence:
 { "sentiment": "complaint", "quote": "Construction noise from the floor below started early every morning.",
   "similarity": 0.752, "mentions": 331, "share_pct": 20.5, "first_date": "2026-09-23", "last_date": "2026-11-19",
   "mentions_by_hotel": { "BCN": 331 },
-  "hotel_code": "BCN", "review_date": "2026-11-19", "source": "Google", "overall_score": 6.9,
+  "hotel_code": "BCN", "review_date": "2026-11-19", "source": "Booking.com", "overall_score": 8.1,
   "review_text": "Construction noise from the floor below started early every morning." }
 ```
 

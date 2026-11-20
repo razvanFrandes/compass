@@ -176,6 +176,8 @@ describe('findReviews', () => {
     const failing: Embedder = { model: 'm', dimensions: 1, embed: async () => Promise.reject(new Error('AI down')) };
     const modelDown = await findReviews(fakeDb([]), failing, { question: 'noise' }, '2026-11-20');
     expect(modelDown.ok ? null : modelDown.error.message).toMatch(/Could not embed the question: AI down/);
+    const noStore = await findReviews(fakeDb(new Error('relation "hotel.review_passages" does not exist')), fakeEmbedder(), { question: 'noise' }, '2026-11-20');
+    expect(noStore.ok ? null : noStore.error).toMatchObject({ kind: 'invalid', message: expect.stringMatching(/search_reviews/) });
     const dbDown = await findReviews(fakeDb(new Error('timeout')), fakeEmbedder(), { question: 'noise' }, '2026-11-20');
     expect(dbDown.ok ? null : dbDown.error).toEqual({ kind: 'database', message: 'timeout' });
   });
