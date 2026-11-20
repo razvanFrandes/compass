@@ -16,18 +16,27 @@
 
   // Kassandra: one Durable Object per conversation, running pi-durable through PiHarness.
   // Briefs: the morning brief, one object for the group.
+  // Budget: the public demo's daily budget (questions, workflow runs, decisions, brief refreshes), one object.
   "durable_objects": {
     "bindings": [
       { "name": "KASSANDRA", "class_name": "Kassandra" },
       { "name": "BRIEFS", "class_name": "Briefs" },
-      { "name": "WORKFLOWS", "class_name": "WorkflowAgents" }
+      { "name": "WORKFLOWS", "class_name": "WorkflowAgents" },
+      { "name": "BUDGET", "class_name": "Budget" }
     ]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["Kassandra"] },
     { "tag": "v2", "new_sqlite_classes": ["Briefs"] },
-    { "tag": "v3", "new_sqlite_classes": ["WorkflowAgents"] }
+    { "tag": "v3", "new_sqlite_classes": ["WorkflowAgents"] },
+    { "tag": "v4", "new_sqlite_classes": ["Budget"] }
   ],
+
+  // Daily limits for every visitor together, per UTC day (docs/security.md). A missing key keeps its default.
+  // Optional secret ADMIN_KEY (wrangler secret put ADMIN_KEY): the x-compass-admin-key header then skips these limits.
+  "vars": {
+    "DAILY_LIMITS": { "question": 300, "workflow_run": 60, "decision": 120, "brief_refresh": 24 }
+  },
 
   // The morning brief is regenerated at 05:00 UTC (06:00–07:00 in Europe).
   "triggers": { "crons": ["0 5 * * *"] },
