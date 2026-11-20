@@ -23,6 +23,17 @@ export interface Hotel {
 
 const MAX_ROWS = 200;
 
+const SCHEMA_NOTES = `Helpers (the definitions live in SQL; prefer them to re-deriving metrics):
+- hotel.v_hotel_day: occupancy, ADR, RevPAR per hotel and day, local currency plus room_revenue_eur; is_actual = before the business date.
+- hotel.v_comp_set_index: MPI, ARI, RGI per hotel and day (actuals only).
+- hotel.v_channel_month: gross revenue, commission and net revenue by channel and month (local currency).
+- hotel.v_rate_position: BAR vs comp set median per future night.
+- hotel.otb_as_of(as_of date, p_hotel text, stay_from date, stay_to date): what was on the books on a past day. Always pass a stay range.
+- hotel.pace_vs_stly(p_hotel text, days_ahead int): on the books now vs the same time last year.
+- hotel.eur_rate(currency, date): EUR per unit of a currency. hotel.business_date(): today in the data.
+Rules: money is in each hotel's local currency unless a column ends in _eur; convert with eur_rate() before comparing hotels.
+Ratios come from sums (sum(rooms_sold) / sum(rooms_available)), never from averaging daily ratios. Same time last year = date - 364.`;
+
 /** SQL aggregate per metric. `d` is hotel.v_hotel_day; `c` is hotel.comp_set_daily (joined for indices). */
 const METRIC_SQL: Record<MetricQuery['metric'], string> = {
   occupancy: 'round(100.0 * sum(d.rooms_sold) / nullif(sum(d.rooms_available), 0), 1)',
@@ -209,6 +220,16 @@ export class HotelData {
       [input.hotels?.length ? input.hotels : null],
       { sources: ['hotel.data_sources'] },
     );
+  }
+
+  /** A compact description of schema `hotel` for writing custom queries: every table and view with its columns. */
+  async getSchema(): Promise<string> {
+    const rows = await this.db.query<{ table_name: string; columns: string }>(
+      `select table_name, string_agg(column_name || ' ' || data_type, ', ' order by ordinal_position) as columns
+         from information_schema.columns where table_schema = 'hotel' group by 1 order by 1`,
+    );
+    const tables = rows.map((r) => `- hotel.${r.table_name}(${r.columns})`).join('\n');
+    return `${tables}\n\n${SCHEMA_NOTES}\nBusiness date: ${await this.businessDate()}.`;
   }
 
   /** Model-written SQL: guarded, capped at 200 rows, run by a read-only role with a 5 s timeout. */

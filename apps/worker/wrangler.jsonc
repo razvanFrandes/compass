@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "compass-juyo",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "routes": [{ "pattern": "juyo.razvanfrandes.com", "custom_domain": true }],
+  "observability": { "enabled": true },
+
+  // Postgres (the compass-datagen database) through Hyperdrive.
+  // Locally: CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE in .env (read-only role compass_ro).
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000" }],
+
+  // The public MCP endpoint: 60 requests per minute per client.
+  "ratelimits": [{ "name": "MCP_RATE_LIMIT", "namespace_id": "2001", "simple": { "limit": 60, "period": 60 } }]
+}
