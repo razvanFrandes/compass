@@ -1,10 +1,11 @@
-import { Grain, MetricKey, type DataResult } from '@compass/contracts';
+import { Grain, MetricKey, type DataResult, type Evidence } from '@compass/contracts';
 import { z } from 'zod';
 import { PNL_LINES, type FinanceError } from '../../application/finance-data.ts';
 import type { DataError, HotelData } from '../../application/hotel-data.ts';
 import type { Result } from '../../domain/result.ts';
 import { escapeUntrusted, untrustedBlock } from '../../domain/untrusted.ts';
 import { TOOL_FAILURE } from './run-tool.ts';
+import { sourceLabelsFor, TOOL_VIEWS } from './tool-views.ts';
 
 /**
  * The data tools, defined once. Two adapters expose them: the public MCP server (Claude Desktop and any other
@@ -86,8 +87,26 @@ export function failure(error: DataError | FinanceError): ToolOutcome {
 const fromResult = (result: Result<DataResult<object>, DataError | FinanceError>, untrusted?: string) =>
   result.ok ? success(result.value, untrusted) : failure(result.error);
 
+/**
+ * Adds what the UI needs to show the rows (tool-views.ts): the tool's human title, a column per row property and a
+ * name for each source. It goes into the evidence, so the model's text is unchanged.
+ */
+function withView(name: string, args: Record<string, unknown>, outcome: ToolOutcome): ToolOutcome {
+  const view = TOOL_VIEWS[name];
+  if (!outcome.ok || !view) return outcome;
+  const { rows, evidence } = outcome.structured as { rows?: unknown; evidence?: Evidence };
+  if (!evidence || !Array.isArray(rows)) return outcome;
+  const shown: Evidence = {
+    ...evidence,
+    title: view.titleFor?.(args) ?? view.title,
+    columns: view.columns(args, rows as Record<string, unknown>[]),
+    sourceLabels: sourceLabelsFor(evidence.sources),
+  };
+  return { ...outcome, structured: { ...outcome.structured, evidence: shown } };
+}
+
 function tool<S extends z.ZodObject>(definition: DataTool<S>): DataTool<S> {
-  return definition;
+  return { ...definition, run: async (data, args) => withView(definition.name, args, await definition.run(data, args)) };
 }
 
 export const DATA_TOOLS = [
@@ -103,7 +122,17 @@ export const DATA_TOOLS = [
     input: z.object({}),
     run: async (data) => {
       const { rows } = data.listMetrics();
-      return { ok: true, text: JSON.stringify(rows), structured: { rows } };
+      const evidence: Evidence = {
+        sources: ['governed metric catalog'],
+        definitions: {},
+        period: null,
+        sql: '',
+        params: [],
+        rowCount: rows.length,
+        businessDate: await data.businessDate(),
+        notes: ['The catalog is part of Compass, not a query: each definition is fixed and every ratio is computed from sums.'],
+      };
+      return { ok: true, text: JSON.stringify(rows), structured: { rows, evidence } };
     },
   }),
   tool({

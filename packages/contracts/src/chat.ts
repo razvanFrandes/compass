@@ -1,4 +1,5 @@
 import type { Evidence } from './evidence.ts';
+import type { HotelScope } from './hotels.ts';
 import type { WorkflowSpec } from './workflows.ts';
 
 /**
@@ -72,8 +73,11 @@ export type ChatServerMessage =
   | { type: 'error'; message: string };
 
 export type ChatClientMessage =
-  /** Ask a question. `id` makes a retried send idempotent. Sent while busy, it is queued as a follow-up. */
-  | { type: 'ask'; text: string; id?: string; mode?: AnswerMode }
+  /**
+   * Ask a question. `id` makes a retried send idempotent. Sent while busy, it is queued as a follow-up.
+   * `scope` limits the answer to some hotels: every data tool then reads only those. Absent or empty is the whole group.
+   */
+  | { type: 'ask'; text: string; id?: string; mode?: AnswerMode; scope?: HotelScope }
   /** Steer the running answer ("use last year instead"), joining it after the current round of tools. */
   | { type: 'steer'; text: string }
   /** Stop the running answer. */
