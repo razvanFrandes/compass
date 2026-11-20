@@ -55,7 +55,7 @@
   min-width: 28px;
   justify-content: center;
   padding: 0 8px;
-  border-radius: 7px;
+  border-radius: var(--radius-control, 7px);
   color: var(--muted-foreground);
   font-size: 12px;
   line-height: 1;
@@ -104,7 +104,7 @@
   position: relative;
   min-height: 0;
   flex: 1;
-  border-radius: 6px;
+  border-radius: var(--radius-control, 6px);
 }
 /* Numbers line up in ticks, labels and tooltips; Inter's open digits and disambiguated l. */
 .wc-plot svg text,
@@ -268,7 +268,7 @@
   min-width: 0;
   flex-direction: column;
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-container, 10px);
   background: color-mix(in srgb, var(--foreground) 4%, transparent);
 }
 .wc-tile-value {
@@ -356,7 +356,7 @@
   height: 100%;
   flex-direction: column;
   overflow-y: auto;
-  border-radius: 6px;
+  border-radius: var(--radius-control, 6px);
 }
 .wc-spark-row {
   display: grid;
@@ -399,7 +399,7 @@
   min-height: 0;
   flex: 1;
   overflow: auto;
-  border-radius: 6px;
+  border-radius: var(--radius-control, 6px);
 }
 .wc-table {
   width: 100%;

@@ -127,7 +127,7 @@ export function nodePatch(node: Pick<WorkflowNode, 'id' | 'kind'>, draft: Workfl
       width: 100%;
       min-height: 36px;
       padding: 7px 10px;
-      border-radius: 8px;
+      border-radius: var(--radius-control, 8px);
       border: 1px solid var(--input);
       background: var(--field);
       color: var(--foreground);
@@ -140,7 +140,7 @@ export function nodePatch(node: Pick<WorkflowNode, 'id' | 'kind'>, draft: Workfl
       .wb-input { min-height: 44px; font-size: 16px; }
     }
     .wb-input::placeholder { color: var(--muted-foreground); }
-    .wb-input:focus-visible { border-color: var(--focus-brand); box-shadow: 0 0 0 3px rgb(153 106 213 / 0.28); }
+    .wb-input:focus-visible { border-color: var(--focus-brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-brand) 28%, transparent); }
     .wb-input[aria-invalid='true'] { border-color: var(--destructive); }
     textarea.wb-input { resize: vertical; min-height: 96px; }
     .wb-choice {
@@ -149,7 +149,7 @@ export function nodePatch(node: Pick<WorkflowNode, 'id' | 'kind'>, draft: Workfl
       gap: 10px;
       min-height: 40px;
       padding: 8px 10px;
-      border-radius: 8px;
+      border-radius: var(--radius-control, 8px);
       border: 1px solid var(--input);
       font-size: 14px;
       cursor: pointer;

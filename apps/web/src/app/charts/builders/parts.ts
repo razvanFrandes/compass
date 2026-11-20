@@ -1,8 +1,8 @@
 import { formatValue } from '../format';
-import { catColor, inkOn, mix } from '../tokens';
+import { catColor, inkOn, mix, markRadius } from '../tokens';
 import type { EvidenceColumn } from '../widget-types';
 import { buildBar } from './cartesian';
-import { type Built, type Ctx, type LegendItem, FONT, baseOption, cell, column, distinct, empty, extremes, label, numberAt, pickLabelKey, pickValueKey, specKeys, summary, tableModel, tip, tooltip, valueColumn } from './shared';
+import { type Built, type Ctx, type LegendItem, baseOption, cell, column, distinct, empty, extremes, label, numberAt, pickLabelKey, pickValueKey, specKeys, summary, tableModel, tip, tooltip, valueColumn } from './shared';
 
 /* Parts of a whole and flows: pie, donut, funnel, treemap and sankey. */
 
@@ -63,16 +63,16 @@ function pieLike(c: Ctx, donut: boolean): Built {
         clockwise: true,
         avoidLabelOverlap: true,
         // Parts are separated by a gap in the surface colour, never by an outline.
-        itemStyle: { borderColor: c.t.surface, borderWidth: 2, borderRadius: donut ? 3 : 2 },
+        itemStyle: { borderColor: c.t.surface, borderWidth: 2, borderRadius: markRadius(c.t, donut ? 3 : 2) },
         emphasis: { scale: true, scaleSize: 3 },
         data: ps.map((p, i) => ({ name: p.name, value: p.value, itemStyle: { color: colors[i] } })),
         label: outside
           ? {
               show: true,
               position: 'outside',
-              fontFamily: FONT,
+              fontFamily: c.t.font,
               formatter: (p: { dataIndex: number }) => `{n|${ps[p.dataIndex].name}}\n{s|${share(ps[p.dataIndex].value, total)}}`,
-              rich: { n: { color: c.t.text, fontSize: 12, lineHeight: 16, fontFamily: FONT }, s: { color: c.t.muted, fontSize: 11.5, lineHeight: 15, fontFamily: FONT } },
+              rich: { n: { color: c.t.text, fontSize: 12, lineHeight: 16, fontFamily: c.t.font }, s: { color: c.t.muted, fontSize: 11.5, lineHeight: 15, fontFamily: c.t.font } },
             }
           : { show: false },
         labelLine: { show: outside, length: 8, length2: 10, lineStyle: { color: c.t.muted, opacity: 0.6 } },
@@ -89,7 +89,7 @@ function pieLike(c: Ctx, donut: boolean): Built {
             style: {
               text: `{v|${formatValue(total, col, { compact: true })}}\n{l|Total}`,
               textAlign: 'center',
-              rich: { v: { fill: c.t.fg, fontSize: c.compact ? 18 : 22, fontWeight: 600, fontFamily: FONT, lineHeight: c.compact ? 24 : 28 }, l: { fill: c.t.muted, fontSize: 11.5, fontFamily: FONT, lineHeight: 16 } },
+              rich: { v: { fill: c.t.fg, fontSize: c.compact ? 18 : 22, fontWeight: 600, fontFamily: c.t.font, lineHeight: c.compact ? 24 : 28 }, l: { fill: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, lineHeight: 16 } },
             },
           },
         ]
@@ -122,18 +122,18 @@ export function buildFunnel(c: Ctx): Built {
   const ofTop = (i: number) => share(ps[i].value, top);
   const ofPrev = (i: number) => (i === 0 ? null : share(ps[i].value, ps[i - 1].value || 1));
   const data = ps.map((p, i) => ({ name: p.name, value: p.value, itemStyle: { color: colors[i] } }));
-  const rich = { n: { color: c.t.text, fontSize: 12, lineHeight: 16, fontFamily: FONT, fontWeight: 500 }, v: { color: c.t.muted, fontSize: 11.5, lineHeight: 15, fontFamily: FONT } };
+  const rich = { n: { color: c.t.text, fontSize: 12, lineHeight: 16, fontFamily: c.t.font, fontWeight: 500 }, v: { color: c.t.muted, fontSize: 11.5, lineHeight: 15, fontFamily: c.t.font } };
   // Value and share sit in two right-aligned columns of fixed width, so they line up down the funnel.
   const valueW = Math.max(...ps.map((p) => formatValue(p.value, col, { compact: true, unit: false }).length)) * 7.2 + 4;
   const columns = { n: { ...rich.n, width: valueW, align: 'right' }, v: { ...rich.v, width: 50, align: 'right' } };
-  const shape = { type: 'funnel', sort: 'none', gap: 2, minSize: '6%', maxSize: '100%', top: 6, bottom: 6, itemStyle: { borderWidth: 0, borderRadius: 2 }, emphasis: { disabled: false, label: { fontWeight: 500 } }, labelLine: { show: false } };
+  const shape = { type: 'funnel', sort: 'none', gap: 2, minSize: '6%', maxSize: '100%', top: 6, bottom: 6, itemStyle: { borderWidth: 0, borderRadius: markRadius(c.t, 2) }, emphasis: { disabled: false, label: { fontWeight: 500 } }, labelLine: { show: false } };
   const valueText = (i: number) => `${formatValue(ps[i].value, col, { compact: true, unit: false })} · ${ofTop(i)}`;
   const series = c.narrow
-    ? [{ ...shape, name: col.label, data, left: 4, width: '42%', funnelAlign: 'left', label: { show: true, position: 'right', fontFamily: FONT, formatter: (p: { dataIndex: number }) => `{n|${ps[p.dataIndex].name}}\n{v|${valueText(p.dataIndex)}}`, rich } }]
+    ? [{ ...shape, name: col.label, data, left: 4, width: '42%', funnelAlign: 'left', label: { show: true, position: 'right', fontFamily: c.t.font, formatter: (p: { dataIndex: number }) => `{n|${ps[p.dataIndex].name}}\n{v|${valueText(p.dataIndex)}}`, rich } }]
     : [
-        { ...shape, name: col.label, data, left: '30%', width: '40%', label: { show: true, position: 'left', fontFamily: FONT, formatter: (p: { dataIndex: number }) => `{n|${ps[p.dataIndex].name}}`, rich } },
+        { ...shape, name: col.label, data, left: '30%', width: '40%', label: { show: true, position: 'left', fontFamily: c.t.font, formatter: (p: { dataIndex: number }) => `{n|${ps[p.dataIndex].name}}`, rich } },
         // The same shape again, invisible, to carry the values on the right.
-        { ...shape, name: `${col.label} values`, data: data.map((d) => ({ ...d, itemStyle: { color: 'transparent' } })), left: '30%', width: '40%', silent: true, z: 1, label: { show: true, position: 'right', fontFamily: FONT, formatter: (p: { dataIndex: number }) => `{n|${formatValue(ps[p.dataIndex].value, col, { compact: true, unit: false })}}{v|${ofTop(p.dataIndex)}}`, rich: columns }, tooltip: { show: false } },
+        { ...shape, name: `${col.label} values`, data: data.map((d) => ({ ...d, itemStyle: { color: 'transparent' } })), left: '30%', width: '40%', silent: true, z: 1, label: { show: true, position: 'right', fontFamily: c.t.font, formatter: (p: { dataIndex: number }) => `{n|${formatValue(ps[p.dataIndex].value, col, { compact: true, unit: false })}}{v|${ofTop(p.dataIndex)}}`, rich: columns }, tooltip: { show: false } },
       ];
   const option = {
     ...baseOption(c),
@@ -202,8 +202,8 @@ export function buildTreemap(c: Ctx): Built {
         nodeClick: false,
         breadcrumb: { show: false },
         animationDurationUpdate: c.motion ? 260 : 0,
-        label: { show: true, position: 'insideTopLeft', distance: 6, fontFamily: FONT, fontSize: 12, lineHeight: 16, overflow: 'truncate', formatter: (p: { name: string; value: number }) => `${p.name}\n${formatValue(p.value, col, { compact: true })}` },
-        upperLabel: parentKey ? { show: true, height: 22, color: c.t.text, fontFamily: FONT, fontSize: 11.5, fontWeight: 500, overflow: 'truncate' } : { show: false },
+        label: { show: true, position: 'insideTopLeft', distance: 6, fontFamily: c.t.font, fontSize: 12, lineHeight: 16, overflow: 'truncate', formatter: (p: { name: string; value: number }) => `${p.name}\n${formatValue(p.value, col, { compact: true })}` },
+        upperLabel: parentKey ? { show: true, height: 22, color: c.t.text, fontFamily: c.t.font, fontSize: 11.5, fontWeight: 500, overflow: 'truncate' } : { show: false },
         itemStyle: { borderColor: c.t.surface, borderWidth: 0, gapWidth: 2 },
         levels: parentKey ? [{ itemStyle: { borderWidth: 0, gapWidth: 4 }, upperLabel: { show: false } }, { itemStyle: { borderColor: c.t.surface, borderWidth: 0, gapWidth: 2 }, upperLabel: { show: true } }, { itemStyle: { gapWidth: 2 } }] : [{ itemStyle: { borderWidth: 0, gapWidth: 2 } }],
         emphasis: { itemStyle: { borderColor: c.t.fg }, upperLabel: { color: c.t.fg } },
@@ -300,7 +300,7 @@ export function buildSankey(c: Ctx): Built {
         blur: { lineStyle: { opacity: 0.08 }, itemStyle: { opacity: 0.35 }, label: { opacity: 0.5 } },
         data: names.map((n) => ({
           name: n,
-          itemStyle: { color: color(n), borderWidth: 0, borderRadius: 2 },
+          itemStyle: { color: color(n), borderWidth: 0, borderRadius: markRadius(c.t, 2) },
           // The last column is labelled on its left, so no label leaves the chart.
           label: { position: sources.has(n) ? 'right' : 'left' },
         })),
@@ -308,9 +308,9 @@ export function buildSankey(c: Ctx): Built {
         lineStyle: { color: 'source', opacity: c.t.mode === 'dark' ? 0.32 : 0.26, curveness: 0.5 },
         label: {
           show: true,
-          fontFamily: FONT,
+          fontFamily: c.t.font,
           formatter: (p: { name: string }) => `{n|${p.name}}${c.narrow ? '' : `  {v|${formatValue(size(p.name), col, { compact: true })}}`}`,
-          rich: { n: { color: c.t.text, fontSize: 12, fontFamily: FONT }, v: { color: c.t.muted, fontSize: 11.5, fontFamily: FONT } },
+          rich: { n: { color: c.t.text, fontSize: 12, fontFamily: c.t.font }, v: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font } },
         },
       },
     ],

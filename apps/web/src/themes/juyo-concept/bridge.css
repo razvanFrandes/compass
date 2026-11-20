@@ -51,8 +51,8 @@
 
   /* Labels are sentence case. Capitals are for acronyms (ADR, RevPAR), not for decoration. */
   .uppercase:not(input, textarea) { text-transform: none; letter-spacing: var(--type-label-tracking); }
-  /* The workflow builder's step labels are styled inside the component; the class is repeated to outrank it. */
-  .wb-eyebrow.wb-eyebrow.wb-eyebrow { font-size: var(--type-label-size); font-weight: var(--jc-weight-medium); letter-spacing: var(--type-label-tracking); text-transform: none; }
+  /* The workflow builder's step labels, Agent Studio's eyebrows and the hotel picker's group headings are styled inside the component; the class is repeated to outrank it. */
+  .wb-eyebrow.wb-eyebrow.wb-eyebrow, .ws-eyebrow.ws-eyebrow.ws-eyebrow, .hp-heading.hp-heading.hp-heading { font-size: var(--type-label-size); font-weight: var(--jc-weight-medium); letter-spacing: var(--type-label-tracking); text-transform: none; }
 
   /* Radius: 2 for marks, 4 for controls, 6 for containers, 10 for overlays. */
   .rounded-xs, .rounded-sm, .rounded-\[2px\], .rounded-\[3px\] { border-radius: var(--radius-mark); }
@@ -277,6 +277,17 @@
   /* Charts drawn by ECharts: the theme sets axis and grid defaults (echart.ts); text takes the numeric cut here,
      because option builders name their font inline. */
   app-echart text { font-family: var(--font-numeric) !important; font-stretch: var(--font-width-numeric); font-variant-numeric: tabular-nums lining-nums; }
+
+  /* Widget charts (app/charts): the option carries the theme's font, colours, dash and mark radius (charts/tokens.ts).
+     What an SVG attribute cannot say is set here: the condensed cut for figures, and the weights of the scale.
+     The component's styles are unlayered and load later, so each rule names .juyo-wc to outrank them. */
+  .juyo-wc .wc-plot svg :is(text, tspan) { font-stretch: var(--font-width-numeric); font-feature-settings: normal; }
+  .juyo-wc .wc-title { font-weight: var(--type-strong-weight); letter-spacing: 0; }
+  .juyo-wc :is(.wc-kpi-value, .wc-tile-value) { font-weight: var(--type-metric-weight); }
+  .juyo-wc :is(.wc-table, .wc-spark-value, .wc-delta, .wc-ramp) { font-stretch: var(--font-width-numeric); }
+  .juyo-wc .wc-table thead th { background: var(--table-header-surface); border-bottom-color: var(--border-strong); }
+  .juyo-wc .wc-table :is(td, tbody th) { border-bottom-color: var(--table-rule); }
+  .juyo-wc :is(.wc-mark, .wc-ramp-bar i) { border-radius: 1px; }
 
   /* Shell: the rail's current item is a filled row; the mobile bar keeps the paper surface. */
   nav[aria-label='Main']:not(.fixed) { border-right-color: transparent; }

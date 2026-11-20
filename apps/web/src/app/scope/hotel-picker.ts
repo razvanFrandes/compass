@@ -21,13 +21,13 @@ import { normalizeCodes, optionState, pickerGroups, scopeChips, toggleOption, ty
   host: { class: 'hp flex min-h-0 flex-col' },
   styles: `
     .hp-search {
-      display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-height: 40px; padding: 0 10px; border-radius: 10px;
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-height: 40px; padding: 0 10px; border-radius: var(--radius-container, 10px);
       border: 1px solid var(--input); background: var(--field); transition: border-color 150ms ease, box-shadow 150ms ease;
     }
-    .hp-search:focus-within { border-color: var(--focus-brand); box-shadow: 0 0 0 3px rgb(153 106 213 / 0.28); }
+    .hp-search:focus-within { border-color: var(--focus-brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-brand) 28%, transparent); }
     .hp-search input { flex: 1; min-width: 0; height: 38px; background: transparent; color: var(--foreground); font-size: 14px; outline: none; }
     .hp-search input::placeholder { color: var(--muted-foreground); }
-    .hp-clear { display: grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0; border-radius: 6px; color: var(--muted-foreground); outline: none; }
+    .hp-clear { display: grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0; border-radius: var(--radius-control, 6px); color: var(--muted-foreground); outline: none; }
     .hp-clear:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
 
     .hp-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex-shrink: 0; max-height: 92px; overflow-y: auto; padding-top: 10px; }
@@ -37,7 +37,7 @@ import { normalizeCodes, optionState, pickerGroups, scopeChips, toggleOption, ty
     }
     .hp-chip button { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 9999px; color: var(--muted-foreground); outline: none; }
     .hp-chip button:focus-visible { box-shadow: 0 0 0 2px var(--ring); color: var(--foreground); }
-    .hp-reset { height: 26px; padding: 0 8px; border-radius: 8px; font-size: 12.5px; color: var(--muted-foreground); text-decoration: underline; text-underline-offset: 2px; outline: none; }
+    .hp-reset { height: 26px; padding: 0 8px; border-radius: var(--radius-control, 8px); font-size: 12.5px; color: var(--muted-foreground); text-decoration: underline; text-underline-offset: 2px; outline: none; }
     .hp-reset:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
 
     .hp-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 10px -6px 0; padding: 0 6px 2px; outline: none; }
@@ -46,7 +46,7 @@ import { normalizeCodes, optionState, pickerGroups, scopeChips, toggleOption, ty
     .hp-group--quick { display: flex; flex-wrap: wrap; gap: 6px; }
     .hp-group--quick .hp-heading { flex-basis: 100%; margin-bottom: -2px; }
 
-    .hp-option { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 5px 8px; border-radius: 8px; cursor: pointer; scroll-margin: 28px 0 8px; }
+    .hp-option { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 5px 8px; border-radius: var(--radius-control, 8px); cursor: pointer; scroll-margin: 28px 0 8px; }
     .hp-option[data-active] { background: var(--overlay-hover); box-shadow: inset 0 0 0 1px var(--field-border-hover); }
     .hp-box {
       display: grid; place-items: center; width: 16px; height: 16px; flex-shrink: 0; border-radius: 4px; font-size: 11px;

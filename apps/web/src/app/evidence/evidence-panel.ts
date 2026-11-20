@@ -57,7 +57,7 @@ function bringToTop(card: HTMLElement): void {
   host: { class: '@container block min-w-0' },
   styles: `
     .ev-card {
-      border-radius: 14px;
+      border-radius: var(--radius-container, 14px);
       border: 1px solid var(--border);
       background: var(--card);
       transition:
@@ -74,7 +74,7 @@ function bringToTop(card: HTMLElement): void {
       align-items: center;
       gap: 12px;
       padding: 12px 14px 12px 16px;
-      border-radius: 14px;
+      border-radius: var(--radius-container, 14px);
       text-align: left;
       outline: none;
       cursor: pointer;
@@ -88,7 +88,7 @@ function bringToTop(card: HTMLElement): void {
       place-items: center;
       width: 28px;
       height: 28px;
-      border-radius: 8px;
+      border-radius: var(--radius-control, 8px);
       color: var(--muted-foreground);
       transition:
         background-color 130ms ease,
@@ -114,7 +114,7 @@ function bringToTop(card: HTMLElement): void {
       flex-direction: column;
       gap: 1px;
       padding: 11px 14px 12px;
-      border-radius: 12px;
+      border-radius: var(--radius-container, 12px);
       border: 1px solid var(--border);
       background: var(--card);
       text-align: left;
@@ -138,7 +138,7 @@ function bringToTop(card: HTMLElement): void {
     .ev-chip {
       display: inline-flex;
       align-items: center;
-      border-radius: 6px;
+      border-radius: var(--radius-control, 6px);
       background: color-mix(in srgb, var(--foreground) 8%, transparent);
       padding: 2px 8px;
       font-size: 12px;

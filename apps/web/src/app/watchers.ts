@@ -53,7 +53,7 @@ export const hotelName = (code: string) => HOTELS.find((h) => h.code === code)?.
     .ws-chip[data-tone='finding'], .ws-chip[data-tone='running'] { color: var(--foreground); }
     .ws-chip[data-tone='running']::before { animation: ws-blink 1.2s ease-in-out infinite; }
     @keyframes ws-blink { 50% { opacity: 0.25; } }
-    .ws-finding { padding: 11px 13px; border-radius: 10px; background: var(--field); border: 1px solid var(--border); }
+    .ws-finding { padding: 11px 13px; border-radius: var(--radius-container, 10px); background: var(--field); border: 1px solid var(--border); }
     .ws-finding[data-pending] { border-color: color-mix(in srgb, var(--decision) 50%, transparent); background: var(--decision-tint); }
     .ws-eyebrow { font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); }
 

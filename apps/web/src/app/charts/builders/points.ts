@@ -1,7 +1,7 @@
 import { formatDelta, formatValue, isNumericKind } from '../format';
 import { catColor, mix } from '../tokens';
 import type { EvidenceColumn } from '../widget-types';
-import { type Built, type Ctx, type LegendItem, FONT, baseOption, cell, column, empty, label, numberAt, pickLabelKey, pickValueKey, specKeys, summary, tableModel, textWidth, tip, tooltip, valueAxis, valueColumn, visibleKeys } from './shared';
+import { type Built, type Ctx, type LegendItem, baseOption, cell, column, empty, label, numberAt, pickLabelKey, pickValueKey, specKeys, summary, tableModel, textWidth, tip, tooltip, valueAxis, valueColumn, visibleKeys } from './shared';
 
 /* Scatter (the ARI × MPI quadrant), radar and gauge. */
 
@@ -50,7 +50,7 @@ export function buildScatter(c: Ctx): Built {
   const plotW = Math.max(120, c.width - 70);
   const roomRight = (p: { x: number }) => ((xr.max - p.x) / (xr.max - xr.min)) * plotW;
   const refLabel = (isIdx: boolean, v: number, col: EvidenceColumn) => (isIdx ? '100' : `median ${formatValue(v, col, { compact: true })}`);
-  const caption = { color: c.t.muted, fontSize: 11, fontFamily: FONT, opacity: 0.9 };
+  const caption = { color: c.t.muted, fontSize: 11, fontFamily: c.t.font, opacity: 0.9 };
   const option = {
     ...baseOption(c),
     grid: { left: 10, right: 16, top: 26, bottom: 26, containLabel: true },
@@ -65,8 +65,8 @@ export function buildScatter(c: Ctx): Built {
         ]);
       },
     }),
-    xAxis: valueAxis(c, xCol, { ...xr, name: xCol.label, nameLocation: 'middle', nameGap: 26, nameTextStyle: { color: c.t.muted, fontSize: 11.5, fontFamily: FONT }, axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: FONT, formatter: (v: number) => formatValue(Math.round(v * 10) / 10, xCol, { axis: true }) }, splitLine: { show: false } }),
-    yAxis: valueAxis(c, yCol, { ...yr, name: yCol.label, nameLocation: 'end', nameGap: 10, nameTextStyle: { color: c.t.muted, fontSize: 11.5, fontFamily: FONT, align: 'left' }, axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: FONT, formatter: (v: number) => formatValue(Math.round(v * 10) / 10, yCol, { axis: true }) }, splitLine: { show: false } }),
+    xAxis: valueAxis(c, xCol, { ...xr, name: xCol.label, nameLocation: 'middle', nameGap: 26, nameTextStyle: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font }, axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, formatter: (v: number) => formatValue(Math.round(v * 10) / 10, xCol, { axis: true }) }, splitLine: { show: false } }),
+    yAxis: valueAxis(c, yCol, { ...yr, name: yCol.label, nameLocation: 'end', nameGap: 10, nameTextStyle: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, align: 'left' }, axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, formatter: (v: number) => formatValue(Math.round(v * 10) / 10, yCol, { axis: true }) }, splitLine: { show: false } }),
     series: [
       {
         type: 'scatter',
@@ -77,14 +77,14 @@ export function buildScatter(c: Ctx): Built {
         // A ring in the surface colour keeps overlapping points apart.
         itemStyle: { color: c.t.series, borderColor: c.t.surface, borderWidth: 2 },
         emphasis: { scale: 1.3, itemStyle: { borderColor: c.t.fg, borderWidth: 1 } },
-        label: { show: pts.length <= (c.narrow ? 12 : 28), position: 'right', distance: 5, color: c.t.text, fontSize: 11.5, fontFamily: FONT, formatter: (p: { dataIndex: number }) => pts[p.dataIndex].name },
+        label: { show: pts.length <= (c.narrow ? 12 : 28), position: 'right', distance: 5, color: c.t.text, fontSize: 11.5, fontFamily: c.t.font, formatter: (p: { dataIndex: number }) => pts[p.dataIndex].name },
         labelLayout: { hideOverlap: true },
         markLine: {
           silent: true,
           symbol: 'none',
           animation: false,
           lineStyle: { color: c.t.ref, width: 1, type: 'solid', opacity: 0.55 },
-          label: { color: c.t.muted, fontSize: 11, fontFamily: FONT },
+          label: { color: c.t.muted, fontSize: 11, fontFamily: c.t.font },
           data: [
             // An index line needs no label (the axis says 100); a median does.
             { xAxis: xRef, label: { show: !xIndex, formatter: refLabel(xIndex, xRef, xCol), position: 'end' } },
@@ -174,7 +174,7 @@ export function buildRadar(c: Ctx): Built {
       radius: c.narrow ? '60%' : '72%',
       splitNumber: 4,
       indicator: axes.map((name) => ({ name, max, min })),
-      axisName: { color: c.t.text, fontSize: 11.5, fontFamily: FONT },
+      axisName: { color: c.t.text, fontSize: 11.5, fontFamily: c.t.font },
       axisNameGap: 8,
       axisLine: { lineStyle: { color: c.t.grid } },
       splitLine: { lineStyle: { color: c.t.grid } },
@@ -187,7 +187,7 @@ export function buildRadar(c: Ctx): Built {
       symbolSize: 6,
       z: s.compare ? 1 : 2,
       data: [{ value: s.values, name: s.name }],
-      lineStyle: { color: s.color, width: 2, type: s.compare ? [4, 4] : 'solid' },
+      lineStyle: { color: s.color, width: 2, type: s.compare ? [...c.t.cmpDash] : 'solid' },
       itemStyle: { color: s.color, borderColor: c.t.surface, borderWidth: 1.5 },
       areaStyle: s.compare ? undefined : { color: s.color, opacity: 0.12 },
       emphasis: { lineStyle: { width: 2 } },
@@ -237,9 +237,9 @@ export function buildGauge(c: Ctx): Built {
         // The unfilled track is a lighter step of the same blue, so the arc reads as one scale.
         axisLine: { roundCap: true, lineStyle: { width: band, color: [[1, mix(c.t.series, c.t.surface, 0.18)]] } },
         pointer: { show: false },
-        axisLabel: { show: true, distance: -band - 24, color: c.t.muted, fontSize: 11, fontFamily: FONT, formatter: (v: number) => formatValue(v, col, { axis: true }) },
-        title: { show: true, offsetCenter: [0, '24%'], color: c.t.muted, fontSize: 12, fontFamily: FONT },
-        detail: { valueAnimation: c.motion, offsetCenter: [0, '-8%'], color: c.t.fg, fontSize: c.compact ? 26 : 32, fontWeight: 600, fontFamily: FONT, formatter: (v: number) => formatValue(v, col, { compact: true }) },
+        axisLabel: { show: true, distance: -band - 24, color: c.t.muted, fontSize: 11, fontFamily: c.t.font, formatter: (v: number) => formatValue(v, col, { axis: true }) },
+        title: { show: true, offsetCenter: [0, '24%'], color: c.t.muted, fontSize: 12, fontFamily: c.t.font },
+        detail: { valueAnimation: c.motion, offsetCenter: [0, '-8%'], color: c.t.fg, fontSize: c.compact ? 26 : 32, fontWeight: 600, fontFamily: c.t.font, formatter: (v: number) => formatValue(v, col, { compact: true }) },
       },
       ...(target !== null
         ? [

@@ -273,4 +273,27 @@
     --icon-quiet: var(--jc-night-8);
     color: var(--foreground);
   }
+
+  /* What floats out of the rail (the hotel picker is a dialog inside it) is paper again: a popover takes the
+     page's roles, not the inverse ones it would inherit. */
+  :is(nav[aria-label='Main']:not(.fixed), [data-surface='inverse']) :is(dialog, [popover], [data-surface='paper']) {
+    --background: var(--jc-ink-2);
+    --foreground: var(--jc-ink-12);
+    --card: var(--jc-ink-0);
+    --muted: var(--jc-ink-3);
+    --muted-foreground: var(--jc-ink-10);
+    --secondary: var(--jc-ink-3);
+    --accent: var(--jc-ink-3);
+    --border: var(--jc-ink-5);
+    --field: var(--jc-ink-0);
+    --field-border: var(--jc-ink-6);
+    --overlay-hover: rgb(16 20 24 / 0.05);
+    --overlay-pressed: rgb(16 20 24 / 0.1);
+    --ring: var(--jc-blue-6);
+    --brass: var(--jc-orange-5);
+    --brass-ink: var(--jc-orange-6);
+    --text-1: var(--jc-ink-12);
+    --icon-quiet: var(--jc-ink-10);
+    color: var(--foreground);
+  }
 }

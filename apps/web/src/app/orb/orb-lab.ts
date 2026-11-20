@@ -120,7 +120,7 @@ const STATE_NOTES: Record<OrbState, string> = {
   `,
   styles: `
     .lab-btn {
-      border-radius: 8px;
+      border-radius: var(--radius-control, 8px);
       border: 1px solid var(--field-border);
       background: var(--field);
       padding: 7px 12px;

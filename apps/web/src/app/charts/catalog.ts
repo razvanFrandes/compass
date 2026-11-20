@@ -1,45 +1,19 @@
 import { Component, DOCUMENT, DestroyRef, computed, inject, signal } from '@angular/core';
 import { SPECIMENS, type Specimen } from './catalog-samples';
+import { CONCEPT_ONLY } from '../theme-lab/tokens';
 import { WIDGET_THEME_SCOPE, WidgetChart, type WidgetLoading } from './widget-chart';
 
-type Preview = 'app' | 'dark' | 'light' | 'both';
-type Scope = 'app' | 'dark' | 'light';
+type Preview = 'app' | 'dark' | 'light' | 'juyo-concept' | 'both';
+type Scope = 'app' | 'dark' | 'light' | 'juyo-concept';
 
 /** Bumps when the gallery changes its preview theme, so the widgets re-read their colours. */
 const previewTick = signal(0);
 
-/**
- * The design tokens of each theme, read from the stylesheet (`:root` is dark, `:root.light` overrides it), so a
- * preview can wear a theme without the gallery keeping a second copy of the palette.
- */
-function readThemeTokens(doc: Document): Record<'dark' | 'light', Record<string, string>> {
-  const out: Record<'dark' | 'light', Record<string, string>> = { dark: {}, light: {} };
-  const visit = (rules: CSSRuleList) => {
-    for (const rule of Array.from(rules)) {
-      const styled = rule as Partial<CSSStyleRule>;
-      if (styled.selectorText && styled.style) {
-        const selectors = styled.selectorText.split(',').map((x) => x.trim());
-        const target = selectors.includes(':root.light') ? out.light : selectors.includes(':root') ? out.dark : null;
-        if (target && styled.style.getPropertyValue('--background')) {
-          for (const name of Array.from(styled.style)) if (name.startsWith('--')) target[name] = styled.style.getPropertyValue(name).trim();
-        }
-      }
-      const nested = (rule as Partial<CSSGroupingRule>).cssRules;
-      if (nested) visit(nested);
-    }
-  };
-  for (const sheet of Array.from(doc.styleSheets)) {
-    try {
-      visit(sheet.cssRules);
-    } catch {
-      // A stylesheet from another origin (the font CSS) can't be read; it has no tokens.
-    }
-  }
-  return out;
-}
+/** A Light or Dark preview inside a concept page must not inherit the tokens only the concept theme declares. */
+const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
 
 /**
- * /catalog: every widget kind with sample rows, in either theme or both side by side, at both densities and
+ * /catalog: every widget kind with sample rows, in any of the three themes or all side by side, at both densities and
  * as skeletons. The design-system page for the chart catalogue.
  */
 @Component({
@@ -51,13 +25,13 @@ function readThemeTokens(doc: Document): Record<'dark' | 'light', Record<string,
     .cat-seg {
       display: inline-flex;
       padding: 2px;
-      border-radius: 9px;
+      border-radius: var(--radius-control, 9px);
       background: var(--muted);
     }
     .cat-seg button {
       height: 30px;
       padding: 0 12px;
-      border-radius: 7px;
+      border-radius: var(--radius-control, 7px);
       color: var(--muted-foreground);
       font-size: 13px;
       white-space: nowrap;
@@ -71,13 +45,13 @@ function readThemeTokens(doc: Document): Record<'dark' | 'light', Record<string,
     .cat-seg button[aria-pressed='true'] {
       background: var(--card);
       color: var(--foreground);
-      box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+      box-shadow: var(--elevation-raised, 0 1px 2px rgb(0 0 0 / 0.25));
     }
     .cat-play {
       height: 30px;
       padding: 0 12px;
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius-control, 8px);
       color: var(--foreground);
       font-size: 13px;
       white-space: nowrap;
@@ -114,7 +88,7 @@ function readThemeTokens(doc: Document): Record<'dark' | 'light', Record<string,
       min-width: 0;
       padding: 20px;
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: var(--radius-container, 14px);
       background: var(--card);
       color: var(--foreground);
     }
@@ -131,27 +105,25 @@ function readThemeTokens(doc: Document): Record<'dark' | 'light', Record<string,
     .cat-scope {
       height: 100%;
       min-width: 0;
-      border-radius: 18px;
+      border-radius: var(--radius-overlay, 18px);
       background: var(--background);
       color: var(--foreground);
     }
-    .cat-scope[data-scope='dark'],
-    .cat-scope[data-scope='light'] {
+    .cat-scope[data-theme] {
       padding: 12px;
     }
     @media (max-width: 479.98px) {
       .cat-card {
         padding: 16px;
       }
-      .cat-scope[data-scope='dark'],
-      .cat-scope[data-scope='light'] {
+      .cat-scope[data-theme] {
         padding: 8px;
       }
     }
   `,
   template: `
-    <div class="bg-background text-foreground min-h-full" [style]="vars(canvas())">
-      <div class="mx-auto flex max-w-[1240px] flex-col gap-10 px-[max(16px,env(safe-area-inset-left,0px))] pt-5 pb-28 sm:px-8 lg:pt-8 lg:pb-16">
+    <div class="bg-background text-foreground min-h-full" [class]="themeClass(canvas())" [attr.data-theme]="themeAttr(canvas())" [style]="themeReset(canvas())">
+      <div class="mx-auto flex flex-col gap-10 px-[max(16px,env(safe-area-inset-left,0px))] pt-5 pb-28 sm:px-8 lg:pt-8 lg:pb-16" [class]="both() ? 'max-w-[1640px]' : 'max-w-[1240px]'">
         <header class="flex flex-col gap-5">
           <div>
             <p class="text-muted-foreground text-[12px] font-medium tracking-[0.06em] uppercase">Design system</p>
@@ -199,10 +171,10 @@ function readThemeTokens(doc: Document): Record<'dark' | 'light', Record<string,
             <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[13.5px]/relaxed">{{ g.blurb }}</p>
             <div class="grid gap-4" [class]="both() ? '' : 'lg:grid-cols-2'">
               @for (sp of g.items; track sp.id) {
-                <div class="grid min-w-0 gap-4" [class]="both() ? 'lg:grid-cols-2' : sp.wide ? 'lg:col-span-2' : ''">
+                <div class="grid min-w-0 gap-4" [class]="both() ? 'lg:grid-cols-3' : sp.wide ? 'lg:col-span-2' : ''">
                   @for (scope of scopes(); track scope) {
-                    <div class="cat-scope" [attr.data-scope]="scope" [style]="vars(scope)">
-                      <article class="cat-card" [attr.aria-label]="sp.spec.kind + (both() ? ', ' + scope + ' theme' : '')">
+                    <div class="cat-scope" [class]="themeClass(scope)" [attr.data-theme]="themeAttr(scope)" [style]="themeReset(scope)">
+                      <article class="cat-card" [attr.aria-label]="sp.spec.kind + (both() ? ', ' + themeName(scope) + ' theme' : '')">
                         <p class="cat-kind mb-3"><b>{{ sp.spec.kind }}</b> · {{ mapping(sp) }}</p>
                         <juyo-widget-chart [spec]="sp.spec" [rows]="sp.rows" [columns]="sp.columns" [compact]="compact()" [loading]="loading()" />
                         @if (sp.shows) {
@@ -228,6 +200,7 @@ export class CatalogView {
     { value: 'app', label: 'App theme' },
     { value: 'dark', label: 'Dark' },
     { value: 'light', label: 'Light' },
+    { value: 'juyo-concept', label: 'Juyo concept' },
     { value: 'both', label: 'Side by side' },
   ];
 
@@ -264,21 +237,25 @@ export class CatalogView {
     this.timers = [setTimeout(() => this.loading.set('title'), 1400), setTimeout(() => this.setState('none'), 2800)];
   }
   protected readonly both = computed(() => this.preview() === 'both');
-  /** The theme of the page itself: the chosen one, or the app's when both are shown side by side. */
+  /** The theme of the page itself: the chosen one, or the app's when the three are shown side by side. */
   protected readonly canvas = computed<Scope>(() => (this.preview() === 'both' ? 'app' : (this.preview() as Scope)));
-  protected readonly scopes = computed<Scope[]>(() => (this.both() ? ['dark', 'light'] : ['app']));
+  protected readonly scopes = computed<Scope[]>(() => (this.both() ? ['dark', 'light', 'juyo-concept'] : ['app']));
 
-  private tokens?: Record<'dark' | 'light', Record<string, string>>;
-
-  /** Inline custom properties that put a subtree in a theme. "app" adds nothing: it inherits. */
-  protected vars(scope: Scope): Record<string, string> | null {
-    if (scope === 'app') return null;
-    this.tokens ??= readThemeTokens(this.doc);
-    const { dark, light } = this.tokens;
-    if (scope === 'dark') return { ...dark, 'color-scheme': 'dark' };
-    // Light overrides dark; tokens that point at other tokens are declared again so they resolve in this scope.
-    const derived = Object.fromEntries(Object.entries(dark).filter(([name, value]) => value.includes('var(') && !(name in light)));
-    return { ...derived, ...light, 'color-scheme': 'light' };
+  /**
+   * A preview wears a theme the way <html> does: `data-theme` selects the tokens (styles.css and the concept layer
+   * both accept it on any element) and the class tells Tailwind's `dark:` variant. "app" adds nothing: it inherits.
+   */
+  protected themeAttr(scope: Scope): string | null {
+    return scope === 'app' ? null : scope;
+  }
+  protected themeClass(scope: Scope): string {
+    return scope === 'app' ? '' : scope === 'dark' ? 'dark' : 'light';
+  }
+  protected themeReset(scope: Scope): Record<string, string> | null {
+    return scope === 'dark' || scope === 'light' ? RESET : null;
+  }
+  protected themeName(scope: Scope): string {
+    return scope === 'juyo-concept' ? 'Juyo concept' : scope;
   }
 
   protected setPreview(p: Preview) {

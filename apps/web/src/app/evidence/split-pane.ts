@@ -102,7 +102,7 @@ import { clampPosition, positionFromPointer, readSplit, splitKey, splitRange, wr
       place-items: center;
       width: 32px;
       height: 32px;
-      border-radius: 8px;
+      border-radius: var(--radius-control, 8px);
       color: var(--muted-foreground);
       outline: none;
       cursor: pointer;

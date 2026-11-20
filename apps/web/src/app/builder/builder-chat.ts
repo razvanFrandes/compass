@@ -32,7 +32,7 @@ export function richText(text: string): { text: string; bold: boolean }[] {
       display: block;
       width: 100%;
       padding: 10px 12px;
-      border-radius: 10px;
+      border-radius: var(--radius-container, 10px);
       border: 1px solid var(--field-border);
       background: var(--card);
       font-size: 13.5px;
@@ -41,9 +41,9 @@ export function richText(text: string): { text: string; bold: boolean }[] {
       outline: none;
       transition: border-color 150ms ease, background-color 150ms ease;
     }
-    @media (hover: hover) { .wb-starter:hover { border-color: rgb(169 126 230 / 0.55); background: var(--field); } }
+    @media (hover: hover) { .wb-starter:hover { border-color: color-mix(in srgb, var(--brand) 55%, transparent); background: var(--field); } }
     .wb-starter:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring); }
-    .wb-steps { outline: none; border-radius: 6px; }
+    .wb-steps { outline: none; border-radius: var(--radius-control, 6px); }
     .wb-steps:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring); }
     .wb-spin { animation: wb-spin 900ms linear infinite; }
     @keyframes wb-spin { to { transform: rotate(360deg); } }

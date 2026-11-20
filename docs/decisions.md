@@ -442,5 +442,11 @@ Kassandra is drawn by the same components wherever she appears (`apps/web/src/ap
 - **The concept theme is an additive layer** in `apps/web/src/themes/juyo-concept/`: `tokens.css` (primitive → semantic → component) and `bridge.css`, which maps the literal sizes, radii, shadows and timings that components still carry onto the tokens. No component template changed except the shell's theme switch.
 - **Direction:** a light working surface framed by Juyo's ink rail; colour means this period (blue), Kassandra (violet) or a decision (orange); one family, Archivo, on its width axis, with Chivo Mono for code; hairlines before shadows; 110 ms state changes. The spec is `docs/research/theme/juyo-concept-spec.md`, the research `docs/research/theme/juyo-concept-research.md`.
 - **`/theme-lab`** documents the system next to a default theme. Its tables read the rendered CSS, and its contrast audit computes WCAG 2 and APCA in the browser.
+- **After the merge with the rest of Round 2 (21 Nov 2026):**
+  - The switch is in the rail's footer under the label "Theme" (Light / Dark / Concept), with the theme lab below it. Until a choice is made, light or dark follows the OS.
+  - The widget catalogue reads the theme too: `charts/tokens.ts` takes the font (`--font-sans`), the categorical scale (`--cat-1…5`), the comparison dash and the largest mark radius from the tokens on the widget's element, and the builders draw with them. In the concept theme the comparison is slate and no longer doubles as the third category.
+  - `/catalog` previews wear a theme with `data-theme` (App theme, Dark, Light, Juyo concept, or the three side by side) instead of a copy of the palette in inline styles.
+  - The evidence panel, hotel picker, builder, catalogue and widget styles take their radii, shadows and scrims from the tokens with the old literal as the fallback (`var(--radius-container, 14px)`), so the default themes are unchanged.
+  - A dialog or popover that opens from the ink rail (the hotel picker) is paper again; it used to inherit the rail's inverse roles and showed white text on white.
 - **Open:** components should adopt the tokens so the bridge can shrink; the default themes should get the same non-colour tokens; the chart option builders should read `chartStyle()`.
 

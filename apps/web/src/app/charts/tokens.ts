@@ -34,7 +34,16 @@ export interface ChartTokens {
   neg: string;
   /** Categorical hues in their fixed order. */
   cat: readonly string[];
+  /** The font of every label ECharts draws: the theme's `--font-sans`. */
+  font: string;
+  /** Dash of a comparison line (`--chart-cmp-dash`). */
+  cmpDash: readonly number[];
+  /** The largest corner radius a mark may have (`--chart-bar-radius`); a theme with square-cut marks lowers it. */
+  markRadius: number;
 }
+
+/** What the default themes draw with; a theme overrides it with `--font-sans`. */
+export const DEFAULT_FONT = "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif";
 
 export const DARK_TOKENS: ChartTokens = {
   mode: 'dark',
@@ -53,6 +62,9 @@ export const DARK_TOKENS: ChartTokens = {
   pos: '#4cc38a',
   neg: '#f0616d',
   cat: ['#5b8deb', '#32bebf', '#9685e4', '#d9a441', '#e07bb0'],
+  font: DEFAULT_FONT,
+  cmpDash: [4, 4],
+  markRadius: 4,
 };
 
 export const LIGHT_TOKENS: ChartTokens = {
@@ -72,6 +84,9 @@ export const LIGHT_TOKENS: ChartTokens = {
   pos: '#1f7a55',
   neg: '#c2333f',
   cat: ['#2f66d0', '#1f8f90', '#7a68d8', '#a8740f', '#c2528f'],
+  font: DEFAULT_FONT,
+  cmpDash: [4, 4],
+  markRadius: 4,
 };
 
 /** The two categorical hues the app's tokens do not have yet (amber, pink), per theme. */
@@ -102,9 +117,30 @@ export function readTokens(el: Element): ChartTokens {
     decision: v('--decision', f.decision),
     pos: v('--positive', f.pos),
     neg: v('--negative', f.neg),
-    // The extra hues follow the surface, not a global class, so a scoped theme preview gets the right pair.
-    cat: [series, v('--series-3', f.cat[1]), cmp, EXTRA_CAT[mode][0], EXTRA_CAT[mode][1]],
+    // A theme with a categorical scale of its own (`--cat-1` … `--cat-5`, the Juyo concept) is drawn with it.
+    // Otherwise the extra hues follow the surface, not a global class, so a scoped theme preview gets the right pair.
+    cat: [series, v('--series-3', f.cat[1]), cmp, EXTRA_CAT[mode][0], EXTRA_CAT[mode][1]].map((fallback, i) => v(`--cat-${i + 1}`, fallback)),
+    font: v('--font-sans', f.font),
+    cmpDash: dash(v('--chart-cmp-dash', ''), f.cmpDash),
+    markRadius: px(v('--chart-bar-radius', ''), f.markRadius),
   };
+}
+
+function px(value: string, fallback: number): number {
+  const n = Number.parseFloat(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function dash(value: string, fallback: readonly number[]): readonly number[] {
+  const parts = value.split(/[\s,]+/).map(Number).filter((n) => Number.isFinite(n) && n > 0);
+  return parts.length ? parts : fallback;
+}
+
+/** A mark's corner radius, capped by the theme. */
+export function markRadius(t: ChartTokens, r: number): number;
+export function markRadius(t: ChartTokens, r: number[]): number[];
+export function markRadius(t: ChartTokens, r: number | number[]): number | number[] {
+  return typeof r === 'number' ? Math.min(r, t.markRadius) : r.map((n) => Math.min(n, t.markRadius));
 }
 
 function rgb(hex: string): [number, number, number] | null {

@@ -1,6 +1,6 @@
 import type { EChartsCoreOption } from 'echarts/core';
 import { EMPTY, type Delta, esc, formatValue, humanize, isNumericKind, num, parseDate } from '../format';
-import { type ChartTokens, DARK_TOKENS } from '../tokens';
+import { type ChartTokens, DARK_TOKENS, markRadius } from '../tokens';
 import type { ColumnKind, EvidenceColumn, WidgetKind, WidgetRow, WidgetSpec } from '../widget-types';
 
 /*
@@ -111,8 +111,6 @@ export type Built =
   | (BuiltBase & { render: 'empty'; message: string });
 
 export type Builder = (c: Ctx) => Built;
-
-export const FONT = "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif";
 
 /** Body heights are fixed per kind, so a skeleton and the finished widget have identical dimensions. */
 const HEIGHTS: Record<WidgetKind, [regular: number, compact: number]> = {
@@ -268,7 +266,7 @@ export function baseOption(c: Ctx): Record<string, unknown> {
     animationDurationUpdate: 260,
     animationEasing: 'cubicOut',
     backgroundColor: 'transparent',
-    textStyle: { fontFamily: FONT, color: c.t.muted, fontSize: 11.5 },
+    textStyle: { fontFamily: c.t.font, color: c.t.muted, fontSize: 11.5 },
     tooltip: tooltip(c),
   };
 }
@@ -281,8 +279,8 @@ export function tooltip(c: Ctx, extra: Record<string, unknown> = {}): Record<str
     borderColor: c.t.border,
     borderWidth: 1,
     padding: [8, 10],
-    textStyle: { color: c.t.fg, fontSize: 12, fontFamily: FONT },
-    extraCssText: 'border-radius:8px;box-shadow:0 8px 24px -8px rgb(0 0 0 / 0.35);font-variant-numeric:tabular-nums;max-width:280px;white-space:normal;',
+    textStyle: { color: c.t.fg, fontSize: 12, fontFamily: c.t.font },
+    extraCssText: `border-radius:${markRadius(c.t, 4) * 2}px;box-shadow:0 8px 24px -8px rgb(0 0 0 / 0.35);font-variant-numeric:tabular-nums;max-width:280px;white-space:normal;`,
     transitionDuration: c.motion ? 0.12 : 0,
     ...extra,
   };
@@ -317,7 +315,7 @@ export function valueAxis(c: Ctx, col: EvidenceColumn, extra: Record<string, unk
     axisLine: { show: false },
     axisTick: { show: false },
     splitNumber: c.height < 240 ? 3 : 4,
-    axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: FONT, formatter: (v: number) => formatValue(v, col, { axis: true }) },
+    axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, formatter: (v: number) => formatValue(v, col, { axis: true }) },
     splitLine: { lineStyle: { color: c.t.grid, width: 1 } },
     ...extra,
   };
@@ -329,7 +327,7 @@ export function categoryAxis(c: Ctx, data: string[], extra: Record<string, unkno
     data,
     axisLine: { lineStyle: { color: c.t.grid } },
     axisTick: { show: false },
-    axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: FONT, hideOverlap: true },
+    axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, hideOverlap: true },
     ...extra,
   };
 }

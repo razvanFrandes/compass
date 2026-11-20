@@ -104,7 +104,7 @@ export function namedScope(graph: WorkflowGraph, hotels: readonly string[] | und
     @keyframes wb-spin { to { transform: rotate(360deg); } }
     .wb-why {
       position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; width: min(300px, calc(100vw - 32px)); padding: 12px 14px;
-      border-radius: 12px; border: 1px solid var(--field-border); background: var(--popover); box-shadow: 0 16px 40px -16px rgb(0 0 0 / 0.7);
+      border-radius: var(--radius-container, 12px); border: 1px solid var(--field-border); background: var(--popover); box-shadow: var(--popover-shadow, 0 16px 40px -16px rgb(0 0 0 / 0.7));
       font-size: 13px; line-height: 19px;
     }
     @media (prefers-reduced-motion: reduce) {

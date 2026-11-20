@@ -21,7 +21,7 @@ const POP_WIDTH = 416;
   providers: [provideIcons({ phosphorBuildingsLight, phosphorCaretDownLight, phosphorCaretUpDownLight })],
   host: { class: 'block min-w-0', '(window:resize)': 'place()' },
   styles: `
-    .sw-side { display: flex; width: 100%; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; text-align: left; outline: none; transition: background-color 130ms ease; }
+    .sw-side { display: flex; width: 100%; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--radius-control, 8px); text-align: left; outline: none; transition: background-color 130ms ease; }
     .sw-chip {
       display: inline-flex; max-width: 100%; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border-radius: 9999px; outline: none;
       font-size: 12.5px; color: var(--foreground); background: var(--field); border: 1px solid var(--field-border-hover); transition: border-color 130ms ease;
@@ -37,8 +37,8 @@ const POP_WIDTH = 416;
     .sw-pop {
       position: fixed; inset: auto; left: var(--sw-x, 12px); top: var(--sw-y, 64px); margin: 0; padding: 0; overflow: hidden;
       width: min(${POP_WIDTH}px, calc(100vw - 16px)); max-width: none; max-height: min(620px, calc(100dvh - var(--sw-y, 64px) - 12px));
-      border: 1px solid var(--field-border); border-radius: 14px; background: var(--popover); color: var(--foreground);
-      box-shadow: 0 24px 60px -18px rgb(0 0 0 / 0.65), 0 2px 8px rgb(0 0 0 / 0.2);
+      border: 1px solid var(--field-border); border-radius: var(--radius-container, 14px); background: var(--popover); color: var(--foreground);
+      box-shadow: var(--popover-shadow, 0 24px 60px -18px rgb(0 0 0 / 0.65), 0 2px 8px rgb(0 0 0 / 0.2));
     }
     .sw-pop[open] { display: flex; flex-direction: column; animation: sw-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
     .sw-pop::backdrop { background: transparent; }
@@ -48,11 +48,11 @@ const POP_WIDTH = 416;
 
     @media ${PHONE} {
       .sw-pop {
-        inset: auto 0 0 0; width: 100vw; height: min(88dvh, 760px); max-height: none; border-width: 1px 0 0; border-radius: 18px 18px 0 0;
+        inset: auto 0 0 0; width: 100vw; height: min(88dvh, 760px); max-height: none; border-width: 1px 0 0; border-radius: var(--radius-overlay, 18px) var(--radius-overlay, 18px) 0 0;
         padding-bottom: env(safe-area-inset-bottom, 0px);
       }
       .sw-pop[open] { animation-name: sw-up; animation-duration: 220ms; }
-      .sw-pop::backdrop { background: rgb(0 0 0 / 0.55); }
+      .sw-pop::backdrop { background: var(--scrim, rgb(0 0 0 / 0.55)); }
       .sw-grabber { display: block; width: 36px; height: 4px; margin: 8px auto 0; border-radius: 9999px; background: var(--field-border-hover); flex-shrink: 0; }
     }
     @media (prefers-reduced-motion: reduce) {

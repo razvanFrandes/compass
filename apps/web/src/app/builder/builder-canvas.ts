@@ -111,10 +111,10 @@ export interface CanvasResult {
       --k: var(--brand);
       position: relative;
       width: 100%;
-      border-radius: 14px;
+      border-radius: var(--radius-container, 14px);
       border: 1px solid var(--field-border);
       background: var(--card);
-      box-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 10px 24px -18px rgb(0 0 0 / 0.7);
+      box-shadow: var(--elevation-raised, 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 10px 24px -18px rgb(0 0 0 / 0.7));
       transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
     }
     .wb-node[data-kind='scope'] { --k: var(--series); }
@@ -160,7 +160,7 @@ export interface CanvasResult {
       width: 32px;
       height: 32px;
       flex-shrink: 0;
-      border-radius: 8px;
+      border-radius: var(--radius-control, 8px);
       font-size: 18px;
       color: var(--k);
       background: color-mix(in srgb, var(--k) 15%, transparent);
@@ -190,10 +190,10 @@ export interface CanvasResult {
       align-items: flex-start;
       gap: 10px;
       padding: 10px 14px;
-      border-radius: 12px;
+      border-radius: var(--radius-container, 12px);
       border: 1px solid var(--field-border);
       background: var(--popover);
-      box-shadow: 0 16px 40px -20px rgb(0 0 0 / 0.8);
+      box-shadow: var(--popover-shadow, 0 16px 40px -20px rgb(0 0 0 / 0.8));
       font-size: 13.5px;
       line-height: 20px;
     }

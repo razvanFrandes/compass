@@ -1,5 +1,5 @@
 import { formatDelta, formatValue, isNumericKind, lowerIsBetter, num } from '../format';
-import { catColor } from '../tokens';
+import { catColor, markRadius } from '../tokens';
 import type { EvidenceColumn } from '../widget-types';
 import {
   type Built,
@@ -26,7 +26,6 @@ import {
   tooltip,
   valueAxis,
   valueColumn,
-  FONT,
 } from './shared';
 
 /*
@@ -164,11 +163,11 @@ function lineLike(c: Ctx, area: boolean): Built {
       symbolSize: 8,
       showSymbol: f.labels.length === 1,
       z: s.role === 'compare' ? 1 : 2,
-      lineStyle: { color: s.color, width: 2, type: s.role === 'compare' ? [4, 4] : 'solid', cap: 'round', join: 'round' },
+      lineStyle: { color: s.color, width: 2, type: s.role === 'compare' ? [...c.t.cmpDash] : 'solid', cap: 'round', join: 'round' },
       itemStyle: { color: s.color, borderColor: c.t.surface, borderWidth: 2 },
       emphasis: { focus: 'none', scale: false, lineStyle: { width: 2 } },
       areaStyle: area && s.role === 'main' ? { color: s.color, opacity: multi ? 0.1 : 0.14 } : undefined,
-      endLabel: direct ? { show: true, formatter: () => endText(s), color: s.role === 'compare' ? c.t.muted : c.t.text, fontSize: 12, fontWeight: multi ? 500 : 600, fontFamily: FONT, distance: 8 } : undefined,
+      endLabel: direct ? { show: true, formatter: () => endText(s), color: s.role === 'compare' ? c.t.muted : c.t.text, fontSize: 12, fontWeight: multi ? 500 : 600, fontFamily: c.t.font, distance: 8 } : undefined,
       labelLayout: direct ? { moveOverlap: 'shiftY' } : undefined,
     })),
   };
@@ -220,7 +219,7 @@ function nameAxis(c: Ctx, f: Frame) {
   return categoryAxis(c, f.labels, {
     inverse: true,
     axisLine: { show: false },
-    axisLabel: { color: c.t.text, fontSize: 12, fontFamily: FONT, width: nameWidth(c, f.labels), overflow: 'truncate', interval: 0, margin: 10 },
+    axisLabel: { color: c.t.text, fontSize: 12, fontFamily: c.t.font, width: nameWidth(c, f.labels), overflow: 'truncate', interval: 0, margin: 10 },
   });
 }
 
@@ -235,7 +234,7 @@ function valuesAxis(c: Ctx, f: Frame, s: Series) {
     inverse: true,
     position: 'right',
     axisLine: { show: false },
-    axisLabel: { interval: 0, margin: 10, color: c.t.text, fontSize: 12, fontFamily: FONT, formatter: (_: string, i: number) => fmt(s.values[i], s.col, true) },
+    axisLabel: { interval: 0, margin: 10, color: c.t.text, fontSize: 12, fontFamily: c.t.font, formatter: (_: string, i: number) => fmt(s.values[i], s.col, true) },
   });
 }
 
@@ -258,9 +257,9 @@ export function buildBar(c: Ctx, note?: string): Built {
     data: main.values,
     barMaxWidth: 20,
     barMinHeight: 1,
-    itemStyle: { color: main.color, borderRadius: f.wordy ? [0, 4, 4, 0] : [4, 4, 0, 0] },
+    itemStyle: { color: main.color, borderRadius: markRadius(c.t, f.wordy ? [0, 4, 4, 0] : [4, 4, 0, 0]) },
     emphasis: { itemStyle: { color: main.color, opacity: 0.85 } },
-    label: valueLabels && !column ? { show: true, position: f.wordy ? 'right' : 'top', distance: 6, color: c.t.text, fontSize: 12, fontFamily: FONT, formatter: (p: { dataIndex: number }) => fmt(main.values[p.dataIndex], main.col, true) } : undefined,
+    label: valueLabels && !column ? { show: true, position: f.wordy ? 'right' : 'top', distance: 6, color: c.t.text, fontSize: 12, fontFamily: c.t.font, formatter: (p: { dataIndex: number }) => fmt(main.values[p.dataIndex], main.col, true) } : undefined,
     labelLayout: f.wordy ? undefined : { hideOverlap: true },
   };
   // The comparison rides on each bar as a purple tick, so the bar itself stays the one thing to read.
@@ -309,7 +308,7 @@ function multiBar(c: Ctx, stacked: boolean): Built {
     barGap: stacked ? undefined : '12%',
     barCategoryGap: stacked ? '38%' : '30%',
     // A 2 px gap in the surface colour separates the parts of a stack; no outlines.
-    itemStyle: stacked ? { color: s.color, borderColor: c.t.surface, borderWidth: 1, borderRadius: 2 } : { color: s.color, borderRadius: f.wordy ? [0, 3, 3, 0] : [3, 3, 0, 0] },
+    itemStyle: stacked ? { color: s.color, borderColor: c.t.surface, borderWidth: 1, borderRadius: markRadius(c.t, 2) } : { color: s.color, borderRadius: markRadius(c.t, f.wordy ? [0, 3, 3, 0] : [3, 3, 0, 0]) },
     emphasis: { focus: 'series', blurScope: 'coordinateSystem' },
     blur: { itemStyle: { opacity: 0.35 } },
     label:
@@ -320,7 +319,7 @@ function multiBar(c: Ctx, stacked: boolean): Built {
             distance: 6,
             color: stacked || s.role === 'main' ? c.t.text : c.t.muted,
             fontSize: stacked ? 12 : 11.5,
-            fontFamily: FONT,
+            fontFamily: c.t.font,
             formatter: (p: { dataIndex: number }) => fmt(stacked ? totals[p.dataIndex] : s.values[p.dataIndex], s.col, true),
           }
         : undefined,
@@ -445,7 +444,7 @@ export function buildWaterfall(c: Ctx): Built {
         return s.type === 'total' ? tip(c, s.name, [{ label: col.label, value: formatValue(s.value, col) }]) : tip(c, s.name, [{ label: s.value >= 0 ? 'Adds' : 'Takes away', value: formatValue(Math.abs(s.value), col), color: color(s) }, { label: 'Running total', value: formatValue(s.end, col), muted: true }]);
       },
     }),
-    xAxis: categoryAxis(c, steps.map((s) => s.name), { axisLabel: tight ? { color: c.t.muted, fontSize: 11, fontFamily: FONT, interval: 0, rotate: 40, width: 76, overflow: 'truncate' } : { color: c.t.muted, fontSize: 11.5, fontFamily: FONT, interval: 0, width: Math.max(40, slot - 6), overflow: 'break', lineHeight: 14 } }),
+    xAxis: categoryAxis(c, steps.map((s) => s.name), { axisLabel: tight ? { color: c.t.muted, fontSize: 11, fontFamily: c.t.font, interval: 0, rotate: 40, width: 76, overflow: 'truncate' } : { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, interval: 0, width: Math.max(40, slot - 6), overflow: 'break', lineHeight: 14 } }),
     yAxis: valueAxis(
       c,
       col,
@@ -455,7 +454,7 @@ export function buildWaterfall(c: Ctx): Built {
             breaks: [{ ...brk, gap: '5%' }],
             breakArea: { itemStyle: { color: c.t.surface, borderColor: c.t.border, borderWidth: 1, borderType: 'solid', opacity: 1 }, zigzagAmplitude: 3 },
             // Below the break only zero is labelled; a tick squeezed against the break would read as part of it.
-            axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: FONT, formatter: (v: number) => (v > 0 && v <= brk.end ? '' : formatValue(v, col, { axis: true })) },
+            axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, formatter: (v: number) => (v > 0 && v <= brk.end ? '' : formatValue(v, col, { axis: true })) },
           }
         : { scale: false },
     ),
@@ -477,7 +476,7 @@ export function buildWaterfall(c: Ctx): Built {
           const next = steps[i + 1];
           const children: unknown[] = [
             { type: 'rect', shape: { x: a[0] - w / 2, y: top, width: w, height: h, r: 3 }, style: { fill: color(s) } },
-            { type: 'text', invisible: !labelled(s, i), style: { text: text(s), x: a[0], y: top - 6, textAlign: 'center', textVerticalAlign: 'bottom', fill: c.t.text, fontSize: slot < 62 ? 10.5 : 11.5, fontFamily: FONT, fontWeight: s.type === 'total' ? 600 : 500 } },
+            { type: 'text', invisible: !labelled(s, i), style: { text: text(s), x: a[0], y: top - 6, textAlign: 'center', textVerticalAlign: 'bottom', fill: c.t.text, fontSize: slot < 62 ? 10.5 : 11.5, fontFamily: c.t.font, fontWeight: s.type === 'total' ? 600 : 500 } },
           ];
           if (next) {
             const nx = api.coord([i + 1, 0])[0];
@@ -544,7 +543,7 @@ export function buildBullet(c: Ctx): Built {
     }),
     xAxis: hiddenValueAxis(c, col, { min: 0, max }),
     yAxis: [
-      categoryAxis(c, names, { inverse: true, axisLine: { show: false }, axisLabel: { color: c.t.text, fontSize: 12, fontFamily: FONT, width: nameW, overflow: 'truncate', interval: 0, margin: 10 } }),
+      categoryAxis(c, names, { inverse: true, axisLine: { show: false }, axisLabel: { color: c.t.text, fontSize: 12, fontFamily: c.t.font, width: nameW, overflow: 'truncate', interval: 0, margin: 10 } }),
       // The values sit in their own right-aligned column, so a target mark never runs into a number.
       categoryAxis(c, names, {
         inverse: true,
@@ -553,23 +552,23 @@ export function buildBullet(c: Ctx): Built {
         axisLabel: {
           interval: 0,
           margin: 10,
-          fontFamily: FONT,
+          fontFamily: c.t.font,
           formatter: (_: string, i: number) => {
             const d = deltas[i];
             const value = `{v|${fmt(actual[i], col, true)}}`;
             return d && !c.narrow ? `${value}{${d.tone}|${d.text}}` : value;
           },
           rich: {
-            v: { color: c.t.text, fontSize: 12, fontWeight: 500, fontFamily: FONT, width: valueW, align: 'right' },
-            good: { color: c.t.pos, fontSize: 11.5, fontFamily: FONT, width: 62, align: 'right' },
-            bad: { color: c.t.neg, fontSize: 11.5, fontFamily: FONT, width: 62, align: 'right' },
-            flat: { color: c.t.muted, fontSize: 11.5, fontFamily: FONT, width: 62, align: 'right' },
+            v: { color: c.t.text, fontSize: 12, fontWeight: 500, fontFamily: c.t.font, width: valueW, align: 'right' },
+            good: { color: c.t.pos, fontSize: 11.5, fontFamily: c.t.font, width: 62, align: 'right' },
+            bad: { color: c.t.neg, fontSize: 11.5, fontFamily: c.t.font, width: 62, align: 'right' },
+            flat: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, width: 62, align: 'right' },
           },
         },
       }),
     ],
     series: [
-      { type: 'bar', name: col.label, data: actual, barWidth: 10, showBackground: true, backgroundStyle: { color: c.t.grid, borderRadius: 3 }, itemStyle: { color: c.t.series, borderRadius: 3 }, emphasis: { itemStyle: { color: c.t.series, opacity: 0.85 } } },
+      { type: 'bar', name: col.label, data: actual, barWidth: 10, showBackground: true, backgroundStyle: { color: c.t.grid, borderRadius: markRadius(c.t, 3) }, itemStyle: { color: c.t.series, borderRadius: markRadius(c.t, 3) }, emphasis: { itemStyle: { color: c.t.series, opacity: 0.85 } } },
       ...(targetCol ? [{ type: 'scatter', name: targetCol.label, data: target, symbol: 'rect', symbolSize: [3, 22], itemStyle: { color: c.t.cmp, borderColor: c.t.surface, borderWidth: 1 }, emphasis: { scale: false }, z: 3 }] : []),
     ],
   };

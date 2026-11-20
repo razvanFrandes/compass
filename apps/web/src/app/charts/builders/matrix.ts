@@ -1,6 +1,6 @@
 import { formatDate, formatValue, isoDay, parseDate } from '../format';
-import { inkOn, seqColor, seqRamp } from '../tokens';
-import { type Built, type Ctx, type RampLegend, FONT, baseOption, categoryAxis, cell, column, distinct, empty, extremes, label, numberAt, pickValueKey, specKeys, summary, tableModel, textWidth, tip, tooltip, valueColumn } from './shared';
+import { inkOn, seqColor, seqRamp, markRadius } from '../tokens';
+import { type Built, type Ctx, type RampLegend, baseOption, categoryAxis, cell, column, distinct, empty, extremes, label, numberAt, pickValueKey, specKeys, summary, tableModel, textWidth, tip, tooltip, valueColumn } from './shared';
 
 /*
   Heatmap and calendar heatmap. Magnitude is one hue from near the surface to full blue: a hidden visualMap
@@ -55,14 +55,14 @@ export function buildHeatmap(c: Ctx): Built {
     }),
     visualMap: fills(c, min, max, 2),
     xAxis: categoryAxis(c, xLabels, { axisLine: { show: false }, splitArea: { show: false } }),
-    yAxis: categoryAxis(c, yLabels, { inverse: true, axisLine: { show: false }, axisLabel: { color: c.t.text, fontSize: 12, fontFamily: FONT, width: nameW, overflow: 'truncate', interval: 0, margin: 10 } }),
+    yAxis: categoryAxis(c, yLabels, { inverse: true, axisLine: { show: false }, axisLabel: { color: c.t.text, fontSize: 12, fontFamily: c.t.font, width: nameW, overflow: 'truncate', interval: 0, margin: 10 } }),
     series: [
       {
         type: 'heatmap',
         name: col.label,
         data: cells.map((p) => ({ value: [p.x, p.y, p.v], label: { color: inkOn(seqColor(c.t, p.v, min, max)) } })),
-        itemStyle: { borderColor: c.t.surface, borderWidth: 1, borderRadius: 3 },
-        label: { show: showValues, fontSize: 11, fontFamily: FONT, formatter: (p: { dataIndex: number }) => short(cells[p.dataIndex].v) },
+        itemStyle: { borderColor: c.t.surface, borderWidth: 1, borderRadius: markRadius(c.t, 3) },
+        label: { show: showValues, fontSize: 11, fontFamily: c.t.font, formatter: (p: { dataIndex: number }) => short(cells[p.dataIndex].v) },
         emphasis: { itemStyle: { borderColor: c.t.fg, borderWidth: 1 } },
       },
     ],
@@ -135,8 +135,8 @@ export function buildCalendarHeatmap(c: Ctx): Built {
       splitLine: { show: false },
       itemStyle: { color: 'transparent', borderColor: c.t.surface, borderWidth: 2 },
       yearLabel: { show: false },
-      monthLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: FONT, margin: 8, nameMap: 'EN' },
-      dayLabel: { firstDay: 1, color: c.t.muted, fontSize: 10.5, fontFamily: FONT, margin: 8, nameMap: lay.cell >= 16 ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['S', 'M', 'T', 'W', 'T', 'F', 'S'] },
+      monthLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, margin: 8, nameMap: 'EN' },
+      dayLabel: { firstDay: 1, color: c.t.muted, fontSize: 10.5, fontFamily: c.t.font, margin: 8, nameMap: lay.cell >= 16 ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['S', 'M', 'T', 'W', 'T', 'F', 'S'] },
     },
     series: [
       {
@@ -144,8 +144,8 @@ export function buildCalendarHeatmap(c: Ctx): Built {
         coordinateSystem: 'calendar',
         name: col.label,
         data: days.map((d) => ({ value: [isoDay(d.t), d.v], label: { color: inkOn(seqColor(c.t, d.v, min, max)) } })),
-        itemStyle: { borderRadius: 3 },
-        label: { show: dayNumbers, fontSize: 10.5, fontFamily: FONT, formatter: (p: { dataIndex: number }) => String(new Date(days[p.dataIndex].t).getUTCDate()) },
+        itemStyle: { borderRadius: markRadius(c.t, 3) },
+        label: { show: dayNumbers, fontSize: 10.5, fontFamily: c.t.font, formatter: (p: { dataIndex: number }) => String(new Date(days[p.dataIndex].t).getUTCDate()) },
         emphasis: { itemStyle: { borderColor: c.t.fg, borderWidth: 1 } },
       },
     ],

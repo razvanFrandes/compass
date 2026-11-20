@@ -46,7 +46,7 @@ interface Cell {
     .dt-frame {
       position: relative;
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: var(--radius-container, 10px);
       overflow: hidden;
       background: var(--dt-bg, var(--card));
     }

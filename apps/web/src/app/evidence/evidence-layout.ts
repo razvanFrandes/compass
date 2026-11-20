@@ -39,17 +39,17 @@ const DESKTOP = '(min-width: 1024px)';
       overflow: clip;
       border: 0;
       border-top: 1px solid var(--input);
-      border-radius: 18px 18px 0 0;
+      border-radius: var(--radius-overlay, 18px) var(--radius-overlay, 18px) 0 0;
       background: var(--background);
       color: var(--foreground);
-      box-shadow: 0 -24px 60px -12px rgb(0 0 0 / 0.6);
+      box-shadow: var(--dialog-shadow, 0 -24px 60px -12px rgb(0 0 0 / 0.6));
     }
     .ev-sheet[open] {
       display: flex;
       animation: ev-sheet-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
     }
     .ev-sheet::backdrop {
-      background: rgb(4 7 11 / 0.62);
+      background: var(--scrim, rgb(4 7 11 / 0.62));
       animation: ev-backdrop-in 200ms ease-out both;
     }
     .ev-grab {
