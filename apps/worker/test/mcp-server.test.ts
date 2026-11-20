@@ -31,7 +31,7 @@ describe('Compass MCP server', () => {
   it('lists read-only tools with descriptions', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
-      'get_account_production', 'get_channel_mix', 'get_data_health', 'get_fnb', 'get_inventory', 'get_labor', 'get_metric',
+      'get_account_production', 'get_brief', 'get_channel_mix', 'get_data_health', 'get_fnb', 'get_inventory', 'get_labor', 'get_metric',
       'get_mix', 'get_pace', 'get_pickup', 'get_rate_position', 'get_review_scores', 'get_schema', 'get_web_funnel',
       'list_hotels', 'list_metrics', 'run_readonly_query', 'search_reviews',
     ]);

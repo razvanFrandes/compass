@@ -41,7 +41,7 @@ describe('answer modes', () => {
     await root.configure(agentChangeFor('thinker', data), context);
     const agent = await root.agent(context);
 
-    expect(agent.tools).toHaveLength(18);
+    expect(agent.tools).toHaveLength(19);
     expect(agent.model).toEqual({ provider: 'cloudflare', modelId: 'anthropic/claude-sonnet-5.5' });
     await harness.close(context);
   });

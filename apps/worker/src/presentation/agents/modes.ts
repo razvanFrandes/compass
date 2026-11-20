@@ -19,6 +19,7 @@ export const QUICK_TOOLS = [
   'get_pickup',
   'get_rate_position',
   'get_data_health',
+  'get_brief',
 ] as const;
 
 const QUICK_INSTRUCTIONS =

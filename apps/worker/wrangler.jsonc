@@ -15,8 +15,20 @@
   "ai": { "binding": "AI" },
 
   // Kassandra: one Durable Object per conversation, running pi-durable through PiHarness.
-  "durable_objects": { "bindings": [{ "name": "KASSANDRA", "class_name": "Kassandra" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Kassandra"] }],
+  // Briefs: the morning brief, one object for the group.
+  "durable_objects": {
+    "bindings": [
+      { "name": "KASSANDRA", "class_name": "Kassandra" },
+      { "name": "BRIEFS", "class_name": "Briefs" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Kassandra"] },
+    { "tag": "v2", "new_sqlite_classes": ["Briefs"] }
+  ],
+
+  // The morning brief is regenerated at 05:00 UTC (06:00–07:00 in Europe).
+  "triggers": { "crons": ["0 5 * * *"] },
 
   // Public MCP: 60 requests per minute per client. Kassandra questions: 6 per minute per client.
   "ratelimits": [

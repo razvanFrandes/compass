@@ -80,9 +80,21 @@ Open a new socket with the same `conversation`. You get a fresh `snapshot`; merg
 
 It waits for the whole answer, with no streaming. Use the WebSocket in the UI.
 
+## Morning brief
+
+- **`GET /api/brief`** returns the latest `Brief` (`@compass/contracts` brief.ts):
+  - `{ businessDate, generatedAt, items, model, usage }`;
+  - each item is `{ id, kind, hotel_code, hotel_name, severity, impact_eur, impact_basis, title, facts, question, sources, summary? }`.
+- **Order:** `critical` items (a stale data feed) come first, then items by absolute EUR impact.
+  - `impact_eur < 0` is revenue lost or at risk;
+  - `impact_eur > 0` is revenue left on the table.
+- **What the AI does:** fixed SQL detectors find the items. The model (Claude Haiku) only writes `summary` from the item's facts, so show the AI label on `summary`. If the model fails, `summary` is absent: fall back to `title`.
+- **"Explore":** open Kassandra with `item.question`.
+- **Regeneration:** a cron regenerates the brief every morning at 05:00 UTC. `POST /api/brief/refresh` regenerates it now (rate-limited).
+
 ## MCP (public, read-only)
 
-`https://juyo.razvanfrandes.com/mcp` (Streamable HTTP) exposes 18 data tools. Kassandra uses the same tools. Connect Claude Desktop to it under Settings → Connectors → Add custom connector. Rate limit: 60 requests per minute per client.
+`https://juyo.razvanfrandes.com/mcp` (Streamable HTTP) exposes 19 data tools (including `get_brief`). Kassandra uses the same tools. Connect Claude Desktop to it under Settings → Connectors → Add custom connector. Rate limit: 60 requests per minute per client.
 
 ## Health
 

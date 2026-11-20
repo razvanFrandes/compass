@@ -215,6 +215,15 @@ export const DATA_TOOLS = [
     run: async (data, args) => success(await data.getInventory(args)),
   }),
   tool({
+    name: 'get_brief',
+    description:
+      "Today's morning brief findings across all hotels: stale data feeds, pace behind last year, underpriced high-demand " +
+      'nights, lost accounts, website conversion drops, staffing gaps and rooms out of order, each priced in EUR and ranked by money. ' +
+      'Start here for "what should I look at today?"',
+    input: z.object({}),
+    run: async (data) => success(await data.getBriefItems()),
+  }),
+  tool({
     name: 'get_data_health',
     description:
       'Data health: last sync and status of each source system (PMS, RMS, POS, …) per hotel. Check it before trusting a sudden drop.',

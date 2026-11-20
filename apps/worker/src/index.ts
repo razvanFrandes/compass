@@ -6,6 +6,7 @@ import { createCompassMcpServer } from './presentation/mcp/server.ts';
 import type { Env } from './env.ts';
 
 export { Kassandra } from './presentation/agents/kassandra.ts';
+export { Briefs } from './presentation/briefs.ts';
 
 const PUBLIC_HOST = 'juyo.razvanfrandes.com';
 
@@ -82,10 +83,28 @@ export default {
       return Response.json({ conversation, ...answer });
     }
 
+    if (url.pathname === '/api/brief' && request.method === 'GET') {
+      return Response.json(await env.BRIEFS.getByName('halcyon').latest());
+    }
+
+    if (url.pathname === '/api/brief/refresh' && request.method === 'POST') {
+      // Regenerating spends model tokens, so it shares the questions' rate limit.
+      const client = request.headers.get('cf-connecting-ip') ?? 'local';
+      if (!(await env.ASK_RATE_LIMIT.limit({ key: client })).success) {
+        return Response.json({ error: 'Too many requests. Wait a minute and try again.' }, { status: 429 });
+      }
+      return Response.json(await env.BRIEFS.getByName('halcyon').regenerate());
+    }
+
     if (url.pathname === '/api/health') {
       return withData(env, ctx, async (data) => Response.json({ ok: true, businessDate: await data.businessDate() }));
     }
 
     return Response.json({ error: 'Not found' }, { status: 404 });
+  },
+
+  /** Every morning: regenerate the brief before anyone opens the app. */
+  async scheduled(_controller, env, ctx) {
+    ctx.waitUntil(env.BRIEFS.getByName('halcyon').regenerate().then(() => undefined));
   },
 } satisfies ExportedHandler<Env>;

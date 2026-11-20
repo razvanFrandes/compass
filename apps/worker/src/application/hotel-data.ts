@@ -1,7 +1,8 @@
-import type { DataResult, Evidence, MetricDefinition, MetricQuery, MetricQueryInput, MetricRow } from '@compass/contracts';
+import type { BriefItem, DataResult, Evidence, MetricDefinition, MetricQuery, MetricQueryInput, MetricRow } from '@compass/contracts';
 import { METRICS, metricByKey } from '../domain/metrics.ts';
 import { err, ok, type Result } from '../domain/result.ts';
 import { guardReadOnlySql, type GuardReason } from '../domain/sql-guard.ts';
+import { detectBriefItems } from './brief-detectors.ts';
 import type { Db } from './ports.ts';
 
 export type DataError =
@@ -475,6 +476,18 @@ export class HotelData {
         period: { from: input.from, to: input.to },
       },
     );
+  }
+
+  /** Today's brief findings across the portfolio: fixed detectors, ranked by money impact. */
+  async getBriefItems(): Promise<DataResult<BriefItem>> {
+    const rows = await detectBriefItems(this.db);
+    return {
+      rows,
+      evidence: await this.#evidence('brief detectors (see impact_basis on each item)', [], rows.length, {
+        sources: [...new Set(rows.flatMap((r) => r.sources))],
+        notes: ['Found by fixed SQL detectors, not by the model. Stale data feeds come first, then items ranked by absolute EUR impact.'],
+      }),
+    };
   }
 
   /** A compact description of schema `hotel` for writing custom queries: every table and view with its columns. */
