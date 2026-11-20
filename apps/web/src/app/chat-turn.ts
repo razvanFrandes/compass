@@ -3,6 +3,7 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import type { WorkflowSpec } from '@compass/contracts';
+import type { ChatLive } from '@compass/contracts';
 import { ChatStep, ChatTurn, WorkflowsApi } from './api';
 import { Markdown } from './markdown';
 import { CompassStore } from './store';
@@ -23,6 +24,7 @@ export const argsLine = (args: Record<string, unknown>) =>
 /** "52.6k tokens · $0.05": the cost, kept quiet (the exact figures are in the tooltip). */
 export const usageText = (u: { tokens: number; costUsd: number }) =>
   `${u.tokens >= 1000 ? `${(u.tokens / 1000).toFixed(1)}k` : u.tokens} tokens · $${u.costUsd < 0.01 ? u.costUsd.toFixed(3) : u.costUsd.toFixed(2)}`;
+const PHASE_TEXT: Record<string, string> = { waiting: 'Thinking…', thinking: 'Thinking…', tools: 'Checking the data…', writing: 'Writing…' };
 const seconds = (ms: number | null) => (ms === null ? '' : ms < 1000 ? '<1s' : `${Math.round(ms / 1000)}s`);
 const TRIGGER = (w: WorkflowSpec) => (w.trigger.kind === 'schedule' ? `Every ${w.trigger.every}` : w.trigger.kind === 'brief' ? `When the brief finds ${w.trigger.finding.replace(/_/g, ' ')}` : 'When you run it');
 
@@ -49,7 +51,7 @@ const TRIGGER = (w: WorkflowSpec) => (w.trigger.kind === 'schedule' ? `Every ${w
       </div>
     }
 
-    @if (t.steps.length || t.running) {
+    @if (t.steps.length) {
       <div>
         <button type="button" class="text-muted-foreground hover:text-foreground group flex items-center gap-1.5 text-[12.5px] transition-colors" [attr.aria-expanded]="open()" (click)="open.set(!open())">
           @if (t.running) {
@@ -111,6 +113,12 @@ const TRIGGER = (w: WorkflowSpec) => (w.trigger.kind === 'schedule' ? `Every ${w
       </article>
     }
 
+    @if (waitingText(); as w) {
+      <!-- Thinker answers arrive in one piece at the end (provider behaviour), so say what is happening meanwhile -->
+      <p class="text-muted-foreground flex items-center gap-2 text-[14px]" role="status">
+        <span class="phase-dots" aria-hidden="true"><i></i><i></i><i></i></span>{{ w }}
+      </p>
+    }
     @if (t.answer) {
       <app-markdown class="text-[14.5px]/[1.65]" [text]="t.answer" />
     } @else if (t.streamingText) {
@@ -129,6 +137,8 @@ const TRIGGER = (w: WorkflowSpec) => (w.trigger.kind === 'schedule' ? `Every ${w
 export class ChatTurnView {
   readonly turn = input.required<ChatTurn>();
   readonly showEvidence = input(true);
+  /** What the agent is doing right now (`live.phase`), for the running turn only. */
+  readonly phase = input<ChatLive['phase'] | null>(null);
   /** "How this was computed" for one step: the thread opens its evidence panel on it. */
   readonly evidence = output<string>();
   private readonly api = inject(WorkflowsApi);
@@ -146,11 +156,16 @@ export class ChatTurnView {
     return /haiku/i.test(model) ? 'Quick' : /sonnet|opus/i.test(model) ? 'Thinker' : model.replace(/^.*\//, '');
   }
   protected readonly drafts = computed(() => this.turn().steps.filter((s): s is ChatStep & { draft: WorkflowSpec } => !!s.draft).map((s) => ({ callId: s.callId, draft: s.draft })));
+  /** Shown in the answer's place while a run is going and no text has arrived yet. */
+  protected readonly waitingText = computed(() => {
+    const t = this.turn();
+    if (!t.running || t.answer || t.streamingText) return null;
+    return PHASE_TEXT[this.phase() ?? ''] ?? (t.steps.some((s) => s.status !== 'done' && s.status !== 'error') ? 'Checking the data…' : 'Thinking…');
+  });
+  /** The collapsed steps while the run goes on; what it is doing right now is the status line below. */
   protected readonly runningLabel = computed(() => {
-    const steps = this.turn().steps;
-    const live = steps.filter((s) => s.status !== 'done' && s.status !== 'error');
-    if (live.length) return `${toolLabel(live[live.length - 1].name)}…`;
-    return this.turn().streamingText ? 'Writing…' : 'Thinking…';
+    const n = this.turn().steps.length;
+    return `Working · ${n} ${n === 1 ? 'step' : 'steps'} so far`;
   });
 
   protected args(s: ChatStep) {

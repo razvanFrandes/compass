@@ -48,7 +48,7 @@ import * as icons from './icons';
               </div>
             }
             @for (t of chat.turns(); track t.key) {
-              <app-chat-turn [turn]="t" (evidence)="showEvidence(t.key, $event)" />
+              <app-chat-turn [turn]="t" [phase]="t.running ? (chat.live()?.phase ?? null) : null" (evidence)="showEvidence(t.key, $event)" />
             } @empty {
               <div class="pt-10">
                 <span class="orb-mark" aria-hidden="true"></span>

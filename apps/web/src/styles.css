@@ -638,3 +638,11 @@ textarea.field-input { height: auto; line-height: 1.5; }
 .ai-tag { display: inline-flex; align-items: center; height: 16px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--field-border); font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted-foreground); vertical-align: 1px; }
 .md-inline code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; }
 .md-inline strong { font-weight: 600; color: var(--foreground); }
+
+/* "Thinking…" while no answer text has arrived: three quiet dots; still under reduced motion. */
+.phase-dots { display: inline-flex; gap: 3px; }
+.phase-dots i { width: 5px; height: 5px; border-radius: 9999px; background: currentColor; opacity: 0.35; animation: phase-dot 1.2s ease-in-out infinite; }
+.phase-dots i:nth-child(2) { animation-delay: 0.15s; }
+.phase-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes phase-dot { 0%, 80%, 100% { opacity: 0.35; transform: none; } 40% { opacity: 1; transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .phase-dots i { animation: none; opacity: 0.6; } }
