@@ -6,6 +6,7 @@ import { FilterState, scopeChips } from './filters';
 import { AnswerScope, BriefRow, CompassStore, isBuilderUrl, scopeForRow } from './store';
 import { Drill } from './portfolio';
 import { drillContent } from './drill';
+import { ScopeService } from './scope/scope.service';
 
 /** Who decides, as the audit log records it. The demo has no sign-in yet. */
 export const DECIDER = 'Revenue manager (web)';
@@ -15,8 +16,22 @@ const MODE_KEY = 'compass.answerMode';
 export interface ConversationRef {
   id: string;
   title: string;
+  /** When it was last asked something (ms), for "5 min" in the sidebar. */
   at: number;
   scope?: AnswerScope;
+  /** What opened it (a brief item, a chart mark, a KPI tile), so the same click reopens it instead of asking again. */
+  source?: string;
+}
+
+/**
+ * A thread's title from its first question: the trailing scope in brackets is dropped, long questions are cut at a
+ * word, and a title already in the list gets a number, so no two threads read the same.
+ */
+export function threadTitle(question: string, taken: readonly string[] = []): string {
+  let base = question.replace(/\s+/g, ' ').trim().replace(/\s*\([^()]*\)\s*$/, '') || 'New conversation';
+  if (base.length > 72) base = `${base.slice(0, 70).replace(/\s+\S*$/, '')}…`;
+  if (!taken.includes(base)) return base;
+  for (let n = 2; ; n++) if (!taken.includes(`${base} · ${n}`)) return `${base} · ${n}`;
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -46,6 +61,7 @@ export class Live {
   readonly briefApi = inject(BriefApi);
   readonly chat = inject(KassandraChat);
   readonly workflowsApi = inject(WorkflowsApi);
+  private readonly hotels = inject(ScopeService);
 
   /* ── Brief ── */
   readonly briefState = computed<'loading' | 'live' | 'snapshot'>(() => (this.briefApi.brief.value() ? 'live' : this.briefApi.brief.isLoading() ? 'loading' : 'snapshot'));
@@ -70,12 +86,14 @@ export class Live {
 
   /* ── Chat ── */
   readonly mode = signal<AnswerMode>(read<AnswerMode>(MODE_KEY, 'thinker'));
-  /** Text to put in the thread's composer without sending it (Explore, /ask?q=, a chart drill). */
+  /** Text to put in the thread's composer without sending it: only `/ask?q=` (a link in an email) does that. */
   readonly composer = signal<{ text: string; n: number }>({ text: '', n: 0 });
   readonly conversations = signal<ConversationRef[]>(read<ConversationRef[]>(CONVERSATIONS_KEY, []));
   readonly scope = computed(() => this.conversations().find((c) => c.id === this.chat.conversation())?.scope ?? null);
   readonly title = computed(() => this.conversations().find((c) => c.id === this.chat.conversation())?.title ?? this.chat.turns().find((t) => t.question)?.question ?? 'New conversation');
   private n = 0;
+  /** A reopened thread whose first question never reached the server (it was refused): ask it once it has loaded. */
+  private readonly unanswered = signal<{ id: string; question: string } | null>(null);
 
   constructor() {
     // The live brief replaces the snapshot as soon as it loads.
@@ -85,6 +103,14 @@ export class Live {
     });
     effect(() => write(MODE_KEY, this.mode()));
     effect(() => write(CONVERSATIONS_KEY, this.conversations().slice(0, 30)));
+    effect(() => {
+      const want = this.unanswered();
+      if (!want || this.chat.conversation() !== want.id || this.chat.status() !== 'open') return;
+      untracked(() => {
+        this.unanswered.set(null);
+        if (!this.chat.turns().length) this.chat.ask(want.question, this.mode(), this.askScope());
+      });
+    });
     // A conversation is remembered once it has a question.
     effect(() => {
       const q = this.chat.turns().find((t) => t.question)?.question;
@@ -148,6 +174,8 @@ export class Live {
       if (c) this.chat.open(c);
       const q = params.get('q');
       if (q !== null) {
+        // A link from an email: a fresh conversation with the question ready. Opening it never asks anything.
+        if (!c) this.chat.newConversation();
         this.prefill(q);
         globalThis.history?.replaceState(null, '', `/ask?c=${encodeURIComponent(this.chat.conversation())}`);
       }
@@ -169,28 +197,46 @@ export class Live {
   }
 
   /* ── Chat actions ── */
-  /** "Explore" on a brief item: a new conversation, the question ready in the composer, nothing sent. */
-  explore(question: string, scope?: AnswerScope) {
+  /** The global hotel scope, sent with every question (round2-contracts §1). Empty means the whole group. */
+  private askScope() {
+    return { hotels: this.hotels.hotels() };
+  }
+  /**
+   * "Explore" on a brief item, a click on a chart mark or a KPI tile: the Thread opens and the question is sent at
+   * once, because the click is the person's own. `source` names what was clicked: the same item under the same
+   * hotel scope reopens its thread instead of asking twice.
+   */
+  explore(question: string, scope?: AnswerScope, source?: string) {
+    const q = question.trim();
+    if (!q) return;
+    const key = source ? `${source}@${[...this.hotels.hotels()].sort().join(',')}` : undefined;
+    const existing = key ? this.conversations().find((c) => c.source === key) : undefined;
+    this.prefill('');
+    if (existing && this.chat.open(existing.id)) {
+      this.unanswered.set({ id: existing.id, question: q });
+      this.store.go('thread');
+      return;
+    }
     const id = this.chat.newConversation();
-    if (scope) this.remember(id, question, scope);
-    this.prefill(question);
+    this.remember(id, q, scope, key);
     this.store.go('thread');
+    this.chat.ask(q, this.mode(), this.askScope());
   }
   /** A typed question from anywhere: a new conversation, sent at once. */
   askNew(question: string) {
-    const q = question.trim();
-    if (!q) return;
-    const id = this.chat.newConversation();
-    this.remember(id, q);
-    this.store.go('thread');
-    this.chat.ask(q, this.mode());
+    this.explore(question);
+  }
+  /** A click that stands for a question ("Ask why", a KPI tile): sent at once, and the same click reopens its thread. */
+  askAbout(question: string) {
+    this.explore(question, undefined, `q:${question.trim()}`);
   }
   /** The composer in the thread: a follow-up, or a correction while an answer runs. */
   send(text: string) {
     const q = text.trim();
     if (!q) return;
     if (this.chat.running()) this.chat.steer(q);
-    else this.chat.ask(q, this.mode());
+    else this.chat.ask(q, this.mode(), this.askScope());
+    this.touch(this.chat.conversation());
   }
   openConversation(id: string) {
     if (this.chat.open(id)) this.store.go('thread');
@@ -200,32 +246,67 @@ export class Live {
     this.prefill('');
     this.store.go('thread');
   }
-  /** A click on a chart mark: the structured drill becomes the question, with the chart's scope. Nothing is sent. */
+  /** A click on a chart mark: the structured drill becomes the question, with the chart's scope, and is sent. */
   drill(d: Drill, s: FilterState) {
     const r = drillContent(d, s);
     const patch: Partial<FilterState> | null = d.dimension === 'night' ? null : d.dimension === 'hotel' ? { hotels: [d.value] } : d.dimension === 'channel' ? { channels: [d.value], chOp: 'is' } : { segments: [d.value], segOp: 'is' };
     const chips = [...scopeChips(r.scope), ...(r.extraChip ? [r.extraChip] : [])];
     const question = `${r.question} (${chips.join(' · ')})`;
-    this.explore(question, {
-      chips,
-      patch,
-      said: d.dimension === 'hotel' ? { hotels: `clicked ${d.label}` } : d.dimension === 'channel' ? { channel: `clicked ${d.label}` } : d.dimension === 'segment' ? { segment: `clicked ${d.label}` } : {},
-      note: patch ? undefined : 'A single night isn’t a dashboard preset',
-    });
+    this.explore(
+      question,
+      {
+        chips,
+        patch,
+        said: d.dimension === 'hotel' ? { hotels: `clicked ${d.label}` } : d.dimension === 'channel' ? { channel: `clicked ${d.label}` } : d.dimension === 'segment' ? { segment: `clicked ${d.label}` } : {},
+        note: patch ? undefined : 'A single night isn’t a dashboard preset',
+      },
+      `drill:${question}`,
+    );
   }
   exploreRow(r: BriefRow) {
-    this.explore(r.question ?? r.title ?? r.hotel_name, scopeForRow(r));
+    this.explore(r.question ?? r.title ?? r.hotel_name, scopeForRow(r), `brief:${r.id}`);
   }
+  /** A new name for a thread in the sidebar. An empty name keeps the old one. */
+  renameConversation(id: string, title: string) {
+    const name = title.replace(/\s+/g, ' ').trim().slice(0, 120);
+    if (name) this.conversations.update((list) => list.map((c) => (c.id === id ? { ...c, title: name } : c)));
+  }
+  /**
+   * Takes a thread out of the list and returns it, so the caller can offer Undo (`restoreConversation`). The list is
+   * this browser's: the transcript stays on the server under its id.
+   */
+  deleteConversation(id: string): ConversationRef | null {
+    const removed = this.conversations().find((c) => c.id === id) ?? null;
+    if (!removed) return null;
+    this.forgotten.add(id);
+    this.conversations.update((list) => list.filter((c) => c.id !== id));
+    if (this.chat.conversation() === id) this.chat.newConversation();
+    return removed;
+  }
+  restoreConversation(ref: ConversationRef) {
+    this.forgotten.delete(ref.id);
+    this.conversations.update((list) => (list.some((c) => c.id === ref.id) ? list : [...list, ref].sort((a, b) => b.at - a.at)));
+  }
+  private readonly forgotten = new Set<string>();
 
   private prefill(text: string) {
     this.composer.set({ text, n: ++this.n });
   }
-  private remember(id: string, title: string, scope?: AnswerScope) {
+  private remember(id: string, question: string, scope?: AnswerScope, source?: string) {
+    if (this.forgotten.has(id)) return;
     this.conversations.update((list) => {
       const old = list.find((c) => c.id === id);
-      const next: ConversationRef = { id, title: old?.title ?? title, at: Date.now(), scope: scope ?? old?.scope };
-      if (old && old.title === next.title && old.scope === next.scope) return list;
-      return [next, ...list.filter((c) => c.id !== id)];
+      if (old && (scope ?? old.scope) === old.scope && (source ?? old.source) === old.source) return list;
+      const others = list.filter((c) => c.id !== id);
+      const next: ConversationRef = { id, title: old?.title ?? threadTitle(question, others.map((c) => c.title)), at: old?.at ?? Date.now(), scope: scope ?? old?.scope, source: source ?? old?.source };
+      return [next, ...others];
+    });
+  }
+  /** A thread that was just asked something moves to the top of the list. */
+  private touch(id: string) {
+    this.conversations.update((list) => {
+      const ref = list.find((c) => c.id === id);
+      return ref ? [{ ...ref, at: Date.now() }, ...list.filter((c) => c.id !== id)] : list;
     });
   }
 

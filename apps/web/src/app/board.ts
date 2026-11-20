@@ -9,7 +9,8 @@ import { HlmToggleGroupImports } from '@spartan-ng/helm/toggle-group';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { ArtifactView } from './artifact';
 import { DecisionsWidget } from './decisions';
-import { AskBar } from './ask-bar';
+import { KassandraComposer } from './kassandra/kassandra-composer';
+import { KassandraDescribeView } from './kassandra/kassandra-describe-view';
 import { MetricChart } from './metric-chart';
 import { Live } from './live';
 import { CompassStore } from './store';
@@ -92,7 +93,7 @@ const DRIVERS: Record<MetricKey, { label: string; w: number }[]> = {
             </li>
           }
         </ul>
-        <button hlmBtn size="sm" variant="outline" class="mt-3" (click)="live.askNew('What drove ' + dr.title + '?')"><ng-icon name="phosphorSparkleFill" class="text-(--brass)" />Ask why</button>
+        <button hlmBtn size="sm" variant="outline" class="mt-3" (click)="live.askAbout('What drove ' + dr.title + '?')"><ng-icon name="phosphorSparkleFill" class="text-(--brass)" />Ask why</button>
       </div>
     }
 
@@ -164,7 +165,7 @@ export class PerformanceWidget {
 /** Canvas: boards are built from answers. Describe a view, or add any artifact from a thread. */
 @Component({
   selector: 'app-board',
-  imports: [NgIcon, AskBar, ArtifactView, PerformanceWidget, DecisionsWidget, ChartCard, FilterBar, HlmButtonImports, HlmTooltipImports],
+  imports: [NgIcon, KassandraComposer, KassandraDescribeView, ArtifactView, PerformanceWidget, DecisionsWidget, ChartCard, FilterBar, HlmButtonImports, HlmTooltipImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
@@ -182,9 +183,9 @@ export class PerformanceWidget {
           </div>
         </div>
         @if (hasCharts()) {
-          <app-ask-bar label="Ask or filter" placeholder="Ask or filter, e.g. “Dubai hotels, next 90 nights vs budget”" (submitted)="onAsk($event)" />
+          <kassandra-composer label="Ask or filter" placeholder="Ask or filter, e.g. “Dubai hotels, next 90 nights vs budget”" [(mode)]="live.mode" (submitted)="onAsk($event)" />
         } @else {
-          <app-ask-bar label="Describe a view to add" placeholder="Describe a view to add, e.g. “channel profitability after commission”" (submitted)="live.askNew($event)" />
+          <kassandra-describe-view [boardId]="store.activeBoardId()" [boardName]="store.activeBoard().name" />
         }
       </header>
 

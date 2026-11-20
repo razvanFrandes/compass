@@ -3,7 +3,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
-import { AskBar } from './ask-bar';
+import { KassandraComposer } from './kassandra/kassandra-composer';
 import { PickupBars, Spark } from './brief-charts';
 import { GROUP, NIGHTS, formatEur, utc } from './data';
 import { AMS_CONVERSION, BCN_OUT_OF_ORDER, DPS_KITCHEN, LIS_PACE, NYC_ACCOUNT, PULSE } from './halcyon-data';
@@ -25,7 +25,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
 */
 @Component({
   selector: 'app-inbox',
-  imports: [NgIcon, NgTemplateOutlet, AskBar, PickupBars, Spark, ProposalCard, HlmButtonImports, HlmDropdownMenuImports],
+  imports: [NgIcon, NgTemplateOutlet, KassandraComposer, PickupBars, Spark, ProposalCard, HlmButtonImports, HlmDropdownMenuImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
@@ -56,7 +56,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
           }
         </p>
         <div class="mt-6 hidden lg:block">
-          <app-ask-bar inputId="global-ask" [shortcut]="true" placeholder="Ask about any hotel, night or metric…" (submitted)="live.askNew($event)" />
+          <kassandra-composer inputId="global-ask" [shortcut]="true" placeholder="Ask about any hotel, night or metric…" [(mode)]="live.mode" (submitted)="live.askNew($event)" />
         </div>
       </section>
 
@@ -67,7 +67,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
           <ul class="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-2">
             @for (m of pulse; track m.key) {
               <li>
-                <button type="button" class="clickable-card grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 p-3 text-left sm:flex sm:flex-col sm:items-stretch sm:gap-1 sm:p-3.5" (click)="live.askNew('What drove the portfolio’s ' + m.label.toLowerCase() + ' for the next 30 nights?')">
+                <button type="button" class="clickable-card grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 p-3 text-left sm:flex sm:flex-col sm:items-stretch sm:gap-1 sm:p-3.5" (click)="live.askAbout('What drove the portfolio’s ' + m.label.toLowerCase() + ' for the next 30 nights?')">
                   <span class="text-muted-foreground col-span-2 text-[12px]">{{ m.label }}</span>
                   <span class="text-[20px]/tight font-semibold tracking-[-0.02em] tabular-nums sm:text-[24px]/tight">{{ m.value }}</span>
                   <svg viewBox="0 0 120 40" preserveAspectRatio="none" class="row-span-2 h-8 w-14 sm:order-last sm:mt-1 sm:h-10 sm:w-full" aria-hidden="true">
@@ -198,7 +198,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
 
     <!-- Phones and tablets: the ask bar docks above the tab bar -->
     <div class="dock-fade fixed inset-x-0 bottom-[calc(57px+env(safe-area-inset-bottom,0px))] z-20 px-3 pt-6 pb-2 lg:hidden">
-      <app-ask-bar inputId="global-ask-m" placeholder="Ask about any hotel" (submitted)="live.askNew($event)" />
+      <kassandra-composer inputId="global-ask-m" placeholder="Ask about any hotel" [showMode]="false" [showScope]="false" (submitted)="live.askNew($event)" />
     </div>
 
     <ng-template #more let-item>
@@ -257,12 +257,12 @@ export class InboxView {
   );
   protected readonly decisionCount = computed(() => this.live.pendingList().length);
 
-  /** "Explore": a new conversation with the item's question ready, not sent. */
+  /** "Explore": the item's thread opens and its question is sent; a second click reopens the same thread. */
   protected explore(item: InboxItem) {
     this.store.items.update((list) => list.map((i) => (i.id === item.id && i.status === 'new' ? { ...i, status: 'seen' } : i)));
     const row = this.rows().get(item.id);
     if (row) this.live.exploreRow({ ...row, question: item.question });
-    else this.live.explore(item.question);
+    else this.live.explore(item.question, undefined, `brief:${item.id}`);
   }
 
   /** Chart and one fact for a full card. */

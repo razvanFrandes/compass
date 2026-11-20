@@ -4,9 +4,11 @@
 # script-src: no 'unsafe-inline'. The two sha256 values are the inline scripts of the built index.html:
 #   1. the theme script in src/index.html (apps/worker/test/web-headers.test.ts fails when it changes);
 #   2. the stylesheet loader that `ng build` appends (critical CSS inlining).
+# connect-src: the app's own API and sockets, plus Soniox's real-time socket, where voice input streams the microphone
+#   with a temporary key (docs/round2-contracts.md §6). The audio worklet (pcm-capture.worklet.js) is a file of 'self'.
 # style-src needs 'unsafe-inline': Angular adds component styles as <style> elements, and the build inlines the fonts' CSS.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-mKkEDQKKIyEe5aEi5EqFUlpGsF6sWTyf83eMKx+1izY=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' wss://juyo.razvanfrandes.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-mKkEDQKKIyEe5aEi5EqFUlpGsF6sWTyf83eMKx+1izY=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' wss://juyo.razvanfrandes.com wss://stt-rt.soniox.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY

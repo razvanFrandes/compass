@@ -5,7 +5,8 @@ import type { Workflow, WorkflowRun } from '@compass/contracts';
 import { CHECK_LABELS } from '@compass/contracts';
 import { inline } from './markdown';
 import { groupTurns, toApiError } from './api';
-import { ChatTurnView } from './chat-turn';
+import { KassandraComposer } from './kassandra/kassandra-composer';
+import { KassandraConversation } from './kassandra/kassandra-conversation';
 import { EvidencePanel } from './evidence-panel';
 import { Live, ago } from './live';
 import { ACTION_LABEL, ProposalCard } from './proposal-card';
@@ -20,7 +21,7 @@ import * as icons from './icons';
 */
 @Component({
   selector: 'app-watcher-page',
-  imports: [NgIcon, HlmButtonImports, ChatTurnView, EvidencePanel, ProposalCard],
+  imports: [NgIcon, HlmButtonImports, KassandraComposer, KassandraConversation, EvidencePanel, ProposalCard],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
@@ -80,6 +81,12 @@ import * as icons from './icons';
           }
         </section>
 
+        <!-- "Ask about this": the question opens a thread with this workflow as its subject, and is sent at once -->
+        <section aria-labelledby="wp-ask">
+          <h2 id="wp-ask" class="mb-3 text-[15px] font-semibold">Ask about this</h2>
+          <kassandra-composer label="Ask Kassandra about this workflow" placeholder="Ask about this workflow, e.g. “why did it fire today?”" [scope]="[w.name, hotels(w.hotels)]" [(mode)]="live.mode" (submitted)="ask(w, $event)" />
+        </section>
+
         @if (proposals().length) {
           <section aria-labelledby="wp-prop">
             <h2 id="wp-prop" class="mb-3 text-[15px] font-semibold">Proposals</h2>
@@ -119,13 +126,11 @@ import * as icons from './icons';
                 <p class="text-muted-foreground text-[13.5px]" role="status">Loading the log…</p>
               }
               <div class="insight-card px-4 pb-4">
-                @for (t of turns(); track t.key) {
-                  <app-chat-turn [turn]="t" (evidence)="evidenceFor.set($event)" />
-                } @empty {
+                <kassandra-conversation [turns]="turns()" (evidenceSelected)="evidenceFor.set($event.callId)">
                   @if (!log.isLoading()) {
                     <p class="text-muted-foreground pt-4 text-[13.5px]">This run has no log entries.</p>
                   }
-                }
+                </kassandra-conversation>
               </div>
               @if (evidenceFor()) {
                 <div class="mt-4">
@@ -178,6 +183,12 @@ export class WatcherPage {
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
   }
 
+  /** The question goes to a new thread, with what the workflow is and what its latest run said as its subject. */
+  protected ask(w: Workflow, text: string) {
+    const last = this.runs()[0]?.summary?.replace(/\s+/g, ' ').trim();
+    const about = [`About the workflow “${w.name}” (${this.hotels(w.hotels)})`, `it watches: ${w.goal.trim().replace(/\.$/, '')}`, ...(last ? [`its latest run said: ${last.slice(0, 280)}`] : [])].join('; ');
+    this.live.askNew(`${about}. ${text}`);
+  }
   protected pickRun(id: string) {
     this.picked.set(id);
     this.evidenceFor.set(null);

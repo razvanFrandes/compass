@@ -1,9 +1,8 @@
 import { Component, ElementRef, afterRenderEffect, computed, input, output, signal, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { phosphorArrowUpBold } from '@ng-icons/phosphor-icons/bold';
-import { phosphorStopFill, phosphorWarningFill } from '@ng-icons/phosphor-icons/fill';
+import { phosphorWarningFill } from '@ng-icons/phosphor-icons/fill';
 import { phosphorCaretDownLight, phosphorCheckLight, phosphorCircleNotchLight, phosphorPencilSimpleLight, phosphorXLight } from '@ng-icons/phosphor-icons/light';
-import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { KassandraComposer } from '../kassandra/kassandra-composer';
 import type { ConversationItem } from './builder-steps';
 
 export const STARTERS = [
@@ -20,29 +19,15 @@ export function richText(text: string): { text: string; bold: boolean }[] {
     .filter((part) => part.text);
 }
 
-/** The conversation with the builder agent, and the composer. */
+/** The conversation with the builder agent, and Kassandra's composer (the same one as everywhere, without Quick/Thinker). */
 @Component({
   selector: 'app-builder-chat',
-  imports: [NgIcon, HlmButtonImports],
+  imports: [NgIcon, KassandraComposer],
   providers: [
-    provideIcons({ phosphorArrowUpBold, phosphorCaretDownLight, phosphorCheckLight, phosphorCircleNotchLight, phosphorPencilSimpleLight, phosphorStopFill, phosphorWarningFill, phosphorXLight }),
+    provideIcons({ phosphorCaretDownLight, phosphorCheckLight, phosphorCircleNotchLight, phosphorPencilSimpleLight, phosphorWarningFill, phosphorXLight }),
   ],
   host: { class: 'flex min-h-0 flex-col' },
   styles: `
-    .wb-composer {
-      display: flex;
-      align-items: flex-end;
-      gap: 8px;
-      min-height: 56px;
-      padding: 9px 9px 9px 14px;
-      border-radius: 12px;
-      border: 1px solid var(--field-border);
-      background: var(--field);
-      transition: border-color 150ms ease, box-shadow 150ms ease;
-    }
-    .wb-composer:hover { border-color: var(--field-border-hover); }
-    .wb-composer:focus-within { border-color: var(--focus-brand); box-shadow: 0 0 0 3px rgb(153 106 213 / 0.2); }
-    .wb-composer textarea { field-sizing: content; min-height: 24px; max-height: 144px; resize: none; }
     .wb-starter {
       display: block;
       width: 100%;
@@ -65,7 +50,7 @@ export function richText(text: string): { text: string; bold: boolean }[] {
     .wb-caret { transition: transform 150ms ease; }
     @media (prefers-reduced-motion: reduce) {
       .wb-spin { animation: none; }
-      .wb-composer, .wb-starter, .wb-caret { transition: none; }
+      .wb-starter, .wb-caret { transition: none; }
     }
   `,
   template: `
@@ -155,27 +140,22 @@ export function richText(text: string): { text: string; bold: boolean }[] {
     </div>
 
     <div class="shrink-0 px-4 pt-1 pb-[max(16px,env(safe-area-inset-bottom,0px))]">
-      <form class="wb-composer mx-auto max-w-[620px]" (submit)="$event.preventDefault(); send()">
-        <label class="sr-only" [for]="fieldId">Describe the workflow, or ask for a change</label>
-        <textarea
-          #field
-          [id]="fieldId"
-          rows="1"
-          class="placeholder:text-muted-foreground min-w-0 flex-1 self-center bg-transparent text-[16px]/6 outline-none sm:text-[15px]/6"
-          enterkeyhint="send"
-          maxlength="4000"
-          [placeholder]="items().length ? 'Ask for a change…' : 'Describe a workflow…'"
-          [value]="text()"
-          (input)="text.set($any($event.target).value)"
-          (keydown.enter)="onEnter($event)"
-        ></textarea>
-        @if (running()) {
-          <button hlmBtn type="button" variant="secondary" size="icon" aria-label="Stop Kassandra" (click)="stop.emit()"><ng-icon name="phosphorStopFill" class="text-[12px]" /></button>
-        }
-        <button hlmBtn type="submit" size="icon" aria-label="Send" [attr.aria-disabled]="canSend() ? null : 'true'" [class.opacity-45]="!canSend()">
-          <ng-icon name="phosphorArrowUpBold" class="text-[15px]" />
-        </button>
-      </form>
+      <!-- A spoken description lands in the field instead of being sent: the person adds what is theirs (an address) first -->
+      <kassandra-composer
+        class="mx-auto block max-w-[620px]"
+        label="Describe the workflow, or ask for a change"
+        [placeholder]="items().length ? 'Ask for a change…' : 'Describe a workflow…'"
+        [busy]="running()"
+        [steerable]="true"
+        [online]="online()"
+        [prefill]="starter()"
+        [showMode]="false"
+        [showScope]="false"
+        [voiceSends]="false"
+        [maxLength]="4000"
+        (submitted)="ask.emit($event)"
+        (stopped)="stop.emit()"
+      />
     </div>
   `,
 })
@@ -187,15 +167,11 @@ export class BuilderChat {
   readonly ask = output<string>();
   readonly stop = output<void>();
 
-  private static next = 0;
-  protected readonly fieldId = `wb-composer-${BuilderChat.next++}`;
   protected readonly starters = STARTERS;
-  protected readonly text = signal('');
+  /** The starter placed in the composer; a new `n` places it again. */
+  protected readonly starter = signal<{ text: string; n: number } | null>(null);
   private readonly opened = signal<ReadonlySet<string>>(new Set());
   private readonly scroller = viewChild.required<ElementRef<HTMLElement>>('scroller');
-  private readonly field = viewChild.required<ElementRef<HTMLTextAreaElement>>('field');
-
-  protected readonly canSend = computed(() => this.online() && this.text().trim().length > 0);
   /** Running, with nothing on screen for it yet: no step in progress and no text being written. */
   protected readonly thinking = computed(() => {
     if (!this.running()) return false;
@@ -237,25 +213,6 @@ export class BuilderChat {
 
   /** A starter fills the composer instead of sending: the person adds what is theirs (an address) and presses send. */
   protected useStarter(starter: string) {
-    this.text.set(starter);
-    const field = this.field().nativeElement;
-    field.value = starter;
-    field.focus();
-    field.setSelectionRange(starter.length, starter.length);
-  }
-
-  protected onEnter(event: Event) {
-    const key = event as KeyboardEvent;
-    if (key.shiftKey || key.isComposing) return;
-    key.preventDefault();
-    this.send();
-  }
-
-  protected send() {
-    const text = this.text().trim();
-    if (!text || !this.online()) return;
-    this.ask.emit(text);
-    this.text.set('');
-    this.field().nativeElement.value = '';
+    this.starter.update((current) => ({ text: starter, n: (current?.n ?? 0) + 1 }));
   }
 }

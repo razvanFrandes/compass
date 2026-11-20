@@ -489,6 +489,6 @@ export class DecisionsWidget {
   }
   protected explain(n: Night) {
     this.close();
-    this.live.askNew(`How is the recommendation for ${this.short(n.date)} calculated?`);
+    this.live.askAbout(`How is the recommendation for ${this.short(n.date)} calculated?`);
   }
 }
