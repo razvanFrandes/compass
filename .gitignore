@@ -1,0 +1,11 @@
+# Private context (not for the public repo)
+JUYO_CONTEXT.md
+
+node_modules/
+dist/
+.angular/
+.env
+.env.*
+*.log
+.DS_Store
+.wrangler/
