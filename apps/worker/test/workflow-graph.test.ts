@@ -22,6 +22,12 @@ describe('specToGraph', () => {
     ]);
   });
 
+  it('keeps the tool name of a check out of what the canvas shows', () => {
+    const [pace] = specToGraph({ checks: ['get_pace'] }).nodes.filter((n) => n.kind === 'check');
+    expect(pace).toMatchObject({ id: 'check:get_pace', label: 'Pace vs last year', detail: 'Read first on every run' });
+    expect(`${pace!.label} ${pace!.detail}`).not.toContain('get_pace');
+  });
+
   it('no approval node for email, an approval node for price actions', () => {
     expect(specToGraph({ action: { type: 'email' } }).nodes.some((n) => n.kind === 'approval')).toBe(false);
     expect(specToGraph({ action: { type: 'adjust_bar' }, autonomy: 'approve' }).nodes.map((n) => n.id)).toContain('approval');

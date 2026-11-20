@@ -228,3 +228,11 @@ describe('canvas', () => {
     expect(richText('plain')).toEqual([{ text: 'plain', bold: false }]);
   });
 });
+
+describe('a check node on the canvas', () => {
+  it('reads as a label a hotelier understands, without the tool name', () => {
+    const node = specToGraph({ checks: ['get_pace'] }).nodes.find((n) => n.kind === 'check')!;
+    expect(node.label).toBe('Pace vs last year');
+    expect(`${node.label} ${node.detail}`).not.toContain('get_pace');
+  });
+});

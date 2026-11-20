@@ -5,7 +5,9 @@ import type { ChatEntry, WorkflowGraph, WorkflowRun } from '@compass/contracts';
  *
  * The trigger and the scope are done once a run exists. A call to a tool that is a check of the workflow is on that
  * check's node until its result comes back. The email tool is the action, done only when a mail went out. Everything
- * else the agent does (other tools, thinking, writing) is `analyze`.
+ * else the agent does (other tools, thinking, writing) is `analyze`, but only once a check has finished (or the
+ * workflow has none): what the agent writes or reads before its first check stays on the first check, so the run
+ * never steps backwards on the canvas.
  */
 export interface RunProgress {
   activeNode: string | null;
@@ -38,9 +40,12 @@ export function runProgress(entries: readonly ChatEntry[], graph: WorkflowGraph,
     }
   }
 
-  // The first node in the chain with a call running; with none, the agent is thinking, until the action is done.
+  // The first node in the chain with a call running. With none, the agent is thinking: that is `analyze` once a check
+  // has finished, and the first check before that (narration ahead of the first tool call is not the analysis yet).
   const waiting = new Set(pending.values());
-  const running = order.find((id) => id !== 'analyze' && waiting.has(id)) ?? (done.has('action') ? null : 'analyze');
+  const checks = order.filter((id) => id.startsWith('check:'));
+  const thinking = checks.length === 0 || checks.some((id) => done.has(id)) ? 'analyze' : checks[0]!;
+  const running = order.find((id) => id !== 'analyze' && waiting.has(id)) ?? (done.has('action') ? null : thinking);
 
   const ended = status === 'done' || status === 'failed';
   if (status === 'done') done.add('analyze');

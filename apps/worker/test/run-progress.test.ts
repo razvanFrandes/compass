@@ -45,7 +45,7 @@ const log: ChatEntry[] = [
 
 describe('runProgress', () => {
   it('starts with the trigger and the scope done', () => {
-    expect(runProgress([user], graph, 'running')).toEqual({ activeNode: 'analyze', done: ['trigger', 'scope'], failed: null });
+    expect(runProgress([user], graph, 'running')).toEqual({ activeNode: 'check:get_pace', done: ['trigger', 'scope'], failed: null });
   });
 
   it('walks the whole chain of a finished run', () => {
@@ -73,9 +73,36 @@ describe('runProgress', () => {
     expect(runProgress(log.slice(0, 3), graph, 'failed')).toEqual({ activeNode: null, done: ['trigger', 'scope', 'check:get_pace'], failed: 'analyze' });
   });
 
-  it('makes analyze active for a tool that is not a check', () => {
-    const entries = [user, assistant('', ['c1', 'get_pickup'])];
-    expect(runProgress(entries, graph, 'running')).toMatchObject({ activeNode: 'analyze', done: ['trigger', 'scope'] });
+  it('makes analyze active for a tool that is not a check, once a check has finished', () => {
+    const entries = [...log.slice(0, 3), assistant('', ['c9', 'get_pickup'])];
+    expect(runProgress(entries, graph, 'running')).toMatchObject({ activeNode: 'analyze', done: ['trigger', 'scope', 'check:get_pace'] });
+  });
+
+  it('stays on the first check while the agent writes or reads other data before any check', () => {
+    expect(runProgress([user, assistant('I will read the pace first.')], graph, 'running')).toMatchObject({ activeNode: 'check:get_pace', done: ['trigger', 'scope'] });
+    expect(runProgress([user, assistant('', ['c1', 'get_pickup'])], graph, 'running')).toMatchObject({ activeNode: 'check:get_pace', done: ['trigger', 'scope'] });
+  });
+
+  it('is on analyze from the start when the workflow has no check', () => {
+    expect(runProgress([user, assistant('Thinking.')], specToGraph({ goal: 'Watch Lisbon.' }), 'running')).toMatchObject({ activeNode: 'analyze' });
+  });
+
+  it('never steps backwards when the agent narrates before its first tool call', () => {
+    const narrated: ChatEntry[] = [
+      user,
+      assistant('I will check the pace of Lisbon.'),
+      assistant('', ['c1', 'get_pace']),
+      result('c1', 'get_pace'),
+      assistant('Lisbon is 20% behind last year, so I will send the email.'),
+      assistant('', ['c2', 'send_email']),
+      result('c2', 'send_email', false, true),
+    ];
+    const order = graph.nodes.map((node) => node.id);
+    const active = narrated.slice(1).map((_, i) => runProgress(narrated.slice(0, i + 2), graph, 'running').activeNode);
+    expect(active).toEqual(['check:get_pace', 'check:get_pace', 'analyze', 'analyze', 'action', null]);
+    const steps = active.filter((id) => id !== null).map((id) => order.indexOf(id));
+    expect(steps).toEqual([...steps].sort((a, b) => a - b));
+    expect(runProgress(narrated, graph, 'done')).toEqual({ activeNode: null, done: ['trigger', 'scope', 'check:get_pace', 'analyze', 'action'], failed: null });
   });
 
   it('does not finish the action when the email tool failed', () => {

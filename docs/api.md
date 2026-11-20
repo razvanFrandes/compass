@@ -165,7 +165,7 @@ Nodes, in chain order:
 |---|---|---|---|
 | `trigger` | `trigger` | `trigger` | "Every morning, after the brief" |
 | `scope` | `scope` | `hotels` | "LIS" / "All 20 hotels" |
-| `check:<tool>`, one per check (`check` while there is none) | `check` | `checks[]` | "Pace vs last year" (`get_pace`) |
+| `check:<tool>`, one per check (`check` while there is none) | `check` | `checks[]` | "Pace vs last year" (from `CHECK_LABELS`; the tool name is only in the `id`, the `detail` is "Read first on every run") |
 | `analyze` | `analyze` | `goal` | "Kassandra explains why" |
 | `approval` | `approval` | `autonomy`, `approver` | only when the action needs approval; an email does not |
 | `action` | `action` | `action`, `delivery` | "Email si****@gmail.com" |
@@ -178,7 +178,7 @@ Each node is `{ id, kind, label, detail, state }`. `state` is `empty` (a placeho
 - `done` — the nodes it finished, in chain order;
 - `failed` — the node a failed run stopped on, else `null`.
 
-A run walks the chain: `trigger` and `scope` are done at once; a check is active from its tool call to its result; `analyze` is active while the agent thinks or reads other data; `action` is active while the mail is being sent, and done **only when a mail went out**. A test that reaches the hourly limit ends `done` without `action` in `done`; read why in `GET /api/runs/:runId` (`run.summary`). The server polls the run once a second, so a quick step can be skipped. It follows a run for at most 3 minutes, and stops when no socket is open on the draft. A run that reaches `waiting_approval` is not followed further: the `run` message with that status is the last one, and the approval inbox takes over. After 3 minutes you get a last `run` message with `status: 'failed'` and `failed` set to the node the run was on, and an `error` message ("The test run is taking too long; check the run log."). The run itself may still finish: `GET /api/runs/:runId` has the truth.
+A run walks the chain: `trigger` and `scope` are done at once; a check is active from its tool call to its result; `analyze` is active while the agent thinks or reads other data, but only once a check has finished (or the workflow has no check): before that, text and other tool calls keep the first check active, so the active node never moves backwards; `action` is active while the mail is being sent, and done **only when a mail went out**. A test that reaches the hourly limit ends `done` without `action` in `done`; read why in `GET /api/runs/:runId` (`run.summary`). The server polls the run once a second, so a quick step can be skipped. It follows a run for at most 3 minutes, and stops when no socket is open on the draft. A run that reaches `waiting_approval` is not followed further: the `run` message with that status is the last one, and the approval inbox takes over. After 3 minutes you get a last `run` message with `status: 'failed'` and `failed` set to the node the run was on, and an `error` message ("The test run is taking too long; check the run log."). The run itself may still finish: `GET /api/runs/:runId` has the truth.
 
 ### Client → server, on top of the chat messages
 

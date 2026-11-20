@@ -24,7 +24,10 @@ export interface WorkflowGraph {
   edges: { from: string; to: string }[];
 }
 
-/** Short names for the data tools that make sense as a check. Any other tool shows under its own name. */
+/**
+ * Short names for the data tools that make sense as a check. Any other tool shows under its own name. The tool name
+ * itself stays in the node id (`check:<tool>`); the label and the detail are for a hotelier to read.
+ */
 export const CHECK_LABELS: Record<string, string> = {
   get_pace: 'Pace vs last year',
   get_pickup: 'Pickup in the last days',
@@ -91,7 +94,7 @@ function scopeNode(hotels: string[] | undefined): WorkflowNode {
 
 function checkNodes(checks: string[] | undefined): WorkflowNode[] {
   if (!checks?.length) return [{ id: 'check', kind: 'check', label: 'Add a check', detail: 'Which numbers should it look at?', state: 'empty' }];
-  return [...new Set(checks)].map((tool) => ({ id: `check:${tool}`, kind: 'check', label: CHECK_LABELS[tool] ?? tool, detail: tool, state: 'complete' }));
+  return [...new Set(checks)].map((tool) => ({ id: `check:${tool}`, kind: 'check', label: CHECK_LABELS[tool] ?? tool, detail: 'Read first on every run', state: 'complete' }));
 }
 
 function analyzeNode(goal: string | undefined): WorkflowNode {

@@ -230,7 +230,7 @@ export interface CanvasResult {
         @for (version of [node.label + '|' + node.detail]; track version) {
           <span class="wb-label gen-in">{{ node.label }}</span>
           @if (node.detail) {
-            <span class="wb-detail gen-in" [class.font-mono]="node.kind === 'check' && node.state !== 'empty'">{{ node.detail }}</span>
+            <span class="wb-detail gen-in">{{ node.detail }}</span>
           }
         }
       </span>

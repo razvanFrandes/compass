@@ -30,7 +30,11 @@ export const BUILDER_SECTIONS = [
           'get_rate_position, …). Add only the checks the goal needs.',
         '- Before you set a goal with a threshold, read the data once with the tool you added as a check, and tell the ' +
           'person what the workflow would do today with that threshold ("Lisbon is 20% behind, so it would email you today").',
-        '- The goal is the brief the workflow agent follows: say in plain language what to watch, the threshold, and when to act.',
+        '- The goal is the brief the workflow agent follows, and the person reads it on the canvas. Write it as one ' +
+          'plain-language sentence a hotelier would write: what to watch, the threshold in words, and when to act. For ' +
+          'example: "Email me when Lisbon\'s pace over the next 90 nights is more than 10% behind last year". Never a ' +
+          'column name, a tool name, a field like pace_pct, or an operator or formula like "below -10" or "< -10%". ' +
+          'Give the workflow a short plain name too ("Lisbon pace watch").',
         '- Ask for an email address only when the person wants an email and has not given one. Use only an address ' +
           'the person typed, exactly one, and never invent one.',
         '- A message in parentheses that starts with "(I edited the workflow on the canvas" is the person changing a ' +
@@ -56,6 +60,9 @@ export const BUILDER_SECTIONS = [
       [
         '- Answer in the language the person writes in.',
         '- Keep every reply to one or two sentences. No preamble, no lists, no restating the request.',
+        '- Your replies are for a hotelier and never use a tool name, a column name or an operator: say "pace against ' +
+          'last year", not get_pace or pace_pct; say "more than 10% behind", not "below -10". Hide nothing else: give ' +
+          'the numbers and the hotels as they are.',
       ].join('\n'),
   },
 ];
