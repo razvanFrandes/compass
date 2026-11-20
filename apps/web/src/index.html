@@ -7,14 +7,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Geist+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Geist+Mono:wght@400;500&family=Archivo:wdth,wght@75..125,400..700&family=Chivo+Mono:wght@400;500&display=swap">
   <script>
-    // Theme: an explicit data-theme on <html> wins, otherwise follow the OS. Spartan reads the .dark class.
+    // Theme: the choice the app saved (localStorage "compass-theme"), else an explicit data-theme on <html>,
+    // else dark, like Juyo's product. Spartan reads the .dark class; "juyo-concept" is a light theme.
     (function () {
       var root = document.documentElement;
-      // Dark-first, like Juyo's product; an explicit data-theme="light" switches to the light palette.
+      try {
+        var saved = localStorage.getItem('compass-theme');
+        if (saved === 'light' || saved === 'dark' || saved === 'juyo-concept') root.setAttribute('data-theme', saved);
+      } catch (e) {}
       function apply() {
-        var light = root.getAttribute('data-theme') === 'light';
+        var theme = root.getAttribute('data-theme');
+        var light = theme === 'light' || theme === 'juyo-concept';
         root.classList.toggle('light', light);
         root.classList.toggle('dark', !light);
       }

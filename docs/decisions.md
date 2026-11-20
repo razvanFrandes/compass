@@ -247,3 +247,12 @@ Built strictly from stages 1 and 2 of `docs/research/reports/Filtre și grafice 
 - The initial bundle is 2.2 MB, because the extract is embedded. The build budget was raised to 3 MB for the prototype.
 
 **Checks:** headless Chrome against the dev server and the production build. It covers every chart and the filter flows (receipt, Edit, Undo, tri-state groups, tokens, "is not"), the drill and "Apply to dashboard", past ranges, the light theme and the phone sheet. Phone overflow is 0 px, and there are no console errors.
+
+## Themes: Light, Dark and "Juyo concept" (21 Nov 2026)
+
+- **Three themes, one set of token names.** `<html data-theme="light | dark | juyo-concept">`; the choice is kept in `localStorage["compass-theme"]` and applied by the inline script in `index.html` before the first paint. `data-theme` also works on any element.
+- **The concept theme is an additive layer** in `apps/web/src/themes/juyo-concept/`: `tokens.css` (primitive → semantic → component) and `bridge.css`, which maps the literal sizes, radii, shadows and timings that components still carry onto the tokens. No component template changed except the shell's theme switch.
+- **Direction:** a light working surface framed by Juyo's ink rail; colour means this period (blue), Kassandra (violet) or a decision (orange); one family, Archivo, on its width axis, with Chivo Mono for code; hairlines before shadows; 110 ms state changes. The spec is `docs/research/theme/juyo-concept-spec.md`, the research `docs/research/theme/juyo-concept-research.md`.
+- **`/theme-lab`** documents the system next to a default theme. Its tables read the rendered CSS, and its contrast audit computes WCAG 2 and APCA in the browser.
+- **Open:** components should adopt the tokens so the bridge can shrink; the default themes should get the same non-colour tokens; the chart option builders should read `chartStyle()`.
+

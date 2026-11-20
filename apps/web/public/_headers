@@ -6,7 +6,7 @@
 #   2. the stylesheet loader that `ng build` appends (critical CSS inlining).
 # style-src needs 'unsafe-inline': Angular adds component styles as <style> elements, and the build inlines the fonts' CSS.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-mKkEDQKKIyEe5aEi5EqFUlpGsF6sWTyf83eMKx+1izY=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' wss://juyo.razvanfrandes.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-SnGfU/DCq55fJVDz0YTfXePNyznm784ph5taVeIkpC8=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' wss://juyo.razvanfrandes.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY

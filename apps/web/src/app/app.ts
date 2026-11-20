@@ -1,4 +1,4 @@
-import { Component, DOCUMENT, computed, effect, inject, signal } from '@angular/core';
+import { Component, DOCUMENT, computed, effect, inject } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmToasterImports } from '@spartan-ng/helm/sonner';
@@ -7,6 +7,8 @@ import { provideBrnTooltipGroup } from '@spartan-ng/brain/tooltip';
 import { BoardView, BoardsList } from './board';
 import { InboxView } from './inbox';
 import { CompassStore, View } from './store';
+import { THEMES, Theme } from './theme';
+import { ThemeLab } from './theme-lab/theme-lab';
 import { ThreadView } from './thread';
 import { WatchersView } from './watchers';
 import { Live } from './live';
@@ -21,7 +23,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, ThemeLab, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
   providers: [provideIcons({ ...icons }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   template: `
@@ -89,9 +91,12 @@ import * as icons from './icons';
         }
 
         <div class="text-muted-foreground mt-auto flex flex-col gap-px text-[14px]">
-          <button type="button" class="hover:text-foreground hover:bg-foreground/4 flex items-center gap-2.5 rounded-md px-2 py-1.5" (click)="toggleTheme()">
-            <ng-icon [name]="dark() ? 'phosphorSunLight' : 'phosphorMoonLight'" class="text-[16px]" />{{ dark() ? 'Light theme' : 'Dark theme' }}
-          </button>
+          <div class="seg seg--fill mx-2 mb-1.5" role="radiogroup" aria-label="Theme">
+            @for (t of themes; track t.id) {
+              <button type="button" role="radio" [attr.aria-checked]="theme.id() === t.id" [attr.aria-label]="t.label" (click)="theme.set(t.id)">{{ t.short }}</button>
+            }
+          </div>
+          <button type="button" class="flex items-center gap-2.5 rounded-md px-2 py-1.5" [class]="store.view() === 'theme-lab' ? 'bg-foreground/6 text-foreground font-medium' : 'hover:text-foreground hover:bg-foreground/4'" [attr.aria-current]="store.view() === 'theme-lab' ? 'page' : null" (click)="store.go('theme-lab')"><ng-icon name="phosphorSwatchesLight" class="text-[16px]" />Theme lab</button>
           <button type="button" aria-disabled="true" hlmTooltip="Coming soon" aria-describedby="soon-note" class="flex cursor-not-allowed items-center gap-2.5 rounded-md px-2 py-1.5 opacity-60"><ng-icon name="phosphorGearSixLight" class="text-[16px]" />Settings<span class="ml-auto text-[11.5px]">Soon</span></button>
           <span id="soon-note" class="sr-only">Coming soon</span>
           <p class="px-2 pt-3 text-[12px]/relaxed">Fictional group, generated data. Business date 20 Nov 2026.</p>
@@ -105,7 +110,7 @@ import * as icons from './icons';
               <span class="text-[14px] font-semibold tracking-[-0.02em]">Compass</span>
               <span class="text-muted-foreground text-[14px]">/ Halcyon</span>
             </div>
-            <button hlmBtn variant="ghost" size="icon" [attr.aria-label]="dark() ? 'Switch to light theme' : 'Switch to dark theme'" (click)="toggleTheme()"><ng-icon [name]="dark() ? 'phosphorSunLight' : 'phosphorMoonLight'" /></button>
+            <button hlmBtn variant="ghost" size="icon" [attr.aria-label]="'Theme: ' + theme.option().label + '. Switch to ' + theme.next().label" (click)="theme.set(theme.next().id)"><ng-icon [name]="theme.option().icon" /></button>
           </header>
         }
         @switch (store.view()) {
@@ -123,6 +128,14 @@ import * as icons from './icons';
           }
           @case ('watchers') {
             <app-watchers />
+          }
+          @case ('theme-lab') {
+            <!-- The design tokens of every theme, side by side; its code loads on first visit -->
+            @defer (on immediate) {
+              <app-theme-lab />
+            } @placeholder {
+              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading…</p>
+            }
           }
           @case ('watcher') {
             <!-- Loads on first visit: it reads CHECK_LABELS from @compass/contracts, which brings zod -->
@@ -152,7 +165,7 @@ import * as icons from './icons';
     }
 
     }
-    <hlm-toaster [theme]="dark() ? 'dark' : 'light'" position="bottom-center" [offset]="'72px'" />
+    <hlm-toaster [theme]="theme.dark() ? 'dark' : 'light'" position="bottom-center" [offset]="'72px'" />
   `,
 })
 export class App {
@@ -160,12 +173,14 @@ export class App {
   protected readonly live = inject(Live);
   private readonly doc = inject(DOCUMENT);
   protected readonly group = GROUP;
-  protected readonly dark = signal(this.doc.documentElement.classList.contains('dark'));
+  protected readonly theme = inject(Theme);
+  protected readonly themes = THEMES;
   private readonly baseTitle = this.doc.title;
 
   constructor() {
     effect(() => {
-      this.doc.title = this.store.view() === 'builder' ? 'New workflow · Compass' : this.baseTitle;
+      const view = this.store.view();
+      this.doc.title = view === 'builder' ? 'New workflow · Compass' : view === 'theme-lab' ? 'Theme lab · Compass' : this.baseTitle;
     });
   }
 
@@ -187,11 +202,5 @@ export class App {
       this.store.go('inbox');
       setTimeout(() => (this.doc.getElementById('global-ask') as HTMLInputElement | null)?.focus(), 30);
     }
-  }
-
-  protected toggleTheme() {
-    const next = this.dark() ? 'light' : 'dark';
-    this.doc.documentElement.dataset['theme'] = next;
-    this.dark.set(next === 'dark');
   }
 }
