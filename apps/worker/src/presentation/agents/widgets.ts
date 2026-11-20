@@ -48,11 +48,11 @@ const DESCRIPTION = [
   '- line, area: a trend. x: a date, month or number column; y: 1–6 number columns, or one number with group (a line per hotel); compare (optional, with one y).',
   '- sparkline_list: a small trend per group value. x: ordered, y: one number, group.',
   '- pie, donut: only for 2–7 parts of one whole. group: the part name, y: one number that adds up to the whole.',
-  '- treemap: 2–60 parts. group: the part name, y: one number.',
+  '- treemap: 2–60 parts. group: the part name, y: one number. With x too, the parts (x, e.g. the hotel) sit inside their parents (group, e.g. the region).',
   '- table: the exact rows. y: the columns to show (optional).',
-  '- heatmap: x across, group down, y: the number in each cell. calendar_heatmap: x: a day column, y: one number, one row per day.',
+  '- heatmap: x across, group down, y: the number in each cell (e.g. nights across, hotels down). calendar_heatmap: x: a day column, y: one number, one row per day.',
   '- funnel: stages that only shrink. y: 2–8 stage columns in order (x names each funnel when there are 2–4 rows); or x: the stage name and y: one number, one row per stage.',
-  '- waterfall: x: the step name, y: the change of each step.',
+  '- waterfall: x: the step name, y: the change of each step. The first and last rows are the totals it starts from and ends on (get_pnl view "bridge" gives exactly these rows).',
   '- bullet: actual against target. y: the actual, compare: the target, x: the name when there are several rows.',
   '- gauge: 1 row. y: a percent; or y with compare: the target.',
   '- scatter: x and y: number columns; group: the name of each point (optional).',
@@ -66,17 +66,54 @@ export const WIDGET_SECTIONS: PromptSection[] = [
     key: 'widgets',
     render: () =>
       [
-        '- When a chart, a table or a KPI tile makes the answer clearer (a trend, a ranking, a comparison, a mix, a funnel), call ' +
-          'show_widget after the data tool. Pass the "Result id" printed at the end of that tool result as sourceCallId and its ' +
-          'column names as x, y, group and compare. The widget draws the rows of that result: you never type a number into it.',
+        '- Answer visually by default. After the data tools, ALWAYS call show_widget at least once when the answer holds a comparison, ' +
+          'a trend, a split, a ranking or a few headline figures: the reader should see it, not only read it. Go without a widget ' +
+          'only when the answer is one number, a yes or no, or has nothing to draw (a definition, a data-health note, guest quotes).',
+        '- Pass the "Result id" printed at the end of the data tool result as sourceCallId and its column names as x, y, group and ' +
+          'compare. The widget draws the rows of that result: you never type a number into it.',
+        '- Pick the kind by what the rows say, not by habit:',
+        '  · 2–4 headline numbers → kpi_row. get_kpis by "group" or "region" gives them in one row: y: occupancy_pct, adr_eur, ' +
+          'revpar_eur, room_revenue_eur (last year is read from the _ly columns).',
+        '  · a trend over days, weeks or months → line or area, with the last-year or budget comparison. get_metric with compare ' +
+          '"stly" and a grain gives x: period, y: value, compare: compare_value. Pace for a month against last year is get_pace with ' +
+          'from, to and grain "day": x: stay_date, y: rooms_otb, compare: rooms_otb_stly.',
+        '  · a ranking or a comparison across hotels, regions, accounts or departments → bar (compare: the last-year or budget ' +
+          'column when the rows have one, e.g. get_account_production with x: account, y: room_nights, compare: previous_room_nights); ' +
+          'grouped_bar for two or more measures side by side.',
+        '  · 2–7 parts of one whole → donut or pie: the channel or segment mix of one hotel, or of several with get_channel_mix ' +
+          'shape "total" or get_mix rollUp true and grain "total" (group: channel or key, y: one number). A mix over time → ' +
+          'stacked_bar from get_mix with a grain (x: period, y: share_pct, group: key).',
+        '  · many parts, or parts inside parents → treemap. Room revenue by hotel: get_kpis by "hotel" with x: key, group: region, ' +
+          'y: room_revenue_eur.',
+        '  · a bridge from one total to another (what drove GOP against budget or last year) → waterfall from get_pnl view ' +
+          '"bridge", for one hotel or one roll-up: x: step, y: amount_eur.',
+        '  · the website booking funnel → funnel, first, whenever the question is about the funnel, the booking engine or web ' +
+          'conversion: get_web_funnel with grain "total" (one hotel, by device) gives x: key, y: sessions, searches, checkout_starts, ' +
+          'bookings. A trend of conversion over the weeks is a second widget, never the only one.',
+        '  · actual against a budget or target → bullet (y: the actual, compare: the budget or target, x: the name of each bar), ' +
+          'e.g. get_pnl summary per hotel or get_rate_position grain "total" (y: bar_rate, compare: comp_median, x: hotel_code). ' +
+          'gauge for one percentage against its target.',
+        '  · hotels × nights → heatmap, whenever a measure is asked for each hotel and each night or day ("occupancy for the ' +
+          'next 14 nights by hotel"): get_metric by "hotel" with grain "day" gives x: period, group: key, y: value. Do not sum the ' +
+          'nights into one bar per hotel: the grid is the answer. Which nights of one hotel are filling or full over several ' +
+          'weeks (a booking calendar) → calendar_heatmap, not a line, from get_metric for that hotel with grain "day" (x: period, ' +
+          'y: value): the weekday pattern is the point.',
+        '  · two measures for each hotel or each night → scatter. ARI × MPI: get_kpis by "hotel" (x: ari, y: mpi, group: key). ' +
+          'Rate against demand: get_rate_position (x: occupancy_otb_pct, y: bar_vs_comp, group: hotel_code).',
+        '  · where the money goes, channel → net revenue and commission → sankey, not bars, whenever the question is where channel ' +
+          'revenue goes or what is left after commission: get_channel_mix shape "flows" gives x: channel, group: lands_in, y: amount_eur.',
+        '  · table only when the reader has to look up exact rows, never in place of a chart that fits.',
+        '- Up to 3 widgets per answer, the most important first, each showing something the others do not. Call them in the same ' +
+          'turn when you can.',
+        '- A widget cannot be taken back once shown. Read the result first (the right period, hotels and shape) and only then ' +
+          'chart it; never show a widget you would have to tell the reader to ignore.',
         '- The title is a conclusion with its number ("Lisbon is 15.9% behind last year for December"), never a label ("Pace by hotel"). ' +
           'The subtitle names the hotels and the period.',
-        '- Prefer the simplest kind that fits: kpi for one number, bar to rank or compare, line for a trend over time, table when the ' +
-          'reader needs the exact rows. Use pie or donut only for 2–7 parts of one whole. Use the other kinds only for the case their description names.',
-        '- If a result has the wrong shape for the kind, call the data tool again narrower (fewer hotels, grain total, a roll-up) ' +
-          'instead of forcing the kind. If show_widget fails twice, answer without the widget.',
-        '- At most 3 widgets per answer, and none when the answer is one number or a yes or no.',
-        '- A widget does not replace the answer: still write it, but do not repeat the rows of a widget as a list or a table.',
+        '- If a result has the wrong shape for the kind, call the data tool again in the shape the kind needs (fewer hotels, grain ' +
+          '"total", a roll-up, the view or shape named above) instead of forcing the kind. If show_widget fails twice for a widget, ' +
+          'answer without it.',
+        '- Keep the text short and point at the widgets: the answer in one or two sentences, what drives it, the next move. ' +
+          'Never repeat the rows of a widget as a list or a table.',
       ].join('\n'),
   },
   {

@@ -1,0 +1,172 @@
+{
+  "base": "http://localhost:8811",
+  "run": "2026-11-20T23-26-28-995Z",
+  "passed": 4,
+  "total": 4,
+  "results": [
+    {
+      "id": "V3",
+      "question": "What drove GOP vs budget in October for the group?",
+      "mustMention": [
+        [
+          "GOP"
+        ],
+        [
+          "budget"
+        ]
+      ],
+      "expectWidget": [
+        "waterfall"
+      ],
+      "why": "A bridge from budget GOP to actual GOP, line by line.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "waterfall"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 11849,
+      "widgets": [
+        {
+          "kind": "waterfall",
+          "title": "October 2026 group GOP beat budget by about €1.04M, driven by rooms",
+          "x": "step",
+          "y": [
+            "amount_eur"
+          ],
+          "rows": 13
+        }
+      ],
+      "answer": "October 2026 group GOP came in at €15.41M against a budget of €14.37M, which is about €1.04M ahead. I read \"October\" as 2026 because the business date is 20 Nov 2026.\n\n- **Rooms revenue:** +€1.04M over budget. This is the main driver.\n- **F&B:** revenue was €0.97M under budget, but F&B expense was €0.78M under as well. The net hit to GOP is about €0.18M.\n- **M&E and other revenue:** M&E was €0.20M under budget and other revenue €0.12M under. Nothing offset these.\n- **Other costs:** rooms expense was €0.22M under budget, and A&G, S&M and maintenance together were about €0.36M under. Utilities were roughly on budget. Part of this cost saving may simply follow lower volumes.\n- **Unallocated in budget:** −€0.08M. This is the part of budget GOP that its own revenue and expense lines don't explain.\n\nThe GOP beat rests on rooms, and the F&B and M&E shortfalls were largely covered by lower costs. Next move: pull the F&B and M&E lines by hotel (get_pnl, view lines) to find which properties missed on revenue. Then check whether their cost savings are structural or only a timing effect."
+    },
+    {
+      "id": "V5",
+      "question": "Show occupancy for the next 14 nights by hotel",
+      "mustMention": [
+        [
+          "occupancy"
+        ]
+      ],
+      "expectWidget": [
+        "heatmap"
+      ],
+      "why": "Hotels × nights is a grid: 20 hotels over 14 nights.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "heatmap"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 10360,
+      "widgets": [
+        {
+          "kind": "heatmap",
+          "title": "Occupancy on the books, 20 Nov – 3 Dec, by hotel",
+          "x": "period",
+          "y": [
+            "value"
+          ],
+          "group": "key",
+          "rows": 280
+        }
+      ],
+      "answer": "The heatmap shows occupancy on the books for all 20 hotels from 20 Nov to 3 Dec. These are on-the-books figures, not actuals.\n\n- **Strongest:** DXB1 is at 94–98% on 20–21 Nov. TYO, NYC, VIE and EZE also have peaks above 85–90% in the first few nights.\n- **Weakest:** LON1 (50.8% on 20 Nov) and YYZ and LON2 (45–46% on 22 Nov). Several hotels, including BER, CHI, NYC and LIS, drop to about 52–54% on Sunday 22 Nov.\n\n**Next move:** Check `get_rate_position` for the high-occupancy nights at DXB1, TYO and NYC, because they may be underpriced. Check pickup for LON1, LON2 and YYZ on the soft nights."
+    },
+    {
+      "id": "V7",
+      "question": "How is Amsterdam's mobile booking funnel doing?",
+      "mustMention": [
+        [
+          "Amsterdam",
+          "AMS"
+        ],
+        [
+          "mobile"
+        ]
+      ],
+      "expectWidget": [
+        "funnel"
+      ],
+      "why": "Sessions, searches, checkout starts and bookings only shrink: a funnel.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "funnel",
+        "line"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 13581,
+      "widgets": [
+        {
+          "kind": "funnel",
+          "title": "Amsterdam mobile loses 57% of checkouts: 312 starts, 134 bookings",
+          "x": "key",
+          "y": [
+            "sessions",
+            "searches",
+            "checkout_starts",
+            "bookings"
+          ],
+          "rows": 2
+        },
+        {
+          "kind": "line",
+          "title": "Mobile checkout completion fell from 100% to about 45% from the week of 19 Oct",
+          "x": "period",
+          "y": [
+            "checkout_completion_pct"
+          ],
+          "group": "key",
+          "rows": 18
+        }
+      ],
+      "answer": "Amsterdam's mobile funnel looks broken at checkout. Mobile checkout completion was 100% through the week of 12 Oct. Since the week of 19 Oct it has been about 40–55%. In the last 28 days, 312 mobile checkouts were started and only 134 completed (42.9%). Desktop is still at 100%, so the fault is specific to mobile.\n\n- **Top of the funnel is healthy.** Mobile sessions and searches are in line with earlier weeks. The loss happens after the guest starts checkout.\n- **Conversion has halved.** Mobile conversion fell from about 1.9% to 0.7–1.0%, against about 3% on desktop. Weekly mobile booking revenue fell from about €40–50k to about €15k.\n- **Data feeds are fine.** All Amsterdam sources synced this morning, so this is not a stale feed.\n\n**Next move:** Ask the web or IT team to test the mobile checkout on iOS and Android. Look first at payment or form steps that changed around 19 Oct. I can draft a workflow that flags this finding automatically if you want one."
+    },
+    {
+      "id": "V8",
+      "question": "Give me the headline KPIs for Asia this month",
+      "mustMention": [
+        [
+          "Asia"
+        ],
+        [
+          "occupancy"
+        ]
+      ],
+      "expectWidget": [
+        "kpi_row"
+      ],
+      "mode": "quick",
+      "why": "A few headline numbers with last year: KPI tiles. Asked in Quick mode, which owes a widget too.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "kpi_row"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 10433,
+      "widgets": [
+        {
+          "kind": "kpi_row",
+          "title": "Asia is at 76.4% occupancy and 294 EUR RevPAR for November, both ahead of last year",
+          "y": [
+            "occupancy_pct",
+            "adr_eur",
+            "revpar_eur",
+            "room_revenue_eur"
+          ],
+          "rows": 1
+        }
+      ],
+      "answer": "Asia for November 2026 is ahead of last year on every headline: occupancy 76.4% (73.9% LY), ADR €385 (€379 LY), RevPAR €294 (€280 LY), and room revenue €6.06M (€5.77M LY).\n\nFigures cover 1–30 November, with actuals up to 19 November and the rest on the books. Rooms sold are 15,712 against 15,198 last year.\n\nNext move: check whether the on-the-books nights in late November are pacing as strongly as the ADR gain suggests, using get_pace for the Asia hotels. I can run that next if you want it."
+    }
+  ]
+}

@@ -47,7 +47,7 @@ describe('answer modes', () => {
     await root.configure(agentChangeFor('thinker', data), context);
     const agent = await root.agent(context);
 
-    expect(agent.tools).toHaveLength(25);
+    expect(agent.tools).toHaveLength(26);
     expect(agent.tools.map((t) => t.name)).toContain('show_widget');
     expect(agent.model).toEqual({ provider: 'cloudflare', modelId: 'anthropic/claude-sonnet-5.5' });
     await harness.close(context);
@@ -58,8 +58,8 @@ describe('answer modes', () => {
       throw new Error('no database in this test');
     });
     const scope = 'You are answering for: Arbor Lisbon Chiado (LIS).';
-    expect(agentChangeFor('thinker', data).instructions).toBeNull();
-    expect(agentChangeFor('thinker', data, scope).instructions).toBe(scope);
+    expect(agentChangeFor('thinker', data).instructions).toMatch(/^Thinker mode:/);
+    expect(agentChangeFor('thinker', data, scope).instructions!.endsWith(scope)).toBe(true);
     const quick = agentChangeFor('quick', data, scope).instructions!;
     expect(quick).toMatch(/^Quick mode:/);
     expect(quick.endsWith(scope)).toBe(true);

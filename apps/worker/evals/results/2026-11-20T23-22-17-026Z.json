@@ -1,0 +1,661 @@
+{
+  "base": "http://localhost:8811",
+  "run": "2026-11-20T23-22-17-026Z",
+  "passed": 13,
+  "total": 15,
+  "results": [
+    {
+      "id": "S1",
+      "question": "Why is Lisbon pacing behind last year?",
+      "mustMention": [
+        [
+          "Lisbon"
+        ],
+        [
+          "comp set",
+          "competitor",
+          "market",
+          "median"
+        ],
+        [
+          "pickup",
+          "pace",
+          "behind",
+          "on the books"
+        ]
+      ],
+      "why": "Manual BAR override +22% above the comp set slows pickup; pace about -20% vs STLY.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "line",
+        "bar"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 14205,
+      "widgets": [
+        {
+          "kind": "line",
+          "title": "Lisbon is behind last year on most nights from 22 Nov to mid-Dec",
+          "x": "stay_date",
+          "y": [
+            "rooms_otb"
+          ],
+          "compare": "rooms_otb_stly",
+          "rows": 61
+        },
+        {
+          "kind": "bar",
+          "title": "Lisbon's pickup is the weakest in Europe at 11.0%",
+          "x": "hotel_code",
+          "y": [
+            "pickup_pct"
+          ],
+          "rows": 8
+        }
+      ],
+      "answer": "Lisbon is behind last year because it is priced too high. All the data feeds are healthy, so this is a real business issue and not a stale feed.\n\n- **Rate:** Lisbon's BAR averages €170 against a comp set median of €113.4, about 1.5 times the median. This covers the 193 nights that have a rate shop.\n- **Pickup:** Lisbon added 11.0% of capacity over the last 21 days, the lowest of the European hotels. The others are between 15% and 21%. On the books, many nights from 22 Nov to mid-Dec are well below last year. For example, 26 Nov has 57 rooms against 99, and 13 Dec has 35 against 62.\n- **Lost business:** Price regrets are 96.3% of the room nights turned away (19,137 nights). Denials for being full are only 3.7%. The estimated value of the price regrets is €3.05M. That is an upper bound, because those guests would not have paid full BAR. The window runs from 1 Jan 2025 onward, so it is broader than the pace window.\n\nNext move: cut the BAR toward the comp median on the weakest nights, starting with 22 Nov to 15 Dec. Check the rate-shop data for those nights before you change anything. I can draft a workflow to do this if you want."
+    },
+    {
+      "id": "S2",
+      "question": "Which hotel lost its biggest corporate account, and what did it cost?",
+      "mustMention": [
+        [
+          "New York",
+          "NYC"
+        ],
+        [
+          "Vantor"
+        ]
+      ],
+      "why": "Vantor Consulting left Arbor New York Midtown; corporate share 30% to 21%, OTA up.",
+      "pass": true,
+      "missing": [],
+      "kinds": [],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 17627,
+      "widgets": [],
+      "answer": "**Arbor New York Midtown (NYC) lost its biggest corporate account, Vantor Consulting. The loss cost about €1.34M in room revenue.**\n\n- **Volume:** Vantor Consulting fell to 450 room nights in the last 6 months, from 5,414 in the 6 months before. The last recorded stay was 2026-07-15, so the account has effectively gone since mid-July.\n- **Cost basis:** the €1.34M is room revenue in the last 6 months against the 6 months before. It is a gross figure. It does not net out any of those nights NYC has since refilled with other business.\n- **Not checked:** I could not pull the account-level detail (the account production tool failed), so I have not confirmed whether Vantor is the largest account at NYC or only the biggest loss across the group. This comes from the morning brief, which lists it as the largest account loss.\n\n**Next move:** find out why Vantor left. It could be a rate dispute, a competitor win or a contract that was not renewed. Then check with `get_mix` (basis booked) whether NYC has replaced those nights with lower-rated OTA business. If the account is recoverable, have the GM contact Vantor's travel manager."
+    },
+    {
+      "id": "S3",
+      "question": "Why are food scores dropping in Bali?",
+      "mustMention": [
+        [
+          "Bali",
+          "DPS"
+        ],
+        [
+          "kitchen"
+        ],
+        [
+          "staff",
+          "hours",
+          "short"
+        ]
+      ],
+      "why": "Kitchen at 68% of required hours for 5 weeks; dinner covers per occupied room -40%; food score 8.6 to 6.0.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "line",
+        "bar"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 17001,
+      "widgets": [
+        {
+          "kind": "line",
+          "title": "Bali food score fell from 8.67 in September to 6.42 in November",
+          "x": "period",
+          "y": [
+            "food",
+            "staff"
+          ],
+          "rows": 6
+        },
+        {
+          "kind": "bar",
+          "title": "Kitchen staffing fell to 74% in October and 83.7% in November",
+          "x": "period",
+          "y": [
+            "staffing_pct"
+          ],
+          "rows": 3
+        }
+      ],
+      "answer": "The food score at Lumen Bali Uluwatu (DPS) dropped because the kitchen and restaurant are short-staffed. It fell from 8.67 in September to 6.9 in October and 6.42 in November so far. Cleanliness, comfort and location scores are flat, but the staff score also slipped, from 8.52 to 7.88.\n\n- **Kitchen staffing:** Kitchen hours worked were 99.4% of required in September. They fell to 74% in October and 83.7% in November. Hours scheduled stayed in line with what was required, so the gap looks like unfilled shifts or absences.\n- **Dinner is the main casualty:** Restaurant dinner covers fell from 3,345 in September to 2,151 in October. November is a partial month, with 1,377 covers. Dinner revenue fell from €124.8k to €80.8k in October. Covers per occupied room for dinner dropped from 0.78 to 0.52 in October, so guests are eating elsewhere.\n- **Guest comments:** Recent Google reviews, 18–19 November, say \"The restaurant was clearly understaffed. Dinner took over an hour and room service never came.\" Room service covers also fell, from 229 to 131 to 88. The same sentence appears in several reviews, so treat the mention count with some caution.\n- **Not a data problem:** All DPS feeds are syncing normally.\n\n**Next move:** Ask the DPS GM to fill the kitchen and F&B service vacancies now, using temporary cover or cross-trained staff. I'd also suggest a fixed dinner-service time target until staffing recovers. I can draft a workflow that flags DPS when kitchen staffing drops below 90%, if you'd like one."
+    },
+    {
+      "id": "S4",
+      "question": "Amsterdam is getting more Booking.com bookings lately. Why?",
+      "mustMention": [
+        [
+          "Amsterdam",
+          "AMS"
+        ],
+        [
+          "mobile"
+        ],
+        [
+          "checkout",
+          "conversion"
+        ]
+      ],
+      "why": "A booking engine release broke mobile checkout; mobile conversion 1.8% to 0.8%; Booking.com share up.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "line",
+        "stacked_bar"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 14744,
+      "widgets": [
+        {
+          "kind": "line",
+          "title": "Amsterdam mobile checkout completion collapsed to 43.7% in November",
+          "x": "period",
+          "y": [
+            "checkout_completion_pct"
+          ],
+          "group": "key",
+          "rows": 8
+        },
+        {
+          "kind": "stacked_bar",
+          "title": "Booking.com is 25.6% of November bookings, web direct fell to 18.5%",
+          "x": "period",
+          "y": [
+            "share_pct"
+          ],
+          "group": "key",
+          "rows": 28
+        }
+      ],
+      "answer": "Booking.com is gaining share because Amsterdam's direct website is losing mobile bookings. The mobile checkout looks broken, so guests who start a booking there seem to finish it on Booking.com instead.\n\n- **Mobile checkout:** completion was 100% in August and September. It fell to 80.8% in October and 43.7% in November so far. Desktop is unaffected at 100%. Mobile checkout starts are healthy, but only 86 of 197 became bookings in November. Mobile sessions, searches and checkout starts are normal, so the loss happens at the final step.\n- **Channel shift:** among November bookings (by booking date), Booking.com is 25.6% of room nights, up from about 20% in Aug–Sep. Direct web fell from about 24% to 18.5%. Part of this is a partial month, so treat the exact shares with care.\n- **Rates are not the cause:** the data feeds are healthy. Our rate is also 1.35 times the comp-set median for the coming nights, so we may be priced high, but that would not explain a mobile-only checkout failure.\n\nCost: every booking lost on mobile and recovered through Booking.com pays commission. I haven't quantified that.\n\n**Next move:** have the web team test the Amsterdam mobile booking engine end to end (payment step, a recent release around early October). Until it is fixed, consider checking the rate gap to the comp set."
+    },
+    {
+      "id": "S5",
+      "question": "Why do guests at Barcelona complain lately?",
+      "mustMention": [
+        [
+          "Barcelona",
+          "BCN"
+        ],
+        [
+          "construction",
+          "renovation"
+        ],
+        [
+          "noise"
+        ]
+      ],
+      "why": "24 rooms out of order for renovation; construction noise in reviews.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "line"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 12468,
+      "widgets": [
+        {
+          "kind": "line",
+          "title": "Barcelona comfort score fell from 8.57 (Aug) to 7.64 (Nov)",
+          "x": "period",
+          "y": [
+            "comfort",
+            "overall",
+            "value"
+          ],
+          "rows": 6
+        }
+      ],
+      "answer": "Guests at Barcelona are complaining about construction noise. The reviews point to renovation work in the building.\n\n- **Scores:** The comfort score fell from 8.57 in August to 7.50 in October and 7.64 in November so far. Overall dropped from 8.48 in July to 8.25 in October. Staff, cleanliness, food and location are stable.\n- **Guest comments:** The newest reviews, from 18–19 Nov, repeat the same line: \"Construction noise from the floor below started early every morning.\" This phrase search only returned six reviews, so I can't say how many guests mention it in total. These guests still score 7.4–8.9 overall.\n- **Inventory:** About 26 rooms have been out of order since October, up from an average of 2 in August and 9.7 in September. That matches renovation work and the start of the comfort drop.\n\n**Next move:** Ask the GM for the work schedule. If the work continues, stop selling rooms near the work area. Consider offering guests a quiet room or a late-start commitment, and watch whether the comfort score recovers once the work ends."
+    },
+    {
+      "id": "S6",
+      "question": "How is Dubai Business Bay priced for 15-19 December?",
+      "mustMention": [
+        [
+          "Business Bay",
+          "DXB2"
+        ],
+        [
+          "below",
+          "under",
+          "cheaper"
+        ],
+        [
+          "comp set",
+          "competitor",
+          "market",
+          "median"
+        ]
+      ],
+      "why": "Gulf Tech Week is missing from the pricing calendar: 0.76x the comp set while 83% full three weeks out.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "scatter"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 12810,
+      "widgets": [
+        {
+          "kind": "scatter",
+          "title": "DXB2 is priced 18–29% below the comp median while 16–19 Dec fill to 86–96%",
+          "x": "occupancy_otb_pct",
+          "y": [
+            "bar_vs_comp"
+          ],
+          "group": "stay_date",
+          "rows": 5
+        }
+      ],
+      "answer": "Tessera Dubai Business Bay (DXB2) is priced well below its comp set for all five nights. It is also filling fast, so it looks underpriced. These are on-the-books figures as of 20 Nov.\n\n- **16–18 Dec:** BAR is at 0.74, 0.82 and 0.78 of the comp median. Occupancy on the books is 89.6%, 96% and 86.2%. Comps are sold out on 3, 2 and 1 of these nights. The 17th is the clearest case: 96% full at AED 750 against a median of about AED 912.\n- **19 Dec:** BAR is AED 650 and all 4 comps are sold out, so there is no median to compare against. We are 88.6% full, which suggests room to raise the rate.\n- **15 Dec:** BAR is 0.71 of the median (AED 665 against about AED 938). Occupancy is only 57.7%, so this night is less urgent. The gap is still large.\n\nNext move: raise BAR for 16–19 Dec now, starting with the 17th and the 19th. The rate shop shows no median for the 19th, so check the market on that night first. Leave the 15th for a smaller rise, depending on how pickup goes."
+    },
+    {
+      "id": "S7",
+      "question": "Is anything wrong with the data in Berlin?",
+      "mustMention": [
+        [
+          "Berlin",
+          "BER"
+        ],
+        [
+          "POS"
+        ],
+        [
+          "stale",
+          "sync",
+          "behind",
+          "missing"
+        ]
+      ],
+      "why": "The POS feed is stale: no F&B rows for the last 3 days.",
+      "pass": true,
+      "missing": [],
+      "kinds": [],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 6219,
+      "widgets": [],
+      "answer": "Yes, one feed is stale in Berlin (Tessera Berlin Mitte): the **POS (Lightspeed)**. It last synced on 17 Nov at 04:12, about three days before the business date of 20 Nov.\n\nThe other six sources synced this morning and show OK: PMS, RMS, Finance, Rate shopper, Comp set benchmark and Web analytics.\n\n- **What this affects:** Berlin's F&B covers and revenue since 17 Nov are probably incomplete. Any F&B drop, or any drop in F&B-driven GOP or F&B-related review figures, for the last three days should not be read as a business problem yet.\n- **What it does not affect:** Rooms, rates, pace and comp set figures come from healthy feeds, so you can trust them.\n\n**Next move:** Ask IT or the Lightspeed integration owner to restore the Berlin POS connection and backfill from 17 Nov. Until then, leave the last three days of Berlin F&B out of any analysis."
+    },
+    {
+      "id": "V1",
+      "question": "How is Lisbon pacing for December vs last year?",
+      "mustMention": [
+        [
+          "Lisbon"
+        ],
+        [
+          "last year"
+        ]
+      ],
+      "expectWidget": [
+        "line",
+        "area"
+      ],
+      "expectCompare": true,
+      "why": "A pace curve: rooms on the books per December night against the same time last year.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "line"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 11690,
+      "widgets": [
+        {
+          "kind": "line",
+          "title": "Lisbon is 15.9% behind last year for December (1,286 vs 1,529 room nights)",
+          "x": "stay_date",
+          "y": [
+            "rooms_otb"
+          ],
+          "compare": "rooms_otb_stly",
+          "rows": 31
+        }
+      ],
+      "answer": "Lisbon is 15.9% behind last year for December. It has 1,286 room nights on the books against 1,529 at the same point last year. These are bookings, not actuals, since today is 20 Nov 2026. Revenue on the books is 219.9k against 237.6k, a gap of about 7%. That is smaller than the volume gap, so the rate is holding up better than the volume.\n\n- **Where the gap sits:** The mid-month stretch is weakest, from 12 to 20 Dec. For example, 13 Dec has 35 rooms against 62 last year. Christmas and the last days of the month are roughly level with last year.\n- **Early December:** This is also behind, mainly 3 to 7 Dec.\n\nNext move: check `get_pickup`, `get_rate_position` and `get_lost_business` for Lisbon. They will show whether the mid-December gap comes from a rate priced above the market or from weak demand. I haven't run those yet."
+    },
+    {
+      "id": "V2",
+      "question": "What's the channel mix at Barcelona?",
+      "mustMention": [
+        [
+          "Barcelona",
+          "BCN"
+        ]
+      ],
+      "expectWidget": [
+        "donut",
+        "pie",
+        "stacked_bar"
+      ],
+      "why": "A handful of channels that make up one whole.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "donut",
+        "bar"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 11200,
+      "widgets": [
+        {
+          "kind": "donut",
+          "title": "Barcelona: web is the top channel, but Booking.com and Expedia together are the larger share",
+          "y": [
+            "room_nights"
+          ],
+          "group": "channel",
+          "rows": 7
+        },
+        {
+          "kind": "bar",
+          "title": "OTAs cost Barcelona about €194k in commission in 30 days",
+          "x": "channel",
+          "y": [
+            "commission_eur"
+          ],
+          "rows": 7
+        }
+      ],
+      "answer": "Over the last 30 days (21 Oct–19 Nov), Barcelona's biggest channel is its own website, which is direct. Booking.com and Expedia together bring in more room nights than the website, though.\n\n- **Commission:** The two OTAs are where nearly all of the commission goes. Booking.com is the larger cost, and the bar chart shows each channel.\n- **Wholesale:** It is the third-largest channel by room nights and carries no commission, but it sells at a lower rate than the others.\n- **Direct:** The website, group desk and phone are all direct, with little or no commission.\n\nI picked the 30-day window myself because you didn't give one.\n\nNext move: check whether Booking.com's share can move to the website, for example with member rates or better rate parity. That would save the most commission."
+    },
+    {
+      "id": "V3",
+      "question": "What drove GOP vs budget in October for the group?",
+      "mustMention": [
+        [
+          "GOP"
+        ],
+        [
+          "budget"
+        ]
+      ],
+      "expectWidget": [
+        "waterfall"
+      ],
+      "why": "A bridge from budget GOP to actual GOP, line by line.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "waterfall",
+        "waterfall"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 13766,
+      "widgets": [
+        {
+          "kind": "waterfall",
+          "title": "October 2026 GOP beat budget: €15.41M vs €14.37M",
+          "x": "step",
+          "y": [
+            "amount_eur"
+          ],
+          "rows": 13
+        },
+        {
+          "kind": "waterfall",
+          "title": "October 2026 GOP beat budget: €15.41M vs €14.37M",
+          "x": "step",
+          "y": [
+            "amount_eur"
+          ],
+          "rows": 13
+        }
+      ],
+      "answer": "October 2026 GOP came in at €15.41M against a budget of €14.37M, which is €1.04M ahead. The rooms line drove the beat, and F&B was the weak spot.\n\n(The first chart I drew used the October 2025 data by mistake. Please disregard it. The second chart is the correct one for 2026.)\n\n- **Rooms:** Rooms revenue was €1.04M above budget, with only €217K of extra rooms expense to offset it. This is the main source of the gain.\n- **F&B:** F&B revenue was €966K below budget, but F&B expense was €782K below budget too. The net hit to GOP is therefore only about €184K.\n- **Other lines:** M&E revenue was €195K under budget and other revenue €119K under. Savings in admin & general (€189K), sales & marketing (€93K) and maintenance (€78K) partly covered those gaps. Utilities were roughly on budget.\n\nThe F&B revenue shortfall is still large, even though the cost savings hid most of it. Before October closes out, I'd have the revenue manager check F&B covers per occupied room by hotel, to see whether guests are being captured in house. I'd also check whether M&E is short on pipeline."
+    },
+    {
+      "id": "V4",
+      "question": "Where are we priced vs the comp set in Dubai next 30 nights?",
+      "mustMention": [
+        [
+          "Dubai",
+          "DXB",
+          "Business Bay",
+          "Marina"
+        ],
+        [
+          "comp set",
+          "competitor",
+          "market",
+          "median"
+        ]
+      ],
+      "expectWidget": [
+        "scatter",
+        "bullet"
+      ],
+      "why": "Rate against the comp set, per night against demand (scatter) or per hotel against the median (bullet).",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "line",
+        "bullet"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 13948,
+      "widgets": [
+        {
+          "kind": "line",
+          "title": "DXB2 is 18–29% under the comp median on 15–18 Dec, while filling to 96%",
+          "x": "stay_date",
+          "y": [
+            "bar_vs_comp"
+          ],
+          "group": "hotel_code",
+          "rows": 60
+        },
+        {
+          "kind": "bullet",
+          "title": "DXB1 prices 9% over the comp median, DXB2 2% over",
+          "x": "hotel_code",
+          "y": [
+            "bar_rate"
+          ],
+          "compare": "comp_median",
+          "rows": 2
+        }
+      ],
+      "answer": "Both Dubai hotels are priced above the comp median on average over the next 30 nights. DXB1 is 9% above and DXB2 is 2% above. These are on-the-books figures from the latest rate shop. A few nights are priced too low.\n\n- **DXB2 (Business Bay), 15–19 Dec:** BAR is 18–29% below the comp median (ratios 0.71–0.82 on the nights with a median). Occupancy on the books is 86–96% on 16–19 Dec, and 2–3 comps are sold out on several of those nights. This is the clearest underpricing, so raise the rate there first.\n- **DXB2, 24–25 Nov:** BAR is about 5–8% under the median at 85–93% occupancy, with 3 comps sold out. This is a smaller opportunity.\n- **DXB1 (Marina):** BAR is above the median on most nights, by up to 21% on 7 Dec. Occupancy on the books for those early-December nights is only 55–65%, so the premium may be costing bookings. Against that, the 28 Nov shop shows BAR 17% under the median, with 3 comps sold out and DXB1 at 74%, so that one night looks underpriced.\n- **Gaps in the shop:** DXB1 on 15 Dec and DXB2 on 8 and 19 Dec have no comp median, so they are left out of the averages. Most comps were sold out on those dates.\n\n**Next move:** raise DXB2's BAR for 15–19 Dec and for 24–25 Nov, and raise DXB1's for 28 Nov. Then check DXB1's early-December premium against its pickup and lost business."
+    },
+    {
+      "id": "V5",
+      "question": "Show occupancy for the next 14 nights by hotel",
+      "mustMention": [
+        [
+          "occupancy"
+        ]
+      ],
+      "expectWidget": [
+        "heatmap"
+      ],
+      "why": "Hotels × nights is a grid: 20 hotels over 14 nights.",
+      "pass": false,
+      "missing": [],
+      "kinds": [
+        "bar"
+      ],
+      "widgetProblem": "expected heatmap, got bar",
+      "status": "done",
+      "reason": null,
+      "durationMs": 15564,
+      "widgets": [
+        {
+          "kind": "bar",
+          "title": "Lisbon is at 47.4% on the books for the next 14 nights, 19.6 pts below last year",
+          "x": "key",
+          "y": [
+            "value"
+          ],
+          "compare": "compare_value",
+          "rows": 20
+        }
+      ],
+      "answer": "Occupancy on the books for 20 Nov – 3 Dec is below last year at 19 of 20 hotels. Only Bali Uluwatu (DPS) is ahead, at 59.3% against 58.8%. These are on-the-books figures, not actuals.\n\n- **Weakest:** Lisbon (LIS) is at 47.4%, down 19.6 pts. London 2 (LON2) is at 59.7%, down 16 pts. Toronto (YYZ) is at 61.9%, down 13.6 pts. Lisbon also shows as 17.4% behind on pace in this morning's brief.\n- **Strongest:** Tokyo (TYO) is at 78.7%, Singapore (SIN) at 76.6% and Dubai 1 (DXB1) at 75.9%. All three are still 1.7 to 6.5 pts below last year.\n- **Largest drops after Lisbon, London 2 and Toronto:** Dubai 2 (DXB2) is down 9.5 pts, New York (NYC) down 10.1 pts, Vienna (VIE) down 11.4 pts and Doha (DOH) down 8.6 pts.\n\nNext move: for Lisbon, London 2 and Toronto, check pickup against rate position and lost business to see whether they are priced too high. Then adjust BAR or open promotions for those nights."
+    },
+    {
+      "id": "V6",
+      "question": "Where does the group's room revenue come from?",
+      "mustMention": [
+        [
+          "revenue"
+        ]
+      ],
+      "expectWidget": [
+        "treemap"
+      ],
+      "why": "Twenty hotels in five regions: parts inside parents.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "treemap",
+        "bar"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 13720,
+      "widgets": [
+        {
+          "kind": "treemap",
+          "title": "Room revenue by hotel inside each region, last 12 months",
+          "x": "key",
+          "y": [
+            "room_revenue_eur"
+          ],
+          "group": "region",
+          "rows": 20
+        },
+        {
+          "kind": "bar",
+          "title": "Europe leads at €100.5M; the Middle East grew fastest",
+          "x": "key",
+          "y": [
+            "room_revenue_eur"
+          ],
+          "compare": "room_revenue_ly_eur",
+          "rows": 5
+        }
+      ],
+      "answer": "Most of the group's room revenue comes from Europe and North America, and a handful of large hotels carry a lot of it. This is the last 12 months of actuals, 2025-11-20 to 2026-11-19.\n\n- **Regions:** Europe is the largest at €100.5M, across 7 hotels. North America follows at €79.6M and Asia at €70.1M. The Middle East is €46.9M and South America €13.0M.\n- **Hotels:** Singapore (€37.3M), New York (€31.4M), Dubai Marina (DXB1, €29.0M) and Miami (€25.3M) are the biggest single contributors.\n- **Growth:** Every region is above last year. The Middle East is up the most, from €33.0M to €46.9M, mainly on ADR. North America is the weakest, and its ADR is below last year. New York, Chicago and Toronto all have ADR under last year, and New York's occupancy is down too.\n\n**Next move:** New York is the second-largest hotel and has the weakest RGI at 90.2. It also lost most of the Vantor Consulting account, which the brief prices at €1.34M. I'd start there to see what a recovery would be worth."
+    },
+    {
+      "id": "V7",
+      "question": "How is Amsterdam's mobile booking funnel doing?",
+      "mustMention": [
+        [
+          "Amsterdam",
+          "AMS"
+        ],
+        [
+          "mobile"
+        ]
+      ],
+      "expectWidget": [
+        "funnel"
+      ],
+      "why": "Sessions, searches, checkout starts and bookings only shrink: a funnel.",
+      "pass": false,
+      "missing": [],
+      "kinds": [
+        "line",
+        "line"
+      ],
+      "widgetProblem": "expected funnel, got line, line",
+      "status": "done",
+      "reason": null,
+      "durationMs": 12816,
+      "widgets": [
+        {
+          "kind": "line",
+          "title": "Amsterdam mobile converts 0.6–0.9% vs desktop 2.6–3.4%",
+          "x": "period",
+          "y": [
+            "conversion_pct"
+          ],
+          "group": "key",
+          "rows": 10
+        },
+        {
+          "kind": "line",
+          "title": "Mobile checkout completion is 32–48%; desktop is 100%",
+          "x": "period",
+          "y": [
+            "checkout_completion_pct"
+          ],
+          "group": "key",
+          "rows": 10
+        }
+      ],
+      "answer": "Amsterdam's mobile funnel is weak, and the problem is at checkout. Feeds are healthy, so this isn't a data issue.\n\n- **Conversion:** Mobile converts 0.59–0.93% of sessions. Desktop converts 2.64–3.38%. Mobile brings about twice the sessions, so it books far fewer rooms. Last week it had 1,596 sessions and 14 bookings.\n- **Checkout:** Only 32–48% of mobile checkout starts become bookings. The latest week was 45.2% and the week of 9 Nov was 39.8%. Desktop shows 100% completion every week, which is unusual. That could mean desktop tracking counts a booking whenever checkout starts, so check it before trusting the comparison. Mobile still loses more than half of its checkouts either way.\n- **Money at stake:** Weekly mobile booking revenue is about €15k. Desktop booked about €34k in each of the last two full weeks.\n\nNext move: have the web team test the mobile checkout on iOS and Android, looking at payment, form fields and load time. Confirm that desktop tracking isn't inflating its completion figure."
+    },
+    {
+      "id": "V8",
+      "question": "Give me the headline KPIs for Asia this month",
+      "mustMention": [
+        [
+          "Asia"
+        ],
+        [
+          "occupancy"
+        ]
+      ],
+      "expectWidget": [
+        "kpi_row"
+      ],
+      "why": "A few headline numbers with last year: KPI tiles.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "kpi_row"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 10518,
+      "widgets": [
+        {
+          "kind": "kpi_row",
+          "title": "Asia is up on last year: RevPAR €298, occupancy 77.1%",
+          "y": [
+            "occupancy_pct",
+            "adr_eur",
+            "revpar_eur",
+            "room_revenue_eur"
+          ],
+          "rows": 1
+        }
+      ],
+      "answer": "Asia is ahead of last year for 1–19 November (actuals, to the day before the business date of 20 Nov). Occupancy is 77.1% against 72.5% last year. Room revenue is €3.88M against €3.60M.\n\n- **Volume drives the gain.** Rooms sold rose to 10,049 from 9,448. ADR is €386.47 against €381.43, so rate added little.\n- **RevPAR is €298.12 against €276.53 last year.** Most of that comes from occupancy.\n\nNext move: ADR is nearly flat while occupancy is strong. Check `get_rate_position` for Asia's December nights to see whether you can raise rates on the nights that are filling."
+    }
+  ]
+}

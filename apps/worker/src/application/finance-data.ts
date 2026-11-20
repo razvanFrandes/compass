@@ -52,8 +52,36 @@ export interface PnlInput {
   from: string;
   to: string;
   grain?: MonthBucket;
-  view?: 'summary' | 'lines';
+  view?: 'summary' | 'lines' | 'bridge';
   lines?: PnlLine[];
+  /** With view "bridge": where the bridge starts. */
+  against?: 'budget' | 'ly';
+}
+
+/** The lines that are steps of a GOP bridge, with the name each step shows. The subtotals are left out: they would count twice. */
+const BRIDGE_STEPS: Partial<Record<PnlLine, string>> = {
+  ROOMS_REVENUE: 'Rooms revenue',
+  FNB_REVENUE: 'F&B revenue',
+  ME_REVENUE: 'M&E revenue',
+  OTHER_REVENUE: 'Other revenue',
+  ROOMS_EXPENSE: 'Rooms expense',
+  FNB_EXPENSE: 'F&B expense',
+  AG_EXPENSE: 'Admin & general',
+  SM_EXPENSE: 'Sales & marketing',
+  POM_EXPENSE: 'Maintenance',
+  UTILITIES_EXPENSE: 'Utilities',
+};
+
+/** The step for what the reference's lines do not explain of its GOP (see #bridge). */
+const UNALLOCATED = 'Unallocated in budget';
+
+/** One row of a GOP bridge: the opening total, a step per P&L line (its effect on GOP), the closing total. */
+export interface PnlBridgeRow {
+  period: string;
+  key: string;
+  step: string;
+  kind: 'total' | 'step';
+  amount_eur: number;
 }
 
 export interface PnlSummaryRow {
@@ -160,13 +188,15 @@ export class FinanceData {
   /** USALI P&L: actual (closed months) or forecast (open months) against budget and last year, in EUR. */
   getPnl(input: PnlInput & { view?: 'summary' }): Promise<Result<DataResult<PnlSummaryRow>, FinanceError>>;
   getPnl(input: PnlInput & { view: 'lines' }): Promise<Result<DataResult<PnlLineRow>, FinanceError>>;
-  getPnl(input: PnlInput): Promise<Result<DataResult<PnlSummaryRow | PnlLineRow>, FinanceError>>;
-  async getPnl(input: PnlInput): Promise<Result<DataResult<PnlSummaryRow | PnlLineRow>, FinanceError>> {
+  getPnl(input: PnlInput & { view: 'bridge' }): Promise<Result<DataResult<PnlBridgeRow>, FinanceError>>;
+  getPnl(input: PnlInput): Promise<Result<DataResult<PnlSummaryRow | PnlLineRow | PnlBridgeRow>, FinanceError>>;
+  async getPnl(input: PnlInput): Promise<Result<DataResult<PnlSummaryRow | PnlLineRow | PnlBridgeRow>, FinanceError>> {
     if (input.from > input.to) return err({ kind: 'invalid', message: '`from` must be on or before `to`.' });
     const by = input.by ?? 'hotel';
-    const grain = input.grain ?? 'month';
     const view = input.view ?? 'summary';
-    const lines = view === 'summary' ? ['TOTAL_REVENUE', 'GOP'] : input.lines?.length ? input.lines : null;
+    // A bridge is one statement for the whole period, over every line.
+    const grain = view === 'bridge' ? 'total' : (input.grain ?? 'month');
+    const lines = view === 'summary' ? ['TOTAL_REVENUE', 'GOP'] : view === 'lines' && input.lines?.length ? input.lines : null;
     // $1 from, $2 to, $3 hotels, $4 lines. A month's value is its actual when closed, else the latest forecast.
     const base = `
       with months as (
@@ -226,6 +256,7 @@ export class FinanceData {
         from agg
        order by 1, 2, array_position(array['${PNL_LINES.join("','")}'], line)`;
     const params = [input.from, input.to, hotelsParam(input.hotels), lines];
+    if (view === 'bridge') return this.#bridge(base, params, input, by);
     return this.#tryRun<PnlSummaryRow | PnlLineRow>(sql, params, {
       sources: ['hotel.pnl_monthly'],
       definitions: {
@@ -245,6 +276,61 @@ export class FinanceData {
         ...rollUpNote(by),
       ],
     });
+  }
+
+  /**
+   * The GOP bridge: budget (or last year) GOP, then what each P&L line added or took away, then the GOP. A revenue line
+   * above its reference is a step up; an expense line above it is a step down. `base` is getPnl's `agg` CTE.
+   */
+  async #bridge(base: string, params: unknown[], input: PnlInput, by: RollUp): Promise<Result<DataResult<PnlBridgeRow>, FinanceError>> {
+    const ly = input.against === 'ly';
+    const reference = ly ? 'ly' : 'budget';
+    const opening = ly ? 'GOP last year' : 'Budget GOP';
+    // Closed constants (PNL_LINES and their step names), so interpolating them is safe.
+    const steps = Object.entries(BRIDGE_STEPS);
+    const names = steps.map(([line, name]) => `when '${line}' then '${name.replace(/'/g, "''")}'`).join(' ');
+    const order = `array_position(array['${PNL_LINES.join("','")}'], line)`;
+    const effect = `case when line like '%EXPENSE' then ${reference} - value else value - ${reference} end`;
+    const stepLines = `line in ('${steps.map(([line]) => line).join("','")}')`;
+    // The budget's GOP is planned on its own and is not exactly its revenue lines minus its expense lines. What the
+    // lines do not explain is a step of its own, so the bridge closes on the GOP instead of hiding the gap.
+    const sql = `${base}
+      select to_char(period, 'YYYY-MM-DD') as period, key, step, kind, amount_eur
+        from (
+          select period, key, 0 as ord, '${opening}' as step, 'total' as kind, round(${reference})::float8 as amount_eur from agg where line = 'GOP'
+          union all
+          select period, key, ${order}, case line ${names} end, 'step', round(${effect})::float8 from agg where ${stepLines}
+          union all
+          select period, key, 98, '${UNALLOCATED}', 'step',
+                 round(max(value - ${reference}) filter (where line = 'GOP') - sum(${effect}) filter (where ${stepLines}))::float8
+            from agg group by 1, 2
+          having abs(max(value - ${reference}) filter (where line = 'GOP') - sum(${effect}) filter (where ${stepLines})) >= 1
+          union all
+          select period, key, 99, 'GOP', 'total', round(value)::float8 from agg where line = 'GOP') s
+       order by 1, 2, ord`;
+    const result = await this.#tryRun<PnlBridgeRow>(sql, params, {
+      sources: ['hotel.pnl_monthly'],
+      definitions: {
+        gop: 'Gross operating profit: total revenue − departmental expenses − undistributed expenses (A&G, S&M, POM, utilities), USALI.',
+        bridge: `Each step is what one P&L line did to GOP against ${ly ? 'last year' : 'budget'}: revenue above it adds, spending above it takes away. The steps add up to GOP − ${opening.toLowerCase()}.`,
+      },
+      period: { from: input.from, to: input.to },
+      notes: [
+        'GOP is the actual for closed months and the latest forecast for the current and future ones.',
+        'Monthly data: periods are whole calendar months. Money converted to EUR at each month\'s rate.',
+        ...(ly ? [] : [`"${UNALLOCATED}" is the part of the budget GOP that its revenue and expense lines do not add up to: the budget plans GOP on its own.`]),
+        ...rollUpNote(by),
+      ],
+    });
+    if (!result.ok) return result;
+    const { rows } = result.value;
+    if (new Set(rows.map((row) => row.key)).size > 1) {
+      return err({ kind: 'invalid', message: 'A bridge is for one hotel or one roll-up at a time: pass one hotel, or by: "group" (or by: "region" or "brand" with the hotels of one).' });
+    }
+    if (rows.some((row) => row.amount_eur === null)) {
+      return err({ kind: 'invalid', message: `There is no ${ly ? 'last-year actual' : 'budget'} for every month of that period, so the bridge cannot start from it. Use against: "${ly ? 'budget' : 'ly'}" or another period.` });
+    }
+    return result;
   }
 
   /** Room-night forecast with its P10–P90 range per month, against on the books, last year and the budget. */

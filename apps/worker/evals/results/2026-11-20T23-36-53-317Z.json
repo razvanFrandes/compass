@@ -1,0 +1,127 @@
+{
+  "base": "http://localhost:8811",
+  "run": "2026-11-20T23-36-53-317Z",
+  "passed": 3,
+  "total": 3,
+  "results": [
+    {
+      "id": "S6",
+      "question": "How is Dubai Business Bay priced for 15-19 December?",
+      "mustMention": [
+        [
+          "Business Bay",
+          "DXB2"
+        ],
+        [
+          "below",
+          "under",
+          "cheaper"
+        ],
+        [
+          "comp set",
+          "competitor",
+          "market",
+          "median"
+        ]
+      ],
+      "why": "Gulf Tech Week is missing from the pricing calendar: 0.76x the comp set while 83% full three weeks out.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "bar"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 12506,
+      "widgets": [
+        {
+          "kind": "bar",
+          "title": "Business Bay's rate is 18–29% under the comp median on 15–18 Dec",
+          "x": "stay_date",
+          "y": [
+            "bar_rate"
+          ],
+          "compare": "comp_median",
+          "rows": 5
+        }
+      ],
+      "answer": "Tessera Dubai Business Bay is priced well under the market for 15–19 December, even though most of those nights are nearly full. These are rooms on the books, not actuals.\n\n- **15–18 Dec:** our rate is 18–29% below the comp set median. The gap is widest on the 15th (71% of median, 57.7% occupancy) and the 16th (74% of median, 89.6% occupancy).\n- **17 Dec is the clearest underpricing:** we are at 96% occupancy on the books at 82% of the median, and 2 comps are sold out.\n- **18–19 Dec:** the 18th is at 86.2% occupancy and 77.6% of the median. The 19th is at 88.6% with 4 comps sold out, but the latest rate shop has no comp median for that night, so I can't say where we sit against the market.\n\n**Next move:** raise the rate on 16, 17 and 19 Dec first, since they are filling with several comps sold out. Re-check the 15th before raising it, because occupancy there is only 57.7%. Get a fresh rate shop for the 19th before setting its price."
+    },
+    {
+      "id": "V5",
+      "question": "Show occupancy for the next 14 nights by hotel",
+      "mustMention": [
+        [
+          "occupancy"
+        ]
+      ],
+      "expectWidget": [
+        "heatmap"
+      ],
+      "why": "Hotels × nights is a grid: 20 hotels over 14 nights.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "heatmap"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 11507,
+      "widgets": [
+        {
+          "kind": "heatmap",
+          "title": "Occupancy on the books, next 14 nights: Dubai 1, Tokyo and New York run hottest",
+          "x": "period",
+          "y": [
+            "value"
+          ],
+          "group": "key",
+          "rows": 280
+        }
+      ],
+      "answer": "The heatmap shows occupancy on the books for every hotel, 20 Nov to 3 Dec. These are future nights, so they are not actuals.\n\n- **Fullest nights:** DXB1 is at 94–98% for 20–21 Nov. TYO reaches 95% on 21 Nov, and NYC is at 91% on 20 Nov.\n- **Weakest nights:** LON1 is at 51% on 20 Nov. LON2, YYZ and NYC fall to about 45–54% on Sunday 22 Nov. Sunday is soft across the group.\n- **Not checked:** I didn't compare these nights with last year or with rates, so I can't yet say whether the soft ones are a pace problem.\n\n**Next move:** check the rate against the comp set for the hottest nights, such as DXB1 and TYO, to see if they're underpriced. Then check pickup for LON1, LON2 and YYZ on the Sunday gaps."
+    },
+    {
+      "id": "V8",
+      "question": "Give me the headline KPIs for Asia this month",
+      "mustMention": [
+        [
+          "Asia"
+        ],
+        [
+          "occupancy"
+        ]
+      ],
+      "expectWidget": [
+        "kpi_row"
+      ],
+      "mode": "quick",
+      "why": "A few headline numbers with last year: KPI tiles. Asked in Quick mode, which owes a widget too.",
+      "pass": true,
+      "missing": [],
+      "kinds": [
+        "kpi_row"
+      ],
+      "widgetProblem": null,
+      "status": "done",
+      "reason": null,
+      "durationMs": 13681,
+      "widgets": [
+        {
+          "kind": "kpi_row",
+          "title": "Asia is at 76.4% occupancy and 294 EUR RevPAR for November, both ahead of last year",
+          "y": [
+            "occupancy_pct",
+            "adr_eur",
+            "revpar_eur",
+            "room_revenue_eur"
+          ],
+          "rows": 1
+        }
+      ],
+      "answer": "Asia is ahead of last year for November 2026: occupancy is 76.4% against 73.9% last year, and RevPAR is €294.42 against €280.23.\n\n- **Rate:** ADR is €385.43, up from €379.37 last year.\n- **Revenue:** room revenue is €6.06M against €5.77M last year, and rooms sold are 15,712 against 15,198.\n\nFigures cover 1–30 November, with future nights on the books as of 20 November. The next move is to check the Asia hotels' pace for the rest of the month."
+    }
+  ]
+}

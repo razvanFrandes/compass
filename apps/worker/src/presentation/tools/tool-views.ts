@@ -100,6 +100,27 @@ export const TOOL_VIEWS: Record<string, ToolView> = {
       ];
     },
   },
+  get_kpis: {
+    title: 'Headline KPIs vs last year',
+    columns: (args) => {
+      const perHotel = (args['by'] ?? 'hotel') === 'hotel';
+      return [
+        rollUp(args['by']),
+        ...(perHotel ? [text('region', 'Region')] : []),
+        pct('occupancy_pct', 'Occupancy'),
+        pct('occupancy_ly_pct', 'Occupancy, last year'),
+        eur('adr_eur', 'ADR'),
+        eur('adr_ly_eur', 'ADR, last year'),
+        eur('revpar_eur', 'RevPAR'),
+        eur('revpar_ly_eur', 'RevPAR, last year'),
+        eur('room_revenue_eur', 'Room revenue'),
+        eur('room_revenue_ly_eur', 'Room revenue, last year'),
+        count('rooms_sold', 'Rooms sold', NIGHTS),
+        count('rooms_sold_ly', 'Rooms sold, last year', NIGHTS),
+        ...(perHotel ? [num('mpi', 'MPI', 'index'), num('ari', 'ARI', 'index'), num('rgi', 'RGI', 'index')] : []),
+      ];
+    },
+  },
   get_pickup: {
     title: 'Pickup in the last days',
     columns: () => [
@@ -111,44 +132,59 @@ export const TOOL_VIEWS: Record<string, ToolView> = {
   },
   get_pace: {
     title: 'Pace vs last year',
-    columns: () => [
+    titleFor: (args) => (args['grain'] === 'day' ? 'Pace vs last year, night by night' : 'Pace vs last year'),
+    columns: (args) => [
       HOTEL,
+      ...(args['grain'] === 'day' ? [date('stay_date', 'Stay date')] : []),
       count('rooms_otb', 'On the books', NIGHTS),
       count('rooms_otb_stly', 'On the books, same time last year', NIGHTS),
-      pct('pace_pct', 'Pace vs last year'),
-      col('revenue_otb', 'Revenue on the books', 'currency', 'local currency'),
-      col('revenue_otb_stly', 'Revenue on the books, same time last year', 'currency', 'local currency'),
+      ...(args['grain'] === 'day'
+        ? []
+        : [
+            pct('pace_pct', 'Pace vs last year'),
+            col('revenue_otb', 'Revenue on the books', 'currency', 'local currency'),
+            col('revenue_otb_stly', 'Revenue on the books, same time last year', 'currency', 'local currency'),
+          ]),
     ],
   },
   get_rate_position: {
     title: 'Rate vs the comp set',
-    columns: () => [
-      HOTEL,
-      date('stay_date', 'Stay date'),
-      col('bar_rate', 'Our BAR', 'currency', 'local currency'),
-      col('comp_median', 'Comp set median', 'currency', 'local currency'),
-      num('bar_vs_comp', 'Our BAR vs comp set median', '× the median'),
-      count('comps_sold_out', 'Competitors sold out'),
-    ],
+    columns: (args) => {
+      const total = args['grain'] === 'total';
+      return [
+        HOTEL,
+        ...(total ? [count('nights', 'Nights shopped')] : [date('stay_date', 'Stay date')]),
+        col('bar_rate', total ? 'Our BAR, average' : 'Our BAR', 'currency', 'local currency'),
+        col('comp_median', total ? 'Comp set median, average' : 'Comp set median', 'currency', 'local currency'),
+        num('bar_vs_comp', 'Our BAR vs comp set median', '× the median'),
+        ...(total ? [] : [count('comps_sold_out', 'Competitors sold out')]),
+        pct('occupancy_otb_pct', 'Occupancy on the books'),
+      ];
+    },
   },
   get_channel_mix: {
     title: 'Channel mix',
-    columns: () => [
-      HOTEL,
-      text('channel', 'Channel'),
-      text('channel_type', 'Channel type'),
-      count('room_nights', 'Room nights', NIGHTS),
-      eur('gross_revenue_eur', 'Gross revenue'),
-      eur('commission_eur', 'Commission'),
-      eur('net_revenue_eur', 'Net revenue'),
-    ],
+    titleFor: (args) => (args['shape'] === 'flows' ? 'Channel revenue: kept and paid in commission' : 'Channel mix'),
+    columns: (args) =>
+      args['shape'] === 'flows'
+        ? [text('channel', 'Channel'), text('lands_in', 'Lands in'), eur('amount_eur', 'Room revenue')]
+        : [
+            ...(args['shape'] === 'total' ? [] : [HOTEL]),
+            text('channel', 'Channel'),
+            text('channel_type', 'Channel type'),
+            count('room_nights', 'Room nights', NIGHTS),
+            eur('gross_revenue_eur', 'Gross revenue'),
+            eur('commission_eur', 'Commission'),
+            eur('net_revenue_eur', 'Net revenue'),
+            pct('commission_pct', 'Commission, share of gross'),
+          ],
   },
   get_mix: {
     title: 'Business mix',
     titleFor: (args) => `Business mix by ${(MIX_KEYS[String(args['by'])] ?? 'segment').toLowerCase()}`,
     columns: (args) => [
       period(args['grain'], 'month'),
-      HOTEL,
+      ...(args['rollUp'] ? [] : [HOTEL]),
       text('key', MIX_KEYS[String(args['by'])] ?? 'Segment'),
       count('room_nights', 'Room nights', NIGHTS),
       pct('share_pct', 'Share of room nights'),
@@ -267,8 +303,13 @@ export const TOOL_VIEWS: Record<string, ToolView> = {
   },
   get_pnl: {
     title: 'Profit and loss',
-    titleFor: (args) => (args['view'] === 'lines' ? 'Profit and loss by line' : 'Profit and loss'),
+    titleFor: (args) =>
+      args['view'] === 'bridge' ? `GOP bridge from ${args['against'] === 'ly' ? 'last year' : 'budget'}` : args['view'] === 'lines' ? 'Profit and loss by line' : 'Profit and loss',
     columns: (args) => {
+      if (args['view'] === 'bridge') {
+        // `kind` says which rows are totals and which are steps: the waterfall reads it, a reader does not need it.
+        return [period('total', 'total'), rollUp(args['by']), text('step', 'Step'), hidden(text('kind', 'Total or step')), eur('amount_eur', 'Effect on GOP')];
+      }
       const start = [period(args['grain'], 'month'), rollUp(args['by'])];
       const basis = [count('months', 'Months'), text('basis', 'Actual or forecast')];
       if (args['view'] === 'lines') {

@@ -15,6 +15,7 @@ export const QUICK_TOOLS = [
   'list_hotels',
   'list_metrics',
   'get_metric',
+  'get_kpis',
   'get_pace',
   'get_pickup',
   'get_rate_position',
@@ -28,7 +29,12 @@ export const QUICK_TOOLS = [
 
 const QUICK_INSTRUCTIONS =
   'Quick mode: answer in at most three sentences from one or two governed metrics. If the question needs a deeper ' +
-  'diagnosis across sources, give the headline number and say that Thinker mode can explain why.';
+  'diagnosis across sources, give the headline number and say that Thinker mode can explain why. The widget rules still ' +
+  'hold: call show_widget once (two at most) on the result you already have, then write the three sentences.';
+
+const THINKER_INSTRUCTIONS =
+  'Thinker mode: reason across sources. You may call a data tool only to feed a widget (the same question in the shape a ' +
+  'chart needs: a grain, a roll-up, a bridge, flows), and you should when the rows you have cannot draw what the answer says.';
 
 /** `scope` is the hotel scope as instructions (scope-prompt.ts), or null for the whole group. */
 export function agentChangeFor(mode: AnswerMode, data: Extension, scope: string | null = null): AgentChange {
@@ -49,7 +55,8 @@ export function agentChangeFor(mode: AnswerMode, data: Extension, scope: string 
     // reasoning on, the provider sends the answer text in one piece at the end of the turn: see `ChatLive.phase`.
     thinkingLevel: 'low',
     modelTools: null,
-    maxTurns: 10,
-    instructions: scope,
+    // Two more than before widgets: the call that shapes rows for a chart, and the show_widget round.
+    maxTurns: 12,
+    instructions: scope ? `${THINKER_INSTRUCTIONS}\n\n${scope}` : THINKER_INSTRUCTIONS,
   };
 }

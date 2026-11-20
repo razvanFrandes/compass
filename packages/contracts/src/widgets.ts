@@ -37,8 +37,11 @@ export type WidgetKind = z.infer<typeof WidgetKind>;
 
 export const WIDGET_FORMATS = ['number', 'percent', 'currency', 'count'] as const;
 
-/** A widget never carries more rows than this; a board widget neither. */
-export const WIDGET_MAX_ROWS = 200;
+/**
+ * A widget never carries more rows than this; a board widget neither. It leaves room for a grid of the 20 hotels over
+ * 20 nights (a heatmap of the group's next two weeks is 280 cells).
+ */
+export const WIDGET_MAX_ROWS = 400;
 
 const columnKey = z.string().min(1).max(64);
 

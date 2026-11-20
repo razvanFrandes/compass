@@ -74,7 +74,7 @@ DELETE /api/boards/:id
 POST   /api/boards/:id/widgets  {spec, rows, columns, evidence, question?} → BoardWidget
 DELETE /api/boards/:id/widgets/:widgetId
 ```
-One group Durable Object; limits: 50 boards, 24 widgets per board, 200 rows per widget; same origin/body rules as the other `/api` writes. Seed the existing sample boards on first use so the Boards page is never empty.
+One group Durable Object; limits: 50 boards, 24 widgets per board, 400 rows per widget (was 200; raised in Round 3 for the hotels × nights heatmap); same origin/body rules as the other `/api` writes. Seed the existing sample boards on first use so the Boards page is never empty.
 
 ## 5. Workflows: edit, delete, duplicate
 

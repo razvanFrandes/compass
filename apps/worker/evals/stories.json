@@ -40,5 +40,63 @@
     "question": "Is anything wrong with the data in Berlin?",
     "mustMention": [["Berlin", "BER"], ["POS"], ["stale", "sync", "behind", "missing"]],
     "why": "The POS feed is stale: no F&B rows for the last 3 days."
+  },
+  {
+    "id": "V1",
+    "question": "How is Lisbon pacing for December vs last year?",
+    "mustMention": [["Lisbon"], ["last year"]],
+    "expectWidget": ["line", "area"],
+    "expectCompare": true,
+    "why": "A pace curve: rooms on the books per December night against the same time last year."
+  },
+  {
+    "id": "V2",
+    "question": "What's the channel mix at Barcelona?",
+    "mustMention": [["Barcelona", "BCN"]],
+    "expectWidget": ["donut", "pie", "stacked_bar"],
+    "why": "A handful of channels that make up one whole."
+  },
+  {
+    "id": "V3",
+    "question": "What drove GOP vs budget in October for the group?",
+    "mustMention": [["GOP"], ["budget"]],
+    "expectWidget": ["waterfall"],
+    "why": "A bridge from budget GOP to actual GOP, line by line."
+  },
+  {
+    "id": "V4",
+    "question": "Where are we priced vs the comp set in Dubai next 30 nights?",
+    "mustMention": [["Dubai", "DXB", "Business Bay", "Marina"], ["comp set", "competitor", "market", "median"]],
+    "expectWidget": ["scatter", "bullet"],
+    "why": "Rate against the comp set, per night against demand (scatter) or per hotel against the median (bullet)."
+  },
+  {
+    "id": "V5",
+    "question": "Show occupancy for the next 14 nights by hotel",
+    "mustMention": [["occupancy"]],
+    "expectWidget": ["heatmap"],
+    "why": "Hotels × nights is a grid: 20 hotels over 14 nights."
+  },
+  {
+    "id": "V6",
+    "question": "Where does the group's room revenue come from?",
+    "mustMention": [["revenue"]],
+    "expectWidget": ["treemap"],
+    "why": "Twenty hotels in five regions: parts inside parents."
+  },
+  {
+    "id": "V7",
+    "question": "How is Amsterdam's mobile booking funnel doing?",
+    "mustMention": [["Amsterdam", "AMS"], ["mobile"]],
+    "expectWidget": ["funnel"],
+    "why": "Sessions, searches, checkout starts and bookings only shrink: a funnel."
+  },
+  {
+    "id": "V8",
+    "question": "Give me the headline KPIs for Asia this month",
+    "mustMention": [["Asia"], ["occupancy"]],
+    "expectWidget": ["kpi_row"],
+    "mode": "quick",
+    "why": "A few headline numbers with last year: KPI tiles. Asked in Quick mode, which owes a widget too."
   }
 ]

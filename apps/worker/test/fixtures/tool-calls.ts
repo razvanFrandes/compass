@@ -10,12 +10,24 @@ export const TOOL_CALLS: Record<string, Record<string, unknown>[]> = {
     { metric: 'rooms_sold', by: 'group', grain: 'total', compare: 'stly', ...period },
     { metric: 'mpi', hotels: ['LIS'], grain: 'day', from: '2026-10-01', to: '2026-10-03' },
   ],
+  get_kpis: [
+    { by: 'group', ...period },
+    { by: 'hotel', region: 'Asia', ...period },
+  ],
   get_pickup: [{ hotels: ['LIS', 'DXB1'] }],
-  get_pace: [{ hotels: ['LIS'] }],
-  get_rate_position: [{ hotels: ['DXB1'], from: '2026-12-10', to: '2026-12-20' }],
-  get_channel_mix: [{ hotels: ['LIS'], ...period }],
+  get_pace: [{ hotels: ['LIS'] }, { hotels: ['LIS'], grain: 'day', from: '2026-12-01', to: '2026-12-31' }],
+  get_rate_position: [
+    { hotels: ['DXB1'], from: '2026-12-10', to: '2026-12-20' },
+    { hotels: ['DXB1', 'DXB2'], from: '2026-12-10', to: '2026-12-20', grain: 'total' },
+  ],
+  get_channel_mix: [
+    { hotels: ['LIS'], ...period },
+    { shape: 'total', ...period },
+    { hotels: ['LIS'], shape: 'flows', ...period },
+  ],
   get_mix: [
     { hotels: ['LIS'], by: 'segment', ...period },
+    { by: 'segment', rollUp: true, ...period },
     { hotels: ['LIS'], by: 'channel_type', grain: 'total', basis: 'booked', ...period },
   ],
   get_account_production: [{ hotels: ['MIA'], from: '2026-05-01', to: '2026-10-31' }],
@@ -31,6 +43,7 @@ export const TOOL_CALLS: Record<string, Record<string, unknown>[]> = {
   get_pnl: [
     { hotels: ['MIA'], ...period },
     { hotels: ['MIA'], view: 'lines', by: 'brand', grain: 'total', ...period },
+    { by: 'group', view: 'bridge', ...period },
   ],
   get_forecast: [{ hotels: ['LIS'] }, { by: 'region', grain: 'total' }],
   get_meetings_events: [{ hotels: ['LIS'], ...period }],
