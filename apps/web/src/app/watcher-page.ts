@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import type { Workflow, WorkflowRun } from '@compass/contracts';
@@ -10,7 +10,13 @@ import { EvidencePanel } from './evidence-panel';
 import { Live, ago } from './live';
 import { ACTION_LABEL, ProposalCard } from './proposal-card';
 import { CompassStore } from './store';
-import { AUTONOMY_LABEL, RUN_STATUS, hotelsText, maskEmail, triggerText } from './watchers';
+import { AUTONOMY_LABEL, RUN_STATUS, maskEmail, triggerText } from './watchers';
+import { scopeLabel } from './scope/hotels';
+import { ScopeService } from './scope/scope.service';
+import { ConfirmDialog } from './studio/confirm';
+import { AUTONOMY_ORDER, AUTONOMY_SHORT } from './studio/studio';
+import { WorkflowActions } from './studio/workflow-actions';
+import { WorkflowMenu } from './studio/workflow-menu';
 import * as icons from './icons';
 
 /*
@@ -20,13 +26,13 @@ import * as icons from './icons';
 */
 @Component({
   selector: 'app-watcher-page',
-  imports: [NgIcon, HlmButtonImports, ChatTurnView, EvidencePanel, ProposalCard],
+  imports: [NgIcon, HlmButtonImports, ChatTurnView, EvidencePanel, ProposalCard, WorkflowMenu, ConfirmDialog],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
     <div class="mx-auto flex max-w-[1080px] flex-col gap-7 px-[max(16px,env(safe-area-inset-left,0px))] pt-5 pb-28 sm:px-8 lg:pt-8 lg:pb-16">
       <nav aria-label="Breadcrumb" class="flex items-center gap-1.5 text-[14px]">
-        <button hlmBtn variant="ghost" size="sm" class="text-muted-foreground -ml-2" (click)="store.go('watchers')"><ng-icon name="phosphorArrowLeftLight" />Watchers</button>
+        <button hlmBtn variant="ghost" size="sm" class="text-muted-foreground -ml-2" (click)="store.go('watchers')"><ng-icon name="phosphorArrowLeftLight" aria-hidden="true" />Agent Studio</button>
         <span class="text-muted-foreground">/</span>
         <span class="truncate">{{ wf()?.name ?? '…' }}</span>
       </nav>
@@ -46,13 +52,15 @@ import * as icons from './icons';
           <div class="flex items-center gap-2">
             <button type="button" class="toggle" role="switch" [attr.aria-checked]="w.enabled" [attr.aria-label]="w.enabled ? 'Pause this workflow' : 'Turn this workflow on'" (click)="toggle(w)"><i></i></button>
             <span class="text-muted-foreground mr-2 text-[13px]">{{ w.enabled ? 'On' : 'Paused' }}</span>
+            <button hlmBtn variant="secondary" (click)="actions.edit(w)"><ng-icon name="phosphorPencilSimpleLight" aria-hidden="true" />Edit</button>
             <button hlmBtn [disabled]="!!busy() || running() || !w.enabled" (click)="runNow(w)">{{ busy() || (running() ? 'Running…' : 'Run now') }}</button>
+            <app-workflow-menu [workflow]="w" (deleted)="store.go('watchers')" (duplicated)="open($event.id)" />
           </div>
         </header>
 
         <section class="insight-card grid gap-x-8 gap-y-3 p-5 text-[13.5px] sm:grid-cols-2" aria-label="What it does">
           <div><p class="text-muted-foreground text-[12px]">When</p><p>{{ trigger(w) }}</p></div>
-          <div><p class="text-muted-foreground text-[12px]">Hotels</p><p>{{ hotels(w.hotels) }}</p></div>
+          <div><p class="text-muted-foreground text-[12px]">Hotels</p><p>{{ hotels(w.hotels) }}</p>@if (hotelNames(w.hotels); as names) {<p class="text-muted-foreground text-[12.5px]">{{ names }}</p>}</div>
           <div class="sm:col-span-2"><p class="text-muted-foreground text-[12px]">What it watches</p><p>{{ w.goal }}</p></div>
           <div>
             <p class="text-muted-foreground text-[12px]">Action</p>
@@ -69,7 +77,7 @@ import * as icons from './icons';
             } @else {
               <div class="op-toggle mt-1" role="radiogroup" aria-labelledby="aut-label">
                 @for (a of autonomies; track a) {
-                  <button type="button" role="radio" [attr.aria-checked]="w.autonomy === a" [attr.tabindex]="w.autonomy === a ? 0 : -1" (click)="live.setAutonomy(w, a).then(reload)" (keydown)="autonomyKey($event, w)">{{ autonomyShort(a) }}</button>
+                  <button type="button" role="radio" [attr.aria-checked]="w.autonomy === a" [attr.tabindex]="w.autonomy === a ? 0 : -1" [disabled]="!!busy()" (click)="actions.setAutonomy(w, a)" (keydown)="autonomyKey($event, w)">{{ autonomyShort(a) }}</button>
                 }
               </div>
               <p class="text-muted-foreground mt-1 text-[12.5px]">{{ autonomy(w) }} · approver: {{ w.approver === 'gm' ? 'general manager' : 'revenue manager' }}</p>
@@ -142,11 +150,14 @@ import * as icons from './icons';
         <p class="text-muted-foreground text-[14px]" role="status">Loading…</p>
       }
     </div>
+    <app-confirm-dialog />
   `,
 })
 export class WatcherPage {
   protected readonly store = inject(CompassStore);
   protected readonly live = inject(Live);
+  protected readonly actions = inject(WorkflowActions);
+  private readonly scope = inject(ScopeService);
   protected readonly detail = this.live.workflowsApi.detailResource(() => this.store.activeWatcherId() || undefined);
   private readonly picked = signal<string | null>(null);
   protected readonly wf = computed(() => (this.detail.hasValue() ? this.detail.value()?.workflow : undefined));
@@ -159,13 +170,11 @@ export class WatcherPage {
   protected readonly evidenceFor = signal<string | null>(null);
   protected readonly running = computed(() => this.runs().some((r) => r.status === 'running'));
   protected readonly error = computed(() => (this.detail.error() ? toApiError(this.detail.error()).message : null));
-  protected readonly busy = computed(() => this.live.busy()[this.store.activeWatcherId()] ?? '');
-  protected readonly autonomies: Workflow['autonomy'][] = ['suggest', 'approve', 'auto_low_risk'];
+  protected readonly busy = computed(() => this.live.busy()[this.store.activeWatcherId()] ?? this.actions.busy()[this.store.activeWatcherId()] ?? '');
+  protected readonly autonomies = AUTONOMY_ORDER;
   protected readonly ago = ago;
   protected readonly trigger = triggerText;
-  protected readonly hotels = hotelsText;
   protected readonly mask = maskEmail;
-  protected readonly reload = () => this.detail.reload();
 
   constructor() {
     // Poll while a run is going or a proposal waits, so the log and the decision move on by themselves.
@@ -176,6 +185,23 @@ export class WatcherPage {
       }
     }, 4000);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
+    // A change from the menu, the switch or the autonomy control: read the workflow again.
+    effect(() => {
+      if (this.actions.changed()) untracked(() => (this.detail.reload(), this.live.workflows.reload()));
+    });
+  }
+
+  /** "All 20 hotels", "Europe · 8 hotels", "Arbor Lisbon Chiado": names, not codes. */
+  protected hotels(codes: string[]) {
+    return scopeLabel(codes.includes('ALL') ? [] : codes, this.scope.catalog());
+  }
+  /** The hotels by name under a label that only counts them. */
+  protected hotelNames(codes: string[]) {
+    if (codes.includes('ALL') || codes.length < 3) return '';
+    return codes.map((code) => this.scope.nameOf(code)).join(', ');
+  }
+  protected open(id: string) {
+    this.store.activeWatcherId.set(id);
   }
 
   protected pickRun(id: string) {
@@ -188,8 +214,7 @@ export class WatcherPage {
     this.detail.reload();
   }
   protected async toggle(w: Workflow) {
-    await this.live.setEnabled(w, !w.enabled);
-    this.detail.reload();
+    await this.actions.setEnabled(w, !w.enabled);
   }
   protected status(s: WorkflowRun['status']) {
     return RUN_STATUS[s] ?? s;
@@ -216,12 +241,12 @@ export class WatcherPage {
     e.preventDefault();
     const next = this.autonomies[(i + step + this.autonomies.length) % this.autonomies.length];
     const group = (e.currentTarget as HTMLElement).parentElement;
-    void this.live.setAutonomy(w, next).then(() => {
-      this.reload();
-      setTimeout(() => group?.querySelectorAll<HTMLElement>('[role=radio]')[this.autonomies.indexOf(next)]?.focus(), 50);
+    // Raising asks first: when the person cancels, the focus stays on the level that is still chosen.
+    void this.actions.setAutonomy(w, next).then((changed) => {
+      setTimeout(() => group?.querySelectorAll<HTMLElement>('[role=radio]')[this.autonomies.indexOf(changed ? next : w.autonomy)]?.focus(), 60);
     });
   }
   protected autonomyShort(a: Workflow['autonomy']) {
-    return a === 'suggest' ? 'Suggest' : a === 'approve' ? 'Approve' : 'Act alone (low risk)';
+    return a === 'auto_low_risk' ? 'Act alone (low risk)' : AUTONOMY_SHORT[a];
   }
 }
