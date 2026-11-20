@@ -280,7 +280,8 @@ export const DATA_TOOLS = [
     name: 'get_brief',
     description:
       "Today's morning brief findings across all hotels: stale data feeds, pace behind last year, underpriced high-demand " +
-      'nights, lost accounts, website conversion drops, staffing gaps and rooms out of order, each priced in EUR and ranked by money. ' +
+      'nights, lost accounts, website conversion drops, staffing gaps, rooms out of order and GOP misses against budget, each priced ' +
+      'in EUR and ranked by money. ' +
       'Start here for "what should I look at today?"',
     input: z.object({}),
     run: async (data) => success(await data.getBriefItems()),

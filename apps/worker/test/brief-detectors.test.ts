@@ -54,6 +54,23 @@ describe('morning brief detectors', () => {
     expect(item.impact_eur).toBeGreaterThan(0);
   });
 
+  it('flags a material GOP miss against budget in the last closed month: Miami, October', async () => {
+    const item = find('gop_miss', 'MIA')!;
+    const [o] = await db.query<{ var: number }>(
+      `select round(sum(amount * hotel.eur_rate(currency, month)) filter (where scenario = 'actual')
+                  - sum(amount * hotel.eur_rate(currency, month)) filter (where scenario = 'budget'))::float8 as var
+         from hotel.pnl_monthly where hotel_code = 'MIA' and line = 'GOP' and month = '2026-10-01'`,
+    );
+    expect(item.impact_eur).toBe(o!.var);
+    expect(item.facts['month']).toBe('2026-10');
+    expect(item.facts['gop_var_pct']).toBeLessThan(-10);
+    expect(item.sources).toContain('hotel.pnl_monthly');
+  });
+
+  it('stays quiet on small GOP misses: only Miami missed October by more than 10%', () => {
+    expect(items.filter((i) => i.kind === 'gop_miss').map((i) => i.hotel_code)).toEqual(['MIA']);
+  });
+
   it('stays focused: no more than ten items, no one-off group events', () => {
     expect(items.length).toBeLessThanOrEqual(10);
     expect(items.some((i) => String(i.facts['account'] ?? '').includes('wedding'))).toBe(false);
