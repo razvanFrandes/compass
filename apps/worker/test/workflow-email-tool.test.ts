@@ -448,6 +448,14 @@ describe('the last email', () => {
     expect(isLastEmail(created, at('2026-11-20T10:00:00.000Z'))).toBe(false);
   });
 
+  it.each(['2026-11-20T03:00:00.000Z', '2026-11-20T12:00:00.000Z', '2026-11-20T20:00:00.000Z'])(
+    'weekly, created %s: the first email, from the first morning cron, is the last (the next is a week later, after the 7 days)',
+    (created) => {
+      const morning = created < '2026-11-20T05' ? '2026-11-20T05:00:20.000Z' : '2026-11-21T05:00:20.000Z';
+      expect(isLastEmail({ ...weekly, createdAt: created }, at(morning), morning)).toBe(true);
+    },
+  );
+
   it('a manual workflow has no next run to miss', () => {
     expect(isLastEmail(manual, at('2026-11-26T06:00:00.000Z'))).toBe(false);
   });

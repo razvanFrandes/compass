@@ -1,6 +1,6 @@
 import type { Workflow, WorkflowRun } from '@compass/contracts';
 import { describe, expect, it } from 'vitest';
-import { isDue, lastRealRunAt, nextScheduledRun } from '../src/application/workflows/schedule.ts';
+import { isDue, lastRealRunAt, nextMorning, nextScheduledRun } from '../src/application/workflows/schedule.ts';
 
 const at = (iso: string) => new Date(iso);
 type Scheduled = Pick<Workflow, 'trigger' | 'createdAt'>;
@@ -26,10 +26,28 @@ describe('isDue', () => {
     expect(isDue(weekly, lastRun, at('2026-11-28T05:00:05.000Z'))).toBe(true);
   });
 
-  it('a weekly workflow that never ran counts its week from when it was created', () => {
-    expect(isDue(weekly, null, at('2026-11-21T05:00:00.000Z'))).toBe(false);
-    expect(isDue(weekly, null, at('2026-11-26T05:00:00.000Z'))).toBe(false);
-    expect(isDue(weekly, null, at('2026-11-27T05:00:00.000Z'))).toBe(true); // 6 days and 15 hours: within the tolerance
+  it.each(['2026-11-20T03:00:00.000Z', '2026-11-20T12:00:00.000Z', '2026-11-20T20:00:00.000Z'])(
+    'a weekly workflow that never ran is due at the first morning cron after it was created (%s)',
+    (created) => {
+      const fresh: Scheduled = { ...weekly, createdAt: created };
+      const first = nextMorning(at(created));
+      expect(isDue(fresh, null, first)).toBe(true);
+      expect(nextScheduledRun(fresh, at(created), null)).toEqual(first);
+      // After that first run it waits a week.
+      const ran = new Date(first.getTime() + 20_000).toISOString();
+      expect(isDue(fresh, ran, new Date(first.getTime() + 24 * 60 * 60 * 1000))).toBe(false);
+      expect(nextScheduledRun(fresh, at(ran), ran)).toEqual(new Date(first.getTime() + 7 * 24 * 60 * 60 * 1000));
+    },
+  );
+
+  it('the first morning cron is the same day for 03:00 and the next day for 12:00 and 20:00', () => {
+    expect(nextMorning(at('2026-11-20T03:00:00.000Z'))).toEqual(at('2026-11-20T05:00:00.000Z'));
+    expect(nextMorning(at('2026-11-20T12:00:00.000Z'))).toEqual(at('2026-11-21T05:00:00.000Z'));
+    expect(nextMorning(at('2026-11-20T20:00:00.000Z'))).toEqual(at('2026-11-21T05:00:00.000Z'));
+  });
+
+  it('only test runs so far: still never really ran, so still due', () => {
+    expect(isDue(weekly, lastRealRunAt([]), at('2026-11-21T05:00:00.000Z'))).toBe(true);
   });
 
   it('is due from 6.5 days after the last run', () => {
@@ -83,8 +101,8 @@ describe('nextScheduledRun', () => {
     expect(nextScheduledRun(weekly, at('2026-11-20T18:00:00.000Z'), '2026-11-20T18:00:00.000Z')).toEqual(at('2026-11-28T05:00:00.000Z'));
   });
 
-  it('a weekly workflow that never ran counts from when it was created', () => {
-    expect(nextScheduledRun(weekly, at('2026-11-20T14:01:00.000Z'), null)).toEqual(at('2026-11-27T05:00:00.000Z'));
+  it('a weekly workflow that never ran runs at the next morning cron', () => {
+    expect(nextScheduledRun(weekly, at('2026-11-20T14:01:00.000Z'), null)).toEqual(at('2026-11-21T05:00:00.000Z'));
   });
 
   it('every cron it names is one the workflow is due at', () => {

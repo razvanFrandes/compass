@@ -16,7 +16,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  */
 export const WEEK_DUE_MS = 6.5 * DAY_MS;
 
-type Scheduled = Pick<Workflow, 'trigger' | 'createdAt'>;
+type Scheduled = Pick<Workflow, 'trigger'>;
 
 /** The first morning cron after `now`. */
 export function nextMorning(now: Date): Date {
@@ -24,7 +24,10 @@ export function nextMorning(now: Date): Date {
   return new Date(morning > now.getTime() ? morning : morning + DAY_MS);
 }
 
-/** When the workflow last really ran: the start of its latest run that is not a test, or null. */
+/**
+ * When the workflow last really ran: the start of its latest run that is not a test, or null. A run that failed or
+ * that found nothing to send counts too: the workflow did its weekly check.
+ */
 export function lastRealRunAt(runs: readonly WorkflowRun[]): string | null {
   let last: string | null = null;
   for (const run of runs) if (!run.test && (last === null || run.startedAt > last)) last = run.startedAt;
@@ -33,20 +36,21 @@ export function lastRealRunAt(runs: readonly WorkflowRun[]): string | null {
 
 /**
  * Whether the morning cron at `now` starts a workflow that runs on a schedule. A daily one: always. A weekly one: when
- * 7 days (less the tolerance) have passed since `lastRunAt`, its last run that was not a test, or since it was created
- * when it never ran. A workflow with another trigger is never due on a schedule.
+ * it never ran (so its first run is the first morning cron after it was created), or when 7 days (less the tolerance)
+ * have passed since `lastRunAt`, its last run that was not a test. A workflow with another trigger is never due on a
+ * schedule.
  */
 export function isDue(workflow: Scheduled, lastRunAt: string | null, now: Date): boolean {
   const { trigger } = workflow;
   if (trigger.kind !== 'schedule') return false;
   if (trigger.every === 'day') return true;
-  return now.getTime() - Date.parse(lastRunAt ?? workflow.createdAt) >= WEEK_DUE_MS;
+  return lastRunAt === null || now.getTime() - Date.parse(lastRunAt) >= WEEK_DUE_MS;
 }
 
 /**
  * When the workflow would next run on its own after `now`, or null for a manual one. Daily, or waiting for a brief
- * finding: the next morning cron. Weekly: the first morning cron it is due at (`isDue`), so 7 days after a run the
- * cron started, and up to 8 after one a person started later in the day.
+ * finding: the next morning cron. Weekly: the first morning cron it is due at (`isDue`), so the next one when it
+ * never ran, 7 days after a run the cron started, and up to 8 after one a person started later in the day.
  */
 export function nextScheduledRun(workflow: Scheduled, now: Date, lastRunAt: string | null): Date | null {
   const { trigger } = workflow;
