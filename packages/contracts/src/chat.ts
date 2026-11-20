@@ -38,6 +38,8 @@ export type ChatEntry =
       evidence?: Evidence;
       /** A workflow Kassandra drafted (draft_workflow): show it as an editable card with Save → POST /api/workflows. */
       draft?: WorkflowSpec;
+      /** `send_email` only: whether a mail went out. False when nothing was to report, or a limit or the sender refused it. */
+      sent?: boolean;
       at: number;
     }
   | { id: number; kind: 'event'; type: string; data: unknown; at: number };

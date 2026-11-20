@@ -13,6 +13,7 @@ import { budgetExceeded } from './presentation/http/budget-response.ts';
 import { preflight, withCors, withoutCors } from './presentation/http/cors.ts';
 import { internalError } from './presentation/http/errors.ts';
 import { isAllowedOrigin, PUBLIC_HOST, rejectCrossSite } from './presentation/http/origin.ts';
+import { isDraftId, routeOf } from './presentation/http/routes.ts';
 import { createCompassMcpServer } from './presentation/mcp/server.ts';
 
 import type { Env } from './env.ts';
@@ -21,6 +22,7 @@ export { Kassandra } from './presentation/agents/kassandra.ts';
 export { Briefs } from './presentation/briefs.ts';
 export { WorkflowAgents } from './presentation/agents/workflow-agents.ts';
 export { Budget } from './presentation/budget.ts';
+export { WorkflowBuilder } from './presentation/agents/workflow-builder.ts';
 
 /**
  * One database client per request, as Hyperdrive recommends: it pools the real connections for us.
@@ -95,7 +97,9 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   const cors = preflight(request);
   if (cors) return cors;
 
-  if (url.pathname === '/mcp') {
+  const target = routeOf(url.pathname);
+
+  if (target === 'mcp') {
     // The MCP endpoint is public and read-only, so reviewers can connect Claude Desktop without a login.
     // A per-client rate limit keeps it from being used to hammer the database.
     const limited = await rateLimited(env.MCP_RATE_LIMIT, request, 'Too many requests. Try again in a minute.');
@@ -118,13 +122,13 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     );
   }
 
-  if (!url.pathname.startsWith('/api/')) return error(404, 'Not found');
+  if (target === 'not_found') return error(404, 'Not found');
 
   // Every mutating API call must come from the app (or from a script without Origin), never from another site.
   const crossSite = rejectCrossSite(request);
   if (crossSite) return crossSite;
 
-  if (url.pathname === '/api/kassandra/ws') {
+  if (target === 'kassandra_ws') {
     // The chat WebSocket: one Durable Object per conversation id. Questions sent over it are rate-limited and
     // budgeted inside the object.
     const origin = request.headers.get('Origin');
@@ -132,6 +136,16 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     const conversation = url.searchParams.get('conversation') ?? '';
     if (!/^[\w-]{1,64}$/.test(conversation)) return new Response('Pass ?conversation=<id> (letters, digits, - or _)', { status: 400 });
     return env.KASSANDRA.getByName(conversation).fetch(request);
+  }
+
+  if (target === 'builder') {
+    // The workflow builder's WebSocket: one Durable Object per draft id, with Kassandra's origin rule. Questions and
+    // test runs sent over it are rate-limited and budgeted inside the object.
+    const origin = request.headers.get('Origin');
+    if (origin && !isAllowedOrigin(origin)) return new Response('Origin not allowed', { status: 403 });
+    const draft = url.searchParams.get('draft') ?? '';
+    if (!isDraftId(draft)) return new Response('Pass ?draft=<id> (letters, digits, - or _)', { status: 400 });
+    return env.WORKFLOW_BUILDER.getByName(draft).fetch(request);
   }
 
   if (url.pathname === '/api/kassandra/ask' && request.method === 'POST') {
@@ -168,9 +182,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     return Response.json(await env.BUDGET.getByName(BUDGET_NAME).status());
   }
 
-  if (url.pathname.startsWith('/api/workflows') || url.pathname.startsWith('/api/proposals') || url.pathname === '/api/audit' || url.pathname.startsWith('/api/runs/')) {
-    return workflowRoutes(request, url, env);
-  }
+  if (target === 'workflows') return workflowRoutes(request, url, env);
 
   if (url.pathname === '/api/health') {
     return withData(env, ctx, async (data) => Response.json({ ok: true, businessDate: await data.businessDate() }));

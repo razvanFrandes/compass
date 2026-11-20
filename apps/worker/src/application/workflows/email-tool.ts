@@ -27,6 +27,10 @@ const jsonSchema = (schema: z.ZodObject) => {
   return rest;
 };
 
+/** What a call tells the model, and whether a mail went out (a refusal is an answer, not a tool error). */
+type Outcome = { text: string; sent: boolean };
+const notSent = (text: string): Outcome => ({ text, sent: false });
+
 let counter = 0;
 const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${(counter++).toString(36)}`;
 
@@ -41,7 +45,7 @@ export interface EmailExtensionDeps {
 
 export function createEmailExtension({ store, sender, quota, appUrl, now = () => new Date() }: EmailExtensionDeps): Extension {
   /** Sends in progress by run id, so two calls in one turn share one send. */
-  const sending = new Map<string, Promise<string>>();
+  const sending = new Map<string, Promise<Outcome>>();
 
   const sendEmail = {
     name: 'send_email',
@@ -56,20 +60,20 @@ export function createEmailExtension({ store, sender, quota, appUrl, now = () =>
       if (!scope) throw new Error('send_email only works inside a workflow run.');
       const { run, workflow } = scope;
 
-      const send = async (): Promise<string> => {
+      const send = async (): Promise<Outcome> => {
         const earlier = await store.emailForRun(run.id);
-        if (earlier) return earlier;
-        if (await store.emailPending(run.id)) return 'An earlier attempt to send this email did not confirm; not sending again.';
-        if (workflow.action.type !== 'email' || !workflow.delivery) return 'This workflow has no email action; no email sent.';
+        if (earlier) return { text: earlier, sent: true };
+        if (await store.emailPending(run.id)) return notSent('An earlier attempt to send this email did not confirm; not sending again.');
+        if (workflow.action.type !== 'email' || !workflow.delivery) return notSent('This workflow has no email action; no email sent.');
 
         const args = SendEmailArgs.parse(rawArgs);
         const test = run.test === true;
-        if (!test && !args.would_fire) return 'Nothing to report; no email sent.';
+        if (!test && !args.would_fire) return notSent('Nothing to report; no email sent.');
 
         // One spelling of the address for the limits and for the send, so a variant cannot get its own allowance.
         const to = workflow.delivery.to.trim().toLowerCase();
         const allowed = await quota.take(to, run.client ?? 'manual');
-        if (!allowed.ok) return `${allowed.reason} No email sent.`;
+        if (!allowed.ok) return notSent(`${allowed.reason} No email sent.`);
 
         // The last mail says so: with this send the workflow reaches its 5 emails, or its 7 days are over.
         const final = !test && emailWorkflowBlocked({ ...workflow, emailsSent: (workflow.emailsSent ?? 0) + 1 }, now()) !== null;
@@ -79,7 +83,7 @@ export function createEmailExtension({ store, sender, quota, appUrl, now = () =>
         });
         await store.markEmailPending(run.id);
         const sent = await sender.send({ to, ...mail });
-        if ('error' in sent) return `${sent.error} No email sent.`;
+        if ('error' in sent) return notSent(`${sent.error} No email sent.`);
 
         const receipt = `Email ${sent.messageId} to ${maskEmail(to)}`;
         await store.recordEmail(run.id, workflow.id, receipt, test);
@@ -87,7 +91,7 @@ export function createEmailExtension({ store, sender, quota, appUrl, now = () =>
           id: newId('audit'), at: now().toISOString(), workflowId: workflow.id, proposalId: '', hotel_code: workflow.hotels.join(', '),
           action: 'email', by: test ? 'workflow (test run)' : 'workflow', outcome: 'emailed', receipt,
         });
-        return receipt;
+        return { text: receipt, sent: true };
       };
 
       let work = sending.get(run.id);
@@ -95,7 +99,9 @@ export function createEmailExtension({ store, sender, quota, appUrl, now = () =>
         work = send().finally(() => sending.delete(run.id));
         sending.set(run.id, work);
       }
-      return { output: [{ type: 'text', text: await work }] };
+      const outcome = await work;
+      // `output` is what the model reads; `details.sent` tells the UI whether a mail went out.
+      return { output: [{ type: 'text', text: outcome.text }], details: { sent: outcome.sent } };
     },
   } as unknown as ToolRegistration;
 

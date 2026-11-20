@@ -45,7 +45,7 @@ export function projectEntries(entries: readonly unknown[]): ChatEntry[] {
       });
     } else if (kind === 'pi.tool-result') {
       const isError = message['isError'] === true;
-      const details = (message['details'] ?? {}) as { rows?: Record<string, unknown>[]; evidence?: Evidence; workflowDraft?: WorkflowSpec };
+      const details = (message['details'] ?? {}) as { rows?: Record<string, unknown>[]; evidence?: Evidence; workflowDraft?: WorkflowSpec; sent?: unknown };
       out.push({
         id,
         kind: 'tool_result',
@@ -56,6 +56,7 @@ export function projectEntries(entries: readonly unknown[]): ChatEntry[] {
         ...(details.rows ? { rows: details.rows } : {}),
         ...(details.evidence ? { evidence: details.evidence } : {}),
         ...(details.workflowDraft ? { draft: details.workflowDraft } : {}),
+        ...(typeof details.sent === 'boolean' ? { sent: details.sent } : {}),
         at,
       });
     } else if (!kind.startsWith('pi.')) {

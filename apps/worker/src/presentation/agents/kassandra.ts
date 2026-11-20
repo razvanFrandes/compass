@@ -1,23 +1,23 @@
-import type { ChatClientMessage, ChatServerMessage } from '@compass/contracts';
+import type { ChatClientMessage } from '@compass/contracts';
 import { DurableObject } from 'cloudflare:workers';
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context';
 import { createModels } from '@earendil-works/pi-ai/models';
 import { createRegistry, Harness, type Extension } from '@earendil-works/pi-durable';
-import { PiHarness, ROOT_SESSION, type PiSession } from 'agents/harness/pi';
+import { PiHarness, ROOT_SESSION } from 'agents/harness/pi';
 import { Lifecycle } from 'agents/lifecycle';
 import { createAI } from 'agents/models/pi-ai';
 import { HotelData } from '../../application/hotel-data.ts';
 import { openPostgres } from '../../infrastructure/postgres.ts';
 import { WorkersAiEmbedder } from '../../infrastructure/workers-ai-embedder.ts';
 import type { Env } from '../../env.ts';
-import { projectEntries, projectLive } from './chat-projection.ts';
+import { serveChatSocket } from './chat-socket.ts';
 import { KASSANDRA_SECTIONS } from './kassandra-prompt.ts';
 import { agentChangeFor, THINKER_MODEL, type AnswerMode } from './modes.ts';
 import { createDataExtension } from './pi-data-extension.ts';
 import { createDraftWorkflowExtension } from '../../application/workflows/draft-tool.ts';
 import { BUDGET_NAME } from '../budget.ts';
 import { budgetMessage } from '../http/budget-response.ts';
-import { PublicError, publicMessage } from '../http/errors.ts';
+import { PublicError } from '../http/errors.ts';
 
 export interface KassandraAnswer {
   status: 'done' | 'unanswered';
@@ -75,54 +75,14 @@ export class Kassandra extends DurableObject<Env> {
     const client = request.headers.get('cf-connecting-ip') ?? 'local';
     const { 0: browser, 1: server } = new WebSocketPair();
     server.accept();
-    this.ctx.waitUntil(this.#serve(server, conversation, client));
+    this.ctx.waitUntil(
+      serveChatSocket(server, this.harness.session(), {
+        conversation,
+        name: 'Kassandra',
+        onMessage: (raw) => this.#onClientMessage(raw, client),
+      }),
+    );
     return new Response(null, { status: 101, webSocket: browser });
-  }
-
-  async #serve(socket: WebSocket, conversation: string, client: string): Promise<void> {
-    const send = (message: ChatServerMessage) => {
-      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
-    };
-    let watch: Awaited<ReturnType<PiSession['watch']>> | undefined;
-    const closed = new Promise<void>((resolve) => {
-      socket.addEventListener('close', () => resolve());
-      socket.addEventListener('error', () => resolve());
-    });
-
-    socket.addEventListener('message', (event) => {
-      void this.#onClientMessage(event.data, client).catch((error: unknown) => {
-        if (!(error instanceof PublicError)) console.error('kassandra message failed', error);
-        send({ type: 'error', message: publicMessage(error) });
-      });
-    });
-
-    try {
-      watch = await this.harness.session().watch();
-      const sent = new Set<number>();
-      const initial = projectEntries(watch.value.entries);
-      for (const entry of initial) sent.add(entry.id);
-      let lastLive = JSON.stringify(projectLive(watch.value.docs));
-      send({ type: 'snapshot', conversation, entries: initial, live: JSON.parse(lastLive) });
-
-      watch.start(async (call) => {
-        if (call.kind !== 'value') return;
-        const fresh = projectEntries(call.value.entries).filter((entry) => !sent.has(entry.id));
-        for (const entry of fresh) sent.add(entry.id);
-        if (fresh.length) send({ type: 'entries', entries: fresh });
-        const live = JSON.stringify(projectLive(call.value.docs));
-        if (live !== lastLive) {
-          lastLive = live;
-          send({ type: 'live', live: JSON.parse(live) });
-        }
-      });
-      await closed;
-    } catch (error) {
-      console.error('kassandra socket failed', error);
-      send({ type: 'error', message: publicMessage(error) });
-      socket.close(1011, 'Kassandra is unavailable');
-    } finally {
-      await watch?.stop();
-    }
   }
 
   async #onClientMessage(raw: unknown, client: string): Promise<void> {

@@ -70,16 +70,22 @@ async function setup(options: { test?: boolean; quota?: EmailQuota; sender?: Ema
 const toolTexts = (ctx: { messages: { role: string; content?: unknown }[] }) =>
   ctx.messages.filter((m) => m.role === 'toolResult').map((m) => JSON.stringify(m.content));
 
+/** What each send_email result tells the UI: whether a mail went out. */
+const toolSent = (ctx: { messages: { role: string; details?: unknown }[] }) =>
+  ctx.messages.filter((m) => m.role === 'toolResult').map((m) => (m.details as { sent?: boolean } | undefined)?.sent);
+
 const callSendEmail = (args: typeof MAIL = MAIL) => fauxAssistantMessage(fauxToolCall('send_email', args), { stopReason: 'toolUse' });
 
 describe('send_email', () => {
   it('sends once when the condition holds', async () => {
     const { faux, harness, root, store, sender, taken } = await setup();
     let seen: string[] = [];
+    let sentFlags: (boolean | undefined)[] = [];
     faux.setResponses([
       callSendEmail(),
       (ctx) => {
         seen = toolTexts(ctx);
+        sentFlags = toolSent(ctx);
         return fauxAssistantMessage(fauxText('Emailed.'));
       },
     ]);
@@ -97,6 +103,7 @@ describe('send_email', () => {
     expect(JSON.stringify(store.audit)).not.toContain('silviu@');
     expect(seen.join()).toContain('Email msg-1 to si****@example.com');
     expect(seen.join()).not.toContain('silviu@');
+    expect(sentFlags).toEqual([true]);
     expect(store.workflows.get('wf-lisbon')!.emailsSent).toBe(1);
     await harness.close(context);
   });
@@ -173,10 +180,12 @@ describe('send_email', () => {
     const reason = 'This address already got 3 emails in the last hour. Try again later.';
     const { faux, harness, root, store, sender } = await setup({ quota: { take: async () => ({ ok: false, reason }) } });
     let seen: string[] = [];
+    let sentFlags: (boolean | undefined)[] = [];
     faux.setResponses([
       callSendEmail(),
       (ctx) => {
         seen = toolTexts(ctx);
+        sentFlags = toolSent(ctx);
         return fauxAssistantMessage(fauxText('Not sent.'));
       },
     ]);
@@ -186,6 +195,7 @@ describe('send_email', () => {
     expect(store.audit).toHaveLength(0);
     expect(await store.emailForRun('run-1')).toBeNull();
     expect(seen.join()).toContain(reason);
+    expect(sentFlags).toEqual([false]);
     await harness.close(context);
   });
 

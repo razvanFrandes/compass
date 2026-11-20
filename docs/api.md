@@ -36,10 +36,11 @@ wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=<id>
 - `assistant` — `{ text, toolCalls: [{ callId, name, args }], model, usage: { tokens, costUsd }, stopReason }`
   - `stopReason: 'toolUse'` means tool calls follow. The interim `text` of such a turn is the agent narrating its steps: show it as a step, not as the answer.
   - `stopReason: 'stop'` is the final answer, in Markdown.
-- `tool_result` — `{ callId, name, isError, error?, rows?, evidence? }`
+- `tool_result` — `{ callId, name, isError, error?, rows?, evidence?, sent? }`
   - `rows` and `evidence` feed widgets and the "How this was computed" panel.
   - `evidence` holds: `sources`, `definitions`, `period`, `sql`, `params`, `businessDate`, `notes`.
-- `event` — our own labelled inputs (e.g. `app.approval`), `{ type, data }`.
+  - `sent` is on `send_email` results only (workflow run logs): whether a mail went out. It is `false` when a limit refused it or there was nothing to report.
+- `event` — our own labelled inputs (e.g. `app.approval`, the builder's `app.edit`), `{ type, data }`.
 
 `ChatLive`:
 - `running` — show the Stop button while it is true;
@@ -109,7 +110,7 @@ Agents that watch the numbers, propose an action and act once a person approves.
 | GET | `/api/workflows` | `Workflow[]`. Five templates are seeded on first use, one per brief finding. |
 | POST | `/api/workflows` | Create from a `WorkflowSpec` (e.g. a Kassandra draft). Returns `Workflow`. At most 30 workflows (409 beyond). |
 | GET | `/api/workflows/:id` | `{ workflow, runs, proposals }` |
-| PATCH | `/api/workflows/:id` | Change fields, e.g. `{ "enabled": false }` or `{ "autonomy": "suggest" }`. |
+| PATCH | `/api/workflows/:id` | Change fields, e.g. `{ "enabled": false }` or `{ "autonomy": "suggest" }`. The recipient of an email workflow cannot be changed (400). |
 | POST | `/api/workflows/:id/run` | Run now ("Run now" button). Returns `WorkflowRun`. Rate-limited and budgeted. |
 | GET | `/api/runs/:runId` | `{ run, entries: ChatEntry[] }`: the run's log, projected like the chat. |
 | GET | `/api/proposals?status=pending` | The approval inbox: `Proposal[]` with `change: { before, after, scope }`, `rationale`, `impact_eur`, `risk`. |
@@ -129,6 +130,83 @@ Agents that watch the numbers, propose an action and act once a person approves.
 **From chat:** Kassandra's `draft_workflow` tool returns a `tool_result` entry with `draft: WorkflowSpec`. Show it as an editable card; **Save** sends it to `POST /api/workflows`.
 
 **Schedule:** every morning at 05:00 UTC the cron regenerates the brief, then runs the enabled workflows whose trigger matches a brief finding for their hotels, plus the daily ones.
+
+## Workflow builder: WebSocket
+
+```
+wss://juyo.razvanfrandes.com/api/workflows/builder/ws?draft=<id>
+```
+
+Kassandra builds a workflow with the person. The chat is on one side and the workflow, as a chain of nodes, on the other. The agent fills in one node per tool call; the person can also edit a node by hand.
+
+- **Draft id:** 1–64 letters, digits, `-` or `_`. Pick it on the client with `crypto.randomUUID()` and keep it in the URL to come back to the draft. Each draft is one Durable Object, which keeps the conversation, the draft and the id of the workflow it was saved as.
+- **Keep the id private.** Whoever has the draft id sees the conversation and the draft, including the email address in full. Do not list or share draft ids.
+- **Origins:** as the Kassandra socket.
+- **Chat:** the socket speaks the Kassandra protocol above (`snapshot`, `entries`, `live`, `error`; `ask`, `steer`, `abort`), so the chat UI is reused. `snapshot.conversation` is the draft id. `ask` takes no `mode`: the builder always uses Claude Sonnet 5.5.
+- **Types:** `BuilderServerMessage`, `BuilderClientMessage`, `WorkflowDraft`, `WorkflowGraph`, `specToGraph` in `@compass/contracts`.
+
+### Server → client, on top of the chat messages
+
+| `type` | When | Payload |
+|---|---|---|
+| `draft` | right after the snapshot, and after every change (a tool call, an `edit`, a `save`) | `draft`, `graph`, `changed`, `workflowId`, `issues` |
+| `run` | while a test run is going, each time its place on the graph changes | `runId`, `status`, `activeNode`, `done`, `failed` |
+
+`draft`:
+- `draft: WorkflowDraft` — a `WorkflowSpec` with any part still missing. Replace the previous one.
+- `graph: { nodes, edges }` — the same draft as a chain (`specToGraph(draft)`; you can also compute it on the client). Positions are the canvas's job.
+- `changed: string[]` — ids of the nodes that are new or read differently. Highlight or animate them. Empty on connect and after a save.
+- `workflowId: string | null` — set once the draft is saved.
+- `issues: string[]` — why it cannot be saved yet, as `path: message`. Enable **Save** and **Send test** when it is empty.
+
+Nodes, in chain order:
+
+| `id` | `kind` | From the draft | Example `label` |
+|---|---|---|---|
+| `trigger` | `trigger` | `trigger` | "Every morning, after the brief" |
+| `scope` | `scope` | `hotels` | "LIS" / "All 20 hotels" |
+| `check:<tool>`, one per check (`check` while there is none) | `check` | `checks[]` | "Pace vs last year" (`get_pace`) |
+| `analyze` | `analyze` | `goal` | "Kassandra explains why" |
+| `approval` | `approval` | `autonomy`, `approver` | only when the action needs approval; an email does not |
+| `action` | `action` | `action`, `delivery` | "Email si****@gmail.com" |
+
+Each node is `{ id, kind, label, detail, state }`. `state` is `empty` (a placeholder: nothing chosen yet), `draft` (a value that is not complete or valid yet) or `complete`. The whole chain is there from the first message and fills in. Ids are stable across edits. Labels show the address masked.
+
+`run`:
+- `status` — the run's status (`running`, `done`, `failed`; `waiting_approval` for a workflow whose action needs approval);
+- `activeNode` — the node the run is on, or `null` once it has ended (or the mail is out and the agent is writing its summary);
+- `done` — the nodes it finished, in chain order;
+- `failed` — the node a failed run stopped on, else `null`.
+
+A run walks the chain: `trigger` and `scope` are done at once; a check is active from its tool call to its result; `analyze` is active while the agent thinks or reads other data; `action` is active while the mail is being sent, and done **only when a mail went out**. A test that reaches the hourly limit ends `done` without `action` in `done`; read why in `GET /api/runs/:runId` (`run.summary`). The server polls the run once a second, so a quick step can be skipped. It follows a run for at most 3 minutes.
+
+### Client → server, on top of the chat messages
+
+```json
+{ "type": "edit", "patch": { "trigger": { "kind": "schedule", "every": "week" } } }
+{ "type": "edit", "patch": { "action": { "type": "notify" }, "delivery": null } }
+{ "type": "save" }
+{ "type": "test" }
+```
+
+- **`edit`:** a manual change on the canvas.
+  - `patch` holds whole fields of the workflow (`trigger`, `hotels`, `checks`, `name`, `goal`, `action`, `delivery`, `approver`, `autonomy`, `enabled`, `description`). A field set to `null` is removed.
+  - Every field is validated. If one is invalid, nothing is applied and you get an `error` message with the reason.
+  - On success everyone on the draft gets a `draft` message, and the transcript gets an `event` entry `app.edit` with `data: { changed, chain }`. The agent reads it on its next turn, so it builds on the edit.
+  - `checks` may only name data tools (the 24 tools of `/mcp`), at most 8.
+- **`save`:** saves the draft as a workflow. Refused with an `error` while `issues` is not empty. The first save creates the workflow; you get a `draft` message with its `workflowId`. A later save updates that workflow. If the address changed (or was added or removed), the save creates a **new** workflow, turns the old one off, and `workflowId` changes.
+- **`test`** ("Send test now"): saves if needed, then runs the workflow once as a test and sends `run` messages. An email workflow always sends on a test, with the subject `Test · <name>`, and the mail says whether the workflow would have fired today.
+  - One test at a time: a `test` sent while a run is going gets an `error` message, and the socket stays open.
+- **Limits:** `ask` and `steer` share Kassandra's limit (6 per minute per client) and the daily `question` budget. `test` shares the same per-minute limit and counts against the daily `workflow_run` budget. A message is at most 16 KB. Over a limit, the server sends an `error` message.
+
+### Email workflows
+
+- **One recipient** per workflow, set when it is saved. `PATCH` cannot change it.
+- **Masked everywhere outside the builder socket:** `GET /api/workflows`, `/api/workflows/:id`, the answers of `POST` and `PATCH`, the audit log and the graph labels show `si****@gmail.com`.
+- **Fixed template:** the model writes the summary and picks the facts; it never chooses the recipient or the layout.
+- **Limits:** 3 emails per hour per address, 10 per hour per client, 50 per UTC day for the whole demo. Over a limit, the run ends `done`, sends nothing and says so in its summary.
+- **Lifetime:** a scheduled email workflow turns itself off after 7 days or 5 emails, whichever comes first. The last mail says so. Test runs are not counted, only the hourly and daily limits.
+- **"Explore in Kassandra"** in the mail links to `https://juyo.razvanfrandes.com/ask?q=<question, URL-encoded>`. This is a contract for the app: the route `/ask` must open Kassandra, pre-fill the question from `q` and send it.
 
 ## MCP (public, read-only)
 

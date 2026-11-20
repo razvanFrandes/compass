@@ -45,7 +45,7 @@ function parse<T>(schema: z.ZodType<T>, rawArgs: unknown): T {
   return parsed.data;
 }
 
-const chain = (graph: WorkflowGraph) => graph.nodes.map((node) => (node.state === 'empty' ? `(${node.label})` : node.label)).join(' → ');
+export const chain = (graph: WorkflowGraph) => graph.nodes.map((node) => (node.state === 'empty' ? `(${node.label})` : node.label)).join(' → ');
 
 export function createBuilderExtension(host: DraftHost, allowedChecks: readonly string[]): Extension {
   const result = (said: string, graph: WorkflowGraph, changed: string[]) => ({

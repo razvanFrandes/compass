@@ -17,19 +17,22 @@
   // Kassandra: one Durable Object per conversation, running pi-durable through PiHarness.
   // Briefs: the morning brief, one object for the group.
   // Budget: the public demo's daily budget (questions, workflow runs, decisions, brief refreshes), one object.
+  // WorkflowBuilder: one object per workflow draft, the agent that builds it with the person.
   "durable_objects": {
     "bindings": [
       { "name": "KASSANDRA", "class_name": "Kassandra" },
       { "name": "BRIEFS", "class_name": "Briefs" },
       { "name": "WORKFLOWS", "class_name": "WorkflowAgents" },
-      { "name": "BUDGET", "class_name": "Budget" }
+      { "name": "BUDGET", "class_name": "Budget" },
+      { "name": "WORKFLOW_BUILDER", "class_name": "WorkflowBuilder" }
     ]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["Kassandra"] },
     { "tag": "v2", "new_sqlite_classes": ["Briefs"] },
     { "tag": "v3", "new_sqlite_classes": ["WorkflowAgents"] },
-    { "tag": "v4", "new_sqlite_classes": ["Budget"] }
+    { "tag": "v4", "new_sqlite_classes": ["Budget"] },
+    { "tag": "v5", "new_sqlite_classes": ["WorkflowBuilder"] }
   ],
 
   // Daily limits for every visitor together, per UTC day (docs/security.md). A missing key keeps its default.

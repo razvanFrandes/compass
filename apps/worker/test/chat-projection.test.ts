@@ -45,6 +45,16 @@ describe('projectEntries', () => {
     expect(entry).toMatchObject({ kind: 'tool_result', name: 'draft_workflow', draft: { name: 'Dubai watch' } });
   });
 
+  it('says whether send_email sent a mail', () => {
+    const result = (id: number, details: unknown) => ({
+      id, kind: 'pi.tool-result', model: [{ role: 'toolResult', toolCallId: `c${id}`, toolName: 'send_email', content: [{ type: 'text', text: '…' }], details, timestamp: 1 }],
+    });
+    const [sent, refused, other] = projectEntries([result(1, { sent: true }), result(2, { sent: false }), result(3, undefined)]);
+    expect(sent).toMatchObject({ kind: 'tool_result', sent: true });
+    expect(refused).toMatchObject({ kind: 'tool_result', sent: false });
+    expect(other && 'sent' in other).toBe(false);
+  });
+
   it('projects our own labelled inputs as events', () => {
     const [event] = projectEntries([
       { id: 99, kind: 'app.approval', data: { approved: true, by: 'rm' }, model: [{ role: 'user', content: 'Approved', timestamp: 1 }] },
