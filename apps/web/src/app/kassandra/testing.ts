@@ -51,3 +51,24 @@ export const widget = (patch: Partial<ChatWidget> = {}): ChatWidget => ({
   evidence: evidence(),
   ...patch,
 });
+
+/** get_pace for three hotels, as the tool returns it: rows, and the evidence that names its columns. */
+export const paceRows = [
+  { hotel_code: 'LIS', rooms_otb: 2140, rooms_otb_stly: 2590, pace_pct: -17.4 },
+  { hotel_code: 'AMS', rooms_otb: 3320, rooms_otb_stly: 3410, pace_pct: -2.6 },
+  { hotel_code: 'PAR', rooms_otb: 2985, rooms_otb_stly: 2760, pace_pct: 8.2 },
+];
+export const paceEvidence = (patch: Partial<Evidence> = {}): Evidence =>
+  evidence({
+    title: 'Pace vs last year',
+    sources: ['hotel.pace_vs_stly()'],
+    period: { from: '2026-11-21', to: '2026-12-20' },
+    rowCount: 3,
+    columns: [
+      { key: 'hotel_code', label: 'Hotel', kind: 'hotel' },
+      { key: 'rooms_otb', label: 'On the books', kind: 'count', unit: 'room nights' },
+      { key: 'rooms_otb_stly', label: 'On the books, same time last year', kind: 'count', unit: 'room nights' },
+      { key: 'pace_pct', label: 'Pace vs last year', kind: 'percent' },
+    ],
+    ...patch,
+  });

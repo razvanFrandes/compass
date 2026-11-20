@@ -110,7 +110,8 @@ const NEXT_BY_TOOL: Record<string, string[]> = {
   get_brief: ['Which finding costs the most?'],
 };
 const BACKGROUND_TOOLS = new Set(['get_data_health', 'get_brief']);
-const AS_CHART = 'Show this as a chart';
+/** Offered when an answer has rows and no chart. An answer that shows a preview already has one. */
+export const AS_CHART = 'Show this as a chart';
 const WATCH = 'Watch this and email me when it changes';
 
 /**

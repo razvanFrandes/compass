@@ -106,7 +106,7 @@ export class PerformanceWidget {
         <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground" [attr.aria-label]="'More for ' + w.spec.title" [hlmDropdownMenuTrigger]="menu" align="end"><ng-icon name="phosphorDotsThreeBold" class="text-[18px]" /></button>
       </header>
       <div class="mt-4 min-h-0 flex-1">
-        <juyo-widget-chart [spec]="w.spec" [rows]="w.rows" [columns]="w.columns" [header]="false" />
+        <juyo-widget-chart [spec]="w.spec" [rows]="w.rows" [columns]="w.columns" [header]="false" [switcher]="true" [viewKey]="'board:' + w.id" />
       </div>
       @if (how()) {
         <section class="border-border mt-4 border-t pt-3 text-[12.5px]" aria-label="How this was computed">

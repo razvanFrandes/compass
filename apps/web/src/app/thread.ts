@@ -58,6 +58,8 @@ import * as icons from './icons';
               [turns]="chat.turns()"
               [phase]="chat.live()?.phase"
               [liveTools]="chat.live()?.tools"
+              [drafting]="chat.live()?.drafting"
+              [previews]="true"
               [error]="chat.error()"
               [usage]="chat.usage()"
               [suggest]="true"

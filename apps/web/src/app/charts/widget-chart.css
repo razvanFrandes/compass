@@ -994,6 +994,69 @@
   }
 }
 
+/* The "View as" row under the widget, and its placeholder while the widget loads (the buttons are in view-as.css) */
+.wc-view-row {
+  margin-top: 12px;
+  min-height: 28px;
+}
+.juyo-wc--compact .wc-view-row {
+  margin-top: 10px;
+}
+.wc-view {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.wc-view--stub i {
+  display: block;
+  width: 64px;
+  height: 28px;
+  border-radius: var(--radius-control, 7px);
+  background: var(--wc-sk);
+}
+.wc-view--stub i:first-child {
+  width: 46px;
+  height: 10px;
+  margin-right: 2px;
+  border-radius: 4px;
+}
+@media (pointer: coarse) {
+  .wc-view {
+    gap: 8px;
+  }
+  .wc-view-row {
+    min-height: 36px;
+  }
+  .wc-view--stub i:not(:first-child) {
+    height: 36px;
+  }
+}
+@container (max-width: 479.98px) {
+  .wc-view--stub i:first-child {
+    display: none;
+  }
+}
+
+/* A switch of kind (by hand, or Kassandra's choice replacing the preview) happens in place: the box eases to its new height and the new figure fades in. ECharts animates its own marks. */
+@media (prefers-reduced-motion: no-preference) {
+  .wc-body {
+    transition: height 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .wc-kpi,
+  .wc-tiles,
+  .wc-sparks,
+  .wc-table-wrap,
+  .wc-plot {
+    animation: wc-settle 220ms ease-out both;
+  }
+}
+@keyframes wc-settle {
+  from {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wc-shimmer::after {
     display: none;
