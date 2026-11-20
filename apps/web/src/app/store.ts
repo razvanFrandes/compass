@@ -1,8 +1,10 @@
-import { Service, computed, signal } from '@angular/core';
+import { Service, computed, inject, signal } from '@angular/core';
 import { toast } from '@spartan-ng/brain/sonner';
 import { BUSINESS_DAY, Decision, MetricKey, NIGHTS, decisionNights, formatDay, formatEur, formatEurShort, utc } from './data';
 import type { ChartSpec } from './portfolio';
-import { PORTFOLIO_SPECS } from './portfolio';
+import { PORTFOLIO_SPECS, type Drill } from './portfolio';
+import { drillContent } from './drill';
+import { COMPARES, CompareKey, FilterState, Filters, Pill, RANGES, RangeKey, scopeChips } from './filters';
 import { AMS_BOOKING_SHARE, AMS_CONVERSION, BCN_OUT_OF_ORDER, BER_FEEDS, BRIEF, DPS_KITCHEN, GOP_MONTHLY, LIS_PACE, NYC_ACCOUNT } from './halcyon-data';
 
 /* ───────────────────────── Artifact specs ─────────────────────────
@@ -57,7 +59,7 @@ export interface Proposal {
   reaches: string;
   why: string;
 }
-interface TopicContent {
+export interface TopicContent {
   steps: { title: string; detail: string }[];
   answer: Seg[];
   sources: string[];
@@ -453,6 +455,34 @@ function topicFor(r: BriefRow): TopicContent {
 
 export const TOPICS: Record<Topic, TopicContent> = Object.fromEntries(BRIEF_ITEMS.map((r) => [r.id, topicFor(r)]));
 
+/**
+ * The scope a brief answer was computed for, and the nearest dashboard filters that show it.
+ * When the answer's own window isn't a preset, the note says which preset it maps to.
+ */
+export function topicScope(topic: Topic): AnswerScope | undefined {
+  const r = BRIEF_ITEMS.find((x) => x.id === topic);
+  if (!r) return undefined;
+  const h = shortHotel(r.hotel_name);
+  const own: Record<string, [string, string, RangeKey, CompareKey, string?]> = {
+    pace_behind: ['stays 21 Nov 2026 – 4 Jan 2027 (next 45 nights)', 'vs same time last year', 'next30', 'stly', 'The answer covers 45 nights; the closest preset is next 30 nights'],
+    underpriced_demand: [`stays ${isoDay(String(fact(r, 'first_night')))} – ${isoDay(String(fact(r, 'last_night')))}`, 'vs comp-set median', 'next30', 'stly', 'The comp-set comparison isn’t a dashboard filter; the dashboard shows these nights within the next 30'],
+    account_loss: ['stays in the last 6 months', 'vs the 6 months before', 'last30', 'ly_dow', 'Six-month windows aren’t presets; the dashboard shows the last 30 nights'],
+    gop_miss: ['October 2026', 'vs budget', 'last_month', 'budget'],
+    rooms_out_of_order: ['stays in the next 30 nights', 'out-of-order rooms', 'next30', 'stly'],
+    web_conversion_drop: ['last 30 days vs the 60 before', 'mobile web', 'last30', 'ly_dow', 'Web sessions aren’t on the dashboard; it shows the same hotel and days'],
+    staffing_gap: ['last 30 days', 'kitchen hours vs required', 'last30', 'ly_dow', 'Labour isn’t on the dashboard; it shows the same hotel and days'],
+    data_stale: ['POS feed, last 7 days', 'last sync 17 Nov', 'last7', 'ly_dow'],
+  };
+  const o = own[r.kind];
+  if (!o) return { chips: [h], patch: { hotels: [r.hotel_code] }, said: { hotels: `from the answer: ${h}` } };
+  return {
+    chips: [h, o[0], o[1]],
+    patch: { hotels: [r.hotel_code], range: o[2], compare: o[3] },
+    said: { hotels: `from the answer: ${h}`, range: o[4] ? o[4].replace(/^The answer covers/, 'answer covers') : `from the answer: ${RANGES[o[2]].label.toLowerCase()}`, compare: `from the answer: ${COMPARES[o[3]].label.toLowerCase()}` },
+    note: o[4],
+  };
+}
+
 /** Routes a typed or spoken question to the brief item it is about (hotel names first, then the subject). */
 export function guessTopic(q: string): Topic {
   const s = q.toLowerCase();
@@ -499,6 +529,15 @@ export interface Thread {
   title: string;
   itemId?: string;
   turns: Turn[];
+  /** The scope this answer was computed for, shown as one line of chips (report: every quantitative answer declares it). */
+  scope?: AnswerScope;
+}
+export interface AnswerScope {
+  chips: string[];
+  /** The dashboard filters that would show the same scope; null when no preset matches (a single night). */
+  patch: Partial<FilterState> | null;
+  said: Partial<Record<Pill, string>>;
+  note?: string;
 }
 
 /* ───────────────────────── Inbox ───────────────────────── */
@@ -696,7 +735,7 @@ export class CompassStore {
     this.items.update((list) => list.map((i) => (i.id === id && i.status === 'new' ? { ...i, status: 'seen' } : i)));
     let thread = this.threads().find((t) => t.itemId === id);
     if (!thread) {
-      thread = { id: `t-${id}`, title: item.title, itemId: id, turns: [] };
+      thread = { id: `t-${id}`, title: item.title, itemId: id, turns: [], scope: topicScope(item.topic) };
       this.threads.update((ts) => [thread!, ...ts]);
       this.activeThreadId.set(thread.id);
       this.view.set('thread');
@@ -717,10 +756,42 @@ export class CompassStore {
     const q = question.trim();
     if (!q) return;
     const id = `t${this.seq++}`;
-    this.threads.update((ts) => [{ id, title: q, turns: [] }, ...ts]);
+    const topic = guessTopic(q);
+    this.threads.update((ts) => [{ id, title: q, turns: [], scope: topicScope(topic) }, ...ts]);
     this.activeThreadId.set(id);
     this.view.set('thread');
-    this.run(id, q, guessTopic(q), false);
+    this.run(id, q, topic, false);
+  }
+
+  private readonly filters = inject(Filters);
+  /** A click on a chart mark: a structured follow-up, answered from the same chart specs, with its own scope. */
+  drill(d: Drill, s: FilterState) {
+    const r = drillContent(d, s);
+    const key = `drill:${d.dimension}:${d.value}:${JSON.stringify(s)}`;
+    TOPICS[key] = r.content;
+    const id = `t${this.seq++}`;
+    const patch: Partial<FilterState> | null = d.dimension === 'night' ? null : d.dimension === 'hotel' ? { hotels: [d.value] } : d.dimension === 'channel' ? { channels: [d.value], chOp: 'is' } : { segments: [d.value], segOp: 'is' };
+    const scope: AnswerScope = {
+      chips: [...scopeChips(r.scope), ...(r.extraChip ? [r.extraChip] : [])],
+      patch,
+      said: d.dimension === 'hotel' ? { hotels: `clicked ${d.label}` } : d.dimension === 'channel' ? { channel: `clicked ${d.label}` } : d.dimension === 'segment' ? { segment: `clicked ${d.label}` } : {},
+      note: patch ? undefined : 'A single night isn’t a dashboard preset',
+    };
+    this.threads.update((ts) => [{ id, title: r.question, turns: [], scope }, ...ts]);
+    this.activeThreadId.set(id);
+    this.view.set('thread');
+    this.run(id, r.question, key, true);
+  }
+  /** "Apply to dashboard": the answer's scope becomes the dashboard filters, with a receipt and Undo. */
+  applyScope(sc: AnswerScope) {
+    if (!sc.patch) return;
+    this.filters.set(sc.patch, 'kassandra', sc.said);
+    this.openBoard('portfolio');
+  }
+  scopeDiffers(sc: AnswerScope) {
+    if (!sc.patch) return false;
+    const cur = this.filters.state();
+    return Object.entries(sc.patch).some(([k, v]) => JSON.stringify(cur[k as keyof FilterState]) !== JSON.stringify(v));
   }
 
   /** Follow-up inside the open thread. */

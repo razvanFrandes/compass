@@ -1,6 +1,6 @@
 import { ChartCard } from './chart-card';
 import { FilterBar } from './filter-bar';
-import { COMPARES, Filters, parseFilterRequest } from './filters';
+import { Filters, parseFilterRequest } from './filters';
 import { isWide, kpis } from './portfolio';
 import { Component, DOCUMENT, computed, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -190,25 +190,46 @@ export class PerformanceWidget {
         <div class="sticky top-0 z-20 -mx-2 bg-(--background)/92 px-2 py-2 backdrop-blur max-lg:top-0">
           <app-filter-bar />
         </div>
-        <!-- Kassandra changed the filters: say exactly what, with Undo (avoids answers that silently ignore the page's filters) -->
+        <!-- Kassandra changed the filters: each change before → after, in the bar's own words, with Undo and Edit filters -->
         @if (filters.receipt(); as rc) {
-          <div class="receipt gen-in" role="status">
-            <span class="orb-mark shrink-0" aria-hidden="true"></span>
-            <p class="min-w-0 flex-1 text-[13.5px]">
-              <span class="font-medium">Kassandra set {{ rc.changes.length }} {{ rc.changes.length === 1 ? 'filter' : 'filters' }}:</span>
-              @for (c of rc.changes; track c.label) {
-                <span class="text-muted-foreground"> {{ c.label }} </span><span>{{ c.value }}</span>@if (!$last) {<span class="text-muted-foreground"> ·</span>}
-              }
-            </p>
-            <button hlmBtn variant="ghost" size="sm" (click)="filters.undoReceipt()">Undo</button>
-          </div>
+          <section class="receipt gen-in items-start" aria-label="Filters Kassandra set">
+            <span class="orb-mark mt-0.5 shrink-0" aria-hidden="true"></span>
+            <div class="min-w-0 flex-1 text-[13.5px]">
+              <p class="font-medium">Kassandra changed {{ rc.changes.length }} {{ rc.changes.length === 1 ? 'filter' : 'filters' }}</p>
+              <ul class="mt-1 flex flex-col gap-0.5">
+                @for (c of rc.changes; track c.key) {
+                  <li>
+                    <span class="text-muted-foreground">{{ c.label + ': ' }}</span><span class="text-muted-foreground line-through decoration-1">{{ c.from }}</span>{{ ' → ' }}<span>{{ c.to }}</span>
+                    @if (c.said) {
+                      <span class="text-muted-foreground">{{ ' (' + c.said + ')' }}</span>
+                    }
+                  </li>
+                }
+              </ul>
+            </div>
+            <div class="flex shrink-0 gap-1 max-sm:flex-col">
+              <button hlmBtn variant="ghost" size="sm" (click)="filters.undoReceipt()">Undo</button>
+              <button hlmBtn variant="ghost" size="sm" (click)="filters.edit(rc.changes[0].key)">Edit filters</button>
+            </div>
+          </section>
         }
         <ul class="grid grid-cols-2 gap-3 md:grid-cols-4" aria-label="Key figures">
           @for (k of kpis(); track k.metric) {
-            <li class="insight-card p-4">
+            <li class="insight-card flex flex-col p-4">
               <p class="text-muted-foreground text-[12px]">{{ k.label }}</p>
-              <p class="mt-1 text-[22px]/tight font-semibold tracking-[-0.02em] tabular-nums">{{ k.value }}</p>
-              <p class="text-muted-foreground mt-1 text-[12px] tabular-nums">{{ k.delta === null ? 'No comparison' : k.basis + (k.delta >= 0 ? '▲ ' : '▼ ') + k.deltaText + ' vs ' + compareWord() }}</p>
+              <div class="mt-1 flex items-end justify-between gap-2">
+                <p class="text-[22px]/tight font-semibold tracking-[-0.02em] tabular-nums">{{ k.value }}</p>
+                @if (k.spark.length > 1) {
+                  <svg width="64" height="22" viewBox="0 0 64 22" class="shrink-0" aria-hidden="true">
+                    @if (k.sparkCmp) {
+                      <polyline [attr.points]="spark(k.spark, k.sparkCmp)[1]" fill="none" stroke="var(--series-cmp)" stroke-width="1.25" stroke-dasharray="3 2" />
+                    }
+                    <polyline [attr.points]="spark(k.spark, k.sparkCmp)[0]" fill="none" stroke="var(--series)" stroke-width="1.5" stroke-linejoin="round" />
+                  </svg>
+                }
+              </div>
+              <p class="mt-1 text-[12px] tabular-nums">{{ k.delta === null ? '' : (k.delta >= 0 ? '▲ ' : '▼ ') + k.deltaText }}</p>
+              <p class="text-muted-foreground text-[12px] tabular-nums">{{ k.base }}</p>
             </li>
           }
         </ul>
@@ -249,13 +270,20 @@ export class BoardView {
   protected readonly wide = isWide;
   protected readonly hasCharts = computed(() => this.store.activeBoard().widgets.some((w) => w.kind === 'chart'));
   protected readonly kpis = computed(() => kpis(this.filters.state()));
-  protected readonly compareWord = computed(() => COMPARES[this.filters.state().compare].short);
 
   /** Filter requests change the page (with a receipt); anything else becomes a question in a thread. */
   protected onAsk(text: string) {
-    const patch = parseFilterRequest(text);
-    if (patch) this.filters.set(patch, 'kassandra');
+    const req = parseFilterRequest(text);
+    if (req) this.filters.set(req.patch, 'kassandra', req.said);
     else this.store.askNew(text);
+  }
+  /** Sparkline points for this year and the comparison, on one shared scale. */
+  protected spark(a: number[], b: number[] | null): [string, string] {
+    const all = [...a, ...(b ?? [])];
+    const lo = Math.min(...all);
+    const span = Math.max(...all) - lo || 1;
+    const pts = (xs: number[]) => xs.map((x, i) => `${((i / Math.max(1, xs.length - 1)) * 62 + 1).toFixed(1)},${(20 - ((x - lo) / span) * 18).toFixed(1)}`).join(' ');
+    return [pts(a), b ? pts(b) : ''];
   }
 }
 

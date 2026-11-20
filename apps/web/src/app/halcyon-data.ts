@@ -1,4 +1,4 @@
-// Generated from the local compass_hotels database (Halcyon Hospitality Group) by scratchpad/halcyon/extract.py.
+// Generated from the local compass_hotels database (Halcyon Hospitality Group) by apps/web/scripts/halcyon/extract.py.
 // Read-only queries; the brief uses the backend's detector SQL verbatim. Do not edit by hand: re-run the script.
 /* eslint-disable */
 export const BUSINESS_DATE = "2026-11-20" as const;

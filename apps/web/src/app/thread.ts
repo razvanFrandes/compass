@@ -197,6 +197,18 @@ const FEEDBACK_REASONS = ['Wrong numbers', 'Out of date', 'Wrong sources', 'Not 
                   }
 
                   @if (t.answerVisible) {
+                    @if (th.scope; as sc) {
+                      <div class="gen-in flex flex-wrap items-center gap-1.5" role="group" aria-label="Scope of this answer">
+                        @for (c of sc.chips; track c) {
+                          <span class="scope-chip">{{ c }}</span>
+                        }
+                        @if (sc.patch && store.scopeDiffers(sc)) {
+                          <button hlmBtn variant="ghost" size="sm" class="h-7 px-2 text-[12.5px]" (click)="store.applyScope(sc)"><ng-icon name="phosphorSlidersHorizontalLight" />Apply to dashboard</button>
+                        } @else if (!sc.patch && sc.note) {
+                          <span class="text-muted-foreground text-[12px]">{{ sc.note }}</span>
+                        }
+                      </div>
+                    }
                     <div class="gen-in flex flex-col gap-3.5 text-[14.5px]/[1.65]">
                       <p>
                         @for (s of content(t).answer; track $index) {

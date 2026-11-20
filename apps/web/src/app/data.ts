@@ -1,5 +1,5 @@
 // Real (generated) data from the local compass_hotels database: Halcyon Hospitality Group, business date Fri 20 Nov 2026.
-// halcyon-data.ts is produced by scratchpad/halcyon/extract.py with read-only SQL; nothing here is invented.
+// halcyon-data.ts is produced by apps/web/scripts/halcyon/extract.py with read-only SQL; nothing here is invented.
 // Night-level views (boards, the rate calendar, the night panel) follow the hotel with today's pending decision:
 // Tessera Dubai Business Bay, where Gulf Tech Week (15–19 Dec) is missing from the pricing calendar (story S6).
 import { BUSINESS_DATE as BUSINESS_DATE_ISO, FOCUS, FOCUS_CURVES, FOCUS_FORWARD, FOCUS_PAST, HOTELS } from './halcyon-data';

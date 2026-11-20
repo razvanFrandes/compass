@@ -372,5 +372,6 @@ export function parseFilterRequest(text: string): { patch: Partial<FilterState>;
     patch.booked = b[3] === '7' ? '7d' : b[3] === '30' ? '30d' : '1d';
     said.booked = b[0];
   }
+  for (const k of Object.keys(said) as Pill[]) if (said[k]) said[k] = `you said “${said[k]}”`;
   return Object.keys(patch).length ? { patch, said } : null;
 }

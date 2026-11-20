@@ -169,47 +169,81 @@ The feedback: too many colours, too much text, and the data should come from the
 
 ## Filters and the chart catalogue (2026-11-20)
 
-Built from stages 1 and 2 of the report `docs/research/reports/Filtre și grafice pentru Compass.md`. Everything lives on a new **Portfolio** board (all 20 Halcyon hotels). The data comes from read-only SQL in `extract_portfolio.py`, which writes `portfolio-data.ts`.
+Built strictly from stages 1 and 2 of `docs/research/reports/Filtre și grafice pentru Compass.md`, after a first pass that drifted from it: pace drawn as occupancy by night, no pickup, a donut as the default for the mix, and grey comparisons. Everything lives on the **Portfolio** board (all 20 Halcyon hotels). The data comes from read-only SQL in `extract_portfolio.py`, which writes `portfolio-data.ts`.
 
-- **One filter state for the whole app** (`filters.ts`): hotels, stay nights, comparison, segment and channel. The state lives in the URL, so a link reopens the same view.
-  - **Three controls are always on the bar** (hotels, stay nights, comparison), two are promoted (segment, channel), and "+ Filter" lists the dimensions planned next.
-  - Under the bar, one line spells out the resolved scope: the dates, the comparison dates, and the time the data was as of. Reset appears only when the filters differ from the defaults.
-  - **Comparisons depend on the dates:** "same time last year" only for future nights, "last year, same weekday" only for past ones. Options that don't fit are disabled and say why.
-  - **Phones** use one bottom sheet per filter, applied in one batch with "Show results". Desktop popovers apply live.
-- **Kassandra changes the filters the same way people do.** Asked "Dubai hotels, next 90 nights vs budget", she sets the filters and leaves a receipt ("Kassandra set 3 filters…") with Undo.
-  - The prototype parses the request deterministically. In the product, the model calls a `set_filters` tool with the same shape.
-- **Budget on future nights is compared with the forecast, not with today's bookings.** The budget is a finished-month number, so on-the-books against budget mostly measures nights that haven't been sold yet (−50 pts that mean nothing). KPI tiles say "Forecast ▲ +5.7 pts vs budget", and chart titles name both numbers.
-- **The chart catalogue is a typed `ChartSpec` plus a resolver** (`portfolio.ts`). The resolver turns a spec and the filters into:
-  - a statement title;
-  - the scope line;
-  - the compatible views;
-  - the definitions and SQL;
-  - the ECharts option.
+**Stage 1: one filter state**
+- **One `FilterState`** (`filters.ts`) for the bar and for Kassandra. It lives in the URL with short parameters (`?h=lis,opo&stay=next30n&cmp=stly&seg=corp&ch=!ota&booked=7d`).
+- **Bar:**
+  - Permanent: [Hotels] [Stay dates] [vs …]. Promoted: [Segment] [Channel]. Then [+ Filter] and Reset.
+  - Under the bar, one line resolves the dates, the comparison dates and the time the data was as of.
+- **Stay dates:**
+  - Upcoming and Past groups, each option showing its resolved dates.
+  - "Year to date" is disabled with its reason: the extract starts in August.
+- **Compare:** STLY, last year same weekday, last year same date, previous period, budget, forecast, none.
+  - The default depends on direction: STLY for future nights, last year same weekday for past nights.
+  - Options that don't fit are disabled and say why. For example, "previous period" for future nights would compare bookings with finished nights.
+- **Hotel selector:**
+  - Search by name, city or brand.
+  - "All hotels (20)", and groups by Region or Brand with tri-state checkboxes and counts.
+  - "Only" on each row, and a "12 of 20 selected · Clear" footer.
+  - The trigger reads "Europe (8)" or "Tessera (5)" for a whole group.
+- **Segment and channel:** support "is / is not". Once set, they read as tokens with their own remove button ("Channel is not Booking.com, Expedia").
+- **"+ Filter"** is a command list of dimensions. Booked (the booking window) works and becomes a removable token. Room type, rate plan, length of stay and source market are listed but disabled: they aren't in the extract.
+- **Kassandra's receipt:** each change shows before → after in the bar's own words, with the source:
+  - "(you said “next 90 nights”)" for a typed request;
+  - "(clicked New York Midtown)" for a chart drill.
   
-  The chart types are:
-  - **Pace:** occupancy by night with the P10–P90 forecast band.
-  - **Position:** a bullet row per hotel, with forecast P50 as the track and ticks for STLY and budget. When only one hotel is selected, it collapses to a KPI.
-  - **Index:** an ARI × MPI quadrant, labelling the hotels furthest from parity first.
-  - **Channel mix:** net of commission.
-  - **Segment share:** the donut is allowed only for 2–5 slices with "Other" last; otherwise bars.
-  - **October GOP bridge:** budget to actual, with a visible axis break.
-  - **Hotel table.**
-- **Every chart uses the same card** (`chart-card.ts`):
+  It has Undo and Edit filters. The changed pills glow once, and a status region announces the update.
+- **Answers:** every quantitative answer carries one line of scope chips. "Apply to dashboard" turns that scope into filters, with the same receipt.
+- **Phones:** the bar is [Hotels] [Stay] [vs] [Filters · N]. Each opens a bottom sheet with Clear and "Show results", applied as one batch.
+
+**Stage 1: chart contract and colour**
+- **Typed `ChartSpec`** (`portfolio.ts`): it names the question (`kind`), never numbers or colours. A deterministic resolver returns:
   - a statement title and a scope line;
-  - Chart/Table;
-  - "Show as", limited to compatible views. The others are disabled and say why, e.g. "Occupancy isn't parts of one whole".
-  - "How this was computed": definitions plus SQL;
-  - "Add to board"; "Wrong chart".
-- **When a chart can't follow a filter, it says so with a badge:**
-  - "All segments" on charts whose data isn't split by segment;
-  - "Own dates: last 30 nights" for comp-set indices, which need actuals;
-  - "Own dates: October" for the monthly P&L.
-  
-  Opening the badge lists the filters with the ignored ones struck through.
-- **ECharts 6 with its own themes** (`compass-dark` and `compass-light`). Colours come from the design tokens. A theme switch calls `setTheme`, so charts aren't rebuilt. Charts use the SVG renderer and modular imports. The card passes its width to the chart, so phones get truncated names and sparser ticks; the full names stay in the tooltip and table.
-- **Limits, honestly:**
-  - stay nights are presets only; there is no custom date range yet;
-  - segment and channel apply only to the mix and share charts;
-  - "+ Filter" dimensions aren't wired;
-  - the initial bundle is 1.8 MB (ECharts plus 240 KB of extracted data).
-- **Checks:** headless Chrome against the dev server and the production build. It covers the filter popovers, the phone sheet, the receipt and Undo, the card menu, Add to board, the segment badges, past ranges, the light theme, and phone overflow (0 px). It found no console errors.
+  - the compatible views, with the reason for each one that isn't;
+  - the table, the badge, the definitions and the SQL.
+- **Standard card** (`chart-card.ts`):
+  - Chart/Table.
+  - "Show as" with **Auto** (and why Auto picked that view) plus the compatible views. A manual choice says "your choice · Back to Auto".
+  - How this was computed: definitions, scope, freshness, SQL.
+  - Add to board (saves the spec), and Wrong chart.
+  - A badge when a filter can't apply. Clicking it gives the read-only list with the ignored filters struck through.
+  - Clicking a mark sends a structured drill (`{ dimension, value }`), answered from the same specs.
+- **Colour (report):**
+  - The current period is blue and solid.
+  - The comparison is purple, dashed or as a tick (`--series-cmp`: #9685e4 on dark, #7a68d8 on light; 5.5:1 and 4.4:1).
+  - Budget is a neutral, labelled reference.
+  - The forecast is hatched (ECharts decal).
+  - Everything else is grey: at most two accents per chart.
+  - Rates change in pp, money in %.
+- **KPI tiles:** the value, the delta against a named base, the base itself with its dates ("STLY 51.4% · 22 Nov – 21 Dec 2025"), and a sparkline with the comparison dashed.
+- **Budget on future nights is read against the forecast,** not against today's bookings. The budget is a finished-month number.
+
+**Stage 2: the catalogue**
+- **V1 Position:** bullet rows as % of budget, with the chain total on top. On the books is solid, with a hatched extension to P50. The comparison is a purple tick and budget sits at 100%. The text reads "€1.58M · −€52k vs STLY · 63% of budget". Rows are sorted by where each hotel lands against budget.
+- **V2 Pace:** room nights on the books for the window, by booking date, as of each day.
+  - This year is solid; same time last year is purple and dashed.
+  - "Today", capacity, and a P10–P90 band to the last night. The band follows last year's pickup shape, which "How this was computed" states.
+  - The counting rule matches `otb_as_of()`, so it agrees with the KPI tiles.
+- **V3 Pickup:** booked above zero, cancelled below, last year's net as a dashed step.
+  - Weekends and city events are shaded; Gulf Tech Week shows for Dubai.
+  - The booking window is the "Booked" token, 7 days by default.
+- **V9 Forecast fan:** on the books as bars, P50 dotted, P10–P90 shaded, and budget as a reference.
+  - P25–P75 isn't stored in `forecasts`; "How this was computed" says so.
+- **V8 Net mix:** net solid, commission hatched, last year's net as a tick.
+- **Segment share:** sorted bars on a % axis by default. A donut is offered only through the gate: 2–5 slices after grouping, "Other" not the largest, the top two at least 5 pp apart. The largest slice starts at 12 o'clock and is the only accent.
+- **V7 ARI × MPI quadrant:** centred on 100, with the RGI = 100 isocurve and named quadrants (winning share, volume-led, rate-led, losing share). Labels are kept for the hotels furthest from parity.
+- **V12 GOP bridge:** budget is outlined and actual is solid. Steps are coloured by their effect on GOP, and the axis break is drawn on the totals.
+- **V16 Hotel table:** chain total first, with an in-cell occupancy bar and a sparkline per hotel.
+- **Charts that can't follow a filter say so:**
+  - pickup and fan show an empty state with "Show next 30 nights" for past dates;
+  - the quadrant shows "Own dates: last 30 nights" for future dates;
+  - the P&L shows "Own dates: October".
+
+**Limits**
+- The stay dates have presets only; there is no custom date range.
+- Optional dimensions beyond Booked aren't extracted.
+- Request parsing is deterministic and stands in for a `set_filters(patch)` tool.
+- The initial bundle is 2.2 MB, because the extract is embedded. The build budget was raised to 3 MB for the prototype.
+
+**Checks:** headless Chrome against the dev server and the production build. It covers every chart and the filter flows (receipt, Edit, Undo, tri-state groups, tokens, "is not"), the drill and "Apply to dashboard", past ranges, the light theme and the phone sheet. Phone overflow is 0 px, and there are no console errors.

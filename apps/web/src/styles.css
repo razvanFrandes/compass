@@ -54,6 +54,10 @@
   --grid: rgb(255 255 255 / 0.06);
   --brand: #a97ee6;
   --series: #5b8deb;
+  --series-soft: rgb(91 141 235 / 0.6);
+  /* Report: comparison is purple (dashed or lighter); budget is a neutral reference. */
+  --series-cmp: #9685e4;
+  --series-ref: #b7bfc8;
   --series-muted: #8b949e;
   --series-3: #32bebf;
   --brass: #fe7637;
@@ -100,6 +104,9 @@
   --grid: rgb(16 20 24 / 0.07);
   --brand: #7a4dc0;
   --series: #2f66d0;
+  --series-soft: rgb(47 102 208 / 0.55);
+  --series-cmp: #7a68d8;
+  --series-ref: #57606a;
   --series-muted: #8c959f;
   --series-3: #1f8f90;
   --brass: #e8621e;
@@ -570,12 +577,32 @@ textarea.field-input { height: auto; line-height: 1.5; }
 .scope-badge:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
 .receipt { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--field-border); background: var(--card); }
 .legend-mark { display: inline-block; flex-shrink: 0; }
-.legend-mark--solid { width: 14px; height: 3px; border-radius: 2px; background: var(--series); }
-.legend-mark--dashed { width: 14px; height: 0; border-top: 2px dashed var(--series-muted); }
-.legend-mark--light { width: 12px; height: 10px; border-radius: 2px; background: color-mix(in srgb, var(--series) 28%, transparent); }
-.legend-mark--band { width: 14px; height: 10px; border-radius: 2px; background: color-mix(in srgb, var(--series) 16%, transparent); }
-.legend-mark--tick { width: 3px; height: 12px; border-radius: 1px; background: var(--series-muted); }
-.legend-mark--tick-fg { width: 3px; height: 12px; border-radius: 1px; background: var(--foreground); }
+.legend-mark--solid { width: 14px; height: 10px; border-radius: 2px; background: var(--series); }
+.legend-mark--dashed-cmp { width: 16px; height: 0; border-top: 2px dashed var(--series-cmp); }
+.legend-mark--tick-cmp { width: 3px; height: 12px; border-radius: 1px; background: var(--series-cmp); }
+.legend-mark--line-ref { width: 2px; height: 12px; border-radius: 1px; background: var(--series-ref); }
+.legend-mark--hatch { width: 14px; height: 10px; border-radius: 2px; border: 1px solid var(--series); background: repeating-linear-gradient(135deg, var(--series-soft) 0 1.5px, transparent 1.5px 4px); }
+.legend-mark--band { width: 14px; height: 10px; border-radius: 2px; background: color-mix(in srgb, var(--series) 18%, transparent); }
+.legend-mark--dotted { width: 16px; height: 0; border-top: 2px dotted var(--series); }
 .legend-mark--grey { width: 12px; height: 10px; border-radius: 2px; background: var(--series-muted); }
-.legend-mark--pos { width: 12px; height: 10px; border-radius: 2px; background: var(--series-3); }
 .legend-mark--neg { width: 12px; height: 10px; border-radius: 2px; background: var(--negative); }
+.legend-mark--outline { width: 12px; height: 10px; border-radius: 2px; border: 1.5px solid var(--series); }
+
+/* Filter pills that just changed (AI or Undo) glow once so the eye finds them. */
+@keyframes pill-flash { 0% { box-shadow: 0 0 0 0 var(--focus-brand); background: color-mix(in srgb, var(--primary) 22%, var(--card)); } 100% { box-shadow: 0 0 0 0 transparent; } }
+.filter-btn--flash { animation: pill-flash 1600ms ease-out 1; }
+@media (prefers-reduced-motion: reduce) { .filter-btn--flash { animation: none; outline: 2px solid var(--focus-brand); } }
+.filter-token { display: inline-flex; align-items: center; height: 34px; border-radius: 8px; border: 1px solid var(--field-border); background: var(--field); font-size: 13px; white-space: nowrap; }
+.filter-token > button { display: inline-flex; align-items: center; gap: 6px; height: 100%; padding: 0 8px 0 11px; border-radius: 8px 0 0 8px; outline: none; }
+.filter-token > button + button { padding: 0 8px; border-radius: 0 8px 8px 0; border-left: 1px solid var(--field-border); color: var(--muted-foreground); }
+.filter-token > button:focus-visible { box-shadow: inset 0 0 0 2px var(--ring); }
+@media (hover: hover) { .filter-token > button:hover { background: var(--overlay-hover); } }
+@media (pointer: coarse) { .filter-token { height: 44px; } }
+.op-toggle { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--field); border: 1px solid var(--field-border); }
+.op-toggle button { height: 26px; padding: 0 10px; border-radius: 6px; font-size: 12.5px; color: var(--muted-foreground); }
+.op-toggle button[aria-pressed='true'] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 2px rgb(0 0 0 / 0.25); }
+.cell-bar { position: relative; display: inline-block; width: 56px; height: 6px; border-radius: 3px; background: var(--grid); vertical-align: middle; overflow: hidden; }
+.cell-bar > i { position: absolute; inset: 0 auto 0 0; background: var(--series); border-radius: 3px; }
+
+/* One line of scope on every quantitative answer (report: "All 20 hotels · stays 21 Nov–20 Dec 2026 · vs STLY"). */
+.scope-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 6px; font-size: 12px; color: var(--muted-foreground); background: var(--field); border: 1px solid var(--field-border); }

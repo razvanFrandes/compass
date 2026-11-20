@@ -1,14 +1,14 @@
-import { Component, DestroyRef, ElementRef, afterNextRender, effect, inject, input, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, afterNextRender, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import * as echarts from 'echarts/core';
 import type { EChartsCoreOption, EChartsType } from 'echarts/core';
 import { BarChart, LineChart, PieChart, ScatterChart } from 'echarts/charts';
-import { AriaComponent, GraphicComponent, GridComponent, MarkLineComponent, TooltipComponent } from 'echarts/components';
+import { AriaComponent, DataZoomComponent, GraphicComponent, GridComponent, MarkAreaComponent, MarkLineComponent, TitleComponent, TooltipComponent } from 'echarts/components';
 import { AxisBreak, LabelLayout } from 'echarts/features';
 import { SVGRenderer } from 'echarts/renderers';
 import type { Palette } from './portfolio';
 
 // Modular imports keep the bundle to the chart types the catalogue uses.
-echarts.use([BarChart, LineChart, PieChart, ScatterChart, AriaComponent, GraphicComponent, GridComponent, MarkLineComponent, TooltipComponent, AxisBreak, LabelLayout, SVGRenderer]);
+echarts.use([BarChart, LineChart, PieChart, ScatterChart, AriaComponent, DataZoomComponent, GraphicComponent, GridComponent, MarkAreaComponent, MarkLineComponent, TitleComponent, TooltipComponent, AxisBreak, LabelLayout, SVGRenderer]);
 
 // Our own themes: ECharts' default palette fails 3:1 on white, and every series colour comes from the renderer anyway.
 const base = (text: string) => ({ backgroundColor: 'transparent', textStyle: { fontFamily: 'Inter, ui-sans-serif, system-ui', color: text } });
@@ -29,7 +29,10 @@ export function palette(): Palette {
   const v = (n: string, f: string) => cs.getPropertyValue(n).trim() || f;
   return {
     series: v('--series', '#5b8deb'),
-    cmp: v('--series-muted', '#8b949e'),
+    seriesSoft: v('--series-soft', 'rgb(91 141 235 / 0.55)'),
+    cmp: v('--series-cmp', '#9685e4'),
+    ref: v('--series-ref', '#c9d1d9'),
+    grey: v('--series-muted', '#8b949e'),
     fg: v('--foreground', '#eef1f4'),
     text: v('--text-1', '#e6edf3'),
     muted: v('--muted-foreground', '#9ba3ad'),
@@ -37,7 +40,6 @@ export function palette(): Palette {
     card: v('--card', '#161c22'),
     popover: v('--popover', '#1e2429'),
     border: v('--field-border', '#2a2e33'),
-    pos: v('--series-3', '#32bebf'),
     neg: v('--negative', '#f0616d'),
   };
 }
@@ -54,6 +56,8 @@ export function palette(): Palette {
 export class EChart {
   readonly option = input.required<EChartsCoreOption>();
   readonly label = input('');
+  /** A click on a data mark: its index, for the card's structured drill. */
+  readonly pick = output<number>();
   private readonly el = viewChild.required<ElementRef<HTMLDivElement>>('el');
   private chart?: EChartsType;
 
@@ -63,6 +67,9 @@ export class EChart {
       const node = this.el().nativeElement;
       this.chart = echarts.init(node, `compass-${chartTheme()}`, { renderer: 'svg' });
       this.chart.setOption(this.option(), true);
+      this.chart.on('click', (e) => {
+        if (typeof e.dataIndex === 'number' && e.componentType === 'series') this.pick.emit(e.dataIndex);
+      });
       const ro = new ResizeObserver(() => this.chart?.resize());
       ro.observe(node);
       destroy.onDestroy(() => {
