@@ -654,13 +654,16 @@ export interface NightDecision {
 const RATE_LATEST = { when: 'today 06:00', headline: 'Raise Dubai Business Bay to the comp-set median for 16–18 Dec', why: 'Gulf Tech Week · 0.78× the comp set · 3 competitors sold out' };
 const NEXT_RUN: Record<string, string> = { rate: 'next in 21 h 40 min', pace: 'next in 22 h 40 min', feeds: 'next in 40 min' };
 
-export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watcher' | 'builder';
+export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watcher' | 'builder' | 'orb-lab';
 
 /** Views with an address of their own; the rest live at "/". */
 const BUILDER_PATH = '/workflows/new';
 export const isBuilderUrl = (loc: Pick<Location, 'pathname' | 'search'>) => loc.pathname.startsWith(BUILDER_PATH) || new URLSearchParams(loc.search).has('builder');
+/** /orb-lab: the demo page for the Kassandra orb. Not linked from the navigation. */
+export const isOrbLabUrl = (loc: Pick<Location, 'pathname'>) => loc.pathname.replace(/\/+$/, '') === '/orb-lab';
 function initialView(): View {
   const loc = globalThis.location;
+  if (loc && isOrbLabUrl(loc)) return 'orb-lab';
   return loc && isBuilderUrl(loc) ? 'builder' : 'inbox';
 }
 

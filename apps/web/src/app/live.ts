@@ -3,7 +3,7 @@ import { toast } from '@spartan-ng/brain/sonner';
 import type { AnswerMode, Proposal, Workflow } from '@compass/contracts';
 import { BriefApi, KassandraChat, WorkflowsApi, toApiError } from './api';
 import { FilterState, scopeChips } from './filters';
-import { AnswerScope, BriefRow, CompassStore, isBuilderUrl, scopeForRow } from './store';
+import { AnswerScope, BriefRow, CompassStore, isBuilderUrl, isOrbLabUrl, scopeForRow } from './store';
 import { Drill } from './portfolio';
 import { drillContent } from './drill';
 
@@ -127,6 +127,7 @@ export class Live {
       case 'watcher':
         return { path: `/watchers/${encodeURIComponent(this.store.activeWatcherId())}` };
       case 'builder':
+      case 'orb-lab':
         return null;
       default:
         return { path: '/' };
@@ -143,6 +144,7 @@ export class Live {
       return m ? decodeURIComponent(m[1]) : null;
     };
     if (isBuilderUrl(loc)) return this.store.view.set('builder');
+    if (isOrbLabUrl(loc)) return this.store.view.set('orb-lab');
     if (path === '/ask') {
       const c = params.get('c');
       if (c) this.chat.open(c);

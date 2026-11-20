@@ -12,6 +12,7 @@ import { WatchersView } from './watchers';
 import { Live } from './live';
 import { WatcherPage } from './watcher-page';
 import { WorkflowBuilder } from './builder/builder-page';
+import { OrbLab } from './orb/orb-lab';
 import { GROUP } from './data';
 import * as icons from './icons';
 
@@ -21,7 +22,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, OrbLab, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
   providers: [provideIcons({ ...icons }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   template: `
@@ -31,6 +32,11 @@ import * as icons from './icons';
         <app-workflow-builder />
       } @placeholder {
         <p class="text-muted-foreground grid min-h-dvh place-items-center text-[14px]">Opening the workflow builder…</p>
+      }
+    } @else if (store.view() === 'orb-lab') {
+      <!-- /orb-lab: the demo page for the Kassandra orb; its code loads only there -->
+      @defer (on immediate) {
+        <app-orb-lab />
       }
     } @else {
     <a href="#content" class="bg-foreground text-background sr-only z-50 rounded-md px-3 py-2 focus:not-sr-only focus:fixed focus:top-3 focus:left-3">Skip to content</a>
