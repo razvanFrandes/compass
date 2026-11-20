@@ -168,6 +168,30 @@ describe('runReadonlyQuery', () => {
       expect(result.error.message).toMatch(/no_such_column/);
     }
   });
+
+  it('runs analytic SQL with the helper functions through the wrapper', async () => {
+    const result = await data.runReadonlyQuery(`
+      with p as (select * from hotel.pace_vs_stly('LIS', 30))
+      select h.hotel_code, round(hotel.eur_rate(h.currency, hotel.business_date()), 4) as rate,
+             row_number() over (order by h.hotel_code) as n,
+             (select count(*) from p) as pace_rows
+        from hotel.hotels h
+       where h.region = 'Europe' -- a trailing comment must not swallow the row cap`);
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (result.ok) expect(result.value.rows.length).toBeGreaterThan(0);
+  });
+
+  it('fails a query whose rows are too large instead of streaming them to the Worker', async () => {
+    const result = await data.runReadonlyQuery("select repeat('x', 1000000) as huge");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toMatch(/Result row larger than/);
+  });
+
+  it('caps the rows even when the query asks for more', async () => {
+    const result = await data.runReadonlyQuery('select g from generate_series(1, 100000) as g');
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.rows).toHaveLength(200);
+  });
 });
 
 describe('planted stories S2–S5', () => {
