@@ -85,6 +85,7 @@ The feedback on round 2: the gradient ask bar was too loud, the decision table l
   - Compass: 56 px tall, 12 px radius, `#1E2429` fill, hairline border, a 1 px purple focus border with a soft ring.
   - Inside the bar: a small Kassandra orb mark, ⌘K, and a mic. Send appears only when there is text.
 - **Voice: a 3D orb that reacts to the voice** (`voice_and_composer.md` Part B).
+  - **The orb itself was replaced: see "The orb morphs" below.**
   - Products are moving voice inwards and making it smaller: ChatGPT shows voice inside the thread, Gemini Live uses a pill, and Siri on iOS 27 uses a small orb.
   - What reacts is mostly scale and internal motion speed. The ElevenLabs open-source Orb maps mic volume to radius and opacity.
   - Compass shows a WebGL "Kassandra orb": a fragment-shader sphere with simplex-noise flow and a fresnel rim in Kassandra's gradient.
@@ -113,6 +114,33 @@ The feedback on round 2: the gradient ask bar was too loud, the decision table l
   - Three insight cards follow, each with one direct-labelled chart: pace vs LY (dashed LY line), pickup bars with the event shaded, and a 100% channel bar with an LY tick. The decision card is the only orange object on the page.
   - Pulse is a sticky 2×2 rail on desktop and compact 2×2 tiles above the cards on phones.
   - Sources: Tableau Pulse, Robinhood Digests, Perplexity Finance, Copilot Money, Monarch, Ramp.
+
+## The orb morphs: `<juyo-orb>` (2026-11-20)
+
+The feedback on the Round 3 orb: "a dot that inflates and that's it". **This section replaces the orb described in Round 3**; the mic level, the ask bar and the phone sheet stay as they were.
+
+- **What it is.** A 3D sphere whose surface morphs, with plasma flowing inside the glass, a fresnel rim in Kassandra's gradient and trails around it. The trails borrow the idea behind the MilkDrop visualiser: each frame is the previous frame zoomed, turned, wave-warped and faded, plus the new one.
+- **One component, four inputs:** `<juyo-orb [state] [level] [bands] [size]>` in `apps/web/src/app/orb/`. The Kassandra composer hosts it with exactly these inputs.
+  - `state`: `idle` | `listening` | `thinking` | `speaking`.
+  - `level`: loudness, 0..1. `bands`: optional frequency bands, 0..1 each, any length. `size`: pixels.
+- **What each state does.**
+  - Idle: a slow breathing morph.
+  - Listening: the voice drives it. Bass bulges the body, mids ripple the surface, highs light arcs on the rim, and a waveform ring leaves ripples in the halo.
+  - Thinking: calmer. The surface twists into a spiral, the orb turns and the trails wind around it.
+  - Speaking: rings travel over the surface in the rhythm of speech. It follows `level` if one is given.
+  - Changing state cross-fades every parameter in about 0.4 s. Nothing jumps.
+- **Colour stays on brand.** Blue upper left to pink lower right, like the mark. The colour cycle sways inside the gradient and never leaves it. Trails cool from pink to blue as they fade.
+- **Raw WebGL2, no three.js.** The whole renderer with its shaders is 7 kB gzipped and loads on demand, outside the main bundle. The orb is one mesh and three passes, which did not justify a 3D library.
+- **Restraint was the hard part.** Early versions looked like a brain, then like a rock. What fixed it: low noise frequencies (two or three broad lobes, not many small ones), most of the voice's bulge carried by spherical harmonics (smooth by construction), one ripple train instead of two crossing ones, and no particles.
+- **Microphone:** `orb/mic-analyser.ts` turns a `MediaStream` into `level` and `bands` signals (RMS → dBFS, 60 ms attack, 300 ms release, eight log-spaced bands from 80 Hz to 8 kHz). Sound is measured in the page and never leaves it.
+- **Behaviour at the edges.**
+  - Pixel ratio capped at 2 and the canvas at 1024 px. It stops drawing when off-screen or when the tab is hidden, and frees its GL objects when destroyed.
+  - A lost WebGL context shows the CSS orb and rebuilds when the context returns.
+  - Reduced motion: one still frame per state with a slow opacity pulse (WCAG 2.3.3).
+  - No WebGL2: a CSS gradient orb.
+  - It is decorative (`aria-hidden`), so the state must also be said in text next to it.
+- **`/orb-lab`** is a page to try it: state, level, bands, size, the microphone, and a simulated voice for machines without one. It is not linked from the navigation.
+- **Open:** `app/orb.ts` (the Round 3 orb) is no longer used. Delete it, and `.orb-fallback` in `styles.css`, once the Kassandra composer has merged.
 
 ## Watcher page and create flow (2026-11-20)
 
