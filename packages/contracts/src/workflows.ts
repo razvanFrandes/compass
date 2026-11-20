@@ -24,7 +24,7 @@ export const WorkflowTrigger = z.discriminatedUnion('kind', [
 ]);
 export type WorkflowTrigger = z.infer<typeof WorkflowTrigger>;
 
-export const ActionType = z.enum(['adjust_bar', 'close_channel', 'open_channel', 'contact_account', 'create_task', 'notify']);
+export const ActionType = z.enum(['adjust_bar', 'close_channel', 'open_channel', 'contact_account', 'create_task', 'notify', 'email']);
 export type ActionType = z.infer<typeof ActionType>;
 
 /**
@@ -34,7 +34,12 @@ export type ActionType = z.infer<typeof ActionType>;
 export const Autonomy = z.enum(['suggest', 'approve', 'auto_low_risk']);
 export type Autonomy = z.infer<typeof Autonomy>;
 
-export const WorkflowSpec = z.object({
+/** Where an email workflow sends its mail: one address, no lists. */
+export const EmailDelivery = z.object({ channel: z.literal('email'), to: z.email().max(254) });
+export type EmailDelivery = z.infer<typeof EmailDelivery>;
+
+/** The plain object. Use it for `.shape` and `.partial()`, which zod refuses on the refined `WorkflowSpec`. */
+export const WorkflowSpecShape = z.object({
   name: z.string().min(3).max(80),
   description: z.string().max(400).default(''),
   hotels: z.array(z.string()).min(1).describe('Hotel codes, or ["ALL"] for the whole group'),
@@ -45,18 +50,40 @@ export const WorkflowSpec = z.object({
   checks: z.array(z.string()).max(8).default([]),
   /** The kind of action it may propose. */
   action: z.object({ type: ActionType, guidance: z.string().max(400).default('') }),
+  /** The recipient, for an email action only. */
+  delivery: EmailDelivery.optional(),
   approver: z.enum(['revenue_manager', 'gm']).default('revenue_manager'),
   autonomy: Autonomy.default('approve'),
   enabled: z.boolean().default(true),
 });
+
+/** A complete workflow: an email action has a recipient, and no other action has one. */
+export const WorkflowSpec = WorkflowSpecShape.superRefine((spec, ctx) => {
+  const isEmail = spec.action.type === 'email';
+  if (isEmail && !spec.delivery) ctx.addIssue({ code: 'custom', path: ['delivery'], message: 'An email action needs the address to send to.' });
+  if (!isEmail && spec.delivery) ctx.addIssue({ code: 'custom', path: ['delivery'], message: 'Only an email action has a delivery address.' });
+});
 export type WorkflowSpec = z.infer<typeof WorkflowSpec>;
 export type WorkflowSpecInput = z.input<typeof WorkflowSpec>;
+
+/** A workflow being built: any part of the spec may still be missing. */
+export const WorkflowDraft = WorkflowSpecShape.partial();
+export type WorkflowDraft = z.input<typeof WorkflowDraft>;
+
+/** An address as shown to anyone but its owner: `silviu@gmail.com` → `si****@gmail.com`. */
+export function maskEmail(address: string): string {
+  const at = address.lastIndexOf('@');
+  if (at < 1) return '****';
+  return `${address.slice(0, Math.min(2, at))}****${address.slice(at)}`;
+}
 
 export interface Workflow extends WorkflowSpec {
   id: string;
   createdAt: string;
   createdBy: 'template' | 'user' | 'kassandra';
   lastRun: { runId: string; at: string; status: WorkflowRun['status'] } | null;
+  /** Emails this workflow has sent (email workflows only). */
+  emailsSent?: number;
 }
 
 export interface WorkflowRun {
@@ -70,6 +97,10 @@ export interface WorkflowRun {
   endedAt: string | null;
   /** The agent's final message. */
   summary: string | null;
+  /** A "send test now" run: it always sends, marked as a test. */
+  test?: boolean;
+  /** Who started it (the client address), for rate limits. */
+  client?: string;
 }
 
 /** superseded: the agent replaced it with an amended proposal (e.g. to meet an approver's condition). */
@@ -103,7 +134,7 @@ export interface AuditEntry {
   hotel_code: string;
   action: ActionType;
   by: string;
-  outcome: 'sent_to_rms' | 'suggested' | 'undone';
+  outcome: 'sent_to_rms' | 'suggested' | 'undone' | 'emailed';
   /** The task handed to the RMS / revenue manager (mocked: nothing is written to source systems). */
   receipt: string;
 }
