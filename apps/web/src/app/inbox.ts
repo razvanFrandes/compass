@@ -4,10 +4,12 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { AskBar } from './ask-bar';
-import { PickupBars, RateChart, Spark } from './brief-charts';
+import { PickupBars, Spark } from './brief-charts';
 import { GROUP, NIGHTS, formatEur, utc } from './data';
 import { AMS_CONVERSION, BCN_OUT_OF_ORDER, DPS_KITCHEN, LIS_PACE, NYC_ACCOUNT, PULSE } from './halcyon-data';
-import { BRIEF_ITEMS, BriefRow, CompassStore, DECISIONS, DECISION_DATES, DECISION_ID, DECISION_UNSOLD, InboxItem, briefTitle, gopMonths, isoDay, shortHotel } from './store';
+import { BriefRow, CompassStore, InboxItem, briefTitle, gopMonths, isoDay, shortHotel } from './store';
+import { Live } from './live';
+import { ProposalCard } from './proposal-card';
 import * as icons from './icons';
 
 function spark(values: number[], w = 120, h = 40) {
@@ -23,7 +25,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
 */
 @Component({
   selector: 'app-inbox',
-  imports: [NgIcon, NgTemplateOutlet, AskBar, PickupBars, RateChart, Spark, HlmButtonImports, HlmDropdownMenuImports],
+  imports: [NgIcon, NgTemplateOutlet, AskBar, PickupBars, Spark, ProposalCard, HlmButtonImports, HlmDropdownMenuImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
@@ -31,15 +33,30 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
       <!-- Hero brief -->
       <section class="relative lg:col-span-8" aria-labelledby="brief-title">
         <p class="text-muted-foreground text-[12px] font-medium tracking-[0.06em] uppercase">Fri 20 Nov · Morning brief</p>
-        <h1 id="brief-title" class="mt-3 max-w-[30ch] text-[26px]/[1.2] font-semibold tracking-[-0.015em] text-balance sm:text-[30px]/[1.2]">{{ headline }}</h1>
+        <h1 id="brief-title" class="mt-3 max-w-[30ch] text-[26px]/[1.2] font-semibold tracking-[-0.015em] text-balance sm:text-[30px]/[1.2]">{{ headline() }}</h1>
         <div class="text-muted-foreground mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[14px]">
           <span>{{ open().length }} findings across {{ group.hotels }} hotels, ranked by money</span>
           @if (decisionCount()) {
-            <button type="button" class="stake-chip stake-chip--decision" (click)="focusDecision()">● {{ decisionCount() }} needs your decision</button>
+            <button type="button" class="stake-chip stake-chip--decision" (click)="focusDecision()">● {{ decisionCount() }} {{ decisionCount() === 1 ? 'needs' : 'need' }} your decision</button>
           }
         </div>
+        <p class="text-muted-foreground mt-2 text-[12.5px]" role="status">
+          @switch (live.briefState()) {
+            @case ('live') {
+              Live brief · generated {{ live.briefMeta()?.generated }}@if (live.briefMeta()?.model) {<span> · summaries by AI</span>}
+              <button type="button" class="hover:text-foreground ml-1 underline underline-offset-2" [disabled]="live.refreshing()" (click)="live.refreshBrief()">{{ live.refreshing() ? 'Refreshing…' : 'Refresh' }}</button>
+            }
+            @case ('loading') {
+              Loading the live brief…
+            }
+            @default {
+              The live brief didn’t load{{ live.briefError() ? ' (' + live.briefError() + ')' : '' }}, so this is the 20 Nov snapshot.
+              <button type="button" class="hover:text-foreground ml-1 underline underline-offset-2" (click)="live.briefApi.brief.reload()">Try again</button>
+            }
+          }
+        </p>
         <div class="mt-6 hidden lg:block">
-          <app-ask-bar inputId="global-ask" [shortcut]="true" placeholder="Ask about any hotel, night or metric…" (submitted)="store.askNew($event)" />
+          <app-ask-bar inputId="global-ask" [shortcut]="true" placeholder="Ask about any hotel, night or metric…" (submitted)="live.askNew($event)" />
         </div>
       </section>
 
@@ -50,7 +67,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
           <ul class="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-2">
             @for (m of pulse; track m.key) {
               <li>
-                <button type="button" class="clickable-card grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 p-3 text-left sm:flex sm:flex-col sm:items-stretch sm:gap-1 sm:p-3.5" (click)="store.askNew('What drove the portfolio’s ' + m.label.toLowerCase() + ' for the next 30 nights?')" [attr.aria-label]="m.label + ' ' + m.value + ', ' + m.deltaText + ' versus last year. Ask what drove it'">
+                <button type="button" class="clickable-card grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 p-3 text-left sm:flex sm:flex-col sm:items-stretch sm:gap-1 sm:p-3.5" (click)="live.askNew('What drove the portfolio’s ' + m.label.toLowerCase() + ' for the next 30 nights?')" [attr.aria-label]="m.label + ' ' + m.value + ', ' + m.deltaText + ' versus last year. Ask what drove it'">
                   <span class="text-muted-foreground col-span-2 text-[12px]">{{ m.label }}</span>
                   <span class="text-[20px]/tight font-semibold tracking-[-0.02em] tabular-nums sm:text-[24px]/tight">{{ m.value }}</span>
                   <svg viewBox="0 0 120 40" preserveAspectRatio="none" class="row-span-2 h-8 w-14 sm:order-last sm:mt-1 sm:h-10 sm:w-full" aria-hidden="true">
@@ -72,10 +89,13 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
           <div class="feed-banner sm:col-span-2" role="status">
             <i class="feed-dot" aria-hidden="true"></i>
             <p class="min-w-0 flex-1 text-[14px]">
-              <span class="font-medium">{{ f.item.title }}.</span>
-              <span class="text-muted-foreground"> Its F&B figures are incomplete until it syncs.</span>
+              @if (f.item.summary) {
+                <span>{{ f.item.summary }}</span> <span class="ai-tag">AI</span>
+              } @else {
+                <span class="font-medium">{{ f.item.title }}.</span>
+              }
             </p>
-            <button hlmBtn variant="ghost" size="sm" (click)="store.openItem(f.item.id)">Ask about it</button>
+            <button hlmBtn variant="ghost" size="sm" (click)="explore(f.item)">Explore</button>
           </div>
         }
 
@@ -84,13 +104,13 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
             <div class="flex min-w-0 flex-col">
               <div class="flex items-start justify-between gap-3">
                 <h3 class="text-[17px]/[1.35] font-semibold tracking-[-0.01em]">
-                  <button type="button" class="text-left after:absolute after:inset-0 after:rounded-[inherit] after:content-['']" (click)="store.openItem(c.item.id)">{{ c.item.title }}</button>
+                  <button type="button" class="text-left after:absolute after:inset-0 after:rounded-[inherit] after:content-['']" (click)="explore(c.item)">{{ c.item.title }}</button>
                 </h3>
                 <span class="money-chip shrink-0">{{ c.item.impact }}</span>
               </div>
-              <p class="text-muted-foreground mt-2 text-[14px]">{{ c.fact }}</p>
+              <p class="text-muted-foreground mt-2 text-[14px]">{{ c.item.summary ?? c.fact }}@if (c.item.summary) {<span class="ai-tag ml-1.5">AI</span>}</p>
               <div class="relative z-10 mt-auto flex items-center gap-2 pt-4">
-                <button hlmBtn variant="secondary" size="sm" (click)="store.openItem(c.item.id)">Ask about this</button>
+                <button hlmBtn variant="secondary" size="sm" (click)="explore(c.item)">Explore</button>
                 <ng-container *ngTemplateOutlet="more; context: { $implicit: c.item }" />
               </div>
             </div>
@@ -98,29 +118,16 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
           </article>
         }
 
-        @if (decision(); as d) {
-          <article id="decision-card" tabindex="-1" class="decision-card relative flex flex-col p-5 outline-none">
-            <div class="flex items-center justify-between gap-3">
-              <span class="card-eyebrow text-(--decision)">Needs your decision</span>
-              <span class="text-muted-foreground text-[12.5px]">{{ d.lead }} days out</span>
-            </div>
-            <h3 class="mt-2 text-[17px]/[1.35] font-semibold tracking-[-0.01em]">
-              <button type="button" class="text-left after:absolute after:inset-0 after:rounded-[inherit] after:content-['']" (click)="store.openItem(d.item.id)">{{ d.item.title }}</button>
-            </h3>
-            <app-rate-chart class="mt-7" [nights]="rateNights" [highlight]="decisionDates" [peak]="decisionDates[0]" bandLabel="Gulf Tech Week" [height]="104" />
-            <p class="mt-4 text-[14px] tabular-nums">{{ d.summary }}</p>
-            <div class="relative z-10 mt-4 flex gap-2">
-              <button hlmBtn class="decision-btn flex-1 sm:flex-none" (click)="store.openItem(d.item.id)">Review {{ decisionDates.length }} nights</button>
-              <button hlmBtn variant="ghost" (click)="store.snoozeItem(d.item.id)">Not now</button>
-            </div>
-          </article>
+        <!-- Decisions: proposals from the workflows, waiting on a person (WorkflowsApi, polled) -->
+        @for (p of live.pendingList(); track p.id; let first = $first) {
+          <app-proposal-card [id]="first ? 'decision-card' : null" tabindex="-1" class="outline-none" [proposal]="p" />
         }
 
         @if (third(); as c) {
-          <article class="insight-card relative flex flex-col p-5">
+          <article class="insight-card relative flex flex-col p-5" [class]="live.pendingList().length ? '' : 'sm:col-span-2'">
             <div class="flex items-start justify-between gap-3">
               <h3 class="text-[17px]/[1.35] font-semibold tracking-[-0.01em]">
-                <button type="button" class="text-left after:absolute after:inset-0 after:rounded-[inherit] after:content-['']" (click)="store.openItem(c.item.id)">{{ c.item.title }}</button>
+                <button type="button" class="text-left after:absolute after:inset-0 after:rounded-[inherit] after:content-['']" (click)="explore(c.item)">{{ c.item.title }}</button>
               </h3>
               <span class="money-chip shrink-0">{{ c.item.impact }}</span>
             </div>
@@ -130,9 +137,9 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
             } @else {
               <app-pickup-bars class="mt-7" [bars]="c.bars" [highlight]="c.highlight" [bandLabel]="c.band" [startLabel]="c.start" [endLabel]="c.end" [caption]="c.caption" [height]="96" />
             }
-            <p class="text-muted-foreground mt-4 text-[13.5px]">{{ c.fact }}</p>
+            <p class="text-muted-foreground mt-4 text-[13.5px]">{{ c.item.summary ?? c.fact }}@if (c.item.summary) {<span class="ai-tag ml-1.5">AI</span>}</p>
             <div class="relative z-10 mt-auto flex items-center gap-2 pt-4">
-              <button hlmBtn variant="secondary" size="sm" (click)="store.openItem(c.item.id)">Ask about this</button>
+              <button hlmBtn variant="secondary" size="sm" (click)="explore(c.item)">Explore</button>
               <ng-container *ngTemplateOutlet="more; context: { $implicit: c.item }" />
             </div>
           </article>
@@ -144,7 +151,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
           <ul class="grid gap-3 sm:col-span-2 sm:grid-cols-2">
             @for (t of rest(); track t.item.id) {
               <li class="min-w-0">
-                <button type="button" class="clickable-card brief-tile h-full w-full text-left" (click)="store.openItem(t.item.id)">
+                <button type="button" class="clickable-card brief-tile h-full w-full text-left" (click)="explore(t.item)">
                   <span class="flex items-center justify-between gap-2">
                     <span class="text-muted-foreground truncate text-[12px]">{{ t.hotel }}</span>
                     <span class="text-[12.5px] font-semibold tabular-nums">{{ t.item.impact }}</span>
@@ -159,7 +166,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
           </ul>
         }
 
-        @if (!lead() && !decision() && !third() && !rest().length && !feed()) {
+        @if (!lead() && !live.pendingList().length && !third() && !rest().length && !feed()) {
           <div class="insight-card text-muted-foreground flex items-center gap-2 p-6 text-[14px] sm:col-span-2"><ng-icon name="phosphorCheckLight" />You’re up to date. Compass will bring anything new here.</div>
         }
 
@@ -190,7 +197,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
 
     <!-- Phones and tablets: the ask bar docks above the tab bar -->
     <div class="dock-fade fixed inset-x-0 bottom-[calc(57px+env(safe-area-inset-bottom,0px))] z-20 px-3 pt-6 pb-2 lg:hidden">
-      <app-ask-bar inputId="global-ask-m" placeholder="Ask about any hotel" (submitted)="store.askNew($event)" />
+      <app-ask-bar inputId="global-ask-m" placeholder="Ask about any hotel" (submitted)="live.askNew($event)" />
     </div>
 
     <ng-template #more let-item>
@@ -208,56 +215,54 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
 })
 export class InboxView {
   protected readonly store = inject(CompassStore);
+  protected readonly live = inject(Live);
   protected readonly group = GROUP;
   protected readonly showResolved = signal(false);
-  protected readonly decisionDates = DECISION_DATES;
-  // Dubai Business Bay, 9–23 Dec: the week before, Gulf Tech Week, the week after.
-  protected readonly rateNights = NIGHTS.forward.filter((n) => n.date >= utc('2026-12-09') && n.date <= utc('2026-12-23'));
 
-  private readonly rows = new Map(BRIEF_ITEMS.map((r) => [r.id, r]));
-  private readonly kindOf = (i: InboxItem) => this.rows.get(i.id)?.kind ?? '';
+  /** The brief's rows (live, or the snapshot when the API is down), by id. */
+  private readonly rows = computed(() => new Map(this.store.briefRows().map((r) => [r.id, r])));
+  private readonly kindOf = (i: InboxItem) => this.rows().get(i.id)?.kind ?? '';
   protected readonly open = computed(() => this.store.needsYou());
 
   /** One sentence for the top of the page, from the first two items of the ranked brief. */
-  protected readonly headline = (() => {
-    const [a, b] = BRIEF_ITEMS;
+  protected readonly headline = computed(() => {
+    const [a, b] = this.store.briefRows();
+    if (!a) return 'Nothing needs you this morning.';
     const first = a.kind === 'data_stale' ? `${shortHotel(a.hotel_name)}’s ${a.facts['system']} feed is down` : `${shortHotel(a.hotel_name)} needs attention`;
     const second = b?.kind === 'account_loss' ? `${shortHotel(b.hotel_name)} has lost its biggest corporate account` : b ? `${shortHotel(b.hotel_name)} needs attention` : '';
     return second ? `${first}, and ${second}.` : `${first}.`;
-  })();
+  });
 
   protected readonly feed = computed(() => {
     const item = this.open().find((i) => this.kindOf(i) === 'data_stale');
     return item ? { item } : null;
   });
-  private readonly money = computed(() => this.open().filter((i) => this.kindOf(i) !== 'data_stale' && i.id !== DECISION_ID));
+  private readonly money = computed(() => this.open().filter((i) => this.kindOf(i) !== 'data_stale'));
 
   protected readonly lead = computed(() => {
     const item = this.money()[0];
     if (!item) return null;
-    return { item, ...this.evidence(this.rows.get(item.id)!) };
+    return { item, ...this.evidence(this.rows().get(item.id)!) };
   });
   protected readonly third = computed(() => {
     const item = this.money()[1];
     if (!item) return null;
-    return { item, ...this.evidence(this.rows.get(item.id)!) };
+    return { item, ...this.evidence(this.rows().get(item.id)!) };
   });
   protected readonly rest = computed(() =>
     this.money()
       .slice(2)
-      .map((item) => ({ item, ...this.tile(this.rows.get(item.id)!) })),
+      .map((item) => ({ item, ...this.tile(this.rows().get(item.id)!) })),
   );
-  protected readonly decision = computed(() => {
-    const item = this.open().find((i) => i.id === DECISION_ID);
-    if (!item) return null;
-    const first = DECISIONS[0];
-    return {
-      item,
-      lead: first.lead,
-      summary: `BAR ${formatEur(first.night.bar)} → ${formatEur(first.target ?? 0)} on ${isoDay(new Date(first.night.date).toISOString().slice(0, 10))} · ${DECISION_UNSOLD} rooms left to sell`,
-    };
-  });
-  protected readonly decisionCount = computed(() => (this.decision() ? 1 : 0));
+  protected readonly decisionCount = computed(() => this.live.pendingList().length);
+
+  /** "Explore": a new conversation with the item's question ready, not sent. */
+  protected explore(item: InboxItem) {
+    this.store.items.update((list) => list.map((i) => (i.id === item.id && i.status === 'new' ? { ...i, status: 'seen' } : i)));
+    const row = this.rows().get(item.id);
+    if (row) this.live.exploreRow({ ...row, question: item.question });
+    else this.live.explore(item.question);
+  }
 
   /** Chart and one fact for a full card. */
   private evidence(r: BriefRow) {
@@ -302,6 +307,20 @@ export class InboxView {
           end: g.length ? month(g[g.length - 1].month) : '',
           caption: 'GOP per month · budget dashed',
           fact: `${r.facts['gop_margin_pct']}% GOP margin against ${r.facts['gop_margin_budget_pct']}% budgeted; revenue ${Math.abs(Number(r.facts['revenue_var_pct']))}% under.`,
+        };
+      }
+      case 'underpriced_demand': {
+        const n = NIGHTS.forward.filter((x) => x.date >= utc('2026-12-09') && x.date <= utc('2026-12-23'));
+        return {
+          line: n.map((x) => x.barLocal),
+          compare: n.map((x) => x.compLocal ?? x.barLocal),
+          bars: [] as number[],
+          highlight: [] as number[],
+          band: '',
+          start: '9 Dec',
+          end: '23 Dec',
+          caption: 'BAR · comp-set median dashed',
+          fact: r.impact_basis,
         };
       }
       default:
@@ -381,7 +400,6 @@ export class InboxView {
   }
 
   protected undo(r: InboxItem) {
-    if (r.id === DECISION_ID) this.store.decideNights(DECISION_DATES, null, true);
     this.store.restoreItem(r.id);
   }
 }

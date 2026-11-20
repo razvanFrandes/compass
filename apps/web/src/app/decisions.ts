@@ -3,6 +3,7 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { PaceChart } from './brief-charts';
+import { Live } from './live';
 import { CompassStore, NightDecision } from './store';
 import { BUSINESS_DAY, Decision, HOTEL, NIGHTS, Night, decisionNights, formatEur, paceFor } from './data';
 import { FOCUS_COMPS, FOCUS_CURVES } from './halcyon-data';
@@ -43,7 +44,7 @@ interface Cell {
   template: `
     <header class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h3 class="text-[15px] font-semibold tracking-[-0.01em]">Nights that need a decision</h3>
+        <h3 class="text-[15px] font-semibold tracking-[-0.01em]">Nights that need a decision <span class="scope-chip ml-1.5 align-middle" title="Rates and comp sets are the 20 Nov snapshot of compass_hotels; approving here stays in this browser. Real approvals come from Watchers.">Sample data</span></h3>
         <p class="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-[12.5px] tabular-nums">
           @if (pending().length) {
             <i class="size-1.5 rounded-full bg-(--decision)"></i>{{ pending().length }} pending · up to {{ k(stake()) }} on unsold rooms
@@ -332,6 +333,7 @@ interface Cell {
 })
 export class DecisionsWidget {
   protected readonly store = inject(CompassStore);
+  protected readonly live = inject(Live);
   protected readonly tab = signal<'pending' | 'decided'>('pending');
   protected readonly view = signal<'list' | 'calendar'>('list');
   protected readonly month = signal<10 | 11>(11);
@@ -487,6 +489,6 @@ export class DecisionsWidget {
   }
   protected explain(n: Night) {
     this.close();
-    this.store.askNew(`How is the recommendation for ${this.short(n.date)} calculated?`);
+    this.live.askNew(`How is the recommendation for ${this.short(n.date)} calculated?`);
   }
 }

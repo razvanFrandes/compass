@@ -1,4 +1,4 @@
-import { Component, DOCUMENT, DestroyRef, ElementRef, afterRenderEffect, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, DOCUMENT, DestroyRef, ElementRef, afterRenderEffect, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmKbdImports } from '@spartan-ng/helm/kbd';
@@ -57,7 +57,7 @@ const DEMO_PHRASE = 'Which nights next month are furthest behind last year?';
           <button hlmBtn type="button" variant="ghost" size="icon-sm" class="ask-mic" aria-label="Ask with your voice" (click)="startVoice()">
             <ng-icon name="phosphorMicrophoneLight" class="text-[18px]" />
           </button>
-          @if (busy()) {
+          @if (busy() && !(steerable() && draft().trim())) {
             <button hlmBtn type="button" size="icon-sm" aria-label="Stop" (click)="stopped.emit()"><ng-icon name="phosphorStopFill" class="text-[11px]" /></button>
           } @else if (draft().trim()) {
             <button hlmBtn type="submit" size="icon-sm" class="ask-send" aria-label="Send"><ng-icon name="phosphorArrowUpBold" class="text-[14px]" /></button>
@@ -103,6 +103,10 @@ export class AskBar {
   readonly inputId = input<string>(`ask-${Math.random().toString(36).slice(2, 7)}`);
   readonly shortcut = input(false);
   readonly busy = input(false);
+  /** While busy, text can still be sent (Kassandra joins it to the running answer); Stop shows when the field is empty. */
+  readonly steerable = input(false);
+  /** Text placed in the field without sending it; a new `n` places it again. */
+  readonly prefill = input<{ text: string; n: number } | null>(null);
   readonly submitted = output<string>();
   readonly stopped = output<void>();
 
@@ -141,6 +145,14 @@ export class AskBar {
 
   constructor() {
     inject(DestroyRef).onDestroy(() => this.teardown());
+    let placed = -1;
+    effect(() => {
+      const p = this.prefill();
+      if (!p || p.n === placed) return;
+      placed = p.n;
+      this.draft.set(p.text);
+      if (p.text) setTimeout(() => this.focus(), 30);
+    });
     // Open the phone sheet as a modal as soon as it renders.
     afterRenderEffect(() => {
       const d = this.sheetDlg()?.nativeElement;
@@ -154,7 +166,7 @@ export class AskBar {
 
   protected send() {
     const q = this.draft().trim();
-    if (!q || this.busy()) return;
+    if (!q || (this.busy() && !this.steerable())) return;
     this.draft.set('');
     this.submitted.emit(q);
   }

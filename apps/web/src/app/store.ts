@@ -83,7 +83,12 @@ export interface BriefRow {
   impact_basis: string;
   sources: readonly string[];
   facts: Readonly<Record<string, string | number | null>>;
-  sql: string;
+  /** The detector SQL (snapshot only; the live API keeps it server-side). */
+  sql?: string;
+  /** Live brief only: the backend's deterministic title, the model's summary, and the "Explore" question. */
+  title?: string;
+  summary?: string;
+  question?: string;
 }
 export const BRIEF_ITEMS = BRIEF as unknown as readonly BriefRow[];
 export const shortHotel = (name: string) => name.replace(/^(Arbor|Lumen|Tessera|Kestrel) /, '');
@@ -171,7 +176,7 @@ const hoursSince = (s: string) => {
 
 function topicFor(r: BriefRow): TopicContent {
   const h = shortHotel(r.hotel_name);
-  const base = { sources: r.sources.map((s) => s.replace(/^hotel\./, '')), sql: r.sql };
+  const base = { sources: r.sources.map((s) => s.replace(/^hotel\./, '')), sql: r.sql ?? '' };
   const impact = formatEurShort(r.impact_eur ?? 0);
   switch (r.kind) {
     case 'underpriced_demand': {
@@ -461,11 +466,13 @@ export const TOPICS: Record<Topic, TopicContent> = Object.fromEntries(BRIEF_ITEM
  */
 export function topicScope(topic: Topic): AnswerScope | undefined {
   const r = BRIEF_ITEMS.find((x) => x.id === topic);
-  if (!r) return undefined;
+  return r ? scopeForRow(r) : undefined;
+}
+export function scopeForRow(r: BriefRow): AnswerScope {
   const h = shortHotel(r.hotel_name);
   const own: Record<string, [string, string, RangeKey, CompareKey, string?]> = {
     pace_behind: ['stays 21 Nov 2026 – 4 Jan 2027 (next 45 nights)', 'vs same time last year', 'next30', 'stly', 'The answer covers 45 nights; the closest preset is next 30 nights'],
-    underpriced_demand: [`stays ${isoDay(String(fact(r, 'first_night')))} – ${isoDay(String(fact(r, 'last_night')))}`, 'vs comp-set median', 'next30', 'stly', 'The comp-set comparison isn’t a dashboard filter; the dashboard shows these nights within the next 30'],
+    underpriced_demand: [r.kind === 'underpriced_demand' ? `stays ${isoDay(String(fact(r, 'first_night')))} – ${isoDay(String(fact(r, 'last_night')))}` : '', 'vs comp-set median', 'next30', 'stly', 'The comp-set comparison isn’t a dashboard filter; the dashboard shows these nights within the next 30'],
     account_loss: ['stays in the last 6 months', 'vs the 6 months before', 'last30', 'ly_dow', 'Six-month windows aren’t presets; the dashboard shows the last 30 nights'],
     gop_miss: ['October 2026', 'vs budget', 'last_month', 'budget'],
     rooms_out_of_order: ['stays in the next 30 nights', 'out-of-order rooms', 'next30', 'stly'],
@@ -481,6 +488,28 @@ export function topicScope(topic: Topic): AnswerScope | undefined {
     said: { hotels: `from the answer: ${h}`, range: o[4] ? o[4].replace(/^The answer covers/, 'answer covers') : `from the answer: ${RANGES[o[2]].label.toLowerCase()}`, compare: `from the answer: ${COMPARES[o[3]].label.toLowerCase()}` },
     note: o[4],
   };
+}
+
+/** Inbox items from brief rows: the deterministic title, the model's summary when there is one, the Explore question. */
+function toItems(rows: readonly BriefRow[], old: readonly InboxItem[]): InboxItem[] {
+  return rows.map((r) => {
+    const prev = old.find((i) => i.id === r.id);
+    return {
+      id: r.id,
+      topic: r.id,
+      question: r.question ?? briefQuestion(r),
+      summary: r.summary,
+      kind: 'insight',
+      impact: briefMoney(r),
+      tone: (r.impact_eur ?? -1) < 0 ? 'neg' : 'pos',
+      title: briefTitle(r),
+      detail: r.impact_basis,
+      from: 'Morning brief',
+      time: '07:00',
+      status: prev?.status ?? 'new',
+      resolution: prev?.resolution,
+    };
+  });
 }
 
 /** Routes a typed or spoken question to the brief item it is about (hotel names first, then the subject). */
@@ -543,6 +572,10 @@ export interface AnswerScope {
 /* ───────────────────────── Inbox ───────────────────────── */
 export interface InboxItem {
   id: string;
+  /** The question "Explore" puts in the composer. */
+  question: string;
+  /** The model's one or two sentences (live brief), shown with an AI label. */
+  summary?: string;
   topic: Topic;
   kind: 'insight' | 'approval';
   impact: string;
@@ -637,25 +670,22 @@ export class CompassStore {
   readonly activeBoardId = signal('revenue');
   readonly depth = signal<'quick' | 'thinker'>('thinker');
   /** The watcher page that is open, and the section to land on. */
-  readonly activeWatcherId = signal('rate');
+  readonly activeWatcherId = signal('');
   readonly watcherSection = signal<'top' | 'history' | 'settings'>('top');
   /** The "New watcher" flow (agents_pattern.md §5.8); null when closed. */
   readonly creating = signal<{ step: CreateStep; draft?: WatcherDraft } | null>(null);
 
-  readonly items = signal<InboxItem[]>(
-    BRIEF_ITEMS.map((r) => ({
-      id: r.id,
-      topic: r.id,
-      kind: r.id === DECISION_ID ? 'approval' : 'insight',
-      impact: briefMoney(r),
-      tone: (r.impact_eur ?? -1) < 0 ? 'neg' : 'pos',
-      title: briefTitle(r),
-      detail: r.impact_basis,
-      from: r.id === DECISION_ID ? 'Rate vs comp set watcher' : 'Morning brief',
-      time: '07:00',
-      status: 'new',
-    })),
-  );
+  /** The brief's rows: the 20 Nov snapshot until the live brief (GET /api/brief) loads. */
+  readonly briefRows = signal<readonly BriefRow[]>(BRIEF_ITEMS);
+  readonly briefSource = signal<'snapshot' | 'live'>('snapshot');
+  readonly items = signal<InboxItem[]>(toItems(BRIEF_ITEMS, []));
+
+  /** Swaps in a new brief, keeping what the person already did with items that are still there. */
+  setBrief(rows: readonly BriefRow[], source: 'snapshot' | 'live') {
+    this.briefRows.set(rows);
+    this.briefSource.set(source);
+    this.items.update((old) => toItems(rows, old));
+  }
 
   readonly threads = signal<Thread[]>([]);
   readonly boards = signal<Board[]>([

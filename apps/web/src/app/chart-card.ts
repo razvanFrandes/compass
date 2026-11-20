@@ -7,6 +7,7 @@ import { EChart, palette } from './echart';
 import { BOOKED, CHANNELS, COMPARES, Filters, RANGES, SEGMENTS, hotelLabel, rangeDates, scopeChips, tokenValue } from './filters';
 import { Cell, ChartSpec, VIEW_LABEL, View, resolve } from './portfolio';
 import { CompassStore } from './store';
+import { Live } from './live';
 import * as icons from './icons';
 
 /*
@@ -181,6 +182,7 @@ export class ChartCard {
   readonly spec = input.required<ChartSpec>();
   protected readonly filters = inject(Filters);
   protected readonly store = inject(CompassStore);
+  private readonly live = inject(Live);
   protected readonly asOf = 'Fri 20 Nov, 07:00';
   protected readonly resolved = computed(() => resolve(this.spec(), this.filters.state()));
   /** A manual "Show as" is a local change to the spec; it survives filter changes while it stays valid. */
@@ -258,7 +260,7 @@ export class ChartCard {
   }
   protected drill(i: number) {
     const d = this.resolved().drill?.(i);
-    if (d) this.store.drill(d, this.filters.state());
+    if (d) this.live.drill(d, this.filters.state());
   }
   protected wrongChart() {
     toast('Logged: wrong chart', { description: 'Kassandra uses this to pick a different view for this question next time.', duration: 5000 });

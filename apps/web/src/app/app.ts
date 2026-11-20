@@ -9,7 +9,7 @@ import { InboxView } from './inbox';
 import { CompassStore, View } from './store';
 import { ThreadView } from './thread';
 import { WatchersView } from './watchers';
-import { WatcherCreate } from './watcher-create';
+import { Live } from './live';
 import { WatcherPage } from './watcher-page';
 import { WorkflowBuilder } from './builder/builder-page';
 import { GROUP } from './data';
@@ -21,7 +21,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WatcherCreate, WorkflowBuilder, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
   providers: [provideIcons({ ...icons }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   template: `
@@ -75,13 +75,13 @@ import * as icons from './icons';
           }
         </ul>
 
-        @if (store.threads().length) {
+        @if (live.conversations().length) {
           <div class="flex min-h-0 flex-col gap-1">
             <p class="text-muted-foreground px-2 text-[12px] font-medium tracking-[0.04em] uppercase">Threads</p>
             <ul class="flex min-h-0 flex-col gap-px overflow-y-auto text-[13px]">
-              @for (t of store.threads().slice(0, 8); track t.id) {
+              @for (t of live.conversations().slice(0, 8); track t.id) {
                 <li>
-                  <button type="button" class="block w-full truncate rounded-md px-2 py-1 text-left transition-colors" [class]="store.view() === 'thread' && store.activeThreadId() === t.id ? 'bg-foreground/6 text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-foreground/4'" (click)="store.openThread(t.id)">{{ t.title }}</button>
+                  <button type="button" class="block w-full truncate rounded-md px-2 py-1 text-left transition-colors" [class]="store.view() === 'thread' && live.chat.conversation() === t.id ? 'bg-foreground/6 text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-foreground/4'" (click)="live.openConversation(t.id)">{{ t.title }}</button>
                 </li>
               }
             </ul>
@@ -146,12 +146,12 @@ import * as icons from './icons';
     }
 
     }
-    <app-watcher-create />
     <hlm-toaster [theme]="dark() ? 'dark' : 'light'" position="bottom-center" [offset]="'72px'" />
   `,
 })
 export class App {
   protected readonly store = inject(CompassStore);
+  protected readonly live = inject(Live);
   private readonly doc = inject(DOCUMENT);
   protected readonly group = GROUP;
   protected readonly dark = signal(this.doc.documentElement.classList.contains('dark'));
@@ -166,7 +166,7 @@ export class App {
   protected readonly nav = computed(() => [
     { view: 'inbox' as View, label: 'Inbox', icon: 'phosphorTrayLight', iconActive: 'phosphorTrayFill', count: this.store.unread() },
     { view: 'boards' as View, label: 'Boards', icon: 'phosphorSquaresFourLight', iconActive: 'phosphorSquaresFourFill', count: 0 },
-    { view: 'watchers' as View, label: 'Watchers', icon: 'phosphorLightningLight', iconActive: 'phosphorLightningFill', count: this.store.watchers().filter((w) => w.status === 'needs').length },
+    { view: 'watchers' as View, label: 'Watchers', icon: 'phosphorLightningLight', iconActive: 'phosphorLightningFill', count: this.live.pendingList().length },
   ]);
 
   protected isActive(v: View) {

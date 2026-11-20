@@ -11,6 +11,7 @@ import { ArtifactView } from './artifact';
 import { DecisionsWidget } from './decisions';
 import { AskBar } from './ask-bar';
 import { MetricChart } from './metric-chart';
+import { Live } from './live';
 import { CompassStore } from './store';
 import { METRICS, MetricKey, NIGHTS, Range, decisionNights, metricSeries, metricTotal } from './data';
 import * as icons from './icons';
@@ -91,7 +92,7 @@ const DRIVERS: Record<MetricKey, { label: string; w: number }[]> = {
             </li>
           }
         </ul>
-        <button hlmBtn size="sm" variant="outline" class="mt-3" (click)="store.askNew('What drove ' + dr.title + '?')"><ng-icon name="phosphorSparkleFill" class="text-(--brass)" />Ask why</button>
+        <button hlmBtn size="sm" variant="outline" class="mt-3" (click)="live.askNew('What drove ' + dr.title + '?')"><ng-icon name="phosphorSparkleFill" class="text-(--brass)" />Ask why</button>
       </div>
     }
 
@@ -109,6 +110,7 @@ const DRIVERS: Record<MetricKey, { label: string; w: number }[]> = {
 })
 export class PerformanceWidget {
   protected readonly store = inject(CompassStore);
+  protected readonly live = inject(Live);
   private readonly doc = inject(DOCUMENT);
   protected readonly range = signal<Range>('forward');
   protected readonly metric = signal<MetricKey>('occupancy');
@@ -176,13 +178,13 @@ export class PerformanceWidget {
         <div class="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 class="text-[24px] font-[560] tracking-[-0.02em]">{{ store.activeBoard().name }}</h1>
-            <p class="text-muted-foreground text-[14px]">{{ store.activeBoard().description }} · updated {{ store.activeBoard().updated }}</p>
+            <p class="text-muted-foreground text-[14px]">{{ store.activeBoard().description }} · <span title="The API doesn’t serve boards yet: these charts are computed in the browser from a read-only extract of compass_hotels.">snapshot of compass_hotels, 20 Nov 07:00</span></p>
           </div>
         </div>
         @if (hasCharts()) {
           <app-ask-bar label="Ask or filter" placeholder="Ask or filter, e.g. “Dubai hotels, next 90 nights vs budget”" (submitted)="onAsk($event)" />
         } @else {
-          <app-ask-bar label="Describe a view to add" placeholder="Describe a view to add, e.g. “channel profitability after commission”" (submitted)="store.askNew($event)" />
+          <app-ask-bar label="Describe a view to add" placeholder="Describe a view to add, e.g. “channel profitability after commission”" (submitted)="live.askNew($event)" />
         }
       </header>
 
@@ -266,6 +268,7 @@ export class PerformanceWidget {
 })
 export class BoardView {
   protected readonly store = inject(CompassStore);
+  protected readonly live = inject(Live);
   protected readonly filters = inject(Filters);
   protected readonly wide = isWide;
   protected readonly hasCharts = computed(() => this.store.activeBoard().widgets.some((w) => w.kind === 'chart'));
@@ -275,7 +278,7 @@ export class BoardView {
   protected onAsk(text: string) {
     const req = parseFilterRequest(text);
     if (req) this.filters.set(req.patch, 'kassandra', req.said);
-    else this.store.askNew(text);
+    else this.live.askNew(text);
   }
   /** Sparkline points for this year and the comparison, on one shared scale. */
   protected spark(a: number[], b: number[] | null): [string, string] {
@@ -392,6 +395,7 @@ function areaPaths(ty: number[], ly: number[], w = 300, h = 64) {
 })
 export class BoardsList {
   protected readonly store = inject(CompassStore);
+  protected readonly live = inject(Live);
   protected readonly layout = signal<'grid' | 'list'>('grid');
   protected readonly rows = computed(() =>
     this.store.boards().map((b) => {
