@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { PNL_LINES, type FinanceError } from '../../application/finance-data.ts';
 import type { DataError, HotelData } from '../../application/hotel-data.ts';
 import type { Result } from '../../domain/result.ts';
-import { untrustedBlock } from '../../domain/untrusted.ts';
+import { escapeUntrusted, untrustedBlock } from '../../domain/untrusted.ts';
 import { TOOL_FAILURE } from './run-tool.ts';
 
 /**
@@ -25,7 +25,7 @@ export interface DataTool<S extends z.ZodObject = z.ZodObject> {
 }
 
 const MAX_TEXT_ROWS = 60;
-/** Once the rows in the model text reach this many characters, no more are added. */
+/** The rows in the model text never take more characters than this, counted as the model reads them (after escaping). */
 const MAX_TEXT_CHARS = 50_000;
 
 const hotels = z
@@ -43,12 +43,13 @@ const bucket = z.enum(['day', 'week', 'month', 'total']).describe('Bucket size; 
  */
 export function success(result: DataResult<object>, untrusted?: string): ToolOutcome {
   const shown: string[] = [];
-  let length = 0;
+  let length = 2; // the brackets
   for (const row of result.rows) {
-    if (shown.length >= MAX_TEXT_ROWS || length >= MAX_TEXT_CHARS) break;
-    const rowJson = JSON.stringify(row);
+    if (shown.length >= MAX_TEXT_ROWS) break;
+    const rowJson = untrusted ? escapeUntrusted(JSON.stringify(row)) : JSON.stringify(row);
+    length += rowJson.length + 1; // and its comma
+    if (length > MAX_TEXT_CHARS) break;
     shown.push(rowJson);
-    length += rowJson.length;
   }
   const hidden = result.rows.length - shown.length;
   const more = hidden ? `\n… ${hidden} more rows not shown.` : '';

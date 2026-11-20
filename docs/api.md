@@ -144,8 +144,8 @@ Connect Claude Desktop to it under Settings → Connectors → Add custom connec
 
 Tools that return outside free text (`find_reviews`, `search_reviews`, `get_account_production`, `get_brief`, `run_readonly_query`) wrap their rows in `<untrusted_data>` in the text content. `structuredContent` is not wrapped.
 
-- **Text cap.** The text content holds at most 60 rows and stops adding rows at 50,000 characters, then ends the rows with `… N more rows not shown.` `structuredContent` keeps every row.
-- **Errors.** A failed call has `isError: true`. Only `run_readonly_query` returns the database's error text, with a hint to fix the query. Every other tool answers `The data source failed to answer. Try again in a moment, or use another tool.` when the database fails.
+- **Text cap.** The text content holds at most 60 rows and at most 50,000 characters of rows, then ends the rows with `… N more rows not shown.` `structuredContent` keeps every row.
+- **Errors.** A failed call has `isError: true`. Only `run_readonly_query` returns the database's error text, with a hint to fix the query, and only for SQL errors (syntax, missing column, timeout). A connection failure there, and any database failure in another tool, answers `The data source failed to answer. Try again in a moment, or use another tool.`
 - **Embedding budget.** Each `find_reviews` call through `/mcp` takes one of 2000 daily embeddings (all clients together, per UTC day). When they are spent, or the embedder fails, the tool answers `Semantic search is unavailable right now. Use search_reviews with a phrase.`
 
 ### `find_reviews`: guest reviews by meaning

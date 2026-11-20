@@ -15,12 +15,14 @@ const DB_ERROR = 'write CONNECTION_CLOSED db.internal:5432';
 /** Every query fails, as when the connection is lost. */
 const deadDb: Db = { query: async () => Promise.reject(new Error(DB_ERROR)) };
 /** The business date answers, every other query fails: the failure then happens inside the tool's own query. */
-const failingDb = (message = DB_ERROR): Db => ({
+const failingDb = (error: Error = new Error(DB_ERROR)): Db => ({
   query: async <Row>(sql: string) => {
     if (/business_date\(\), 'YYYY-MM-DD'\) as d$/.test(sql)) return [{ d: '2026-11-20' }] as Row[];
-    throw new Error(message);
+    throw error;
   },
 });
+/** An error as postgres.js raises it for a failing statement: it carries Postgres's SQLSTATE. */
+const sqlError = (message: string, code: string) => Object.assign(new Error(message), { code });
 const embedder = (embed: Embedder['embed'] = async (texts) => texts.map(() => [0.6, 0.8])): Embedder => ({ model: 'm', dimensions: 2, embed });
 
 // A future period, so get_forecast accepts it too.
@@ -52,12 +54,25 @@ describe('a database failure', () => {
     }
   });
 
-  it('run_readonly_query still shows its database error, with the hint to fix the query', async () => {
-    const outcome = await call('run_readonly_query', new HotelData(failingDb('column "nope" does not exist')), { sql: 'select nope from hotels' });
-    expect(outcome).toEqual({
-      ok: false,
-      text: 'column "nope" does not exist Fix the query and try again; call get_schema for table and column names.',
-    });
+  it.each([
+    ['a missing column', 'column "nope" does not exist', '42703'],
+    ['a statement timeout', 'canceling statement due to statement timeout', '57014'],
+  ])('run_readonly_query still shows a SQL error (%s), with the hint to fix the query', async (_what, message, code) => {
+    const outcome = await call('run_readonly_query', new HotelData(failingDb(sqlError(message, code))), { sql: 'select nope from hotels' });
+    expect(outcome).toEqual({ ok: false, text: `${message} Fix the query and try again; call get_schema for table and column names.` });
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a lost connection', new Error(DB_ERROR)],
+    ['a driver error code', sqlError(DB_ERROR, 'CONNECTION_CLOSED')],
+    ['a refused connection', sqlError('connect ECONNREFUSED db.internal:5432', 'ECONNREFUSED')],
+    ['a connection exception from the server', sqlError('connection to db.internal failed', '08006')],
+  ])('run_readonly_query hides an error that is not a SQL error (%s)', async (_what, error) => {
+    const outcome = await call('run_readonly_query', new HotelData(failingDb(error)), { sql: 'select 1' });
+    expect(outcome).toEqual({ ok: false, text: TOOL_FAILURE });
+    expect(outcome.text).not.toContain('db.internal');
+    expect(log).toHaveBeenCalledWith('tool run_readonly_query failed', error);
   });
 });
 
@@ -117,6 +132,23 @@ describe('success', () => {
     expect(shown).toBeGreaterThan(40);
     expect(outcome.text).toContain(`… ${200 - shown} more rows not shown.`);
     expect(outcome.ok && outcome.structured['rows']).toHaveLength(200);
+  });
+
+  it('keeps the bound after untrusted text is escaped: every "<" becomes six characters', () => {
+    const rows = Array.from({ length: 200 }, () => ({ text: '<'.repeat(1024) }));
+    const outcome = success({ rows, evidence }, 'guest reviews');
+    expect(outcome.text.length).toBeLessThan(51_000);
+    const shown = outcome.text.match(/"text"/g)!.length;
+    expect(shown).toBeGreaterThan(5);
+    expect(outcome.text).toContain(`… ${200 - shown} more rows not shown.`);
+    expect(outcome.text).toContain('</untrusted_data>');
+  });
+
+  it('never goes over the bound, even when the next row is large', () => {
+    const rows = Array.from({ length: 5 }, () => ({ text: 'x'.repeat(30_000) }));
+    const outcome = success({ rows, evidence });
+    expect(outcome.text.length).toBeLessThan(51_000);
+    expect(outcome.text).toContain('… 4 more rows not shown.');
   });
 
   it('shows every row of a small result, with no note', () => {

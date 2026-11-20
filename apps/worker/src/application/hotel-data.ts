@@ -10,7 +10,7 @@ import { findReviews, type FindReviewsInput, type ReviewMatch } from './review-s
 export type DataError =
   | { kind: 'invalid'; message: string }
   | { kind: 'rejected'; reason: GuardReason; message: string }
-  /** Postgres refused a model-written query (run_readonly_query only): the message helps the model fix its SQL. */
+  /** Postgres refused a model-written query (run_readonly_query only, SQL errors only): the message helps the model fix its SQL. */
   | { kind: 'database'; message: string }
   /** A part of the service is down. `message` is written for the reader; `cause` is for the logs only. */
   | { kind: 'unavailable'; message: string; cause: unknown }
@@ -30,6 +30,16 @@ export interface Hotel {
 }
 
 const MAX_ROWS = 200;
+
+/**
+ * Whether Postgres itself refused the statement: the error then carries a five-character SQLSTATE (42703 undefined
+ * column, 57014 statement timeout, …). Driver and network errors (CONNECTION_CLOSED, ECONNREFUSED, Hyperdrive) carry
+ * none, and class 08 is the server's own "connection exception": neither is about the query, and both may name hosts.
+ */
+function isSqlError(error: unknown): error is Error & { code: string } {
+  const code = error instanceof Error ? (error as { code?: unknown }).code : undefined;
+  return typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code) && !code.startsWith('08');
+}
 
 /** Bucket size for time series; `total` gives one row for the whole period. */
 export type Bucket = 'day' | 'week' | 'month' | 'total';
@@ -542,7 +552,8 @@ export class HotelData {
       );
     } catch (error) {
       // The one place where database error text goes back to the caller: the model needs it to fix its query.
-      return err({ kind: 'database', message: error instanceof Error ? error.message : String(error) });
+      // Only what Postgres says about the statement; a lost connection is not the query's fault and may name hosts.
+      return isSqlError(error) ? err({ kind: 'database', message: error.message }) : err({ kind: 'internal', cause: error });
     }
   }
 
