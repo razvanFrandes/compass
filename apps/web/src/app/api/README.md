@@ -64,6 +64,11 @@ A `ChatTurn` is `{ key, question, pending, steps, answer, streamingText, running
 - A turn with `question: null` (key `head`) holds entries from before the first question in view; the server sends the newest 50 entries only.
 - `ask()` returns the ask id, or null for empty text. A rejected question leaves `turns` and its reason is in `error`; keep the text in the composer until the turn is no longer pending if you want to let the person retry.
 - **`/ask?q=…`** (links in the alert emails) must pre-fill the composer with `q` and must not call `ask()`.
+- **Scope.** `ask(text, mode, { hotels })` restricts the answer to those hotels (round2-contracts §1). An empty list is left out of the message: the whole group. `Live` passes `ScopeService.hotels()` with every question.
+- **Widgets.** A `show_widget` step carries `widget`: the spec plus the `rows`, `columns` and `evidence` of the tool result it names (round2-contracts §3). `<kassandra-conversation>` draws it; do not render it yourself.
+- **Round 2 types** (`AskScope`, `WidgetSpec`, `ChatWidget`, `EvidenceColumn`, `Board`, `BoardWidget`, `VoiceToken`) are in `round2-contracts.ts` until `@compass/contracts` exports them.
+
+The screens do not render turns themselves any more: `src/app/kassandra/` has the one composer (`<kassandra-composer>`) and the one conversation (`<kassandra-conversation [turns] [phase] [error] [usage]>`), used by every surface.
 
 `groupTurns(entries, live?)` is pure. Use it for a workflow run's log too:
 
@@ -97,7 +102,7 @@ protected async refresh() {
 }
 ```
 
-Show `item.summary ?? item.title`, with the AI label only when `summary` is there. "Explore" is `chat.ask(item.question)`. `api.budget()` returns today's usage of the daily limits.
+Show `item.summary ?? item.title`, with the AI label only when `summary` is there. "Explore" is `live.explore(item.question, scope, 'brief:' + item.id)`: it opens the Thread and sends at once, and the same item reopens its thread. `api.budget()` returns today's usage of the daily limits.
 
 ## Workflows, inbox, audit — `WorkflowsApi`
 

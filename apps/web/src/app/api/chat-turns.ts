@@ -1,4 +1,5 @@
 import type { ChatEntry, ChatLive, Evidence, WorkflowSpec } from '@compass/contracts';
+import type { ChatWidget } from './round2-contracts';
 
 type AssistantEntry = Extract<ChatEntry, { kind: 'assistant' }>;
 type ToolResultEntry = Extract<ChatEntry, { kind: 'tool_result' }>;
@@ -28,6 +29,8 @@ export interface ChatStep {
   draft?: WorkflowSpec;
   /** `send_email` only: whether a mail went out. */
   sent?: boolean;
+  /** `show_widget` only: a chart, table or KPI from the catalogue, with the rows of the tool result it names. */
+  widget?: ChatWidget;
 }
 
 /** A question and everything that answered it. */
@@ -94,6 +97,9 @@ function applyResult(step: ChatStep, result: ToolResultEntry): void {
   if (result.evidence !== undefined) step.evidence = result.evidence;
   if (result.draft !== undefined) step.draft = result.draft;
   if (result.sent !== undefined) step.sent = result.sent;
+  // `widget` is in docs/round2-contracts.md §3 and not in the published entry type yet.
+  const widget = (result as ToolResultEntry & { widget?: ChatWidget }).widget;
+  if (widget !== undefined) step.widget = widget;
 }
 
 /**
