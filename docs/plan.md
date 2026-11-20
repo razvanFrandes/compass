@@ -31,12 +31,12 @@ The data covers every module (PMS, RMS, comp set, POS/F&B, M&E, labour, web, rev
 | **Kassandra Strategic** | "Council": 3 personas (Revenue, Finance, Operations) answer in parallel with the same tools, then a synthesis that names the disagreements | 3 | light |
 | **HotelGPT** | Single-hotel mode: the hotel selector limits every tool to one property; meter per question (tokens, €, ms) | 3 | full (no real PMS) |
 | **Commercial** | occupancy, ADR, RevPAR, pace/STLY, pickup, channel mix net of commission, rate vs comp set, MPI/ARI/RGI | 2–4 | full |
-| **Finance** | USALI P&L actual / budget / forecast, GOP, flowthrough | 2 | light |
+| **Finance** | USALI P&L actual / budget / forecast, GOP, margin, flowthrough vs budget and LY (`get_pnl`); demand turned away (`get_lost_business`) | 2 | full (tools) |
 | **F&B** | covers, revenue per outlet, per occupied room, labour hours | 2 | light |
-| **M&E** | events, meeting space, revenue per sqm | 2 | light |
+| **M&E** | events, attendees, revenue per sqm, meeting-room utilisation, tentative pipeline (`get_meetings_events`) | 2 | full (tools) |
 | **Pulse / Exploration / Deep Dive** | KPI strip, click → drivers, drill down to segment/channel | 4, 7 | light |
 | **Canvas** | pinned widgets + "build a board from a description" | 7 | light |
-| **Forecast Builder** | forecast P10/P50/P90 from the data + simple what-if | 7 | optional |
+| **Forecast Builder** | forecast P10/P50/P90 vs on the books, STLY and budget (`get_forecast`); what-if optional | 2, 7 | tools; what-if optional |
 | **Briefings** | morning brief ranked by money + PDF export | 4 | full |
 | **Agents / Workflow Automations (Act)** | **Workflows**: created from chat or built by hand, run durably on Pi | 5 | full |
 | **Data health** | `data_sources`: stale feeds (S7 Berlin POS) shown in the UI and in answers | 4 | light |

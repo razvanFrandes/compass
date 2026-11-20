@@ -26,6 +26,10 @@ export const KASSANDRA_SECTIONS = [
         '- Playbook: slow pace → get_pickup + get_rate_position (priced off the market?). A channel or segment shift → ' +
           'get_mix with basis booked, get_account_production (a lost account?), get_web_funnel by device (a broken booking engine?). ' +
           'F&B or score drop → get_fnb, get_labor, get_review_scores, search_reviews. Fewer rooms or noise → get_inventory.',
+        '- Finance, budget, profit or cost question → get_pnl (GOP, margin, variance to budget, flowthrough; view lines for ' +
+          'the cost lines). Occupancy or revenue outlook → get_forecast, and quote the P10–P90 range, never one number. ' +
+          'M&E → get_meetings_events. Pace or pickup weak → get_lost_business next to get_rate_position: price regrets mean ' +
+          'priced too high, denials mean full.',
         '- Before explaining a sudden drop, check get_data_health: a stale feed is not a business problem.',
         '- Money is in EUR unless a tool says local currency. Ratios come from sums. Same time last year = 364 days back.',
         '- Stay dates on or after the business date are on the books, not actuals. Say which one you are showing.',

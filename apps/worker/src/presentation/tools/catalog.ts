@@ -1,5 +1,6 @@
 import { Grain, MetricKey, type DataResult } from '@compass/contracts';
 import { z } from 'zod';
+import { PNL_LINES } from '../../application/finance-data.ts';
 import type { DataError, HotelData } from '../../application/hotel-data.ts';
 import type { Result } from '../../domain/result.ts';
 
@@ -27,6 +28,7 @@ const hotels = z
   .optional()
   .describe('Hotel codes, e.g. ["LIS", "AMS"]. Omit for the whole group. Use list_hotels for the codes.');
 const isoDate = z.iso.date().describe('ISO date, YYYY-MM-DD');
+const rollUp = z.enum(['hotel', 'region', 'brand', 'group']).default('hotel').describe('What one row is');
 const bucket = z.enum(['day', 'week', 'month', 'total']).describe('Bucket size; total gives one row for the whole period');
 
 /** Rows for the model as compact JSON (capped), plus the full rows and evidence as structured content. */
@@ -213,6 +215,66 @@ export const DATA_TOOLS = [
     description: 'Room inventory: physical rooms, rooms out of order (renovation, maintenance) and room nights available.',
     input: z.object({ hotels, from: isoDate, to: isoDate, grain: bucket.default('week') }),
     run: async (data, args) => success(await data.getInventory(args)),
+  }),
+  // Finance, forecast, meetings & events and lost business (application/finance-data.ts)
+  tool({
+    name: 'get_pnl',
+    description:
+      'Finance: the USALI P&L in EUR per month or for a whole period, per hotel or rolled up by region, brand or group. Actual for ' +
+      'closed months, forecast for the current and future ones, against budget and last year: revenue and GOP with variance in EUR ' +
+      'and %, GOP margin and flowthrough (Δ GOP ÷ Δ revenue). view "lines" lists every line (rooms, F&B, M&E and other revenue, ' +
+      'departmental and undistributed expenses) with favourable or unfavourable variance. Use it for budget, profit and cost questions.',
+    input: z.object({
+      hotels,
+      by: rollUp,
+      from: isoDate,
+      to: isoDate,
+      grain: z.enum(['month', 'total']).default('month').describe('month, or total for one row for the whole period (e.g. year to date)'),
+      view: z.enum(['summary', 'lines']).default('summary').describe('summary: revenue and GOP; lines: every P&L line'),
+      lines: z.array(z.enum(PNL_LINES)).optional().describe('With view "lines": only these lines'),
+    }),
+    run: async (data, args) => fromResult(await data.finance.getPnl(args)),
+  }),
+  tool({
+    name: 'get_forecast',
+    description:
+      'Forecast for the coming months: room nights, occupancy and room revenue in EUR as a P10–P50–P90 range, per hotel or rolled up, ' +
+      'with what is on the books now vs the same time last year and the budget (and whether the budget sits below, within or above ' +
+      'the range). The current month includes its actual nights. Always quote a forecast as a range, not one number.',
+    input: z.object({
+      hotels,
+      by: rollUp,
+      from: isoDate.optional().describe('Default: the current month'),
+      to: isoDate.optional().describe('Default: the end of the forecast horizon'),
+      grain: z.enum(['month', 'total']).default('month'),
+    }),
+    run: async (data, args) => fromResult(await data.finance.getForecast(args)),
+  }),
+  tool({
+    name: 'get_meetings_events',
+    description:
+      'Meetings & events: definite events, attendees and M&E revenue in EUR (space hire, banquet F&B, AV), revenue per sqm of ' +
+      'meeting space and meeting-room utilisation per period, per hotel or rolled up. Future dates show the pipeline, with ' +
+      'tentative events and their revenue apart.',
+    input: z.object({ hotels, by: rollUp, from: isoDate, to: isoDate, grain: bucket.default('month') }),
+    run: async (data, args) => success(await data.finance.getMeetingsEvents(args)),
+  }),
+  tool({
+    name: 'get_lost_business',
+    description:
+      'Demand turned away: requests and room nights lost to price (the guest saw our rate and left) vs no availability (we were ' +
+      'full), with an estimated value at BAR in EUR. Read it next to get_rate_position: many price regrets = priced too high; ' +
+      'many denials = full, so the rate could have been higher.',
+    input: z.object({
+      hotels,
+      by: rollUp,
+      from: isoDate,
+      to: isoDate,
+      grain: bucket.default('month'),
+      basis: z.enum(['arrival', 'request']).default('arrival').describe('arrival: by stay date; request: by the day the guest asked'),
+      detail: z.enum(['none', 'segment', 'channel']).default('none').describe('Split each reason further by segment or channel'),
+    }),
+    run: async (data, args) => success(await data.finance.getLostBusiness(args)),
   }),
   tool({
     name: 'get_brief',

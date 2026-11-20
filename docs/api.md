@@ -51,8 +51,8 @@ wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=<id>
 
 - **`ask`:** pass an `id` so a resend after a dropped connection is not asked twice. Sent while busy, it is queued as a follow-up.
 - **`mode`** (the Quick / Thinker selector in the composer):
-  - **`quick`:** Claude Haiku 5.5, only the governed-metric tools, at most 4 turns, three sentences. About 5–9 s and a few cents.
-  - **`thinker`** (default): Claude Sonnet 5.5, all 18 tools, cross-source diagnosis. About 8–20 s.
+  - **`quick`:** Claude Haiku 5.5, only the governed-metric tools (plus `get_pnl` and `get_forecast`), at most 4 turns, three sentences. About 5–9 s and a few cents.
+  - **`thinker`** (default): Claude Sonnet 5.5, all 23 data tools, cross-source diagnosis. About 8–20 s.
   - The mode applies from the next question. A question sent while an answer is running keeps the current mode.
 - **Rate limit:** 6 questions per minute per client. Over the limit, the server sends an `error` message.
 
@@ -124,7 +124,15 @@ Agents that watch the numbers, propose an action and act once a person approves.
 
 ## MCP (public, read-only)
 
-`https://juyo.razvanfrandes.com/mcp` (Streamable HTTP) exposes 19 data tools (including `get_brief`). Kassandra uses the same tools. Connect Claude Desktop to it under Settings → Connectors → Add custom connector. Rate limit: 60 requests per minute per client.
+`https://juyo.razvanfrandes.com/mcp` (Streamable HTTP) exposes 23 data tools. Kassandra uses the same tools.
+
+- **Reference:** `list_hotels`, `list_metrics`, `get_schema`, `get_data_health`.
+- **Commercial:** `get_metric`, `get_pace`, `get_pickup`, `get_rate_position`, `get_channel_mix`, `get_mix`, `get_account_production`, `get_inventory`, `get_web_funnel`.
+- **Finance and forecast:** `get_pnl` (USALI P&L vs budget and last year, GOP margin, flowthrough), `get_forecast` (P10–P90 range vs on the books and budget), `get_lost_business` (price regrets vs denials).
+- **F&B, M&E and guests:** `get_fnb`, `get_labor`, `get_meetings_events`, `get_review_scores`, `search_reviews`.
+- **Brief and escape hatch:** `get_brief`, `run_readonly_query`.
+
+Connect Claude Desktop to it under Settings → Connectors → Add custom connector. Rate limit: 60 requests per minute per client.
 
 ## Health
 
