@@ -94,7 +94,7 @@ Each node has `{ id, kind, label, detail, state }`, where `state` is `empty | dr
 
 ### Send test now
 
-- The client sends `{ type: 'test' }` on the builder socket. It saves first if needed, then the builder calls `WorkflowAgents.run(workflowId, 'manual')` with a test flag and follows that run. (`POST /api/workflows/:id/test` exists too, for scripts; it returns the run without node progress.)
+- The client sends `{ type: 'test' }` on the builder socket. It saves first if needed, then the builder calls `WorkflowAgents.run(workflowId, 'manual')` with a test flag and follows that run. (Amended after the final review: `POST /api/workflows/:id/test` was not built. The builder socket's `test` message is the only way to start a test run.)
 - The run log maps to nodes: trigger → scope → each `check:<tool>` when that tool is called → `analyze` while the model writes → `action` when the mail is sent. The client gets `{ type: 'run', runId, activeNode, done: nodeId[], failed? }` on the builder socket.
 
 ### Abuse limits (public demo)
@@ -106,7 +106,7 @@ Each node has `{ id, kind, label, detail, state }`, where `state` is `empty | dr
   - reads (`GET /api/workflows`, `/api/workflows/:id`, audit) show the recipient masked (`si****@gmail.com`);
   - `delivery` cannot be changed by `PATCH` after save. A different address means a new workflow;
   - a scheduled email workflow disables itself after 7 days or 5 sent emails, whichever comes first, and the last mail says so.
-- **Explore in Kassandra** links to `https://juyo.razvanfrandes.com/ask?q=<the workflow's question, URL-encoded>`. This is a contract for the Angular app (route `/ask`, param `q` pre-fills and sends the question) and goes into `docs/api.md`.
+- **Explore in Kassandra** links to `https://juyo.razvanfrandes.com/ask?q=<the workflow's question, URL-encoded>`. This is a contract for the Angular app (route `/ask`, param `q` pre-fills the question; the person presses send — amended after the final review, it does not send on its own) and goes into `docs/api.md`.
 
 ### Plan and prerequisites
 
@@ -125,5 +125,5 @@ Each node has `{ id, kind, label, detail, state }`, where `state` is `empty | dr
 - A conversation like "Email me every morning if Lisbon's pace falls more than 10% behind last year" produces the full chain through tool calls, one node per call, visible as `draft` messages.
 - A manual `edit` changes the draft and the agent acknowledges it next turn.
 - Saving creates a `Workflow`; **Send test now** delivers a real email to a test address and streams node progress.
-- Rate limits refuse the 4th email to the same address within an hour.
-- `docs/api.md` documents the builder socket, `draft`/`run` messages, the test endpoint and the email limits for the Angular session.
+- Rate limits refuse the 4th email to the same address within an hour (and, since the final review, the 7th within a UTC day).
+- `docs/api.md` documents the builder socket, `draft`/`run` messages, the `test` message and the email limits for the Angular session. (Amended after the final review: the HTTP endpoint `POST /api/workflows/:id/test` was not built; the builder socket's `test` message covers it.)

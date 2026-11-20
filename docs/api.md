@@ -108,10 +108,10 @@ Agents that watch the numbers, propose an action and act once a person approves.
 | Method | Path | What |
 |---|---|---|
 | GET | `/api/workflows` | `Workflow[]`. Five templates are seeded on first use, one per brief finding. |
-| POST | `/api/workflows` | Create from a `WorkflowSpec` (e.g. a Kassandra draft). Returns `Workflow`. At most 30 workflows (409 beyond). |
+| POST | `/api/workflows` | Create from a `WorkflowSpec` (e.g. a Kassandra draft). Returns `Workflow`. At most 30 **enabled** workflows: a create (or a PATCH that turns one on) beyond that gets 409 "The demo runs at most 30 active workflows. Turn one off and try again." Workflows that are off do not count. At 100 stored workflows, a create deletes the oldest one that is off and was not a template. |
 | GET | `/api/workflows/:id` | `{ workflow, runs, proposals }` |
 | PATCH | `/api/workflows/:id` | Change fields, e.g. `{ "enabled": false }` or `{ "autonomy": "suggest" }`. The recipient of an email workflow cannot be changed (400). |
-| POST | `/api/workflows/:id/run` | Run now ("Run now" button). Returns `WorkflowRun`. Rate-limited and budgeted. |
+| POST | `/api/workflows/:id/run` | Run now ("Run now" button). Returns `WorkflowRun`. Rate-limited and budgeted. 409 while the workflow has a run in progress. |
 | GET | `/api/runs/:runId` | `{ run, entries: ChatEntry[] }`: the run's log, projected like the chat. |
 | GET | `/api/proposals?status=pending` | The approval inbox: `Proposal[]` with `change: { before, after, scope }`, `rationale`, `impact_eur`, `risk`. |
 | POST | `/api/proposals/:id/decision` | `{ "approved": true, "by": "Ana Pop (RM)", "note": "" }`. Wakes the parked run. Budgeted. |
@@ -125,7 +125,7 @@ Agents that watch the numbers, propose an action and act once a person approves.
 
 **Proposal status:** `pending → approved → applied`, or `denied`, `auto_approved`, `suggested`, `undone`. `superseded` means the agent replaced the proposal with an amended one, for example to meet a condition in the approver's note.
 
-**Run status:** `running → waiting_approval → running → done | failed`. Poll `/api/runs/:id` or `/api/proposals?status=pending` every few seconds.
+**Run status:** `running → waiting_approval → running → done | failed`. Poll `/api/runs/:id` or `/api/proposals?status=pending` every few seconds. A run that stopped without being recorded (a deploy in the middle of it) is settled the next time it is read or its workflow is run: after 15 minutes with no live session it becomes `failed`.
 
 **From chat:** Kassandra's `draft_workflow` tool returns a `tool_result` entry with `draft: WorkflowSpec`. Show it as an editable card; **Save** sends it to `POST /api/workflows`.
 
@@ -178,7 +178,7 @@ Each node is `{ id, kind, label, detail, state }`. `state` is `empty` (a placeho
 - `done` — the nodes it finished, in chain order;
 - `failed` — the node a failed run stopped on, else `null`.
 
-A run walks the chain: `trigger` and `scope` are done at once; a check is active from its tool call to its result; `analyze` is active while the agent thinks or reads other data; `action` is active while the mail is being sent, and done **only when a mail went out**. A test that reaches the hourly limit ends `done` without `action` in `done`; read why in `GET /api/runs/:runId` (`run.summary`). The server polls the run once a second, so a quick step can be skipped. It follows a run for at most 3 minutes, and stops when no socket is open on the draft. After 3 minutes you get a last `run` message with `status: 'failed'` and `failed` set to the node the run was on, and an `error` message ("The test run is taking too long; check the run log."). The run itself may still finish: `GET /api/runs/:runId` has the truth.
+A run walks the chain: `trigger` and `scope` are done at once; a check is active from its tool call to its result; `analyze` is active while the agent thinks or reads other data; `action` is active while the mail is being sent, and done **only when a mail went out**. A test that reaches the hourly limit ends `done` without `action` in `done`; read why in `GET /api/runs/:runId` (`run.summary`). The server polls the run once a second, so a quick step can be skipped. It follows a run for at most 3 minutes, and stops when no socket is open on the draft. A run that reaches `waiting_approval` is not followed further: the `run` message with that status is the last one, and the approval inbox takes over. After 3 minutes you get a last `run` message with `status: 'failed'` and `failed` set to the node the run was on, and an `error` message ("The test run is taking too long; check the run log."). The run itself may still finish: `GET /api/runs/:runId` has the truth.
 
 ### Client → server, on top of the chat messages
 
@@ -196,19 +196,19 @@ A run walks the chain: `trigger` and `scope` are done at once; a check is active
   - With the next `ask` or `steer`, the transcript gets **one** `event` entry `app.edit` for all the edits since the last question, with `data: { changed, chain }` (the nodes edited and the chain as it now reads). The agent reads it, so it builds on the edits.
   - At most 30 edits per minute per client; over that you get an `error` message.
   - `checks` may only name data tools (the 24 tools of `/mcp`), at most 8.
-- **`save`:** saves the draft as a workflow. Refused with an `error` while `issues` is not empty. The first save creates the workflow; you get a `draft` message with its `workflowId`. A later save updates that workflow. If the address changed (or was added or removed), the save creates a **new** workflow, turns the old one off, and `workflowId` changes. If the old one cannot be turned off you get the `draft` message with the new id and then an `error` saying so.
-- **`test`** ("Send test now"): saves if needed, then runs the workflow once as a test and sends `run` messages. An email workflow always sends on a test, with the subject `Test · <name>`, and the mail says whether the workflow would have fired today.
+- **`save`:** saves the draft as a workflow. Refused with an `error` while `issues` is not empty. The first save creates the workflow; you get a `draft` message with its `workflowId`. A later save updates that workflow; a field removed from the draft since the last save goes back to its default in the workflow too. If the address changed (or was added or removed), the save creates a **new** workflow, turns the old one off, and `workflowId` changes. If the old one cannot be turned off you get the `draft` message with the new id and then an `error` saying so.
+- **`test`** ("Send test now"): saves if needed, then runs the workflow once as a test and sends `run` messages. An email workflow always sends on a test, with the subject `Test · Compass alert · <name>`, and the mail says whether the workflow would have fired today.
   - One test at a time: a `test` sent while a run is going gets an `error` message, and the socket stays open.
-- **Limits:** `ask` and `steer` share Kassandra's limit (6 per minute per client) and the daily `question` budget. `test` shares the same per-minute limit and counts against the daily `workflow_run` budget. A message is at most 16 KB. Over a limit, the server sends an `error` message.
+- **Limits:** `ask` and `steer` share Kassandra's limit (6 per minute per client) and the daily `question` budget. `test` counts against the daily `workflow_run` budget and has no per-minute limit: it is bounded by that budget, by one test at a time per draft, and by the email limits below. A message is at most 16 KB. Over a limit, the server sends an `error` message.
 
 ### Email workflows
 
 - **One recipient** per workflow, set when it is saved. `PATCH` cannot change it.
 - **Masked everywhere outside the builder socket:** `GET /api/workflows`, `/api/workflows/:id`, the answers of `POST` and `PATCH`, the audit log and the graph labels show `si****@gmail.com`.
-- **Fixed template:** the model writes the summary and picks the facts; it never chooses the recipient or the layout.
-- **Limits:** 3 emails per hour per address, 10 per hour per client, 50 per UTC day for the whole demo. Over a limit, the run ends `done`, sends nothing and says so in its summary.
-- **Lifetime:** a scheduled email workflow turns itself off after 7 days or 5 emails, whichever comes first. The last mail says so. Test runs are not counted, only the hourly and daily limits.
-- **"Explore in Kassandra"** in the mail links to `https://juyo.razvanfrandes.com/ask?q=<question, URL-encoded>`. This is a contract for the app: the route `/ask` must open Kassandra, pre-fill the question from `q` and send it.
+- **Fixed template:** the model writes the summary (at most 500 characters) and picks the facts; it never chooses the recipient, the subject or the layout. The subject is always `Compass alert · <name>` (the name cut to 60 characters). Every link and domain in the name and in what the model wrote is replaced by `[link removed]`; only links to the app itself stay.
+- **Limits:** 3 emails per hour and 6 per UTC day per address, 10 per hour per client, 50 per UTC day for the whole demo. "Run now" and a test count for the client that asked; the morning cron's runs have no per-client limit. Over a limit, the run ends `done`, sends nothing and says so in its summary.
+- **Lifetime:** a scheduled email workflow turns itself off after 7 days or 5 emails, whichever comes first. The last mail says so, also when the 7 days will be over before the workflow's next run (a daily one: a day later; a weekly one: 7 days later; one on a brief finding: the next morning). Test runs are not counted, only the hourly and daily limits.
+- **"Explore in Kassandra"** in the mail links to `https://juyo.razvanfrandes.com/ask?q=<question, URL-encoded>`. This is a contract for the app: the route `/ask` must open Kassandra and **pre-fill** the composer with the question from `q`. It must not send it: the person reads the question and presses send. (Anyone can make such a link, so opening one must never spend a question or act on its own.)
 
 ## MCP (public, read-only)
 
