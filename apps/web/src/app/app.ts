@@ -12,6 +12,7 @@ import { WatchersView } from './watchers';
 import { Live } from './live';
 import { WatcherPage } from './watcher-page';
 import { WorkflowBuilder } from './builder/builder-page';
+import { CatalogView } from './charts/catalog';
 import { GROUP } from './data';
 import * as icons from './icons';
 
@@ -21,7 +22,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, CatalogView, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
   providers: [provideIcons({ ...icons }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   template: `
@@ -128,6 +129,14 @@ import * as icons from './icons';
             <!-- Loads on first visit: it reads CHECK_LABELS from @compass/contracts, which brings zod -->
             @defer (on immediate) {
               <app-watcher-page />
+            } @placeholder {
+              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading…</p>
+            }
+          }
+          @case ('catalog') {
+            <!-- /catalog: the chart design-system page; its code (and the extra chart types) loads on first visit -->
+            @defer (on immediate) {
+              <app-catalog />
             } @placeholder {
               <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading…</p>
             }

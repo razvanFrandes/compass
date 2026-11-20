@@ -247,3 +247,37 @@ Built strictly from stages 1 and 2 of `docs/research/reports/Filtre și grafice 
 - The initial bundle is 2.2 MB, because the extract is embedded. The build budget was raised to 3 MB for the prototype.
 
 **Checks:** headless Chrome against the dev server and the production build. It covers every chart and the filter flows (receipt, Edit, Undo, tri-state groups, tokens, "is not"), the drill and "Apply to dashboard", past ranges, the light theme and the phone sheet. Phone overflow is 0 px, and there are no console errors.
+
+## Widget chart catalogue, Round 2 (2026-11-21)
+
+Built from `docs/round2-contracts.md` §2–§3. It sits next to the Portfolio catalogue above and does not replace it: the Portfolio charts answer fixed questions from the extract; these draw whatever rows a tool returned, from a `WidgetSpec` Kassandra chose.
+
+- **One entry point:** `<juyo-widget-chart [spec] [rows] [columns] [compact]>` in `apps/web/src/app/charts/` draws all 21 `WidgetKind`s. Optional `[header]` (off when the host card shows the title) and `[loading]`.
+  - `rows` null or undefined shows the skeleton. The body height depends only on the kind, the density and whether the widget is phone-narrow, so the skeleton and the finished widget have the same box.
+  - `WidgetSpec` and `EvidenceColumn` are mirrored in `charts/widget-types.ts` until `@compass/contracts` exports them; the shapes are identical.
+- **Every kind has a pure builder** (`charts/builders/`): rows + columns + spec → an ECharts option, or a view model for the kinds that are HTML (kpi, kpi_row, sparkline_list, table). Builders never fetch and never invent a number; they format by the column's `kind` and `unit`.
+  - Percent columns are read as 0–100, which is what the backend sends (`round(100.0 * …, 1)`). A column with `unit: 'ratio'` is read as a fraction.
+  - Money is three significant figures on charts (€1.34M, €18.4M, €164k) and in full in tables and tooltips.
+- **How each kind reads its spec:**
+  - `x` is the category or date, `y` the value columns, `compare` the comparison column, `group` splits long rows into series or parts.
+  - Sankey: `x` is the source, `group` the target. Heatmap: `x` the columns, `group` the rows. Treemap: `x` the leaf, `group` its parent. Scatter: `x` and `y[0]` are the two measures, `group` names the points.
+  - KPI tiles find their own comparison (`revpar` → `revpar_ly`, `_budget`, …) when the spec has several `y` columns. A fall reads as good news for costs, commissions and cancellations.
+  - Waterfall: a `kind`/`type` column marks totals; without one the first row opens and the last row closes when it equals the opening plus the steps.
+- **Colour:** the current period is blue, the comparison purple (dashed line, tick or bar), parts take a fixed order of five hues (blue, teal, purple, amber, pink), the sixth is a tint and the rest grey; "Other" is always grey. Magnitude is one blue ramp. Green and red appear only with ▲/▼.
+  - Amber and pink are new and live in `charts/tokens.ts`. The five-hue order was checked with the dataviz validator: adjacent colour-blind ΔE ≥ 8, normal-vision ΔE ≥ 15 and ≥ 3:1 against the card in both themes. Juyo's own teal and purple sit outside the validator's lightness band in dark mode; they are kept because they are the brand's.
+  - Colours are read from the tokens in effect on the widget's own element, so a subtree with its own theme is drawn in that theme.
+- **Honest fallbacks, always with a note:** a pie or donut outside 2–7 parts (or with a negative part) is drawn as bars; flows that loop are shown as a table; an unknown kind is shown as a table; rows that don't fit are cut with "Showing the first N of M rows". No rows gives a sentence, not an empty axis.
+- **One value axis, never two.** A bridge whose steps are small next to its totals gets a broken axis, and says so.
+- **Labels before legends:** line ends carry the series names, bars carry their values, slices carry name and share. A legend appears only where a direct label can't (stacks, phone widths).
+- **Accessibility:**
+  - Each chart is a focusable image with a text alternative built from the data (kind, size, highest and lowest).
+  - The arrow keys step through the marks; the tooltip follows and a live region reads the point.
+  - "View as table" shows the same rows, formatted and sortable, with a sticky header and first column.
+  - `prefers-reduced-motion` turns chart animation off.
+- **`/catalog`** shows every kind with sample rows shaped like Halcyon's (the page says they are samples). It previews the app theme, dark, light or both side by side, at both densities, and as skeletons. The preview themes are read from the stylesheet, so the page keeps no second copy of the palette.
+  - It is not in the navigation; the shell's owner decides where the link goes.
+- **Checks:** unit tests for formatting, every builder and the component; axe (WCAG 2.2 AA plus best practice) on `/catalog` in nine states with no violations; no horizontal overflow at 390 px; no console errors.
+- **Limits:**
+  - axe cannot measure text inside the chart SVGs; their inks come from tokens that the unit tests hold to 4.5:1 on the surface and to the better of black or white on a fill.
+  - The extra chart types add about 30 kB (gzipped) to the first load.
+  - Scatter labels are dropped where they would overlap; the tooltip and the table carry the rest.

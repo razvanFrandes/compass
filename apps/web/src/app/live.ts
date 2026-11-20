@@ -128,6 +128,8 @@ export class Live {
         return { path: `/watchers/${encodeURIComponent(this.store.activeWatcherId())}` };
       case 'builder':
         return null;
+      case 'catalog':
+        return { path: '/catalog' };
       default:
         return { path: '/' };
     }
@@ -153,6 +155,7 @@ export class Live {
       }
       return this.store.view.set('thread');
     }
+    if (path === '/catalog') return this.store.view.set('catalog');
     if (path === '/watchers') return this.store.view.set('watchers');
     const wid = seg(/^\/watchers\/([^/]+)$/);
     if (wid) {
