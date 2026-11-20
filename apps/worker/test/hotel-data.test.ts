@@ -22,6 +22,39 @@ describe('reference data', () => {
     expect(rows.map((h) => h.hotel_code)).toContain('LIS');
   });
 
+  it('lists only the hotels of a scope', async () => {
+    const { rows } = await data.listHotels(['LIS', 'AMS']);
+    expect(rows.map((h) => h.hotel_code).sort()).toEqual(['AMS', 'LIS']);
+  });
+
+  it('gives the hotel directory: code, name, city, country, region, brand and rooms', async () => {
+    const result = await data.hotelRefs();
+    if (!result.ok) throw new Error('hotelRefs failed');
+    expect(result.value).toHaveLength(20);
+    const lisbon = result.value.find((h) => h.code === 'LIS')!;
+    expect(lisbon).toEqual({ code: 'LIS', name: 'Arbor Lisbon Chiado', city: 'Lisbon', country: lisbon.country, region: 'Europe', brand: 'Arbor', rooms: lisbon.rooms });
+    expect(lisbon.country.length).toBeGreaterThan(1);
+    expect(lisbon.rooms).toBeGreaterThan(50);
+    expect(Object.keys(lisbon).sort()).toEqual(['brand', 'city', 'code', 'country', 'name', 'region', 'rooms']);
+  });
+
+  it('reports a failing database as a value, with the cause kept for the logs', async () => {
+    const dead = new HotelData({ query: async () => Promise.reject(new Error('write CONNECTION_CLOSED db.internal:5432')) });
+    const result = await dead.hotelRefs();
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.kind).toBe('internal');
+  });
+
+  it('keeps only the brief findings of the hotels in scope', async () => {
+    const all = await data.getBriefItems();
+    const codes = [...new Set(all.rows.map((item) => item.hotel_code))];
+    expect(codes.length).toBeGreaterThan(1);
+    const scoped = await data.getBriefItems([codes[0]!]);
+    expect(scoped.rows.length).toBeGreaterThan(0);
+    expect(new Set(scoped.rows.map((item) => item.hotel_code))).toEqual(new Set([codes[0]]));
+    expect(scoped.evidence.rowCount).toBe(scoped.rows.length);
+  });
+
   it('knows the business date', async () => {
     expect(await data.businessDate()).toBe('2026-11-20');
   });
@@ -152,6 +185,20 @@ describe('runReadonlyQuery', () => {
       expect(result.value.rows).toHaveLength(3);
       expect(result.value.evidence.sql).toMatch(/limit 200$/);
     }
+  });
+
+  it('under a hotel scope, keeps only the rows of those hotels', async () => {
+    const result = await data.runReadonlyQuery('select hotel_code, rooms from hotel.hotels order by hotel_code', ['LIS', 'AMS']);
+    if (!result.ok) throw new Error('query failed');
+    expect(result.value.rows.map((r) => r['hotel_code'])).toEqual(['AMS', 'LIS']);
+    expect(result.value.evidence.rowCount).toBe(2);
+  });
+
+  it('under a hotel scope, refuses rows that do not say which hotel they are for', async () => {
+    const result = await data.runReadonlyQuery('select sum(rooms) as rooms from hotel.hotels', ['LIS']);
+    expect(result.ok).toBe(false);
+    if (!result.ok && result.error.kind === 'invalid') expect(result.error.message).toMatch(/hotel_code/);
+    else throw new Error('expected an invalid error');
   });
 
   it('refuses writes before they reach the database', async () => {

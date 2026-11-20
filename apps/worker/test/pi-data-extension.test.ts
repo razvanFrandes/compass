@@ -14,6 +14,7 @@ process.loadEnvFile(new URL('../.env.local', import.meta.url).pathname);
 
 const context = BACKGROUND_CONTEXT;
 let harness: Harness;
+let scope: string[] = [];
 const faux = fauxProvider();
 
 beforeAll(async () => {
@@ -22,7 +23,7 @@ beforeAll(async () => {
     createDataExtension(() => {
       const db = openPostgres(process.env['DATABASE_URL']!);
       return { data: new HotelData(db), close: () => db.close() };
-    }),
+    }, async () => scope),
   );
   const models = createModels();
   models.setProvider(faux.provider);
@@ -54,6 +55,27 @@ describe('Pi data extension', () => {
     }
     expect(toolResultSeen).toContain('"hotel_code\\":\\"LIS\\"');
     expect(toolResultSeen).toContain('pace_pct');
+  });
+
+  it('limits a tool call to the hotel scope of the conversation', async () => {
+    scope = ['AMS'];
+    let toolResultSeen = '';
+    faux.setResponses([
+      fauxAssistantMessage(fauxToolCall('get_pace', { daysAhead: 44 }), { stopReason: 'toolUse' }),
+      (ctx) => {
+        const last = ctx.messages.at(-1);
+        toolResultSeen = last?.role === 'toolResult' ? JSON.stringify(last.content) : '';
+        return fauxAssistantMessage(fauxText('Amsterdam only.'));
+      },
+    ]);
+    const root = await harness.root(context);
+    const submission = await root.submit({ type: 'input', content: 'How are we pacing?' }, context);
+    await submission.wait(context);
+    scope = [];
+
+    expect(toolResultSeen).toContain('"hotel_code\\":\\"AMS\\"');
+    expect(toolResultSeen).not.toContain('LIS');
+    expect(toolResultSeen).toContain('Scope: only AMS.');
   });
 
   it('offers every catalog tool to the model, with a JSON Schema', async () => {

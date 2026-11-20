@@ -25,6 +25,9 @@ import { WorkersAiEmbedder } from '../../infrastructure/workers-ai-embedder.ts';
 import { BUDGET_NAME } from '../budget.ts';
 import { budgetMessage } from '../http/budget-response.ts';
 import { PublicError } from '../http/errors.ts';
+import { scopeFor } from '../hotels.ts';
+import type { ScopeHotel } from '../../domain/scope.ts';
+import { builderScopeInstructions } from './scope-prompt.ts';
 import { DATA_TOOLS } from '../tools/catalog.ts';
 import { BUILDER_SECTIONS } from './builder-prompt.ts';
 import { serveChatSocket } from './chat-socket.ts';
@@ -73,11 +76,15 @@ export class WorkflowBuilder extends DurableObject<Env> {
   };
 
   // One registry per object, never at module scope: Pi keeps each Harness subscribed to its registry.
+  // The data tools read the hotel scope of the last question (`scope` in storage), as Kassandra's do.
   registry = createBuilderRegistry(
-    createDataExtension(() => {
-      const db = openPostgres(this.env.HYPERDRIVE.connectionString);
-      return { data: new HotelData(db, new WorkersAiEmbedder(this.env.AI)), close: () => db.close() };
-    }),
+    createDataExtension(
+      () => {
+        const db = openPostgres(this.env.HYPERDRIVE.connectionString);
+        return { data: new HotelData(db, new WorkersAiEmbedder(this.env.AI)), close: () => db.close() };
+      },
+      async () => (await this.ctx.storage.get<string[]>('scope')) ?? [],
+    ),
     this.host,
   );
 
@@ -196,16 +203,40 @@ export class WorkflowBuilder extends DurableObject<Env> {
         if (!(await this.env.ASK_RATE_LIMIT.limit({ key: client })).success) {
           throw new PublicError('Too many questions. Wait a minute and try again.');
         }
+        // A scope that is not valid is refused before the question takes from the budget.
+        let scope: ScopeHotel[] | null = null;
+        if (message.type === 'ask') {
+          const resolved = await scopeFor(this.env, message.scope);
+          if (!resolved.ok) throw new PublicError(resolved.error.message);
+          scope = resolved.value;
+        }
         const budget = await this.env.BUDGET.getByName(BUDGET_NAME).take('question');
         if (!budget.ok) throw new PublicError(budgetMessage(budget));
         await this.#noteEdits();
         if (message.type === 'steer') await session.steer(text);
-        else await session.submit(text, message.id ? { operationId: message.id } : undefined);
+        else {
+          if (scope) await this.#useScope(scope);
+          await session.submit(text, message.id ? { operationId: message.id } : undefined);
+        }
         return;
       }
       default:
         throw new PublicError('Unknown message type. Send ask, steer, abort, edit, save or test.');
     }
+  }
+
+  /**
+   * The hotel scope the question came with (the sidebar's switcher): the data tools read only those hotels, and the
+   * agent is told that a new workflow watches them unless the person says otherwise. As in Kassandra, a question
+   * sent while a run is going keeps the scope of that run. Nothing is written when the scope is the one in force.
+   */
+  async #useScope(scope: readonly ScopeHotel[]): Promise<void> {
+    const codes = scope.map((hotel) => hotel.code);
+    const current = (await this.ctx.storage.get<string[]>('scope')) ?? [];
+    if (codes.join() === current.join() || (await this.harness.session().busy())) return;
+    await this.ctx.storage.put('scope', codes);
+    const conversation = await this.harness.conversation(ROOT_SESSION);
+    await conversation.configure({ instructions: builderScopeInstructions(scope) }, BACKGROUND_CONTEXT);
   }
 
   /**

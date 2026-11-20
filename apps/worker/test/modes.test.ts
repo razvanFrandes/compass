@@ -45,4 +45,16 @@ describe('answer modes', () => {
     expect(agent.model).toEqual({ provider: 'cloudflare', modelId: 'anthropic/claude-sonnet-5.5' });
     await harness.close(context);
   });
+
+  it('adds the hotel scope to the conversation instructions, next to the mode', () => {
+    const data = createDataExtension(() => {
+      throw new Error('no database in this test');
+    });
+    const scope = 'You are answering for: Arbor Lisbon Chiado (LIS).';
+    expect(agentChangeFor('thinker', data).instructions).toBeNull();
+    expect(agentChangeFor('thinker', data, scope).instructions).toBe(scope);
+    const quick = agentChangeFor('quick', data, scope).instructions!;
+    expect(quick).toMatch(/^Quick mode:/);
+    expect(quick.endsWith(scope)).toBe(true);
+  });
 });

@@ -5,6 +5,7 @@ import { inferColumns } from '../src/domain/evidence-columns.ts';
 import { openPostgres, type PostgresDb } from '../src/infrastructure/postgres.ts';
 import { DATA_TOOLS, type DataTool } from '../src/presentation/tools/catalog.ts';
 import { SOURCE_LABELS, TOOL_VIEWS, sourceLabelsFor } from '../src/presentation/tools/tool-views.ts';
+import { TOOL_CALLS } from './fixtures/tool-calls.ts';
 
 // Every catalog tool tells the UI how to show its rows: a human title, and one column (label, kind, unit) per row
 // property. The tools run for real against the local Halcyon database, so a column added to a query without a
@@ -14,48 +15,7 @@ process.loadEnvFile(new URL('../.env.local', import.meta.url).pathname);
 const tools = DATA_TOOLS as readonly DataTool[];
 const period = { from: '2026-10-01', to: '2026-10-31' };
 
-/** Arguments for each tool, with one entry per shape its rows can take. */
-const CALLS: Record<string, Record<string, unknown>[]> = {
-  list_hotels: [{}],
-  list_metrics: [{}],
-  get_metric: [
-    { metric: 'occupancy', hotels: ['LIS'], ...period },
-    { metric: 'adr', by: 'region', grain: 'week', compare: 'stly', ...period },
-    { metric: 'rooms_sold', by: 'group', grain: 'total', compare: 'stly', ...period },
-    { metric: 'mpi', hotels: ['LIS'], grain: 'day', from: '2026-10-01', to: '2026-10-03' },
-  ],
-  get_pickup: [{ hotels: ['LIS', 'DXB1'] }],
-  get_pace: [{ hotels: ['LIS'] }],
-  get_rate_position: [{ hotels: ['DXB1'], from: '2026-12-10', to: '2026-12-20' }],
-  get_channel_mix: [{ hotels: ['LIS'], ...period }],
-  get_mix: [
-    { hotels: ['LIS'], by: 'segment', ...period },
-    { hotels: ['LIS'], by: 'channel_type', grain: 'total', basis: 'booked', ...period },
-  ],
-  get_account_production: [{ hotels: ['MIA'], from: '2026-05-01', to: '2026-10-31' }],
-  get_fnb: [{ hotels: ['DPS'], ...period }],
-  get_labor: [{ hotels: ['DPS'], ...period }],
-  get_review_scores: [{ hotels: ['BCN'], ...period }],
-  search_reviews: [{ hotels: ['BCN'], text: 'noise' }],
-  get_web_funnel: [
-    { hotels: ['AMS'], by: 'device', ...period },
-    { hotels: ['AMS'], by: 'source', grain: 'month', ...period },
-  ],
-  get_inventory: [{ hotels: ['BCN'], ...period }],
-  get_pnl: [
-    { hotels: ['MIA'], ...period },
-    { hotels: ['MIA'], view: 'lines', by: 'brand', grain: 'total', ...period },
-  ],
-  get_forecast: [{ hotels: ['LIS'] }, { by: 'region', grain: 'total' }],
-  get_meetings_events: [{ hotels: ['LIS'], ...period }],
-  get_lost_business: [
-    { hotels: ['LIS'], ...period },
-    { by: 'group', detail: 'segment', basis: 'request', grain: 'week', ...period },
-  ],
-  get_brief: [{}],
-  get_data_health: [{ hotels: ['BER'] }],
-  run_readonly_query: [{ sql: 'select hotel_code, date, rooms_sold, room_revenue_eur from hotel.v_hotel_day order by date desc limit 3' }],
-};
+const CALLS = TOOL_CALLS;
 
 /** Tools that cannot run on the local database, or that return no rows. */
 const NOT_RUN = new Set(['find_reviews', 'get_schema']);

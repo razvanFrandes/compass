@@ -10,6 +10,7 @@ import { BUDGET_NAME } from './presentation/budget.ts';
 import { hasAdminKey } from './presentation/http/admin.ts';
 import { MAX_MCP_BYTES, readJson, withBodyLimit } from './presentation/http/body.ts';
 import { budgetExceeded } from './presentation/http/budget-response.ts';
+import { groupHotels, HOTELS_UNAVAILABLE, scopeFor } from './presentation/hotels.ts';
 import { preflight, withCors, withoutCors } from './presentation/http/cors.ts';
 import { internalError } from './presentation/http/errors.ts';
 import { isAllowedOrigin, PUBLIC_HOST, rejectCrossSite } from './presentation/http/origin.ts';
@@ -159,15 +160,29 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     if (limited) return limited;
     const parsed = await readJson(request);
     if (!parsed.ok) return error(parsed.error.status, parsed.error.error);
-    const body = parsed.value as { conversation?: unknown; question?: unknown; mode?: unknown } | null;
+    const body = parsed.value as { conversation?: unknown; question?: unknown; mode?: unknown; scope?: unknown } | null;
     const question = typeof body?.question === 'string' ? body.question.trim() : '';
     if (!question || question.length > 2000) return error(400, 'Send { question } (max 2000 characters).');
+    // The hotel scope, checked against the group's hotels before the question takes from the budget.
+    const scope = await scopeFor(env, body?.scope);
+    if (!scope.ok) return error(scope.error.status, scope.error.message);
     const spent = await overBudget(env, request, 'question');
     if (spent) return spent;
     const conversation = typeof body?.conversation === 'string' && /^[\w-]{1,64}$/.test(body.conversation) ? body.conversation : crypto.randomUUID();
     const mode = body?.mode === 'quick' ? 'quick' : 'thinker';
-    const answer = await env.KASSANDRA.getByName(conversation).ask(question, mode);
-    return Response.json({ conversation, ...answer });
+    const answer = await env.KASSANDRA.getByName(conversation).ask(question, mode, undefined, scope.value);
+    return Response.json({ conversation, ...answer, scope: scope.value.map((hotel) => hotel.code) });
+  }
+
+  if (url.pathname === '/api/hotels' && request.method === 'GET') {
+    // The hotel directory, for the scope switcher and the hotel pickers. Reference data: kept in memory for ten
+    // minutes, and a browser may keep it for five.
+    const hotels = await groupHotels(env);
+    if (!hotels.ok) {
+      console.error('hotel list failed', 'cause' in hotels.error ? hotels.error.cause : hotels.error.kind);
+      return error(503, HOTELS_UNAVAILABLE);
+    }
+    return Response.json(hotels.value, { headers: { 'Cache-Control': 'public, max-age=300' } });
   }
 
   if (url.pathname === '/api/brief' && request.method === 'GET') {

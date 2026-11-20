@@ -1,4 +1,4 @@
-import type { BriefItem, DataResult, Evidence, MetricDefinition, MetricQuery, MetricQueryInput, MetricRow } from '@compass/contracts';
+import type { BriefItem, DataResult, Evidence, HotelRef, MetricDefinition, MetricQuery, MetricQueryInput, MetricRow } from '@compass/contracts';
 import { METRICS, metricByKey } from '../domain/metrics.ts';
 import { err, ok, type Result } from '../domain/result.ts';
 import { guardReadOnlySql, type GuardReason } from '../domain/sql-guard.ts';
@@ -116,11 +116,24 @@ export class HotelData {
     return this.#finance;
   }
 
-  async listHotels(): Promise<DataResult<Hotel>> {
+  /** The hotels of the group, or only those of a hotel scope. */
+  async listHotels(hotels?: readonly string[]): Promise<DataResult<Hotel>> {
     const sql = `select h.hotel_code, h.name, b.name as brand, h.city, h.country, h.region, h.currency, h.rooms,
                         h.meeting_space_sqm
-                   from hotel.hotels h join hotel.brands b using (brand_code) order by h.region, h.hotel_code`;
-    return this.#run(sql, [], { sources: ['hotel.hotels', 'hotel.brands'] });
+                   from hotel.hotels h join hotel.brands b using (brand_code)
+                  where $1::text[] is null or h.hotel_code = any($1::text[])
+                  order by h.region, h.hotel_code`;
+    return this.#run(sql, [hotels?.length ? hotels : null], { sources: ['hotel.hotels', 'hotel.brands'] });
+  }
+
+  /** The hotel directory for the app (`GET /api/hotels`) and for naming the hotels of a scope. */
+  async hotelRefs(): Promise<Result<HotelRef[], DataError>> {
+    try {
+      const { rows } = await this.listHotels();
+      return ok(rows.map((h) => ({ code: h.hotel_code, name: h.name, city: h.city, country: h.country, region: h.region, brand: h.brand, rooms: h.rooms })));
+    } catch (error) {
+      return err({ kind: 'internal', cause: error });
+    }
   }
 
   listMetrics(): { rows: MetricDefinition[] } {
@@ -521,8 +534,10 @@ export class HotelData {
   }
 
   /** Today's brief findings across the portfolio: fixed detectors, ranked by money impact. */
-  async getBriefItems(): Promise<DataResult<BriefItem>> {
-    const rows = await detectBriefItems(this.db);
+  async getBriefItems(hotels?: readonly string[]): Promise<DataResult<BriefItem>> {
+    const found = await detectBriefItems(this.db);
+    // The detectors scan the portfolio; a hotel scope keeps the findings of its hotels.
+    const rows = hotels?.length ? found.filter((item) => hotels.includes(item.hotel_code)) : found;
     return {
       rows,
       evidence: await this.#evidence('brief detectors (see impact_basis on each item)', [], rows.length, {
@@ -548,17 +563,29 @@ export class HotelData {
     return `${tables}\n\n${SCHEMA_NOTES}\nBusiness date: ${await this.businessDate()}.`;
   }
 
-  /** Model-written SQL: guarded, capped at 200 rows, run by a read-only role with a 5 s timeout. */
-  async runReadonlyQuery(sql: string): Promise<Result<DataResult, DataError>> {
+  /**
+   * Model-written SQL: guarded, capped at 200 rows, run by a read-only role with a 5 s timeout.
+   * Under a hotel scope (`hotels`) the rows must say which hotel they are for (a `hotel_code` column), and only the
+   * rows of those hotels are returned. A query may still aggregate other hotels inside itself: the scope is a
+   * working mode, not access control, and the prompt tells the model to filter on the scope's codes.
+   */
+  async runReadonlyQuery(sql: string, hotels?: readonly string[]): Promise<Result<DataResult, DataError>> {
     const guarded = guardReadOnlySql(sql, { maxRows: MAX_ROWS });
     if (!guarded.ok) return err({ kind: 'rejected', ...guarded.error });
     try {
-      return ok(
-        await this.#run(guarded.value, [], {
-          sources: ['hotel.*'],
-          notes: [`Custom query written by the assistant, capped at ${MAX_ROWS} rows.`],
-        }),
-      );
+      const result = await this.#run<Record<string, unknown>>(guarded.value, [], {
+        sources: ['hotel.*'],
+        notes: [`Custom query written by the assistant, capped at ${MAX_ROWS} rows.`],
+      });
+      if (!hotels?.length) return ok(result);
+      if (result.rows.length && !result.rows.some((row) => 'hotel_code' in row)) {
+        return err({
+          kind: 'invalid',
+          message: `You are answering for ${hotels.join(', ')} only. Return a hotel_code column and filter on those codes, so the rows can be limited to them.`,
+        });
+      }
+      const rows = result.rows.filter((row) => hotels.includes(String(row['hotel_code'])));
+      return ok({ rows, evidence: { ...result.evidence, rowCount: rows.length } });
     } catch (error) {
       // The one place where database error text goes back to the caller: the model needs it to fix its query.
       // Only what Postgres says about the statement; anything else goes to the logs behind the generic failure.

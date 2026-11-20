@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { PNL_LINES, type FinanceError } from '../../application/finance-data.ts';
 import type { DataError, HotelData } from '../../application/hotel-data.ts';
 import type { Result } from '../../domain/result.ts';
+import { hotelsInScope } from '../../domain/scope.ts';
 import { escapeUntrusted, untrustedBlock } from '../../domain/untrusted.ts';
 import { TOOL_FAILURE } from './run-tool.ts';
 import { sourceLabelsFor, TOOL_VIEWS } from './tool-views.ts';
@@ -22,8 +23,17 @@ export interface DataTool<S extends z.ZodObject = z.ZodObject> {
   name: string;
   description: string;
   input: S;
-  run(data: HotelData, args: z.infer<S>): Promise<ToolOutcome>;
+  /**
+   * `scope` is the hotel scope of the conversation (hotel codes; empty or absent for the whole group). A tool with a
+   * `hotels` argument gets it already cut down to the scope; a tool without one passes the scope to the data layer.
+   */
+  run(data: HotelData, args: z.infer<S>, scope?: readonly string[]): Promise<ToolOutcome>;
 }
+
+/** Tools without a `hotels` argument whose rows are per hotel: the data layer filters them by the scope. */
+export const SCOPE_ROW_TOOLS: readonly string[] = ['list_hotels', 'get_brief', 'run_readonly_query'];
+/** Tools that read no hotel data (the metric catalog, the schema): a scope changes nothing. */
+export const SCOPE_FREE_TOOLS: readonly string[] = ['list_metrics', 'get_schema'];
 
 const MAX_TEXT_ROWS = 60;
 /** The rows in the model text never take more characters than this, counted as the model reads them (after escaping). */
@@ -105,8 +115,45 @@ function withView(name: string, args: Record<string, unknown>, outcome: ToolOutc
   return { ...outcome, structured: { ...outcome.structured, evidence: shown } };
 }
 
+/**
+ * Says in the model's text and in the evidence that the rows are limited to the scope, and which hotels of the call
+ * were left out, so neither the model nor the reader takes them for the whole group.
+ */
+function withScopeNote(outcome: ToolOutcome, scope: readonly string[], outside: readonly string[]): ToolOutcome {
+  if (!outcome.ok) return outcome;
+  const note = `Scope: only ${scope.join(', ')}.${outside.length ? ` Left out, outside the scope: ${outside.join(', ')}.` : ''}`;
+  const evidence = (outcome.structured as { evidence?: Evidence }).evidence;
+  return {
+    ...outcome,
+    text: `${outcome.text}\n${note}`,
+    structured: evidence ? { ...outcome.structured, evidence: { ...evidence, notes: [...evidence.notes, note] } } : outcome.structured,
+  };
+}
+
+/**
+ * Wraps a tool's own `run` with what every tool shares: the hotel scope (a `hotels` argument is cut down to it, a call
+ * only for hotels outside it is refused before any read) and the view of its rows.
+ */
 function tool<S extends z.ZodObject>(definition: DataTool<S>): DataTool<S> {
-  return { ...definition, run: async (data, args) => withView(definition.name, args, await definition.run(data, args)) };
+  const takesHotels = 'hotels' in definition.input.shape;
+  return {
+    ...definition,
+    run: async (data, args, scope = []) => {
+      if (!scope.length || SCOPE_FREE_TOOLS.includes(definition.name)) return withView(definition.name, args, await definition.run(data, args));
+      let scoped = args;
+      let outside: string[] = [];
+      if (takesHotels) {
+        const within = hotelsInScope(scope, (args as { hotels?: string[] }).hotels);
+        if (!within.hotels?.length) {
+          const many = within.outside.length > 1;
+          return { ok: false, text: `${within.outside.join(', ')} ${many ? 'are' : 'is'} outside the hotels you are answering for (${scope.join(', ')}). Use only those hotels.` };
+        }
+        scoped = { ...args, hotels: within.hotels };
+        outside = within.outside;
+      }
+      return withScopeNote(withView(definition.name, scoped, await definition.run(data, scoped, scope)), scope, outside);
+    },
+  };
 }
 
 export const DATA_TOOLS = [
@@ -114,7 +161,7 @@ export const DATA_TOOLS = [
     name: 'list_hotels',
     description: 'List the hotels of the group: code, name, brand, city, region, currency, rooms, meeting space.',
     input: z.object({}),
-    run: async (data) => success(await data.listHotels()),
+    run: async (data, _args, scope) => success(await data.listHotels(scope)),
   }),
   tool({
     name: 'list_metrics',
@@ -362,7 +409,7 @@ export const DATA_TOOLS = [
       'in EUR and ranked by money. ' +
       'Start here for "what should I look at today?"',
     input: z.object({}),
-    run: async (data) => success(await data.getBriefItems(), 'account names'),
+    run: async (data, _args, scope) => success(await data.getBriefItems(scope), 'account names'),
   }),
   tool({
     name: 'get_data_health',
@@ -386,6 +433,6 @@ export const DATA_TOOLS = [
       'Run one read-only PostgreSQL SELECT over schema hotel when no specific tool fits. Capped at 200 rows, 5 s timeout. ' +
       'Call get_schema first. Convert money to EUR with hotel.eur_rate() before comparing hotels.',
     input: z.object({ sql: z.string().min(1).describe('One SELECT or WITH … SELECT statement') }),
-    run: async (data, args) => fromResult(await data.runReadonlyQuery(args.sql), 'custom query rows'),
+    run: async (data, args, scope) => fromResult(await data.runReadonlyQuery(args.sql, scope), 'custom query rows'),
   }),
 ] as const satisfies readonly DataTool[];

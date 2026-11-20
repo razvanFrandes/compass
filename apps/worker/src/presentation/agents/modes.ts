@@ -28,7 +28,8 @@ const QUICK_INSTRUCTIONS =
   'Quick mode: answer in at most three sentences from one or two governed metrics. If the question needs a deeper ' +
   'diagnosis across sources, give the headline number and say that Thinker mode can explain why.';
 
-export function agentChangeFor(mode: AnswerMode, data: Extension): AgentChange {
+/** `scope` is the hotel scope as instructions (scope-prompt.ts), or null for the whole group. */
+export function agentChangeFor(mode: AnswerMode, data: Extension, scope: string | null = null): AgentChange {
   const tools = data.tools ?? [];
   if (mode === 'quick') {
     return {
@@ -36,7 +37,7 @@ export function agentChangeFor(mode: AnswerMode, data: Extension): AgentChange {
       thinkingLevel: 'low',
       modelTools: tools.filter((t) => (QUICK_TOOLS as readonly string[]).includes(t.name)),
       maxTurns: 4,
-      instructions: QUICK_INSTRUCTIONS,
+      instructions: scope ? `${QUICK_INSTRUCTIONS}\n\n${scope}` : QUICK_INSTRUCTIONS,
     };
   }
   return {
@@ -46,6 +47,6 @@ export function agentChangeFor(mode: AnswerMode, data: Extension): AgentChange {
     thinkingLevel: 'low',
     modelTools: null,
     maxTurns: 10,
-    instructions: null,
+    instructions: scope,
   };
 }
