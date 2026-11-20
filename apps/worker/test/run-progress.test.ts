@@ -69,6 +69,10 @@ describe('runProgress', () => {
     expect(runProgress(log.slice(0, 2), graph, 'failed')).toEqual({ activeNode: null, done: ['trigger', 'scope'], failed: 'check:get_pace' });
   });
 
+  it('names analyze when a run fails (or times out) between tool calls', () => {
+    expect(runProgress(log.slice(0, 3), graph, 'failed')).toEqual({ activeNode: null, done: ['trigger', 'scope', 'check:get_pace'], failed: 'analyze' });
+  });
+
   it('makes analyze active for a tool that is not a check', () => {
     const entries = [user, assistant('', ['c1', 'get_pickup'])];
     expect(runProgress(entries, graph, 'running')).toMatchObject({ activeNode: 'analyze', done: ['trigger', 'scope'] });

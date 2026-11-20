@@ -5,7 +5,7 @@ import { createModels } from '@earendil-works/pi-ai/models';
 import { createRegistry, Harness } from '@earendil-works/pi-durable';
 import { MemoryStorage } from '@earendil-works/pi-durable/storage/memory';
 import { describe, expect, it } from 'vitest';
-import { clientPatch, editEntry, savePlan } from '../src/application/workflows/builder-edits.ts';
+import { clientPatch, editEntry, EditLimiter, EDITS_PER_MINUTE, mergeChanged, savePlan } from '../src/application/workflows/builder-edits.ts';
 import { projectEntries } from '../src/presentation/agents/chat-projection.ts';
 
 const context = BACKGROUND_CONTEXT;
@@ -57,6 +57,34 @@ describe('savePlan', () => {
     ['an address added', saved, { ...saved, action: { type: 'notify' }, delivery: undefined }],
   ] as [string, WorkflowDraft, WorkflowDraft][])('replaces the workflow for %s', (_name, draft, before) => {
     expect(savePlan(draft, before, 'wf-1')).toEqual({ kind: 'replace' });
+  });
+});
+
+describe('EditLimiter', () => {
+  it('allows 30 edits a minute per client, then refuses until the oldest is a minute old', () => {
+    const limiter = new EditLimiter();
+    const t0 = 1_700_000_000_000;
+    for (let i = 0; i < EDITS_PER_MINUTE; i++) expect(limiter.allow('a', t0 + i)).toBe(true);
+    expect(EDITS_PER_MINUTE).toBe(30);
+    expect(limiter.allow('a', t0 + 100)).toBe(false);
+    expect(limiter.allow('b', t0 + 100)).toBe(true);
+    expect(limiter.allow('a', t0 + 59_999)).toBe(false);
+    expect(limiter.allow('a', t0 + 60_000)).toBe(true);
+  });
+
+  it('does not count refused edits and forgets idle clients', () => {
+    const limiter = new EditLimiter();
+    for (let i = 0; i < 40; i++) limiter.allow('a', 1000);
+    expect(limiter.allow('a', 61_000)).toBe(true);
+    limiter.allow('b', 200_000);
+    expect(limiter.clients).toBe(1);
+  });
+});
+
+describe('mergeChanged', () => {
+  it('joins the nodes changed by several edits, once each', () => {
+    expect(mergeChanged(['trigger'], ['scope', 'trigger'])).toEqual(['trigger', 'scope']);
+    expect(mergeChanged(undefined, ['action'])).toEqual(['action']);
   });
 });
 

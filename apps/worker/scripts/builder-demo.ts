@@ -7,7 +7,8 @@
  * one followed on the graph, a second while the first still runs (refused), then more until the hourly limit of the
  * address is reached (the last run ends without a mail). Every question and run spends model tokens.
  *
- * Env: TEST_EMAIL (required; printed masked), BASE (default http://localhost:8787), DRAFT (default: a new id),
+ * Env: TEST_EMAIL (required; printed masked), BASE (default http://localhost:8787), DRAFT (default: a new UUID;
+ * 16–64 letters, digits, - or _),
  * TESTS (default 4: test runs in all).
  */
 export {};
@@ -15,7 +16,7 @@ export {};
 const email = process.env['TEST_EMAIL'];
 if (!email) throw new Error('Set TEST_EMAIL to the address the test mails go to.');
 const base = process.env['BASE'] ?? 'http://localhost:8787';
-const draftId = process.env['DRAFT'] ?? `demo-${crypto.randomUUID().slice(0, 8)}`;
+const draftId = process.env['DRAFT'] ?? crypto.randomUUID();
 const tests = Number(process.env['TESTS'] ?? 4);
 
 type Message = { type: string; [key: string]: unknown };
@@ -109,6 +110,7 @@ send({ type: 'edit', patch: { trigger: { kind: 'schedule', every: 'week' } } });
 await waitFor('the edited draft', (message) => message.type === 'draft');
 send({ type: 'edit', patch: { trigger } });
 await waitFor('the draft edited back', (message) => message.type === 'draft');
+// (The agent is told about the edits in one `app.edit` entry, with its next question; this script asks no other.)
 
 // 3. Save.
 send({ type: 'save' });

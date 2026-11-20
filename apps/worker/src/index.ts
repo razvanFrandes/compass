@@ -144,7 +144,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     const origin = request.headers.get('Origin');
     if (origin && !isAllowedOrigin(origin)) return new Response('Origin not allowed', { status: 403 });
     const draft = url.searchParams.get('draft') ?? '';
-    if (!isDraftId(draft)) return new Response('Pass ?draft=<id> (letters, digits, - or _)', { status: 400 });
+    if (!isDraftId(draft)) return new Response('Pass ?draft=<id> (16–64 letters, digits, - or _)', { status: 400 });
     return env.WORKFLOW_BUILDER.getByName(draft).fetch(request);
   }
 

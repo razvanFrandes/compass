@@ -15,7 +15,7 @@ import { PiHarness, ROOT_SESSION } from 'agents/harness/pi';
 import { Lifecycle } from 'agents/lifecycle';
 import { createAI } from 'agents/models/pi-ai';
 import { HotelData } from '../../application/hotel-data.ts';
-import { clientPatch, editEntry, savePlan } from '../../application/workflows/builder-edits.ts';
+import { clientPatch, editEntry, EditLimiter, mergeChanged, savePlan } from '../../application/workflows/builder-edits.ts';
 import { createBuilderExtension, type DraftHost } from '../../application/workflows/builder-tools.ts';
 import { applyDraftPatch, draftIssues } from '../../application/workflows/draft.ts';
 import { runProgress } from '../../application/workflows/run-progress.ts';
@@ -49,8 +49,9 @@ type Send = (message: BuilderServerMessage) => void;
  * runs, mapped to the graph's nodes.
  *
  * The draft holds the recipient's address in full: `WorkflowAgents` only ever returns it masked, so this object is
- * what remembers it between the conversation and the save. Storage keys: `draft`, `workflowId`, and `saved` (the
- * draft as last saved, to tell what a later save has to change).
+ * what remembers it between the conversation and the save. Storage keys: `draft`, `workflowId`, `saved` (the draft
+ * as last saved, to tell what a later save has to change) and `edited` (the nodes edited by hand since the agent
+ * was last told).
  */
 export class WorkflowBuilder extends DurableObject<Env> {
   ai = createAI({ binding: this.env.AI, gateway: { id: 'compass', byokAlias: 'compass', collectLog: true } });
@@ -61,6 +62,7 @@ export class WorkflowBuilder extends DurableObject<Env> {
   #queue: Promise<unknown> = Promise.resolve();
   /** A test run this object started and still follows. */
   #testing = false;
+  #editLimit = new EditLimiter();
 
   host: DraftHost = {
     get: () => this.#draft(),
@@ -139,9 +141,11 @@ export class WorkflowBuilder extends DurableObject<Env> {
   /** Validates and stores one patch, then tells every socket. On an error nothing changes and nothing is sent. */
   #apply(patch: WorkflowDraft): Promise<{ draft: WorkflowDraft; changed: string[] } | { error: string }> {
     return this.#inTurn(async () => {
-      const applied = applyDraftPatch(await this.#draft(), patch, ALLOWED_CHECKS);
+      const current = await this.#draft();
+      const applied = applyDraftPatch(current, patch, ALLOWED_CHECKS);
       if ('error' in applied) return applied;
-      await this.ctx.storage.put('draft', applied.draft);
+      // A patch that repeats what the draft already says writes nothing; the sender still gets the draft back.
+      if (JSON.stringify(applied.draft) !== JSON.stringify(current)) await this.ctx.storage.put('draft', applied.draft);
       this.#broadcast(await this.#draftMessage(applied.draft, applied.changed));
       return applied;
     });
@@ -178,7 +182,7 @@ export class WorkflowBuilder extends DurableObject<Env> {
         await session.abort();
         return;
       case 'edit':
-        return this.#edit(message.patch);
+        return this.#edit(message.patch, client);
       case 'save':
         await this.#save();
         return;
@@ -194,6 +198,7 @@ export class WorkflowBuilder extends DurableObject<Env> {
         }
         const budget = await this.env.BUDGET.getByName(BUDGET_NAME).take('question');
         if (!budget.ok) throw new PublicError(budgetMessage(budget));
+        await this.#noteEdits();
         if (message.type === 'steer') await session.steer(text);
         else await session.submit(text, message.id ? { operationId: message.id } : undefined);
         return;
@@ -203,15 +208,36 @@ export class WorkflowBuilder extends DurableObject<Env> {
     }
   }
 
-  /** A manual edit on the canvas: applied like a tool's, and noted in the transcript for the agent's next turn. */
-  async #edit(rawPatch: unknown): Promise<void> {
+  /**
+   * A manual edit on the canvas, applied like a tool's. The transcript is not written here: an edit only remembers
+   * which nodes changed, and the next question carries one note for all of them (`#noteEdits`). So edits, which are
+   * free, cannot grow the transcript or the context of the next question.
+   */
+  async #edit(rawPatch: unknown, client: string): Promise<void> {
+    if (!this.#editLimit.allow(client, Date.now())) throw new PublicError('Too many edits. Wait a minute and try again.');
     const patch = clientPatch(rawPatch);
     if (!patch) throw new PublicError('Send { "type": "edit", "patch": { … } } with the fields to change.');
     const applied = await this.#apply(patch);
     if ('error' in applied) throw new PublicError(applied.error);
-    // A write places an entry without starting a run; while a run is going it joins after the current tool round.
-    const conversation = await this.harness.conversation(ROOT_SESSION);
-    await conversation.submit({ type: 'write', entry: editEntry(applied.draft, applied.changed, Date.now()) }, BACKGROUND_CONTEXT);
+    if (!applied.changed.length) return;
+    await this.#inTurn(async () => {
+      await this.ctx.storage.put('edited', mergeChanged(await this.ctx.storage.get<string[]>('edited'), applied.changed));
+    });
+  }
+
+  /**
+   * Tells the agent about the edits made by hand since it was last told, in one `app.edit` entry with the chain as
+   * it now reads. A write places an entry without starting a run; while a run is going it joins after the current
+   * tool round.
+   */
+  async #noteEdits(): Promise<void> {
+    await this.#inTurn(async () => {
+      const edited = await this.ctx.storage.get<string[]>('edited');
+      if (!edited?.length) return;
+      const conversation = await this.harness.conversation(ROOT_SESSION);
+      await conversation.submit({ type: 'write', entry: editEntry(await this.#draft(), edited, Date.now()) }, BACKGROUND_CONTEXT);
+      await this.ctx.storage.delete('edited');
+    });
   }
 
   // ---------------------------------------------------------------- save and test
@@ -247,10 +273,17 @@ export class WorkflowBuilder extends DurableObject<Env> {
       const created = await agents.create(draft as never);
       if ('error' in created) throw new PublicError(created.error);
       workflowId = created.id;
-      if (plan.kind === 'replace' && current) await agents.update(current, { enabled: false });
     }
+    // Stored before the old workflow is turned off: if that fails, the next save must not create a third one.
     await this.ctx.storage.put({ workflowId, saved: draft });
     this.#broadcast(await this.#draftMessage(draft, []));
+    if (plan.kind === 'replace' && current) {
+      const stopped = await agents.update(current, { enabled: false });
+      if ('error' in stopped) {
+        console.error('workflow builder could not turn off the replaced workflow', current, stopped.error);
+        throw new PublicError(`Saved as a new workflow, but the earlier one (${current}) could not be turned off. Turn it off in the workflow list.`);
+      }
+    }
     return { workflowId: workflowId as string, draft };
   }
 
@@ -284,7 +317,11 @@ export class WorkflowBuilder extends DurableObject<Env> {
     }
   }
 
-  /** Polls the run's log and sends its place on the graph each time it changes, until it ends or 3 minutes pass. */
+  /**
+   * Polls the run's log and sends its place on the graph each time it changes, until the run ends, nobody is
+   * listening any more, or 3 minutes pass. After 3 minutes the builder gives up on the run (which may still finish):
+   * it sends a last `run` message as failed on the node the run was on, and an `error` saying where to look.
+   */
   async #follow(runId: string, graph: WorkflowGraph): Promise<void> {
     const agents = this.env.WORKFLOWS.getByName('halcyon');
     const until = Date.now() + FOLLOW_MS;
@@ -300,7 +337,12 @@ export class WorkflowBuilder extends DurableObject<Env> {
         last = text;
         this.#broadcast(message);
       }
-      if (status === 'done' || status === 'failed' || Date.now() >= until) return;
+      if (status === 'done' || status === 'failed' || this.#sockets.size === 0) return;
+      if (Date.now() >= until) {
+        this.#broadcast({ type: 'run', runId, status: 'failed', ...runProgress(log.entries, graph, 'failed') });
+        this.#broadcast({ type: 'error', message: 'The test run is taking too long; check the run log.' });
+        return;
+      }
       await new Promise((resolve) => setTimeout(resolve, POLL_MS));
     }
   }

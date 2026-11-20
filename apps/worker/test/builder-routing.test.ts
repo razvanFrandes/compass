@@ -24,15 +24,17 @@ describe('routeOf', () => {
 
 describe('isDraftId', () => {
   it.each([
-    ['d', true],
     ['3f2b6c1e-0a4d-4b7e-9a51-2f1c0d9e8b7a', true],
-    ['a_b-C9', true],
+    ['a_b-C9a_b-C9a_b-C9', true],
+    ['x'.repeat(16), true],
     ['x'.repeat(64), true],
     ['x'.repeat(65), false],
+    ['x'.repeat(15), false],
+    ['d', false],
     ['', false],
-    ['a b', false],
-    ['a/b', false],
-    ['é', false],
+    ['a b'.repeat(8), false],
+    ['a/b'.repeat(8), false],
+    ['é'.repeat(20), false],
   ])('%s → %s', (id, valid) => {
     expect(isDraftId(id)).toBe(valid);
   });

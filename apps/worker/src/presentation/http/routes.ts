@@ -15,5 +15,8 @@ export function routeOf(pathname: string): Route {
   return 'api';
 }
 
-/** A draft id, chosen by the client: 1–64 letters, digits, - or _. It names the builder's Durable Object. */
-export const isDraftId = (id: string): boolean => /^[A-Za-z0-9_-]{1,64}$/.test(id);
+/**
+ * A draft id, chosen by the client: 16–64 letters, digits, - or _ (clients use `crypto.randomUUID()`). It names the
+ * builder's Durable Object and is all that guards the draft, so a short, guessable id is refused.
+ */
+export const isDraftId = (id: string): boolean => /^[A-Za-z0-9_-]{16,64}$/.test(id);

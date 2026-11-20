@@ -17,8 +17,9 @@ export function clientPatch(raw: unknown): WorkflowDraft | null {
 }
 
 /**
- * The transcript entry for a manual edit. The chat shows it as an `app.edit` event; the agent reads its message on
- * its next turn, and no run starts for it. The message holds the chain's labels, so the address stays masked.
+ * The transcript entry for the manual edits made since the agent was last told: one entry however many edits, written
+ * just before the person's next question. The chat shows it as an `app.edit` event and the agent reads its message;
+ * no run starts for it. The message holds the chain's labels, so the address stays masked.
  */
 export function editEntry(draft: WorkflowDraft, changed: readonly string[], at: number): EntryDraft {
   const reads = chain(specToGraph(draft));
@@ -33,6 +34,40 @@ export function editEntry(draft: WorkflowDraft, changed: readonly string[], at: 
       },
     ],
   };
+}
+
+/** The nodes changed by the edits made since the agent was last told, each once, in the order they first changed. */
+export function mergeChanged(earlier: readonly string[] | undefined, changed: readonly string[]): string[] {
+  return [...new Set([...(earlier ?? []), ...changed])];
+}
+
+export const EDITS_PER_MINUTE = 30;
+const MINUTE_MS = 60_000;
+
+/**
+ * At most 30 edits per client in a rolling minute, counted in memory in the builder's object. Edits spend no model
+ * tokens, but each one writes the draft, and nobody on the socket has logged in.
+ */
+export class EditLimiter {
+  readonly #times = new Map<string, number[]>();
+
+  /** Whether `client` may edit at `now`; an allowed edit is counted, a refused one is not. */
+  allow(client: string, now: number): boolean {
+    for (const [key, times] of this.#times) {
+      const recent = times.filter((at) => at > now - MINUTE_MS);
+      if (recent.length) this.#times.set(key, recent);
+      else this.#times.delete(key);
+    }
+    const recent = this.#times.get(client) ?? [];
+    if (recent.length >= EDITS_PER_MINUTE) return false;
+    this.#times.set(client, [...recent, now]);
+    return true;
+  }
+
+  /** Clients with an edit in the last minute, as of the last call. */
+  get clients(): number {
+    return this.#times.size;
+  }
 }
 
 export type SavePlan =

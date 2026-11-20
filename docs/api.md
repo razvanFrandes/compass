@@ -139,8 +139,8 @@ wss://juyo.razvanfrandes.com/api/workflows/builder/ws?draft=<id>
 
 Kassandra builds a workflow with the person. The chat is on one side and the workflow, as a chain of nodes, on the other. The agent fills in one node per tool call; the person can also edit a node by hand.
 
-- **Draft id:** 1–64 letters, digits, `-` or `_`. Pick it on the client with `crypto.randomUUID()` and keep it in the URL to come back to the draft. Each draft is one Durable Object, which keeps the conversation, the draft and the id of the workflow it was saved as.
-- **Keep the id private.** Whoever has the draft id sees the conversation and the draft, including the email address in full. Do not list or share draft ids.
+- **Draft id:** 16–64 letters, digits, `-` or `_` (400 otherwise). Pick it on the client with `crypto.randomUUID()` and keep it in the URL to come back to the draft. Each draft is one Durable Object, which keeps the conversation, the draft and the id of the workflow it was saved as.
+- **Keep the id private.** The id is the only key to the draft: whoever has it sees the conversation and the draft, including the email address in full. That is accepted because the holder is the person who typed the address, and a random UUID cannot be guessed. Never use a short or predictable id, and do not list or share draft ids.
 - **Origins:** as the Kassandra socket.
 - **Chat:** the socket speaks the Kassandra protocol above (`snapshot`, `entries`, `live`, `error`; `ask`, `steer`, `abort`), so the chat UI is reused. `snapshot.conversation` is the draft id. `ask` takes no `mode`: the builder always uses Claude Sonnet 5.5.
 - **Types:** `BuilderServerMessage`, `BuilderClientMessage`, `WorkflowDraft`, `WorkflowGraph`, `specToGraph` in `@compass/contracts`.
@@ -178,7 +178,7 @@ Each node is `{ id, kind, label, detail, state }`. `state` is `empty` (a placeho
 - `done` — the nodes it finished, in chain order;
 - `failed` — the node a failed run stopped on, else `null`.
 
-A run walks the chain: `trigger` and `scope` are done at once; a check is active from its tool call to its result; `analyze` is active while the agent thinks or reads other data; `action` is active while the mail is being sent, and done **only when a mail went out**. A test that reaches the hourly limit ends `done` without `action` in `done`; read why in `GET /api/runs/:runId` (`run.summary`). The server polls the run once a second, so a quick step can be skipped. It follows a run for at most 3 minutes.
+A run walks the chain: `trigger` and `scope` are done at once; a check is active from its tool call to its result; `analyze` is active while the agent thinks or reads other data; `action` is active while the mail is being sent, and done **only when a mail went out**. A test that reaches the hourly limit ends `done` without `action` in `done`; read why in `GET /api/runs/:runId` (`run.summary`). The server polls the run once a second, so a quick step can be skipped. It follows a run for at most 3 minutes, and stops when no socket is open on the draft. After 3 minutes you get a last `run` message with `status: 'failed'` and `failed` set to the node the run was on, and an `error` message ("The test run is taking too long; check the run log."). The run itself may still finish: `GET /api/runs/:runId` has the truth.
 
 ### Client → server, on top of the chat messages
 
@@ -192,9 +192,11 @@ A run walks the chain: `trigger` and `scope` are done at once; a check is active
 - **`edit`:** a manual change on the canvas.
   - `patch` holds whole fields of the workflow (`trigger`, `hotels`, `checks`, `name`, `goal`, `action`, `delivery`, `approver`, `autonomy`, `enabled`, `description`). A field set to `null` is removed.
   - Every field is validated. If one is invalid, nothing is applied and you get an `error` message with the reason.
-  - On success everyone on the draft gets a `draft` message, and the transcript gets an `event` entry `app.edit` with `data: { changed, chain }`. The agent reads it on its next turn, so it builds on the edit.
+  - On success everyone on the draft gets a `draft` message. Nothing is added to the transcript at that moment.
+  - With the next `ask` or `steer`, the transcript gets **one** `event` entry `app.edit` for all the edits since the last question, with `data: { changed, chain }` (the nodes edited and the chain as it now reads). The agent reads it, so it builds on the edits.
+  - At most 30 edits per minute per client; over that you get an `error` message.
   - `checks` may only name data tools (the 24 tools of `/mcp`), at most 8.
-- **`save`:** saves the draft as a workflow. Refused with an `error` while `issues` is not empty. The first save creates the workflow; you get a `draft` message with its `workflowId`. A later save updates that workflow. If the address changed (or was added or removed), the save creates a **new** workflow, turns the old one off, and `workflowId` changes.
+- **`save`:** saves the draft as a workflow. Refused with an `error` while `issues` is not empty. The first save creates the workflow; you get a `draft` message with its `workflowId`. A later save updates that workflow. If the address changed (or was added or removed), the save creates a **new** workflow, turns the old one off, and `workflowId` changes. If the old one cannot be turned off you get the `draft` message with the new id and then an `error` saying so.
 - **`test`** ("Send test now"): saves if needed, then runs the workflow once as a test and sends `run` messages. An email workflow always sends on a test, with the subject `Test · <name>`, and the mail says whether the workflow would have fired today.
   - One test at a time: a `test` sent while a run is going gets an `error` message, and the socket stays open.
 - **Limits:** `ask` and `steer` share Kassandra's limit (6 per minute per client) and the daily `question` budget. `test` shares the same per-minute limit and counts against the daily `workflow_run` budget. A message is at most 16 KB. Over a limit, the server sends an `error` message.
