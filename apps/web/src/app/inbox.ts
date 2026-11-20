@@ -44,14 +44,14 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
           @switch (live.briefState()) {
             @case ('live') {
               Live brief · generated {{ live.briefMeta()?.generated }}@if (live.briefMeta()?.model) {<span> · summaries by AI</span>}
-              <button type="button" class="hover:text-foreground ml-1 underline underline-offset-2" [disabled]="live.refreshing()" (click)="live.refreshBrief()">{{ live.refreshing() ? 'Refreshing…' : 'Refresh' }}</button>
+              <button hlmBtn variant="ghost" size="sm" class="ml-1 h-7 px-2" title="Writes a new brief now (counts against today’s budget)" [disabled]="live.refreshing()" (click)="live.refreshBrief()">{{ live.refreshing() ? 'Refreshing…' : 'Refresh' }}</button>
             }
             @case ('loading') {
-              Loading the live brief…
+              Reading this morning’s brief…
             }
             @default {
-              The live brief didn’t load{{ live.briefError() ? ' (' + live.briefError() + ')' : '' }}, so this is the 20 Nov snapshot.
-              <button type="button" class="hover:text-foreground ml-1 underline underline-offset-2" (click)="live.briefApi.brief.reload()">Try again</button>
+              <span class="text-foreground">The live brief didn’t load{{ live.briefError() ? ' (' + live.briefError() + ')' : '' }}.</span> Showing the saved copy from Fri 20 Nov, 07:00.
+              <button hlmBtn variant="outline" size="sm" class="ml-1 h-7" (click)="live.briefApi.brief.reload()">Retry</button>
             }
           }
         </p>
@@ -61,7 +61,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
       </section>
 
       <!-- Pulse: the portfolio's next 30 nights against the same time last year -->
-      <aside class="lg:col-span-4 lg:row-span-2" aria-labelledby="pulse-title">
+      <aside class="max-lg:order-3 lg:col-span-4 lg:row-span-2" aria-labelledby="pulse-title">
         <div class="lg:sticky lg:top-6">
           <h2 id="pulse-title" class="text-muted-foreground mb-2 text-[12px] font-medium tracking-[0.06em] uppercase">Portfolio · next 30 nights</h2>
           <ul class="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-2">
@@ -75,7 +75,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
                     <path [attr.d]="m.ty" fill="none" class="stroke-(--series)" stroke-width="1.75" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
                   </svg>
                   <span class="text-muted-foreground text-[12px] tabular-nums">{{ m.arrow }} {{ m.deltaText }}</span>
-                  <span class="sr-only">versus last year. Ask what drove it</span>
+                  <span class="text-muted-foreground col-span-2 flex items-center gap-1 text-[12px] group-hover:text-foreground"><span class="sr-only">versus last year.</span>Ask why <span aria-hidden="true">→</span></span>
                 </button>
               </li>
             }
@@ -85,7 +85,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
       </aside>
 
       <!-- The brief -->
-      <section class="grid min-w-0 gap-4 sm:grid-cols-2 lg:col-span-8" aria-label="Morning brief">
+      <section class="grid min-w-0 gap-4 max-lg:order-2 sm:grid-cols-2 lg:col-span-8" aria-label="Morning brief">
         @if (feed(); as f) {
           <div class="feed-banner sm:col-span-2" role="status">
             <i class="feed-dot" aria-hidden="true"></i>
@@ -167,8 +167,15 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
           </ul>
         }
 
-        @if (!lead() && !live.pendingList().length && !third() && !rest().length && !feed()) {
-          <div class="insight-card text-muted-foreground flex items-center gap-2 p-6 text-[14px] sm:col-span-2"><ng-icon name="phosphorCheckLight" />You’re up to date. Compass will bring anything new here.</div>
+        @if (live.briefState() === 'loading') {
+          <div class="sm:col-span-2 grid gap-4 sm:grid-cols-2" aria-hidden="true">
+            <div class="skeleton h-[220px] rounded-[14px] sm:col-span-2"></div>
+            <div class="skeleton h-[200px] rounded-[14px]"></div>
+            <div class="skeleton h-[200px] rounded-[14px]"></div>
+          </div>
+        }
+        @if (live.briefState() !== 'loading' && !lead() && !live.pendingList().length && !third() && !rest().length && !feed()) {
+          <div class="insight-card text-muted-foreground flex items-center gap-2 p-6 text-[14px] sm:col-span-2"><ng-icon name="phosphorCheckLight" />You’re up to date. New findings land here every morning.</div>
         }
 
         <!-- Resolved -->
@@ -228,7 +235,7 @@ export class InboxView {
   /** One sentence for the top of the page, from the first two items of the ranked brief. */
   protected readonly headline = computed(() => {
     const [a, b] = this.store.briefRows();
-    if (!a) return 'Nothing needs you this morning.';
+    if (!a) return this.live.briefState() === 'loading' ? 'This morning’s brief' : 'Nothing needs you this morning.';
     const first = a.kind === 'data_stale' ? `${shortHotel(a.hotel_name)}’s ${a.facts['system']} feed is down` : `${shortHotel(a.hotel_name)} needs attention`;
     const second = b?.kind === 'account_loss' ? `${shortHotel(b.hotel_name)} has lost its biggest corporate account` : b ? `${shortHotel(b.hotel_name)} needs attention` : '';
     return second ? `${first}, and ${second}.` : `${first}.`;
@@ -259,7 +266,7 @@ export class InboxView {
 
   /** "Explore": a new conversation with the item's question ready, not sent. */
   protected explore(item: InboxItem) {
-    this.store.items.update((list) => list.map((i) => (i.id === item.id && i.status === 'new' ? { ...i, status: 'seen' } : i)));
+    this.store.markSeen(item.id);
     const row = this.rows().get(item.id);
     if (row) this.live.exploreRow({ ...row, question: item.question });
     else this.live.explore(item.question);
@@ -378,7 +385,7 @@ export class InboxView {
       revenue: [p.map((x) => x.rev), p.map((x) => x.rev_stly)],
     };
     const tiles = [
-      { key: 'occupancy', label: 'Occupancy', value: `${((rooms / avail) * 100).toFixed(1)}%`, delta: ((rooms - roomsLy) / avail) * 100, unit: ' pt' },
+      { key: 'occupancy', label: 'Occupancy', value: `${((rooms / avail) * 100).toFixed(1)}%`, delta: ((rooms - roomsLy) / avail) * 100, unit: ' pp' },
       { key: 'adr', label: 'ADR', value: formatEur(rev / rooms), delta: ((rev / rooms) / (revLy / roomsLy) - 1) * 100, unit: '%' },
       { key: 'revpar', label: 'RevPAR', value: formatEur(rev / avail), delta: (rev / revLy - 1) * 100, unit: '%' },
       { key: 'revenue', label: 'Room revenue', value: `€${(rev / 1e6).toFixed(1)}M`, delta: (rev / revLy - 1) * 100, unit: '%' },

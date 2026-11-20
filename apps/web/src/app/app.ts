@@ -12,6 +12,10 @@ import { WatchersView } from './watchers';
 import { Live } from './live';
 import { WatcherPage } from './watcher-page';
 import { WorkflowBuilder } from './builder/builder-page';
+import { JuyoLogo } from './juyo-logo';
+import { NotFound } from './not-found';
+import { BUILT_IN } from './board';
+import { BoardsService } from './boards/boards.service';
 import { GROUP } from './data';
 import * as icons from './icons';
 
@@ -21,7 +25,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
   providers: [provideIcons({ ...icons }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   template: `
@@ -37,14 +41,9 @@ import * as icons from './icons';
     <div class="lg:grid lg:h-dvh lg:grid-cols-[232px_minmax(0,1fr)] lg:overflow-hidden">
       <!-- Navigation recedes: dimmer surface, light icons, Fill only for the current place -->
       <nav class="bg-(--rail) border-border/70 hidden min-h-0 flex-col gap-5 border-r px-3 py-4 lg:flex" aria-label="Main">
-        <div class="flex items-center gap-2 px-2">
-          <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" class="text-foreground">
-            <circle cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" stroke-width="1.25" />
-            <path d="M10 3.5 L12 10 L10 16.5 L8 10 Z" fill="currentColor" />
-            <path d="M10 3.5 L12 10 L8 10 Z" fill="var(--brass)" />
-          </svg>
-          <span class="text-[14px] font-semibold tracking-[-0.02em]">Compass</span>
-        </div>
+        <a href="/" class="text-foreground flex items-center px-2 py-0.5" aria-label="Juyo, morning brief" (click)="$event.preventDefault(); store.go('inbox')">
+          <app-juyo-logo [size]="22" />
+        </a>
 
         <button type="button" aria-disabled="true" hlmTooltip="Coming soon: switch between hotel groups" aria-describedby="soon-note" class="flex cursor-not-allowed items-center gap-2.5 rounded-lg px-2 py-1.5 text-left">
           <span class="bg-foreground/90 text-background grid size-7 place-items-center rounded-md text-[12px] font-semibold">H</span>
@@ -92,23 +91,25 @@ import * as icons from './icons';
           <button type="button" class="hover:text-foreground hover:bg-foreground/4 flex items-center gap-2.5 rounded-md px-2 py-1.5" (click)="toggleTheme()">
             <ng-icon [name]="dark() ? 'phosphorSunLight' : 'phosphorMoonLight'" class="text-[16px]" />{{ dark() ? 'Light theme' : 'Dark theme' }}
           </button>
-          <button type="button" aria-disabled="true" hlmTooltip="Coming soon" aria-describedby="soon-note" class="flex cursor-not-allowed items-center gap-2.5 rounded-md px-2 py-1.5 opacity-60"><ng-icon name="phosphorGearSixLight" class="text-[16px]" />Settings<span class="ml-auto text-[11.5px]">Soon</span></button>
           <span id="soon-note" class="sr-only">Coming soon</span>
-          <p class="px-2 pt-3 text-[12px]/relaxed">Fictional group, generated data. Business date 20 Nov 2026.</p>
+          <p class="px-2 pt-3 text-[12px]/relaxed">Halcyon Hospitality is a fictional group with generated data. Business date Fri 20 Nov 2026.</p>
         </div>
       </nav>
 
       <main id="content" class="min-w-0 max-lg:overflow-x-clip lg:min-h-0" [class]="store.view() === 'thread' ? 'h-dvh' : 'lg:overflow-y-auto'">
         @if (store.view() !== 'thread') {
           <header class="flex h-14 items-center justify-between px-[max(16px,env(safe-area-inset-left,0px))] lg:hidden">
-            <div class="flex items-center gap-2">
-              <span class="text-[14px] font-semibold tracking-[-0.02em]">Compass</span>
+            <a href="/" class="text-foreground flex items-center gap-2" aria-label="Juyo, morning brief" (click)="$event.preventDefault(); store.go('inbox')">
+              <app-juyo-logo [size]="20" />
               <span class="text-muted-foreground text-[14px]">/ Halcyon</span>
-            </div>
+            </a>
             <button hlmBtn variant="ghost" size="icon" [attr.aria-label]="dark() ? 'Switch to light theme' : 'Switch to dark theme'" (click)="toggleTheme()"><ng-icon [name]="dark() ? 'phosphorSunLight' : 'phosphorMoonLight'" /></button>
           </header>
         }
         @switch (store.view()) {
+          @case ('notfound') {
+            <app-not-found />
+          }
           @case ('inbox') {
             <app-inbox />
           }
@@ -152,7 +153,8 @@ import * as icons from './icons';
     }
 
     }
-    <hlm-toaster [theme]="dark() ? 'dark' : 'light'" position="bottom-center" [offset]="'72px'" />
+    <!-- Toasts sit where no composer is: top on phones (the ask bar and tab bar are at the bottom), bottom right on desktop -->
+    <hlm-toaster [theme]="dark() ? 'dark' : 'light'" [position]="phone() ? 'top-center' : 'bottom-right'" [offset]="phone() ? '12px' : '24px'" />
   `,
 })
 export class App {
@@ -161,18 +163,18 @@ export class App {
   private readonly doc = inject(DOCUMENT);
   protected readonly group = GROUP;
   protected readonly dark = signal(this.doc.documentElement.classList.contains('dark'));
-  private readonly baseTitle = this.doc.title;
+  protected readonly phone = signal(this.doc.defaultView?.matchMedia('(max-width: 1023px)').matches ?? false);
 
   constructor() {
     effect(() => {
-      this.doc.title = this.store.view() === 'builder' ? 'New workflow · Compass' : this.baseTitle;
+      this.doc.title = pageTitle(this.store.view(), this.live.title(), this.boardName());
     });
   }
 
   protected readonly nav = computed(() => [
     { view: 'inbox' as View, label: 'Inbox', icon: 'phosphorTrayLight', iconActive: 'phosphorTrayFill', count: this.store.unread() },
     { view: 'boards' as View, label: 'Boards', icon: 'phosphorSquaresFourLight', iconActive: 'phosphorSquaresFourFill', count: 0 },
-    { view: 'watchers' as View, label: 'Watchers', icon: 'phosphorLightningLight', iconActive: 'phosphorLightningFill', count: this.live.pendingList().length },
+    { view: 'watchers' as View, label: 'Agent Studio', icon: 'phosphorLightningLight', iconActive: 'phosphorLightningFill', count: this.live.pendingList().length },
   ]);
 
   protected isActive(v: View) {
@@ -189,9 +191,43 @@ export class App {
     }
   }
 
+  /** The choice is remembered (the theme script in index.html reads it first, then the OS setting). */
   protected toggleTheme() {
     const next = this.dark() ? 'light' : 'dark';
     this.doc.documentElement.dataset['theme'] = next;
     this.dark.set(next === 'dark');
+    try {
+      localStorage.setItem('compass.theme', next);
+    } catch {
+      /* private mode: the choice lasts for this visit */
+    }
+  }
+  private readonly boards = inject(BoardsService);
+  private readonly boardName = computed(() => {
+    const id = this.store.activeBoardId();
+    return BUILT_IN.find((b) => b.id === id)?.name ?? this.boards.boards().find((b) => b.id === id)?.name ?? 'Board';
+  });
+}
+
+/** "Morning brief · Juyo", "Pace in Lisbon · Kassandra", "Agent Studio · Juyo". */
+export function pageTitle(view: View, thread: string, board: string): string {
+  const cut = (t: string) => (t.length > 60 ? `${t.slice(0, 57)}…` : t);
+  switch (view) {
+    case 'thread':
+      return `${cut(thread)} · Kassandra`;
+    case 'boards':
+      return 'Boards · Juyo';
+    case 'board':
+      return `${cut(board)} · Juyo`;
+    case 'watchers':
+      return 'Agent Studio · Juyo';
+    case 'watcher':
+      return 'Agent · Agent Studio · Juyo';
+    case 'builder':
+      return 'New agent · Agent Studio · Juyo';
+    case 'notfound':
+      return 'Not found · Juyo';
+    default:
+      return 'Morning brief · Juyo';
   }
 }

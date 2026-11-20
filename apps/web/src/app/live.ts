@@ -3,9 +3,12 @@ import { toast } from '@spartan-ng/brain/sonner';
 import type { AnswerMode, Proposal, Workflow } from '@compass/contracts';
 import { BriefApi, KassandraChat, WorkflowsApi, toApiError } from './api';
 import { FilterState, scopeChips } from './filters';
-import { AnswerScope, BriefRow, CompassStore, isBuilderUrl, scopeForRow } from './store';
+import { AnswerScope, BRIEF_ITEMS, BriefRow, CompassStore, isBuilderUrl, scopeForRow } from './store';
 import { Drill } from './portfolio';
 import { drillContent } from './drill';
+import { BoardsService } from './boards/boards.service';
+import type { EvidenceColumn, WidgetRow, WidgetSpec } from './boards/types';
+import type { Evidence } from '@compass/contracts';
 
 /** Who decides, as the audit log records it. The demo has no sign-in yet. */
 export const DECIDER = 'Revenue manager (web)';
@@ -48,10 +51,10 @@ export class Live {
   readonly workflowsApi = inject(WorkflowsApi);
 
   /* ── Brief ── */
-  readonly briefState = computed<'loading' | 'live' | 'snapshot'>(() => (this.briefApi.brief.value() ? 'live' : this.briefApi.brief.isLoading() ? 'loading' : 'snapshot'));
+  readonly briefState = computed<'loading' | 'live' | 'snapshot'>(() => (this.briefApi.brief.hasValue() ? 'live' : this.briefApi.brief.error() ? 'snapshot' : 'loading'));
   readonly briefError = computed(() => this.briefApi.error()?.message ?? null);
   readonly briefMeta = computed(() => {
-    const b = this.briefApi.brief.value();
+    const b = this.briefApi.brief.hasValue() ? this.briefApi.brief.value() : null;
     if (!b) return null;
     const at = new Date(b.generatedAt);
     return { generated: new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(at), model: b.model, usage: b.usage };
@@ -80,10 +83,19 @@ export class Live {
   constructor() {
     // The live brief replaces the snapshot as soon as it loads.
     effect(() => {
-      const b = this.briefApi.brief.value();
-      if (b) untracked(() => this.store.setBrief(b.items as unknown as BriefRow[], 'live'));
+      // value() throws while the resource is in error: read it only when there is one. On failure, the saved copy.
+      const b = this.briefApi.brief.hasValue() ? this.briefApi.brief.value() : null;
+      const failed = !!this.briefApi.brief.error();
+      untracked(() => {
+        if (b) this.store.setBrief(b.items as unknown as BriefRow[], 'live');
+        else if (failed && this.store.briefSource() !== 'live') this.store.setBrief(BRIEF_ITEMS, 'snapshot');
+      });
     });
     effect(() => write(MODE_KEY, this.mode()));
+    effect(() => {
+      this.chat.entries();
+      untracked(() => this.collectWidgets());
+    });
     effect(() => write(CONVERSATIONS_KEY, this.conversations().slice(0, 30)));
     // A conversation is remembered once it has a question.
     effect(() => {
@@ -127,6 +139,7 @@ export class Live {
       case 'watcher':
         return { path: `/watchers/${encodeURIComponent(this.store.activeWatcherId())}` };
       case 'builder':
+      case 'notfound':
         return null;
       default:
         return { path: '/' };
@@ -161,11 +174,41 @@ export class Live {
     }
     if (path === '/boards') return this.store.view.set('boards');
     const bid = seg(/^\/boards\/([^/]+)$/);
-    if (bid && this.store.boards().some((b) => b.id === bid)) {
+    if (bid) {
+      // Built-in or saved: the board page says "Board not found" when a saved id doesn't exist.
       this.store.activeBoardId.set(bid);
       return this.store.view.set('board');
     }
-    this.store.view.set('inbox');
+    this.store.view.set(path === '/' ? 'inbox' : 'notfound');
+  }
+
+  /* ── Describe a view (round2-contracts §3–4) ── */
+  private readonly boards = inject(BoardsService);
+  private boardTarget: { conversation: string; boardId: string; name: string; question: string; seen: Set<string> } | null = null;
+  /**
+   * A board's "Describe a view": the description goes to Kassandra at once; the charts she answers with
+   * (tool_result.widget, from show_widget) are added to that board with a receipt and Undo.
+   */
+  describeForBoard(boardId: string, name: string, text: string) {
+    const q = text.trim();
+    if (!q) return;
+    const id = this.chat.newConversation();
+    this.remember(id, q);
+    this.boardTarget = { conversation: id, boardId, name, question: q, seen: new Set() };
+    this.store.go('thread');
+    this.chat.ask(`${q}\n\nShow it as charts: they go on my board “${name}”.`, this.mode());
+  }
+  private collectWidgets() {
+    const t = this.boardTarget;
+    if (!t || this.chat.conversation() !== t.conversation) return;
+    for (const e of this.chat.entries()) {
+      if (e.kind !== 'tool_result' || t.seen.has(e.callId)) continue;
+      const w = (e as unknown as { widget?: WidgetSpec & { rows: WidgetRow[]; columns: EvidenceColumn[]; evidence: Evidence } }).widget;
+      if (!w) continue;
+      t.seen.add(e.callId);
+      const { rows, columns, evidence, ...spec } = w;
+      void this.boards.addTo(t.boardId, { spec, rows, columns, evidence, question: t.question }, (id) => this.store.openBoard(id));
+    }
   }
 
   /* ── Chat actions ── */

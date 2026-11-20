@@ -491,6 +491,26 @@ export function scopeForRow(r: BriefRow): AnswerScope {
   };
 }
 
+const INBOX_KEY = 'compass.inbox.v1';
+/** What the person did with each item, as items with only id, status and resolution. */
+function readInboxState(): InboxItem[] {
+  try {
+    const raw = globalThis.localStorage?.getItem(INBOX_KEY);
+    const m = raw ? (JSON.parse(raw) as Record<string, { status: InboxItem['status']; resolution?: string }>) : {};
+    return Object.entries(m).map(([id, v]) => ({ id, status: v.status, resolution: v.resolution }) as InboxItem);
+  } catch {
+    return [];
+  }
+}
+function writeInboxState(items: InboxItem[]) {
+  try {
+    const m = Object.fromEntries(items.filter((i) => i.status !== 'new').map((i) => [i.id, { status: i.status, resolution: i.resolution }]));
+    globalThis.localStorage?.setItem(INBOX_KEY, JSON.stringify(m));
+  } catch {
+    /* private mode: the state lasts for this visit */
+  }
+}
+
 /** Inbox items from brief rows: the deterministic title, the model's summary when there is one, the Explore question. */
 function toItems(rows: readonly BriefRow[], old: readonly InboxItem[]): InboxItem[] {
   return rows.map((r) => {
@@ -654,7 +674,7 @@ export interface NightDecision {
 const RATE_LATEST = { when: 'today 06:00', headline: 'Raise Dubai Business Bay to the comp-set median for 16–18 Dec', why: 'Gulf Tech Week · 0.78× the comp set · 3 competitors sold out' };
 const NEXT_RUN: Record<string, string> = { rate: 'next in 21 h 40 min', pace: 'next in 22 h 40 min', feeds: 'next in 40 min' };
 
-export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watcher' | 'builder';
+export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watcher' | 'builder' | 'notfound';
 
 /** Views with an address of their own; the rest live at "/". */
 const BUILDER_PATH = '/workflows/new';
@@ -668,7 +688,8 @@ function initialView(): View {
 export class CompassStore {
   readonly view = signal<View>(initialView());
   readonly activeThreadId = signal<string | null>(null);
-  readonly activeBoardId = signal('revenue');
+  /** 'portfolio' and 'dubai' are built in (board.ts BUILT_IN); anything else is a saved board's id. */
+  readonly activeBoardId = signal('portfolio');
   readonly depth = signal<'quick' | 'thinker'>('thinker');
   /** The watcher page that is open, and the section to land on. */
   readonly activeWatcherId = signal('');
@@ -677,24 +698,19 @@ export class CompassStore {
   readonly creating = signal<{ step: CreateStep; draft?: WatcherDraft } | null>(null);
 
   /** The brief's rows: the 20 Nov snapshot until the live brief (GET /api/brief) loads. */
-  readonly briefRows = signal<readonly BriefRow[]>(BRIEF_ITEMS);
-  readonly briefSource = signal<'snapshot' | 'live'>('snapshot');
-  readonly items = signal<InboxItem[]>(toItems(BRIEF_ITEMS, []));
+  // Empty until the live brief loads (or fails, then the saved copy): no flash of yesterday's items.
+  readonly briefRows = signal<readonly BriefRow[]>([]);
+  readonly briefSource = signal<'loading' | 'snapshot' | 'live'>('loading');
+  readonly items = signal<InboxItem[]>([]);
 
   /** Swaps in a new brief, keeping what the person already did with items that are still there. */
   setBrief(rows: readonly BriefRow[], source: 'snapshot' | 'live') {
     this.briefRows.set(rows);
     this.briefSource.set(source);
-    this.items.update((old) => toItems(rows, old));
+    this.items.update((old) => toItems(rows, old.length ? old : readInboxState()));
   }
 
   readonly threads = signal<Thread[]>([]);
-  readonly boards = signal<Board[]>([
-    { id: 'portfolio', name: 'Portfolio', description: 'All 20 hotels: position, pace, mix, comp-set index and P&L', headline: 'occupancy', updated: '07:00', widgets: PORTFOLIO_SPECS.map((spec) => ({ id: `w-${spec.id}`, kind: 'chart' as const, spec })) },
-    { id: 'revenue', name: 'Dubai Business Bay', description: 'Pace, rates and the nights that need a decision', headline: 'revpar', updated: '07:00', widgets: [{ id: 'w-perf', kind: 'performance' }, { id: 'w-dec', kind: 'decisions' }] },
-    { id: 'weekends', name: 'Rate decisions', description: 'Nights priced under the market', headline: 'occupancy', updated: '06:00', widgets: [{ id: 'w-dec2', kind: 'decisions' }] },
-    { id: 'channels', name: 'Amsterdam web', description: 'Mobile conversion and where the bookings went', headline: 'adr', updated: 'yesterday', widgets: [{ id: 'w-ams', kind: 'artifact', spec: TOPICS['web_conversion_drop:AMS'].artifact, addedFrom: 'Why did mobile conversion drop in Amsterdam?' }] },
-  ]);
 
   readonly watchers = signal<Watcher[]>([
     {
@@ -754,7 +770,6 @@ export class CompassStore {
   readonly nightDecisions = signal<Record<number, NightDecision>>({});
 
   readonly activeThread = computed(() => this.threads().find((t) => t.id === this.activeThreadId()) ?? null);
-  readonly activeBoard = computed(() => this.boards().find((b) => b.id === this.activeBoardId()) ?? this.boards()[0]);
   readonly needsYou = computed(() => this.items().filter((i) => i.status !== 'done'));
   readonly earlier = computed(() => this.items().filter((i) => i.status === 'done'));
   readonly unread = computed(() => this.items().filter((i) => i.status === 'new').length);
@@ -936,62 +951,33 @@ export class CompassStore {
     });
   }
 
+  /* Inbox item state (seen, snoozed, not useful) is kept in this browser, per item id; ids are stable for the day. */
   snoozeItem(id: string) {
     const before = this.items();
-    this.items.update((l) => l.map((i) => (i.id === id ? { ...i, status: 'done', resolution: 'Snoozed until tomorrow' } : i)));
-    toast('Snoozed until tomorrow', { duration: 10000, action: { label: 'Undo', onClick: () => this.items.set(before) } });
+    this.setItems((l) => l.map((i) => (i.id === id ? { ...i, status: 'done', resolution: 'Snoozed for today' } : i)));
+    toast('Snoozed for today', { duration: 10000, action: { label: 'Undo', onClick: () => this.setItems(() => before) } });
   }
 
   restoreItem(id: string) {
-    this.items.update((l) => l.map((i) => (i.id === id && i.status === 'done' ? { ...i, status: 'seen', resolution: undefined } : i)));
+    this.setItems((l) => l.map((i) => (i.id === id && i.status === 'done' ? { ...i, status: 'seen', resolution: undefined } : i)));
   }
 
   dismissItem(id: string) {
     const before = this.items();
-    this.items.update((l) => l.map((i) => (i.id === id ? { ...i, status: 'done', resolution: 'Marked not useful' } : i)));
-    toast('Moved to Earlier', { description: 'Compass will show fewer items like this.', duration: 10000, action: { label: 'Undo', onClick: () => this.items.set(before) } });
+    this.setItems((l) => l.map((i) => (i.id === id ? { ...i, status: 'done', resolution: 'Marked not useful' } : i)));
+    toast('Marked not useful', { description: 'It moved to “resolved today”.', duration: 10000, action: { label: 'Undo', onClick: () => this.setItems(() => before) } });
+  }
+
+  markSeen(id: string) {
+    this.setItems((l) => l.map((i) => (i.id === id && i.status === 'new' ? { ...i, status: 'seen' } : i)));
+  }
+
+  private setItems(f: (l: InboxItem[]) => InboxItem[]) {
+    this.items.update(f);
+    writeInboxState(this.items());
   }
 
   /** Adds a catalogue chart (its spec, not a picture) to another board. */
-  addChartToBoard(boardId: string, spec: ChartSpec) {
-    const wid = `w${this.seq++}`;
-    this.boards.update((bs) => bs.map((b) => (b.id === boardId ? { ...b, updated: 'just now', widgets: [...b.widgets, { id: wid, kind: 'chart', spec: { ...spec, id: `${spec.id}-${wid}` } }] } : b)));
-    const board = this.boards().find((b) => b.id === boardId)!;
-    toast(`Added to ${board.name}`, { duration: 10000, action: { label: 'View', onClick: () => this.openBoard(boardId) }, cancel: { label: 'Undo', onClick: () => this.removeWidget(boardId, wid) } });
-  }
-
-  /* Boards: pin = choose where it goes, confirm with a toast that can undo */
-  addToBoard(boardId: string | 'new', spec: ArtifactSpec, from: string) {
-    let target = boardId;
-    if (boardId === 'new') {
-      target = `b${this.seq++}`;
-      this.boards.update((bs) => [...bs, { id: target, name: 'New board', description: 'Built from your answers', headline: spec.kind === 'line' ? spec.metric : 'adr', updated: 'just now', widgets: [] }]);
-    }
-    const wid = `w${this.seq++}`;
-    this.boards.update((bs) => bs.map((b) => (b.id === target ? { ...b, updated: 'just now', widgets: [...b.widgets, { id: wid, kind: 'artifact', spec, addedFrom: from }] } : b)));
-    const board = this.boards().find((b) => b.id === target)!;
-    toast(`Added to ${board.name}`, {
-      description: spec.title,
-      duration: 10000,
-      action: { label: 'View', onClick: () => this.openBoard(target) },
-      cancel: { label: 'Undo', onClick: () => this.removeWidget(target, wid) },
-    });
-  }
-
-  isOnBoard(specId: string) {
-    return this.boards().some((b) => b.widgets.some((w) => w.kind === 'artifact' && w.spec.id === specId));
-  }
-
-  removeWidget(boardId: string, widgetId: string) {
-    this.boards.update((bs) => bs.map((b) => (b.id === boardId ? { ...b, widgets: b.widgets.filter((w) => w.id !== widgetId) } : b)));
-  }
-
-  newBoard() {
-    const id = `b${this.seq++}`;
-    this.boards.update((bs) => [...bs, { id, name: 'New board', description: 'Describe a view to add the first chart', headline: 'occupancy', updated: 'just now', widgets: [] }]);
-    this.openBoard(id);
-  }
-
   openBoard(id: string) {
     this.activeBoardId.set(id);
     this.view.set('board');

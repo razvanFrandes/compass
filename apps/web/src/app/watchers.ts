@@ -6,6 +6,7 @@ import { Live, ago } from './live';
 import { ACTION_LABEL, ProposalCard } from './proposal-card';
 import { CompassStore } from './store';
 import { humanizeText } from './text';
+import { HOTELS } from './filters';
 import * as icons from './icons';
 
 export const AUTONOMY_LABEL: Record<Workflow['autonomy'], string> = {
@@ -21,7 +22,9 @@ export function maskEmail(address: string): string {
   const at = address.lastIndexOf('@');
   return at < 1 ? '****' : `${address.slice(0, Math.min(2, at))}****${address.slice(at)}`;
 }
-export const hotelsText = (h: string[]) => (h.includes('ALL') ? 'All hotels' : h.join(', '));
+/** Hotel names, not codes: "Lisbon Chiado", "Lisbon Chiado, Porto Ribeira", "Lisbon Chiado + 4". */
+export const hotelName = (code: string) => HOTELS.find((h) => h.code === code)?.short ?? code;
+export const hotelsText = (h: string[]) => (h.includes('ALL') || h.length === HOTELS.length ? 'All hotels' : h.length <= 2 ? h.map(hotelName).join(', ') : `${hotelName(h[0])} + ${h.length - 1}`);
 
 /*
   Watchers are the backend's workflows (WorkflowsApi): agents that watch the numbers, propose an action and act
@@ -37,10 +40,10 @@ export const hotelsText = (h: string[]) => (h.includes('ALL') ? 'All hotels' : h
     <div class="mx-auto flex max-w-[1080px] flex-col gap-8 px-[max(16px,env(safe-area-inset-left,0px))] pt-5 pb-28 sm:px-8 lg:pt-8 lg:pb-16">
       <header class="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 class="text-[26px] font-semibold tracking-[-0.02em]">Watchers</h1>
-          <p class="text-muted-foreground mt-1 text-[14px]">Workflows that watch the numbers, propose an action and act once you approve.</p>
+          <h1 class="text-[26px] font-semibold tracking-[-0.02em]">Agent Studio</h1>
+          <p class="text-muted-foreground mt-1 text-[14px]">Agents that watch the numbers, propose an action and act once you approve.</p>
         </div>
-        <button hlmBtn (click)="store.openBuilder()"><ng-icon name="phosphorSparkleFill" />New workflow by chat</button>
+        <button hlmBtn (click)="store.openBuilder()"><ng-icon name="phosphorSparkleFill" />New agent with Kassandra</button>
       </header>
 
       @if (live.pendingList().length) {
@@ -56,13 +59,13 @@ export const hotelsText = (h: string[]) => (h.includes('ALL') ? 'All hotels' : h
 
       <section aria-labelledby="w-list">
         <div class="mb-3 flex items-baseline justify-between gap-3">
-          <h2 id="w-list" class="text-[15px] font-semibold">Workflows{{ list().length ? ' · ' + list().length : '' }}</h2>
+          <h2 id="w-list" class="text-[15px] font-semibold">Agents{{ list().length ? ' · ' + list().length : '' }}</h2>
           @if (live.workflows.isLoading()) {
             <span class="text-muted-foreground text-[12.5px]" role="status">Loading…</span>
           }
         </div>
         @if (live.workflowsError(); as e) {
-          <p role="alert" class="border-border mb-3 rounded-[10px] border border-dashed p-3 text-[13.5px]">Couldn’t load the workflows: {{ e }} <button hlmBtn variant="ghost" size="sm" (click)="live.workflows.reload()">Try again</button></p>
+          <p role="alert" class="border-border mb-3 rounded-[10px] border border-dashed p-3 text-[13.5px]">Couldn’t load the agents: {{ e }} <button hlmBtn variant="outline" size="sm" (click)="live.workflows.reload()">Retry</button></p>
         }
         <ul class="grid gap-3">
           @for (w of list(); track w.id) {
@@ -97,7 +100,7 @@ export const hotelsText = (h: string[]) => (h.includes('ALL') ? 'All hotels' : h
             </li>
           } @empty {
             @if (!live.workflows.isLoading() && !live.workflowsError()) {
-              <li class="text-muted-foreground border-border rounded-xl border border-dashed p-6 text-center text-[14px]">No workflows yet. Describe one to Kassandra with “New workflow by chat”.</li>
+              <li class="text-muted-foreground border-border rounded-xl border border-dashed p-6 text-center text-[14px]">No agents yet. Describe one to Kassandra with “New agent with Kassandra”.</li>
             }
           }
         </ul>
@@ -106,7 +109,7 @@ export const hotelsText = (h: string[]) => (h.includes('ALL') ? 'All hotels' : h
       <section aria-labelledby="w-audit">
         <div class="mb-3 flex items-baseline justify-between gap-3">
           <h2 id="w-audit" class="text-[15px] font-semibold">Audit log</h2>
-          <span class="text-muted-foreground text-[12.5px]">Compass writes nothing to source systems: approved actions become RMS tasks</span>
+          <span class="text-muted-foreground text-[12.5px]">Nothing is written to source systems: approved actions become tasks for the revenue manager</span>
         </div>
         @if (audit().length) {
           <div class="insight-card overflow-x-auto" tabindex="0" aria-label="Audit log">
@@ -124,9 +127,9 @@ export const hotelsText = (h: string[]) => (h.includes('ALL') ? 'All hotels' : h
                 @for (a of audit().slice(0, showAll() ? 200 : 8); track a.id) {
                   <tr class="border-border border-b align-top last:border-b-0">
                     <td class="text-muted-foreground px-4 py-2 whitespace-nowrap">{{ ago(a.at) }}</td>
-                    <td class="px-4 py-2">{{ a.hotel_code }}</td>
+                    <td class="px-4 py-2 whitespace-nowrap">{{ name(a.hotel_code) }}</td>
                     <td class="px-4 py-2 whitespace-nowrap">{{ actionLabel(a.action) }}</td>
-                    <td class="text-muted-foreground px-4 py-2 whitespace-nowrap">{{ a.by }}</td>
+                    <td class="text-muted-foreground px-4 py-2 whitespace-nowrap">{{ by(a.by) }}</td>
                     <td class="px-4 py-2"><span class="font-medium">{{ outcome(a.outcome) }}</span><span class="text-muted-foreground block max-w-[60ch] text-[12.5px]">{{ human(a.receipt) }}</span></td>
                   </tr>
                 }
@@ -172,8 +175,18 @@ export class WatchersView {
   protected outcome(o: string) {
     return ({ sent_to_rms: 'Sent to the RMS', suggested: 'Suggested', undone: 'Undone', emailed: 'Emailed' } as Record<string, string>)[o] ?? o;
   }
+  /** Receipts read as sentences: message ids and task ids stay out of the way. */
   protected human(s: string) {
-    return humanizeText(s);
+    return humanizeText(s)
+      .replace(/^Email\s*<[^>]+>\s*to\s+/i, 'Emailed ')
+      .replace(/^RMS task \S+ for ([A-Z0-9]+):\s*/, (_, c: string) => `Task for the revenue manager at ${hotelName(c)}: `)
+      .replace(/<[^>\s]+@[^>\s]+>/g, '');
+  }
+  protected name(code: string) {
+    return hotelName(code);
+  }
+  protected by(who: string) {
+    return /auto/i.test(who) ? 'Automatic (low risk)' : /test/i.test(who) ? 'Test run' : /^workflow/i.test(who) ? 'The agent' : who;
   }
   protected busy(id: string) {
     return this.live.busy()[id] ?? '';

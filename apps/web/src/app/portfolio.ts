@@ -14,6 +14,7 @@ import {
   rangeLen,
   scopeChips,
 } from './filters';
+import type { EvidenceColumn, WidgetKind } from './boards/types';
 import { PF_CLOSED_MONTH, PF_DATES, PF_EVENTS, PF_INDEX, PF_MIX, PF_MIX_CMP, PF_NIGHTS, PF_PACE, PF_PICKUP, PF_PNL, PF_SQL } from './portfolio-data';
 
 /*
@@ -71,6 +72,19 @@ export interface Palette {
   neg: string;
 }
 
+export interface WidgetData {
+  kind: WidgetKind;
+  x?: string;
+  y?: string[];
+  group?: string;
+  compare?: string;
+  format?: 'number' | 'percent' | 'currency' | 'count';
+  rows: Record<string, unknown>[];
+  columns: EvidenceColumn[];
+}
+const col = (key: string, label: string, kind: EvidenceColumn['kind'], unit?: string): EvidenceColumn => ({ key, label, kind, ...(unit ? { unit } : {}) });
+const r1 = (n: number | null | undefined) => (n === null || n === undefined || !Number.isFinite(n) ? null : Math.round(n * 10) / 10);
+
 export type Cell = string | { text: string; bar?: number; spark?: number[]; muted?: boolean };
 export interface Drill {
   dimension: 'hotel' | 'night' | 'channel' | 'segment';
@@ -97,6 +111,8 @@ export interface Resolved {
   definitions: [string, string][];
   computed: string;
   height: number;
+  /** The chart as a board widget (round2-contracts §3): numbers as rows, never formatted text. */
+  data?: WidgetData;
   /** Turns a click on a mark into a structured follow-up ({ drill: { dimension, value } }), never free text. */
   drill?: (dataIndex: number) => Drill | null;
   option: (view: View, p: Palette, width: number) => EChartsCoreOption;
@@ -360,7 +376,9 @@ function position(s: FilterState): Resolved {
     return { name, code, otb, p50, bud, cmp, gap: bud ? (p50 ?? otb) / bud - 1 : 0 };
   };
   const hotels = codes.map((c) => row([c], short(c), c)).sort((a, b) => a.gap - b.gap);
-  const rows = hotels.length > 1 ? [row(codes, 'Chain total', null), ...hotels] : hotels;
+  // "Chain total" for the whole group, "Selection total" when only some hotels are chosen.
+  const totalName = s.hotels.length ? 'Selection total' : 'Chain total';
+  const rows = hotels.length > 1 ? [row(codes, totalName, null), ...hotels] : hotels;
   const one = hotels.length === 1;
   const pctOf = (x: number, b: number) => (b ? (x / b) * 100 : 0);
   const rowText = (r: (typeof rows)[number], narrow = false) => {
@@ -412,6 +430,21 @@ function position(s: FilterState): Resolved {
     sql: PF_SQL.nights,
     definitions: [DEF.otb, DEF.bud, ...(future ? [DEF.fc] : []), ...cmpDefs(s).filter((d) => d !== DEF.bud && d !== DEF.fc)],
     computed: `Each row sums room revenue over the selected nights and divides by the budget for the same nights, so every hotel shares one scale and the chain total sits on top. Sorted by where the hotel ${future ? 'is forecast to land' : 'finished'} against budget, worst first.`,
+    data: {
+      kind: 'bullet',
+      x: 'hotel',
+      y: ['pct_of_budget'],
+      format: 'percent',
+      rows: rows.map((r) => ({ hotel: r.name, on_books: Math.round(r.otb), ...(future ? { forecast_p50: Math.round(r.p50 ?? 0) } : {}), ...(r.cmp !== null ? { comparison: Math.round(r.cmp) } : {}), budget: Math.round(r.bud), pct_of_budget: r1(pctOf(r.otb, r.bud)) })),
+      columns: [
+        col('hotel', 'Hotel', 'hotel'),
+        col('on_books', future ? 'On the books' : 'Actual', 'currency', 'EUR'),
+        ...(future ? [col('forecast_p50', 'Forecast P50', 'currency', 'EUR')] : []),
+        ...(isPeriod(s) ? [col('comparison', COMPARES[s.compare].label, 'currency', 'EUR')] : []),
+        col('budget', 'Budget', 'currency', 'EUR'),
+        col('pct_of_budget', '% of budget', 'percent'),
+      ],
+    },
     height: Math.max(110, rows.length * 30 + 40),
     drill: (i) => (rows[i]?.code ? { dimension: 'hotel', value: rows[i].code!, label: rows[i].name } : null),
     option: (view, p, width) => {
@@ -429,7 +462,8 @@ function position(s: FilterState): Resolved {
             return `<b>${r.name}</b><br/>${future ? 'On the books' : 'Actual'} ${fmt.eur(r.otb)} (${Math.round(pctOf(r.otb, r.bud))}%)${r.p50 !== null ? `<br/>Forecast P50 ${fmt.eur(r.p50)} (${Math.round(pctOf(r.p50, r.bud))}%)` : ''}${r.cmp !== null ? `<br/>${COMPARES[s.compare].label} ${fmt.eur(r.cmp)}` : ''}<br/>Budget ${fmt.eur(r.bud)}`;
           },
         },
-        xAxis: { type: 'value', min: 0, max, interval: narrow ? 50 : 25, ...axisBase(p), axisLabel: { ...axisBase(p).axisLabel, formatter: '{value}%' } },
+        // On a phone: ticks at 0 and 100% only, and the right column shrinks to "63%".
+        xAxis: { type: 'value', min: 0, max, interval: narrow ? 100 : 25, ...axisBase(p), axisLabel: { ...axisBase(p).axisLabel, formatter: '{value}%' } },
         yAxis: [
           {
             type: 'category',
@@ -442,12 +476,12 @@ function position(s: FilterState): Resolved {
               fontFamily: 'Inter',
               width: narrow ? Math.round(width * 0.28) : 150,
               overflow: 'truncate',
-              formatter: (n: string) => (n === 'Chain total' ? `{b|${n}}` : n),
+              formatter: (n: string) => (n === totalName ? `{b|${n}}` : n),
               rich: { b: { fontWeight: 600, color: p.text, fontSize: 12.5, fontFamily: 'Inter' } },
             },
             splitLine: { show: false },
           },
-          { type: 'category', data: rows.map((r) => rowText(r, narrow)), inverse: true, position: 'right', ...axisBase(p), axisLabel: { color: p.muted, fontSize: 12, fontFamily: 'Inter' }, splitLine: { show: false } },
+          { type: 'category', data: rows.map((r) => (narrow ? `${Math.round(pctOf(r.otb, r.bud))}%` : rowText(r))), inverse: true, position: 'right', ...axisBase(p), axisLabel: { color: p.muted, fontSize: 12, fontFamily: 'Inter' }, splitLine: { show: false } },
         ],
         series: [
           { name: future ? 'On the books' : 'Actual', type: 'bar', stack: 'pos', barWidth: 12, data: otb, itemStyle: { color: p.series, ...solid }, z: 3 },
@@ -544,6 +578,15 @@ function pace(s: FilterState): Resolved {
     sql: PF_SQL.pace,
     definitions: [DEF.otb, DEF.stly, ...(r.future ? [DEF.fc] : []), ['Capacity', 'rooms available over the selected nights']],
     computed: `Counts each reservation night in the window from the day it was booked until the day it was cancelled, the same rule as otb_as_of(). Last year uses the same weekdays 364 days earlier.${r.future ? ' The P10–P90 range ends at the forecast for these nights; between today and then it follows last year’s pickup shape.' : ''}`,
+    data: {
+      kind: 'line',
+      x: 'booked_as_of',
+      y: ['this_year'],
+      compare: 'last_year',
+      format: 'count',
+      rows: labels.map((l, k) => ({ booked_as_of: l, this_year: ty[k] ?? null, last_year: ly[k] ?? null, ...(r.future ? { projection_p50: b50[k] } : {}) })),
+      columns: [col('booked_as_of', 'Booked as of', 'date'), col('this_year', 'This year', 'count', 'room nights'), col('last_year', 'Same time last year', 'count', 'room nights'), ...(r.future ? [col('projection_p50', 'Projection (P50)', 'count', 'room nights')] : [])],
+    },
     height: 270,
     option: (_v, p, width) => ({
       aria: aria(title),
@@ -660,6 +703,15 @@ function pickup(s: FilterState): Resolved {
       ['Cancelled', 'room nights cancelled in the same days, shown below zero'],
       ['Last year', 'the same booking window 364 days earlier, for the same weekdays'],
     ],
+    data: {
+      kind: 'stacked_bar',
+      x: 'night',
+      y: ['booked', 'cancelled'],
+      compare: 'last_year_net',
+      format: 'count',
+      rows: labels.map((l, j) => ({ night: l, booked: b[j], cancelled: -c[j], net: b[j] - c[j], last_year_net: lyNet[j] })),
+      columns: [col('night', 'Night', 'date'), col('booked', 'Booked', 'count', 'room nights'), col('cancelled', 'Cancelled', 'count', 'room nights'), col('net', 'Net', 'count', 'room nights'), col('last_year_net', 'Last year, net', 'count', 'room nights')],
+    },
     computed: `For each night, counts reservation nights created, and separately cancelled, in the ${win} up to ${fmtDay(at(BUSINESS_DATE))}. Change the window with “+ Filter → Booked”.`,
     drill: (j) => (dates[j] ? { dimension: 'night', value: dates[j], label: labels[j] } : null),
     option: (_v, p, width) => ({
@@ -766,6 +818,15 @@ function mixNet(s: FilterState): Resolved {
     sql: `${PF_SQL.mix}\n\n${PF_SQL.mix_cmp}`,
     definitions: [['Net', 'room revenue − commission'], ['Commission', 'revenue × the channel’s commission rate'], ...(ly ? [s.compare === 'stly' ? DEF.stly : DEF.lyDow] : [])],
     computed: 'Sums each reservation night in the window by channel, after the hotel, segment and channel filters, then applies the channel’s commission rate. Sorted by net, largest first.',
+    data: {
+      kind: 'stacked_bar',
+      x: 'channel',
+      y: ['net', 'commission'],
+      ...(ly ? { compare: 'last_year_net' } : {}),
+      format: 'currency',
+      rows: list.map((x) => ({ channel: x.name, net: Math.round(x.net), commission: Math.round(x.comm), room_nights: x.rn, ...(x.lyNet !== null ? { last_year_net: Math.round(x.lyNet) } : {}) })),
+      columns: [col('channel', 'Channel', 'text'), col('net', 'Net room revenue', 'currency', 'EUR'), col('commission', 'Commission', 'currency', 'EUR'), col('room_nights', 'Room nights', 'count'), ...(ly ? [col('last_year_net', `${cmpShort(s)} net`, 'currency', 'EUR')] : [])],
+    },
     height: Math.max(140, list.length * 34 + 30),
     drill: (i) => (list[i] ? { dimension: 'channel', value: list[i].code, label: list[i].name } : null),
     option: (_v, p, width) => ({
@@ -846,6 +907,15 @@ function share(s: FilterState): Resolved {
     sql: `${PF_SQL.mix}\n\n${PF_SQL.mix_cmp}`,
     definitions: [['Share', 'room nights in the segment ÷ all room nights in the window'], ...(ly ? [s.compare === 'stly' ? DEF.stly : DEF.lyDow] : [])],
     computed: 'Counts reservation nights in the window by segment, after the hotel and channel filters. A donut is offered only when the parts pass the gate: one whole, 2–5 slices after grouping, “Other” not the largest, the top two at least 5 pp apart.',
+    data: {
+      kind: gate ? 'bar' : 'donut',
+      x: 'segment',
+      y: ['share'],
+      group: 'segment',
+      format: 'percent',
+      rows: (gate ? list : slices).map((x) => ({ segment: x.name, share: r1(x.pct), room_nights: x.rn })),
+      columns: [col('segment', 'Segment', 'text'), col('share', 'Share of room nights', 'percent'), col('room_nights', 'Room nights', 'count')],
+    },
     height: Math.max(140, list.length * 32 + 30),
     drill: (i) => (list[i] ? { dimension: 'segment', value: list[i].code, label: list[i].name } : null),
     option: (view, p) => {
@@ -945,6 +1015,15 @@ function fan(s: FilterState): Resolved {
       align: ['l', 'r', 'r', 'r', 'r', 'r'],
     },
     definitions: [DEF.otb, DEF.fc, DEF.bud],
+    data: {
+      kind: 'area',
+      x: 'night',
+      y: ['on_books', 'forecast_p50'],
+      compare: 'budget',
+      format: 'percent',
+      rows: labels.map((l, k) => ({ night: l, on_books: otb[k], forecast_p10: p10[k], forecast_p50: p50[k], forecast_p90: p90[k], budget: bud[k] })),
+      columns: [col('night', 'Night', 'date'), col('on_books', 'On the books', 'percent'), col('forecast_p10', 'P10', 'percent'), col('forecast_p50', 'Forecast P50', 'percent'), col('forecast_p90', 'P90', 'percent'), col('budget', 'Budget', 'percent')],
+    },
     computed: 'For each night, rooms and rooms available are summed across the selected hotels, then divided. The range adds each hotel’s P10 and P90, so for a group it is wider than the true range.',
     drill: (k) => ({ dimension: 'night', value: DATES[idx[k]], label: labels[k] }),
     option: (_v, p, width) => ({
@@ -1013,6 +1092,15 @@ function quadrant(s: FilterState): Resolved {
       ['Points', '+5 on an index means 5% against the comp set, not 5 pp of occupancy'],
     ],
     computed: 'Computed from v_hotel_day and comp_set_daily over the window. The dotted curve is RGI = 100 (MPI = 10,000 ÷ ARI): hotels above it take more than their fair share of revenue.',
+    data: {
+      kind: 'scatter',
+      x: 'ari',
+      y: ['mpi'],
+      group: 'hotel',
+      format: 'number',
+      rows: pts.map((x) => ({ hotel: x.name, ari: x.ari, mpi: x.mpi, rgi: x.rgi })),
+      columns: [col('hotel', 'Hotel', 'hotel'), col('ari', 'ARI', 'number'), col('mpi', 'MPI', 'number'), col('rgi', 'RGI', 'number')],
+    },
     height: 380,
     drill: (i) => (sorted[i] ? { dimension: 'hotel', value: sorted[i].code, label: sorted[i].name } : null),
     option: (view, p, width) => {
@@ -1123,6 +1211,14 @@ function bridge(s: FilterState): Resolved {
       ['Effect', 'revenue above budget raises GOP; costs above budget lower it'],
     ],
     computed: 'Each step is actual − budget for its P&L lines (costs with the sign flipped), summed over the selected hotels; “Other” reconciles any line not listed. The axis is broken so the steps are readable; the break is drawn on the totals.',
+    data: {
+      kind: 'waterfall',
+      x: 'step',
+      y: ['effect'],
+      format: 'currency',
+      rows: [{ step: 'Budget GOP', effect: Math.round(b), total: true }, ...steps.map((x) => ({ step: x.name, effect: Math.round(x.d), total: false })), { step: 'Actual GOP', effect: Math.round(a), total: true }],
+      columns: [col('step', 'Step', 'text'), col('effect', 'Effect on GOP', 'currency', 'EUR'), { ...col('total', 'Total', 'text'), hidden: true }],
+    },
     height: 300,
     option: (_v, p, width) => {
       const cats = ['Budget', ...steps.map((x) => x.name), 'Actual'];
@@ -1143,7 +1239,8 @@ function bridge(s: FilterState): Resolved {
       for (let i = 0, r = b; i < steps.length; i++) lo = Math.min(lo, (r += steps[i].d));
       const unit = 10 ** Math.floor(Math.log10(Math.max(1, lo / 4)));
       const brk = { start: Math.round((lo * 0.1) / unit) * unit, end: Math.floor((lo * 0.93) / unit) * unit, gap: '6%' };
-      const lbl = (sign: 1 | -1) => ({ show: true, position: sign > 0 ? 'top' : 'bottom', color: p.text, fontSize: 11.5, formatter: (x: { value: number | string }) => `${sign > 0 ? '+' : '−'}${fmt.eur(+x.value)}` });
+      // Step labels collide on a phone: there the values live in the tooltip and the table.
+      const lbl = (sign: 1 | -1) => ({ show: width >= 560, position: sign > 0 ? 'top' : 'bottom', color: p.text, fontSize: 11.5, formatter: (x: { value: number | string }) => `${sign > 0 ? '+' : '−'}${fmt.eur(+x.value)}` });
       return {
         aria: aria(title),
         ...motion(),
@@ -1200,7 +1297,7 @@ function hotelTable(s: FilterState): Resolved {
     return { name, t, occ: METRIC.occupancy.value(t), dOcc: delta('occupancy', basis), dRev: delta('revenue', basis), spark };
   };
   const hotelRows = all.map((c) => make([c], short(c))).sort((a, b) => b.t.rev - a.t.rev);
-  const shown = all.length > 1 ? [make(all, 'Chain total'), ...hotelRows] : hotelRows;
+  const shown = all.length > 1 ? [make(all, s.hotels.length ? 'Selection total' : 'Chain total'), ...hotelRows] : hotelRows;
   const title = `${all.length} ${all.length === 1 ? 'hotel' : 'hotels'}, ${RANGES[s.range].short}, by room revenue`;
   const ig = ignoredOptional(s, []);
   return {
@@ -1230,6 +1327,19 @@ function hotelTable(s: FilterState): Resolved {
     sql: PF_SQL.nights,
     definitions: [DEF.occ, ['ADR', 'room revenue ÷ rooms sold'], ['RevPAR', 'room revenue ÷ rooms available'], ...cmpDefs(s)],
     computed: `Sums over the selected nights per hotel, then the ratios. Δ is against ${s.compare === 'none' ? 'nothing (no comparison)' : proj ? 'budget, using the forecast for nights not yet stayed' : COMPARES[s.compare].short}. Occupancy changes are in percentage points.`,
+    data: {
+      kind: 'table',
+      rows: shown.map((r) => ({ hotel: r.name, occupancy: r1(r.occ), occupancy_change_pp: r1(r.dOcc), adr: Math.round(METRIC.adr.value(r.t)), revpar: Math.round(METRIC.revpar.value(r.t)), room_revenue: Math.round(r.t.rev), revenue_change_pct: r1(r.dRev) })),
+      columns: [
+        col('hotel', 'Hotel', 'hotel'),
+        col('occupancy', 'Occupancy', 'percent'),
+        col('occupancy_change_pp', 'Δ occupancy', 'number', 'pp'),
+        col('adr', 'ADR', 'currency', 'EUR'),
+        col('revpar', 'RevPAR', 'currency', 'EUR'),
+        col('room_revenue', 'Room revenue', 'currency', 'EUR'),
+        col('revenue_change_pct', 'Δ revenue', 'percent'),
+      ],
+    },
     height: 0,
     option: () => ({}),
   };

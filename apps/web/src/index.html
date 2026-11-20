@@ -2,24 +2,45 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Compass</title>
+  <title>Morning brief · Juyo</title>
+  <meta name="description" content="Kassandra, Juyo’s AI analyst, for Halcyon Hospitality: the morning brief, boards and Agent Studio on live hotel data.">
+  <meta name="theme-color" content="#0d1117">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Juyo">
+  <meta property="og:title" content="Kassandra · Juyo">
+  <meta property="og:description" content="The morning brief, boards and Agent Studio for Halcyon Hospitality’s 20 hotels: ask in plain words, see how every number was computed, approve what the agents propose.">
+  <meta property="og:url" content="https://juyo.razvanfrandes.com/">
+  <meta property="og:image" content="https://juyo.razvanfrandes.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Juyo’s morning brief for Halcyon Hospitality, with Kassandra">
+  <meta name="twitter:card" content="summary_large_image">
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Geist+Mono:wght@400;500&display=swap">
   <script>
-    // Theme: an explicit data-theme on <html> wins, otherwise follow the OS. Spartan reads the .dark class.
+    // Theme: an explicit data-theme on <html> wins, then the choice remembered in this browser, then the OS setting.
+    // Spartan reads the .dark class; the app's toggle writes localStorage "compass.theme".
     (function () {
       var root = document.documentElement;
-      // Dark-first, like Juyo's product; an explicit data-theme="light" switches to the light palette.
+      var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+      function remembered() {
+        try { return localStorage.getItem('compass.theme'); } catch (e) { return null; }
+      }
       function apply() {
-        var light = root.getAttribute('data-theme') === 'light';
+        var theme = root.getAttribute('data-theme') || remembered() || (mq && mq.matches ? 'light' : 'dark');
+        var light = theme === 'light';
         root.classList.toggle('light', light);
         root.classList.toggle('dark', !light);
       }
       apply();
       new MutationObserver(apply).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+      if (mq && mq.addEventListener) mq.addEventListener('change', apply);
     })();
   </script>
 </head>

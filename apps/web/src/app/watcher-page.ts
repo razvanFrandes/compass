@@ -26,7 +26,7 @@ import * as icons from './icons';
   template: `
     <div class="mx-auto flex max-w-[1080px] flex-col gap-7 px-[max(16px,env(safe-area-inset-left,0px))] pt-5 pb-28 sm:px-8 lg:pt-8 lg:pb-16">
       <nav aria-label="Breadcrumb" class="flex items-center gap-1.5 text-[14px]">
-        <button hlmBtn variant="ghost" size="sm" class="text-muted-foreground -ml-2" (click)="store.go('watchers')"><ng-icon name="phosphorArrowLeftLight" />Watchers</button>
+        <button hlmBtn variant="ghost" size="sm" class="text-muted-foreground -ml-2" (click)="store.go('watchers')"><ng-icon name="phosphorArrowLeftLight" />Agent Studio</button>
         <span class="text-muted-foreground">/</span>
         <span class="truncate">{{ wf()?.name ?? '…' }}</span>
       </nav>

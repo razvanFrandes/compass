@@ -102,7 +102,7 @@ const DEMO_PHRASE = 'Which nights next month are furthest behind last year?';
 })
 export class AskBar {
   readonly placeholder = input('Ask anything');
-  readonly label = input('Ask Compass');
+  readonly label = input('Ask Kassandra');
   readonly inputId = input<string>(`ask-${Math.random().toString(36).slice(2, 7)}`);
   readonly shortcut = input(false);
   readonly busy = input(false);

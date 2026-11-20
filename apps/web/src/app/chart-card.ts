@@ -8,6 +8,8 @@ import { BOOKED, CHANNELS, COMPARES, Filters, RANGES, SEGMENTS, hotelLabel, rang
 import { Cell, ChartSpec, VIEW_LABEL, View, resolve } from './portfolio';
 import { CompassStore } from './store';
 import { Live } from './live';
+import { BoardsService } from './boards/boards.service';
+import { chartToWidget } from './boards/catalogue-widget';
 import * as icons from './icons';
 
 /*
@@ -17,6 +19,19 @@ import * as icons from './icons';
   others say what they lack); "How this was computed"; "Add to board" (saves the spec, not a picture);
   "Wrong chart". Clicking a mark sends a structured follow-up ({ drill: { dimension, value } }).
 */
+/** A new board made from one chart is named after what the chart shows; rename it any time. */
+const BOARD_NAME: Record<ChartSpec['kind'], string> = {
+  position: 'Budget watch',
+  pace: 'Pace',
+  pickup: 'Pickup',
+  fan: 'Forecast',
+  mix_net: 'Channel profitability',
+  share: 'Business mix',
+  quadrant: 'Comp-set position',
+  bridge: 'GOP review',
+  table: 'Hotel performance',
+};
+
 @Component({
   selector: 'app-chart-card',
   imports: [NgIcon, EChart, HlmButtonImports, HlmDropdownMenuImports],
@@ -93,7 +108,7 @@ import * as icons from './icons';
                     @for (cell of row; track $index) {
                       @let c = cellOf(cell);
                       @if ($index === 0) {
-                        <th scope="row" class="py-2 pr-3 text-left whitespace-nowrap" [class]="c.text === 'Chain total' ? 'font-semibold' : 'font-normal'">{{ c.text }}</th>
+                        <th scope="row" class="py-2 pr-3 text-left whitespace-nowrap" [class]="c.text === 'Chain total' || c.text === 'Selection total' ? 'font-semibold' : 'font-normal'">{{ c.text }}</th>
                       } @else {
                         <td class="py-2 pl-3 whitespace-nowrap" [class]="align(r, $index) === 'l' ? 'text-left' : 'text-right'" [class.text-muted-foreground]="c.muted">
                           @if (c.spark) {
@@ -140,7 +155,7 @@ import * as icons from './icons';
             <dt class="text-muted-foreground">Scope</dt>
             <dd>{{ scope() }}</dd>
             <dt class="text-muted-foreground">Data</dt>
-            <dd>compass_hotels, as of {{ asOf }}</dd>
+            <dd>Halcyon group data, as of {{ asOf }}</dd>
           </dl>
           <p class="text-muted-foreground mt-2">{{ r.computed }}</p>
           <pre class="latest-panel mt-2 max-h-56 overflow-auto rounded-[8px] p-3 font-mono text-[11.5px]/relaxed whitespace-pre">{{ r.sql }}</pre>
@@ -170,10 +185,12 @@ import * as icons from './icons';
         }
         <hlm-dropdown-menu-separator />
         <button hlmDropdownMenuItem (triggered)="howOpen.set(!howOpen())"><ng-icon name="phosphorDatabaseLight" />{{ howOpen() ? 'Hide how this was computed' : 'How this was computed' }}</button>
-        @for (b of otherBoards(); track b.id) {
-          <button hlmDropdownMenuItem (triggered)="store.addChartToBoard(b.id, spec())"><ng-icon name="phosphorPlusLight" />Add to {{ b.name }}</button>
+        <hlm-dropdown-menu-separator />
+        <hlm-dropdown-menu-label>Add to board</hlm-dropdown-menu-label>
+        @for (b of savedBoards(); track b.id) {
+          <button hlmDropdownMenuItem (triggered)="addTo(b.id)"><ng-icon name="phosphorPlusLight" /><span class="truncate">{{ b.name }}</span></button>
         }
-        <button hlmDropdownMenuItem (triggered)="wrongChart()"><ng-icon name="phosphorThumbsDownLight" />Wrong chart</button>
+        <button hlmDropdownMenuItem (triggered)="addTo('new')"><ng-icon name="phosphorSquaresFourLight" />New board…</button>
       </hlm-dropdown-menu>
     </ng-template>
   `,
@@ -198,12 +215,8 @@ export class ChartCard {
   protected readonly scopeOpen = signal(false);
   private readonly width = signal(600);
   protected readonly option = computed(() => this.resolved().option(this.view(), palette(), this.width()));
-  protected readonly otherBoards = computed(() =>
-    this.store
-      .boards()
-      .filter((b) => b.id !== this.store.activeBoardId())
-      .slice(0, 3),
-  );
+  private readonly boards = inject(BoardsService);
+  protected readonly savedBoards = computed(() => this.boards.boards().slice(0, 8));
   protected readonly scope = computed(() => scopeChips(this.filters.state()).join(' · '));
   protected readonly filterList = computed(() => {
     const s = this.filters.state();
@@ -262,7 +275,13 @@ export class ChartCard {
     const d = this.resolved().drill?.(i);
     if (d) this.live.drill(d, this.filters.state());
   }
-  protected wrongChart() {
-    toast('Logged: wrong chart', { description: 'Kassandra uses this to pick a different view for this question next time.', duration: 5000 });
+  /** The chart, with the numbers it shows right now, onto a saved board (or a new one named after the chart). */
+  protected async addTo(target: string | 'new') {
+    const payload = chartToWidget(this.spec(), this.filters.state());
+    if (!payload) {
+      toast('Nothing to add', { description: 'This chart has no data for these filters.', duration: 5000 });
+      return;
+    }
+    await this.boards.addTo(target, payload, (id) => this.store.openBoard(id), BOARD_NAME[this.spec().kind]);
   }
 }

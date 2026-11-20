@@ -2,6 +2,8 @@
 // Light for navigation and calm UI, Bold for small high-emphasis glyphs, Fill for active or chosen state.
 export {
   phosphorArrowClockwiseLight,
+  phosphorArrowDownLight,
+  phosphorArrowUpLight,
   phosphorBuildingsLight,
   phosphorCaretUpLight,
   phosphorCheckCircleLight,

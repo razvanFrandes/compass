@@ -130,7 +130,7 @@ const TRIGGER = (w: WorkflowSpec) => (w.trigger.kind === 'schedule' ? `Every ${w
       </p>
     }
     @if (!t.running && (t.answer || t.steps.length) && t.model) {
-      <p class="text-muted-foreground/80 text-[11.5px] tabular-nums" [title]="t.model + ' · ' + tokens() + ' tokens · $' + t.usage.costUsd.toFixed(4)">{{ modeOf(t.model) }} · {{ usage() }}</p>
+      <p class="text-muted-foreground text-[11.5px] tabular-nums" [title]="t.model + ' · ' + tokens() + ' tokens · $' + t.usage.costUsd.toFixed(4)">{{ modeOf(t.model) }} · {{ usage() }}</p>
     }
   `,
 })

@@ -64,11 +64,11 @@ export const RANGES: Record<RangeKey, Range> = {
   last30: span('Last 30 nights', 'last 30 nights', false, BD - 30 * DAY, BD - DAY),
   mtd: span('Month to date', 'month to date', false, monthStart(Y, M), BD - DAY),
   last_month: span('Last month', 'last month', false, monthStart(Y, M - 1), monthStart(Y, M) - DAY),
-  ytd: { label: 'Year to date', short: 'year to date', future: false, from: 0, to: 0, unavailable: `This prototype’s extract starts ${fmtDay(at(DATES[0]))}` },
+  ytd: { label: 'Year to date', short: 'year to date', future: false, from: 0, to: 0, unavailable: `Data starts ${fmtDay(at(DATES[0]))}` },
 };
 export const RANGE_GROUPS: { label: string; keys: RangeKey[] }[] = [
   { label: 'Upcoming', keys: ['next7', 'next30', 'next90', 'rest_month', 'next_month'] },
-  { label: 'Past', keys: ['yesterday', 'last7', 'last30', 'mtd', 'last_month', 'ytd'] },
+  { label: 'Past', keys: ['yesterday', 'last7', 'last30', 'mtd', 'last_month'] },
 ];
 const URL_RANGE: Record<RangeKey, string> = { next7: 'next7n', next30: 'next30n', next90: 'next90n', rest_month: 'restm', next_month: 'nextm', yesterday: 'yday', last7: 'last7n', last30: 'last30n', mtd: 'mtd', last_month: 'lastm', ytd: 'ytd' };
 

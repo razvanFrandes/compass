@@ -353,10 +353,6 @@ export class FilterBar {
       { id: 'booked', label: 'Booked', hint: 'When the reservation was made', ok: true },
       { id: 'segment', label: 'Segment', hint: '', ok: true },
       { id: 'channel', label: 'Channel', hint: '', ok: true },
-      { id: 'room_type', label: 'Room type', hint: 'Not in this prototype’s extract yet', ok: false },
-      { id: 'rate_plan', label: 'Rate plan', hint: 'Not in this prototype’s extract yet', ok: false },
-      { id: 'los', label: 'Length of stay', hint: 'Not in this prototype’s extract yet', ok: false },
-      { id: 'market', label: 'Source market', hint: 'Not in this prototype’s extract yet', ok: false },
     ];
     return all.filter((d) => !q || d.label.toLowerCase().includes(q));
   });
