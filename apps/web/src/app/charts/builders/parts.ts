@@ -2,7 +2,7 @@ import { formatValue } from '../format';
 import { catColor, inkOn, mix, markRadius } from '../tokens';
 import type { EvidenceColumn } from '../widget-types';
 import { buildBar } from './cartesian';
-import { type Built, type Ctx, type LegendItem, baseOption, cell, column, distinct, empty, extremes, label, numberAt, pickLabelKey, pickValueKey, specKeys, summary, tableModel, tip, tooltip, valueColumn } from './shared';
+import { type Built, type Ctx, type LegendItem, baseOption, cell, column, distinct, empty, extremes, label, numberAt, pickLabelKey, pickValueKey, specKeys, summary, tableModel, textWidth, tip, tooltip, valueColumn } from './shared';
 
 /* Parts of a whole and flows: pie, donut, funnel, treemap and sankey. */
 
@@ -113,8 +113,114 @@ export const buildDonut = (c: Ctx): Built => pieLike(c, true);
 
 /* ───────── Funnel ───────── */
 
+interface StageFunnel {
+  name: string;
+  stages: Part[];
+}
+
+/**
+ * Funnels whose stages are columns: `y` names them in order and each row is one funnel (mobile next to desktop),
+ * named by `x`. This is the shape the web funnel tool returns. Null when `y` is one column: the stages are then rows.
+ */
+function stageFunnels(c: Ctx): StageFunnel[] | null {
+  const keys = c.spec.y ?? [];
+  if (keys.length < 2) return null;
+  const xKey = c.spec.x;
+  const nameCol = xKey ? column(c, xKey) : null;
+  return c.rows
+    .slice(0, 4)
+    .map((r) => ({
+      name: xKey && nameCol ? label(cell(r, xKey), nameCol) : '',
+      stages: keys.map((k) => ({ name: valueColumn(c, k).label, value: numberAt(r, k) })).filter((s): s is Part => s.value !== null),
+    }))
+    .filter((f) => f.stages.length > 0);
+}
+
+const FUNNEL_SHAPE = { type: 'funnel', sort: 'none', gap: 2, minSize: '6%', maxSize: '100%' } as const;
+
+/** Two to four funnels side by side, one per row: the same stages down each, shares of each funnel's own first stage. */
+function buildFunnels(c: Ctx, funnels: StageFunnel[], col: EvidenceColumn): Built {
+  const stageNames = funnels[0].stages.map((s) => s.name);
+  const n = funnels.length;
+  const top = 28;
+  const bottom = 6;
+  // Wide: the stage names sit once on the left. On a phone there is no room, so each label carries its stage name.
+  const namesW = c.narrow ? 0 : Math.min(Math.max(...stageNames.map((s) => textWidth(s, 12))) + 16, Math.round(c.width * 0.24));
+  const slot = (c.width - namesW) / n;
+  const shapeW = Math.round(slot * (c.narrow ? 0.4 : 0.5));
+  const lefts = funnels.map((_, i) => Math.round(namesW + i * slot + 2));
+  const ofTop = (f: StageFunnel, j: number) => share(f.stages[j].value, f.stages[0].value || 1);
+  const ofPrev = (f: StageFunnel, j: number) => (j === 0 ? null : share(f.stages[j].value, f.stages[j - 1].value || 1));
+  const value = (f: StageFunnel, j: number) => formatValue(f.stages[j].value, col, { compact: true, unit: false });
+  const colorOf = (f: StageFunnel, j: number) => mix(c.t.series, c.t.surface, 1 - (0.62 * j) / Math.max(1, f.stages.length - 1));
+  const rich = {
+    n: { color: c.t.text, fontSize: 12, lineHeight: 16, fontFamily: c.t.font, fontWeight: 500 },
+    v: { color: c.t.muted, fontSize: 11.5, lineHeight: 15, fontFamily: c.t.font },
+  };
+  const series = funnels.map((f, i) => ({
+    ...FUNNEL_SHAPE,
+    name: f.name,
+    top,
+    bottom,
+    left: lefts[i],
+    width: shapeW,
+    itemStyle: { borderWidth: 0, borderRadius: markRadius(c.t, 2) },
+    emphasis: { disabled: false, label: { fontWeight: 500 } },
+    labelLine: { show: false },
+    data: f.stages.map((s, j) => ({ name: s.name, value: s.value, itemStyle: { color: colorOf(f, j) } })),
+    label: {
+      show: true,
+      position: 'right',
+      fontFamily: c.t.font,
+      formatter: (p: { dataIndex: number }) => (c.narrow ? `{n|${f.stages[p.dataIndex].name}}\n{v|${value(f, p.dataIndex)} · ${ofTop(f, p.dataIndex)}}` : `{n|${value(f, p.dataIndex)}}  {v|${ofTop(f, p.dataIndex)}}`),
+      rich,
+    },
+  }));
+  // ECharts gives every stage the same height, so the names on the left can be placed without measuring the chart.
+  const stageH = (c.height - top - bottom - FUNNEL_SHAPE.gap * (stageNames.length - 1)) / stageNames.length;
+  const text = (x: number, y: number, value: string, align: 'center' | 'right', fill: string, weight: number) => ({
+    type: 'text',
+    silent: true,
+    x,
+    y,
+    style: { text: value, textAlign: align, textVerticalAlign: 'middle', fill, fontSize: 12, fontFamily: c.t.font, fontWeight: weight },
+  });
+  const option = {
+    ...baseOption(c),
+    tooltip: tooltip(c, {
+      trigger: 'item',
+      formatter: (p: unknown) => {
+        const { seriesIndex, dataIndex: j } = p as { seriesIndex: number; dataIndex: number };
+        const f = funnels[seriesIndex];
+        if (!f?.stages[j]) return '';
+        const prev = ofPrev(f, j);
+        return tip(c, `${f.name} · ${f.stages[j].name}`, [{ label: col.label, value: formatValue(f.stages[j].value, col), color: colorOf(f, j) }, { label: `Of ${f.stages[0].name.toLowerCase()}`, value: ofTop(f, j), muted: true }, ...(prev ? [{ label: 'Of the previous stage', value: prev, muted: true }] : [])]);
+      },
+    }),
+    graphic: [
+      ...funnels.map((f, i) => text(lefts[i] + shapeW / 2, 11, f.name, 'center', c.t.fg, 600)),
+      ...(c.narrow ? [] : stageNames.map((name, j) => text(namesW - 10, top + j * (stageH + FUNNEL_SHAPE.gap) + stageH / 2, name, 'right', c.t.text, 500))),
+    ],
+    series,
+  };
+  return {
+    render: 'echarts',
+    kind: 'funnel',
+    option,
+    points: funnels.flatMap((f, i) =>
+      f.stages.map((s, j) => ({ seriesIndex: i, dataIndex: j, text: `${f.name}, ${s.name}: ${formatValue(s.value, col)}, ${ofTop(f, j)} of ${f.stages[0].name.toLowerCase()}${ofPrev(f, j) ? `, ${ofPrev(f, j)} of the previous stage` : ''}` })),
+    ),
+    legend: [],
+    table: tableModel(c, specKeys(c.spec)),
+    summary: summary(c, `${n} funnels with ${stageNames.length} stages each.`, funnels.map((f) => `${f.name}: ${f.stages.map((s, j) => `${s.name} ${formatValue(s.value, col)} (${ofTop(f, j)})`).join(', ')}`).join('. ') + '.'),
+  };
+}
+
 export function buildFunnel(c: Ctx): Built {
-  const { parts: ps, col } = parts(c);
+  // Stages are the y columns (one funnel per row), or the rows (one y column).
+  const byColumn = stageFunnels(c);
+  if (byColumn && byColumn.length > 1) return buildFunnels(c, byColumn, valueColumn(c, c.spec.y?.[0]));
+  const { parts: ps, col } = byColumn ? { parts: byColumn[0]?.stages ?? [], col: valueColumn(c, c.spec.y?.[0]) } : parts(c);
   if (!ps.length) return empty(c, 'No stages to show.');
   const top = ps[0].value || 1;
   // One hue stepping down: the stages are an order, not categories.

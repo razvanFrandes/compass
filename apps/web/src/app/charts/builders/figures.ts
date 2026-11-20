@@ -31,11 +31,13 @@ function companion(c: Ctx, key: string, single: boolean): string | undefined {
 
 function versus(c: Ctx, key: string | undefined): string {
   if (!key) return '';
+  // What the comparison is, from the key or from its label: "Occupancy, last year" reads as "vs last year".
   const known = c.columns.find((x) => x.key === key);
+  const said = `${key} ${known?.label ?? ''}`;
+  if (/_(ly|stly|last_year)(_|$)|last year/i.test(said)) return 'vs last year';
+  if (/budget/i.test(said)) return 'vs budget';
+  if (/target/i.test(said)) return 'vs target';
   if (known) return `vs ${known.label.replace(/^./, (m) => m.toLowerCase())}`;
-  if (/_(ly|stly|last_year)(_|$)/.test(key)) return 'vs last year';
-  if (/_budget(_|$)/.test(key)) return 'vs budget';
-  if (/_target(_|$)/.test(key)) return 'vs target';
   return 'vs previous';
 }
 
