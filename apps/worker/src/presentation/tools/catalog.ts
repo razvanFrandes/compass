@@ -204,6 +204,23 @@ export const DATA_TOOLS = [
     run: async (data, args) => success(await data.searchReviews(args)),
   }),
   tool({
+    name: 'find_reviews',
+    description:
+      'Search guest reviews by meaning, not exact words: "what do guests say about breakfast", "noise from building works". ' +
+      'Returns the review sentences closest to the question (complaints from negative_text, praise from positive_text) with ' +
+      'similarity, how many reviews in scope say it (mentions, share_pct, first and last date, per hotel) and the latest such ' +
+      'review (hotel, date, source, score). Defaults to the last 90 days. Use search_reviews for an exact phrase.',
+    input: z.object({
+      question: z.string().min(2).max(300).describe('What to look for, in plain words, e.g. "food quality and slow dinner service"'),
+      hotels,
+      from: isoDate.optional().describe('ISO date, YYYY-MM-DD. Default: 90 days before `to`'),
+      to: isoDate.optional().describe('ISO date, YYYY-MM-DD. Default: the business date'),
+      sentiment: z.enum(['complaint', 'praise', 'any']).default('any'),
+      k: z.number().int().min(1).max(20).default(8).describe('How many distinct sentences to return'),
+    }),
+    run: async (data, args) => fromResult(await data.findReviews(args)),
+  }),
+  tool({
     name: 'get_web_funnel',
     description:
       'Hotel website booking funnel by device or traffic source: sessions, searches, checkout starts, bookings, conversion and checkout completion.',

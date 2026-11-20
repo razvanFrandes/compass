@@ -11,6 +11,7 @@ import { createWorkflowExtension, DecisionSignal } from '../../application/workf
 import type { Env } from '../../env.ts';
 import { DurableWorkflowStore } from '../../infrastructure/do-workflow-store.ts';
 import { openPostgres } from '../../infrastructure/postgres.ts';
+import { WorkersAiEmbedder } from '../../infrastructure/workers-ai-embedder.ts';
 import { projectEntries } from './chat-projection.ts';
 import { KASSANDRA_SECTIONS } from './kassandra-prompt.ts';
 import { THINKER_MODEL } from './modes.ts';
@@ -198,7 +199,7 @@ export class WorkflowAgents extends DurableObject<Env> {
     registry.install(
       createDataExtension(() => {
         const db = openPostgres(this.env.HYPERDRIVE.connectionString);
-        return { data: new HotelData(db), close: () => db.close() };
+        return { data: new HotelData(db, new WorkersAiEmbedder(this.env.AI)), close: () => db.close() };
       }),
     );
     registry.install(createWorkflowExtension(this.store));

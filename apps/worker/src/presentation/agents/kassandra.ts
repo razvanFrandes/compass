@@ -8,6 +8,7 @@ import { Lifecycle } from 'agents/lifecycle';
 import { createAI } from 'agents/models/pi-ai';
 import { HotelData } from '../../application/hotel-data.ts';
 import { openPostgres } from '../../infrastructure/postgres.ts';
+import { WorkersAiEmbedder } from '../../infrastructure/workers-ai-embedder.ts';
 import type { Env } from '../../env.ts';
 import { projectEntries, projectLive } from './chat-projection.ts';
 import { KASSANDRA_SECTIONS } from './kassandra-prompt.ts';
@@ -35,7 +36,7 @@ export class Kassandra extends DurableObject<Env> {
   // One registry per object, never at module scope: Pi keeps each Harness subscribed to its registry.
   data = createDataExtension(() => {
     const db = openPostgres(this.env.HYPERDRIVE.connectionString);
-    return { data: new HotelData(db), close: () => db.close() };
+    return { data: new HotelData(db, new WorkersAiEmbedder(this.env.AI)), close: () => db.close() };
   });
   registry = createKassandraRegistry(this.data);
 

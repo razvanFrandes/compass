@@ -31,7 +31,7 @@ describe('Compass MCP server', () => {
   it('lists read-only tools with descriptions', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
-      'get_account_production', 'get_brief', 'get_channel_mix', 'get_data_health', 'get_fnb', 'get_forecast', 'get_inventory', 'get_labor',
+      'find_reviews', 'get_account_production', 'get_brief', 'get_channel_mix', 'get_data_health', 'get_fnb', 'get_forecast', 'get_inventory', 'get_labor',
       'get_lost_business', 'get_meetings_events', 'get_metric', 'get_mix', 'get_pace', 'get_pickup', 'get_pnl', 'get_rate_position',
       'get_review_scores', 'get_schema', 'get_web_funnel', 'list_hotels', 'list_metrics', 'run_readonly_query', 'search_reviews',
     ]);
@@ -74,6 +74,12 @@ describe('Compass MCP server', () => {
     const result = await call('run_readonly_query', { sql: 'drop table hotel.hotels' });
     expect(result.isError).toBe(true);
     expect(result.content[0]!.text).toMatch(/Only SELECT/);
+  });
+
+  it('reports semantic review search as unavailable without an embedder (local Postgres has no pgvector)', async () => {
+    const result = await call('find_reviews', { question: 'noise from building works', hotels: ['BCN'] });
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toMatch(/search_reviews/);
   });
 
   it('describes the schema for custom queries', async () => {

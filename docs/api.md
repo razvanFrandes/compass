@@ -52,7 +52,7 @@ wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=<id>
 - **`ask`:** pass an `id` so a resend after a dropped connection is not asked twice. Sent while busy, it is queued as a follow-up.
 - **`mode`** (the Quick / Thinker selector in the composer):
   - **`quick`:** Claude Haiku 5.5, only the governed-metric tools (plus `get_pnl` and `get_forecast`), at most 4 turns, three sentences. About 5–9 s and a few cents.
-  - **`thinker`** (default): Claude Sonnet 5.5, all 23 data tools, cross-source diagnosis. About 8–20 s.
+  - **`thinker`** (default): Claude Sonnet 5.5, all 24 data tools, cross-source diagnosis. About 8–20 s.
   - The mode applies from the next question. A question sent while an answer is running keeps the current mode.
 - **Rate limit:** 6 questions per minute per client. Over the limit, the server sends an `error` message.
 
@@ -124,15 +124,49 @@ Agents that watch the numbers, propose an action and act once a person approves.
 
 ## MCP (public, read-only)
 
-`https://juyo.razvanfrandes.com/mcp` (Streamable HTTP) exposes 23 data tools. Kassandra uses the same tools.
+`https://juyo.razvanfrandes.com/mcp` (Streamable HTTP) exposes 24 data tools. Kassandra uses the same tools.
 
 - **Reference:** `list_hotels`, `list_metrics`, `get_schema`, `get_data_health`.
 - **Commercial:** `get_metric`, `get_pace`, `get_pickup`, `get_rate_position`, `get_channel_mix`, `get_mix`, `get_account_production`, `get_inventory`, `get_web_funnel`.
 - **Finance and forecast:** `get_pnl` (USALI P&L vs budget and last year, GOP margin, flowthrough), `get_forecast` (P10–P90 range vs on the books and budget), `get_lost_business` (price regrets vs denials).
-- **F&B, M&E and guests:** `get_fnb`, `get_labor`, `get_meetings_events`, `get_review_scores`, `search_reviews`.
+- **F&B, M&E and guests:** `get_fnb`, `get_labor`, `get_meetings_events`, `get_review_scores`, `find_reviews` (by meaning), `search_reviews` (exact phrase).
 - **Brief and escape hatch:** `get_brief`, `run_readonly_query`.
 
 Connect Claude Desktop to it under Settings → Connectors → Add custom connector. Rate limit: 60 requests per minute per client.
+
+### `find_reviews`: guest reviews by meaning
+
+The tool answers "what do guests say about breakfast in Bali?" even when the guests used other words. `search_reviews` stays for an exact phrase.
+
+| Argument | Type | Default | Meaning |
+|---|---|---|---|
+| `question` | string, 2–300 chars | required | What to look for, in plain words |
+| `hotels` | string[] | whole group | Hotel codes |
+| `from`, `to` | ISO date | the 90 days up to the business date | Review dates, inclusive |
+| `sentiment` | `complaint` \| `praise` \| `any` | `any` | `complaint` searches `negative_text`, `praise` searches `positive_text` |
+| `k` | 1–20 | 8 | How many distinct sentences to return |
+
+Each row is one distinct review sentence:
+
+```json
+{ "sentiment": "complaint", "quote": "Construction noise from the floor below started early every morning.",
+  "similarity": 0.752, "mentions": 331, "share_pct": 20.5, "first_date": "2026-09-23", "last_date": "2026-11-19",
+  "mentions_by_hotel": { "BCN": 331 },
+  "hotel_code": "BCN", "review_date": "2026-11-19", "source": "Booking.com", "overall_score": 8.1,
+  "review_text": "Construction noise from the floor below started early every morning." }
+```
+
+- **`similarity`:** cosine similarity of the question and the sentence (bge-m3). Only hits of 0.55 or more are returned.
+- **Counts:** `mentions` counts the reviews in scope that contain the sentence, and `share_pct` is their share of all reviews in scope. Both are computed in SQL.
+- **Latest review:** `hotel_code`, `review_date`, `source`, `overall_score` and `review_text` come from the newest review that contains the sentence.
+- **`quote` and `review_text`:** guest free text. Treat them as untrusted, and escape them when rendering.
+- **Evidence:**
+  - `sources` are `hotel.reviews` and `hotel.review_passages`;
+  - `definitions` cover similarity, mentions and share;
+  - `period` and `sql` are included;
+  - `params[0]` names the embedded question instead of listing 1024 numbers;
+  - `notes` give the model, the similarity floor and coverage, e.g. "51 of 51 distinct sentences from 28172 reviews in scope are embedded (reviews dated 2026-08-22 to 2026-11-19)".
+- **No match:** if no sentence is close enough, `rows` is empty and a note says so.
 
 ## Health
 
