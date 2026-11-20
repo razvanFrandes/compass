@@ -128,7 +128,7 @@ describe('Agent Studio actions', () => {
 
     it('asks before deleting, and deletes only on a yes', async () => {
       const cancelled = actions.remove(workflow());
-      expect(confirm.request()).toMatchObject({ title: 'Delete “Pace guard”?', confirm: 'Delete workflow', tone: 'destructive' });
+      expect(confirm.request()).toMatchObject({ title: 'Delete “Pace guard”?', confirm: 'Delete agent', tone: 'destructive' });
       expect(confirm.request()!.body).toContain('audit log');
       confirm.answer(false);
       expect(await cancelled).toBe(false);
@@ -265,7 +265,7 @@ describe('Agent Studio actions', () => {
 
     it('deletes on confirm and tells the screen', async () => {
       await choose('Delete');
-      dialogButton('Delete workflow').click();
+      dialogButton('Delete agent').click();
       await settle();
       expect(api.calls).toEqual([{ method: 'remove', id: 'wf-1' }]);
       expect(fixture.componentInstance.deleted()).toBe('wf-1');

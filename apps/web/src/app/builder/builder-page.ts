@@ -159,7 +159,7 @@ export function namedScope(graph: WorkflowGraph, hotels: readonly string[] | und
     @if (editFailed()) {
       <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-(--field-border) bg-(--decision-tint) px-4 py-2 text-[13px]/5" role="alert">
         <ng-icon name="phosphorWarningFill" class="shrink-0 text-[16px] text-(--decision)" aria-hidden="true" />
-        <span>This workflow could not be opened for editing, so nothing here would change it.</span>
+        <span>This agent could not be opened for editing, so nothing here would change it.</span>
         <a hlmBtn variant="link" size="sm" [href]="backHref">Back to Agent Studio</a>
       </div>
     }
@@ -175,7 +175,7 @@ export function namedScope(graph: WorkflowGraph, hotels: readonly string[] | und
       <section class="border-border/70 flex min-w-0 flex-col lg:min-h-0 lg:border-r" aria-label="Chat">
         <app-builder-chat class="lg:min-h-0 lg:flex-1" [items]="conversation()" [running]="socket.live().running" [online]="!offline()" (ask)="socket.ask($event)" (stop)="socket.abort()" />
       </section>
-      <section class="border-border/70 min-w-0 max-lg:border-t lg:min-h-0" aria-label="Workflow">
+      <section class="border-border/70 min-w-0 max-lg:border-t lg:min-h-0" aria-label="Agent">
         <app-workflow-canvas
           class="lg:h-full lg:overflow-y-auto"
           [graph]="graph()"
@@ -205,8 +205,8 @@ export class WorkflowBuilder {
   protected readonly conversation = computed(() => toConversation(this.socket.entries(), this.socket.live()));
   protected readonly title = computed(() => {
     const name = this.socket.draft().name?.trim();
-    if (this.editId) return name ? `Edit · ${name}` : 'Edit workflow';
-    return name || 'New workflow';
+    if (this.editId) return name ? `Edit · ${name}` : 'Edit agent';
+    return name || 'New agent';
   });
   protected readonly graph = computed(() => namedScope(this.socket.graph(), this.socket.draft().hotels, this.scope.catalog()));
   /** An edit link whose workflow the server did not load: the draft came back empty and unsaved. */

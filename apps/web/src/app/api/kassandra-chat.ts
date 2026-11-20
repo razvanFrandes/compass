@@ -2,6 +2,7 @@ import { DestroyRef, inject, InjectionToken, Service, signal, type Signal } from
 import type { AnswerMode } from '@compass/contracts';
 import { API_BASE, wsUrl } from './api-config';
 import { ChatSocket, type SocketFactory } from './chat-socket';
+import type { AskScope } from './round2-contracts';
 
 /** How sockets are made. Tests provide a fake. */
 export const SOCKET_FACTORY = new InjectionToken<SocketFactory>('SOCKET_FACTORY', {
@@ -75,9 +76,12 @@ export class KassandraChat {
     this.chat.disconnect();
   }
 
-  /** `mode` applies from this question on; a question sent while an answer is running keeps the current mode. */
-  ask(text: string, mode: AnswerMode = 'thinker'): string | null {
-    return this.chat.ask(text, mode);
+  /**
+   * `mode` applies from this question on; a question sent while an answer is running keeps the current mode.
+   * `scope` is the hotel scope the answer is restricted to (empty or absent: the whole group).
+   */
+  ask(text: string, mode: AnswerMode = 'thinker', scope?: AskScope): string | null {
+    return this.chat.ask(text, mode, scope);
   }
 
   steer(text: string): boolean {

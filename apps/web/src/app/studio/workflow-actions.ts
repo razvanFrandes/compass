@@ -85,7 +85,7 @@ export class WorkflowActions {
     const ok = await this.confirm.ask({
       title: `Delete “${workflow.name}”?`,
       body: 'It stops running and leaves Agent Studio. Its past runs, proposals and audit entries stay in the audit log, under its name.',
-      confirm: 'Delete workflow',
+      confirm: 'Delete agent',
       tone: 'destructive',
     });
     if (!ok) return false;

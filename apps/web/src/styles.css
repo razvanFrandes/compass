@@ -652,3 +652,51 @@ textarea.field-input { height: auto; line-height: 1.5; }
 .confirm-dialog::backdrop { background: rgb(0 0 0 / 0.5); }
 .skeleton { background: var(--muted); animation: skeleton-wave 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+/* ───────── Kassandra component family (src/app/kassandra): one composer, one conversation, everywhere ───────── */
+.k-link { outline: none; }
+.k-link:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring); }
+.k-details > summary { list-style: none; text-decoration: underline; text-underline-offset: 2px; }
+.k-details > summary::-webkit-details-marker { display: none; }
+@media (hover: hover) { .k-details > summary:hover { color: var(--foreground); } }
+/* A next question: quiet until hovered, the same height as a small button (44 px on touch). */
+.k-suggestion {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 5px 10px 5px 12px; border-radius: 8px;
+  font-size: 13px; line-height: 1.35; text-align: left; color: var(--foreground);
+  border: 1px solid var(--field-border); background: transparent; outline: none;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+@media (hover: hover) { .k-suggestion:hover { background: var(--overlay-hover); border-color: var(--field-border-hover); } }
+.k-suggestion:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring); }
+@media (pointer: coarse) { .k-suggestion { min-height: 44px; } }
+/* Sidebar threads: the title is the target; the time gives way to ⋯ on hover and focus. */
+.k-thread { position: relative; display: flex; align-items: center; border-radius: 6px; color: var(--muted-foreground); transition: background-color 150ms ease, color 150ms ease; }
+@media (hover: hover) { .k-thread:hover { background: rgb(from var(--foreground) r g b / 0.04); color: var(--foreground); } }
+.k-thread--current { background: rgb(from var(--foreground) r g b / 0.06); color: var(--foreground); }
+.k-thread-open { display: flex; min-width: 0; flex: 1; align-items: baseline; gap: 8px; padding: 4px 8px; border-radius: 6px; text-align: left; outline: none; }
+.k-thread-time { flex-shrink: 0; font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--muted-foreground); }
+.k-thread-more {
+  position: absolute; right: 2px; top: 50%; display: grid; width: 24px; height: 24px; place-items: center; border-radius: 5px;
+  transform: translateY(-50%); opacity: 0; color: var(--muted-foreground); outline: none;
+}
+.k-thread:hover .k-thread-more, .k-thread:focus-within .k-thread-more, .k-thread-more[aria-expanded='true'] { opacity: 1; }
+.k-thread:hover .k-thread-time, .k-thread:focus-within .k-thread-time { visibility: hidden; }
+@media (hover: hover) { .k-thread-more:hover { background: var(--overlay-hover); color: var(--foreground); } }
+.k-thread-open:focus-visible, .k-thread-more:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+.k-thread-input {
+  min-width: 0; flex: 1; height: 28px; padding: 0 7px; border-radius: 6px; font-size: 13px; color: var(--foreground);
+  background: var(--field); border: 1px solid var(--focus-brand); outline: none; box-shadow: 0 0 0 3px rgb(153 106 213 / 0.2);
+}
+@media (prefers-reduced-motion: reduce) { .k-suggestion, .k-thread { transition: none; } }
+/* Skeletons of generative UI (docs/decisions.md "Skeletons"): a quiet block with a slow, faint sweep of light.
+   Static under reduced motion. */
+.k-skel {
+  border-radius: 6px;
+  background-color: var(--muted);
+  background-image: linear-gradient(100deg, transparent 30%, rgb(from var(--foreground) r g b / 0.06) 50%, transparent 70%);
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: k-shimmer 1.8s ease-in-out infinite;
+}
+.k-skel-stroke { stroke: var(--muted); animation: skeleton-wave 1.8s ease-in-out infinite; }
+@keyframes k-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+@media (prefers-reduced-motion: reduce) { .k-skel, .k-skel-stroke { animation: none; background-image: none; } }

@@ -245,7 +245,7 @@ export function nodePatch(node: Pick<WorkflowNode, 'id' | 'kind'>, draft: Workfl
               [attr.aria-describedby]="uid + '-email-hint' + (error() ? ' ' + uid + '-error' : '')"
             />
             @if (keptAddress(); as kept) {
-              <p class="text-muted-foreground text-[12.5px]" [id]="uid + '-email-hint'">It sends to {{ kept }} now. Leave this empty to keep it. A new address is saved as a new workflow, and this one is turned off.</p>
+              <p class="text-muted-foreground text-[12.5px]" [id]="uid + '-email-hint'">It sends to {{ kept }} now. Leave this empty to keep it. A new address is saved as a new agent, and this one is turned off.</p>
             } @else {
               <p class="text-muted-foreground text-[12.5px]" [id]="uid + '-email-hint'">One address. Only you see it in full.</p>
             }

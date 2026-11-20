@@ -5,7 +5,8 @@ import type { Workflow, WorkflowRun } from '@compass/contracts';
 import { CHECK_LABELS } from '@compass/contracts';
 import { inline } from './markdown';
 import { groupTurns, toApiError } from './api';
-import { ChatTurnView } from './chat-turn';
+import { KassandraComposer } from './kassandra/kassandra-composer';
+import { KassandraConversation } from './kassandra/kassandra-conversation';
 import { EvidencePanel } from './evidence-panel';
 import { Live, ago } from './live';
 import { ACTION_LABEL, ProposalCard } from './proposal-card';
@@ -26,7 +27,7 @@ import * as icons from './icons';
 */
 @Component({
   selector: 'app-watcher-page',
-  imports: [NgIcon, HlmButtonImports, ChatTurnView, EvidencePanel, ProposalCard, WorkflowMenu, ConfirmDialog],
+  imports: [NgIcon, HlmButtonImports, KassandraComposer, KassandraConversation, EvidencePanel, ProposalCard, WorkflowMenu, ConfirmDialog],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
@@ -38,7 +39,7 @@ import * as icons from './icons';
       </nav>
 
       @if (error(); as e) {
-        <p role="alert" class="border-border rounded-[10px] border border-dashed p-3 text-[13.5px]">Couldn’t load this workflow: {{ e }} <button hlmBtn variant="ghost" size="sm" (click)="detail.reload()">Try again</button></p>
+        <p role="alert" class="border-border rounded-[10px] border border-dashed p-3 text-[13.5px]">Couldn’t load this agent: {{ e }} <button hlmBtn variant="ghost" size="sm" (click)="detail.reload()">Try again</button></p>
       }
 
       @if (wf(); as w) {
@@ -50,7 +51,7 @@ import * as icons from './icons';
             }
           </div>
           <div class="flex items-center gap-2">
-            <button type="button" class="toggle" role="switch" [attr.aria-checked]="w.enabled" [attr.aria-label]="w.enabled ? 'Pause this workflow' : 'Turn this workflow on'" (click)="toggle(w)"><i></i></button>
+            <button type="button" class="toggle" role="switch" [attr.aria-checked]="w.enabled" [attr.aria-label]="w.enabled ? 'Pause this agent' : 'Turn this agent on'" (click)="toggle(w)"><i></i></button>
             <span class="text-muted-foreground mr-2 text-[13px]">{{ w.enabled ? 'On' : 'Paused' }}</span>
             <button hlmBtn variant="secondary" (click)="actions.edit(w)"><ng-icon name="phosphorPencilSimpleLight" aria-hidden="true" />Edit</button>
             <button hlmBtn [disabled]="!!busy() || running() || !w.enabled" (click)="runNow(w)">{{ busy() || (running() ? 'Running…' : 'Run now') }}</button>
@@ -86,6 +87,12 @@ import * as icons from './icons';
           @if (w.checks.length) {
             <div class="sm:col-span-2"><p class="text-muted-foreground text-[12px]">Checks first</p><p>{{ checks(w) }}</p></div>
           }
+        </section>
+
+        <!-- "Ask about this": the question opens a thread with this workflow as its subject, and is sent at once -->
+        <section aria-labelledby="wp-ask">
+          <h2 id="wp-ask" class="mb-3 text-[15px] font-semibold">Ask about this</h2>
+          <kassandra-composer label="Ask Kassandra about this agent" placeholder="Ask about this agent, e.g. “why did it fire today?”" [scope]="[w.name, hotels(w.hotels)]" [(mode)]="live.mode" (submitted)="ask(w, $event)" />
         </section>
 
         @if (proposals().length) {
@@ -127,13 +134,11 @@ import * as icons from './icons';
                 <p class="text-muted-foreground text-[13.5px]" role="status">Loading the log…</p>
               }
               <div class="insight-card px-4 pb-4">
-                @for (t of turns(); track t.key) {
-                  <app-chat-turn [turn]="t" (evidence)="evidenceFor.set($event)" />
-                } @empty {
+                <kassandra-conversation [turns]="turns()" (evidenceSelected)="evidenceFor.set($event.callId)">
                   @if (!log.isLoading()) {
                     <p class="text-muted-foreground pt-4 text-[13.5px]">This run has no log entries.</p>
                   }
-                }
+                </kassandra-conversation>
               </div>
               @if (evidenceFor()) {
                 <div class="mt-4">
@@ -204,6 +209,12 @@ export class WatcherPage {
     this.store.activeWatcherId.set(id);
   }
 
+  /** The question goes to a new thread, with what the workflow is and what its latest run said as its subject. */
+  protected ask(w: Workflow, text: string) {
+    const last = this.runs()[0]?.summary?.replace(/\s+/g, ' ').trim();
+    const about = [`About the agent “${w.name}” (${this.hotels(w.hotels)})`, `it watches: ${w.goal.trim().replace(/\.$/, '')}`, ...(last ? [`its latest run said: ${last.slice(0, 280)}`] : [])].join('; ');
+    this.live.askNew(`${about}. ${text}`);
+  }
   protected pickRun(id: string) {
     this.picked.set(id);
     this.evidenceFor.set(null);

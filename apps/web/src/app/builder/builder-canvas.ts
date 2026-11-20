@@ -254,14 +254,14 @@ export interface CanvasResult {
     <div class="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-4 pt-6 pb-10 sm:px-6 lg:pt-10 lg:pb-16">
       @if (blank()) {
         <div class="gen-in mb-6 text-center">
-          <h2 class="text-[15px] font-medium">Your workflow takes shape here</h2>
+          <h2 class="text-[15px] font-medium">Your agent takes shape here</h2>
           <p class="text-muted-foreground mx-auto mt-1 max-w-[34ch] text-[13.5px]/relaxed">Describe it in the chat and watch each step fill in, or select a step to set it by hand.</p>
         </div>
       } @else {
-        <h2 class="sr-only">Workflow steps</h2>
+        <h2 class="sr-only">Agent steps</h2>
       }
 
-      <ol class="flex flex-col" aria-label="Workflow steps, in the order they run">
+      <ol class="flex flex-col" aria-label="Agent steps, in the order they run">
         @for (node of graph().nodes; track node.id; let i = $index) {
           <li class="wb-item">
             @if (i > 0) {

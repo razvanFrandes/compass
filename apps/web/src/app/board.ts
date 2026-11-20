@@ -7,7 +7,8 @@ import { ChartCard } from './chart-card';
 import { FilterBar } from './filter-bar';
 import { DEFAULTS, Filters, parseFilterRequest } from './filters';
 import { PORTFOLIO_SPECS, isWide, kpis } from './portfolio';
-import { AskBar } from './ask-bar';
+import { KassandraComposer } from './kassandra/kassandra-composer';
+import { KassandraDescribeView } from './kassandra/kassandra-describe-view';
 import { MetricChart } from './metric-chart';
 import { Live, ago } from './live';
 import { CompassStore } from './store';
@@ -15,8 +16,7 @@ import { METRICS, MetricKey, NIGHTS, Range, metricSeries, metricTotal } from './
 import { ProposalCard } from './proposal-card';
 import { BoardsService } from './boards/boards.service';
 import type { Board, BoardWidget } from './boards/types';
-// Stand-in until r2/fe-charts lands: swap this import for its <juyo-widget-chart>.
-import { WidgetChart } from './boards/widget-chart';
+import { WidgetChart } from './charts/widget-chart';
 import * as icons from './icons';
 
 /** Boards that come with the product, computed in the browser from the Halcyon extract (they have filters). */
@@ -106,7 +106,7 @@ export class PerformanceWidget {
         <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground" [attr.aria-label]="'More for ' + w.spec.title" [hlmDropdownMenuTrigger]="menu" align="end"><ng-icon name="phosphorDotsThreeBold" class="text-[18px]" /></button>
       </header>
       <div class="mt-4 min-h-0 flex-1">
-        <juyo-widget-chart [spec]="w.spec" [rows]="w.rows" [columns]="w.columns" />
+        <juyo-widget-chart [spec]="w.spec" [rows]="w.rows" [columns]="w.columns" [header]="false" />
       </div>
       @if (how()) {
         <section class="border-border mt-4 border-t pt-3 text-[12.5px]" aria-label="How this was computed">
@@ -185,7 +185,7 @@ export class SavedWidget {
  */
 @Component({
   selector: 'app-board',
-  imports: [NgIcon, AskBar, PerformanceWidget, ChartCard, FilterBar, ProposalCard, SavedWidget, HlmButtonImports, HlmDropdownMenuImports],
+  imports: [NgIcon, KassandraComposer, KassandraDescribeView, PerformanceWidget, ChartCard, FilterBar, ProposalCard, SavedWidget, HlmButtonImports, HlmDropdownMenuImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
@@ -203,7 +203,7 @@ export class SavedWidget {
               <h1 class="text-[24px] font-[560] tracking-[-0.02em]">Portfolio</h1>
               <p class="text-muted-foreground text-[14px]">{{ portfolioSubtitle() }} · data as of Fri 20 Nov, 07:00</p>
             </div>
-            <app-ask-bar label="Ask Kassandra or filter" placeholder="Ask or filter, e.g. “Dubai hotels, next 90 nights vs budget”" (submitted)="onAsk($event)" />
+            <kassandra-composer label="Ask Kassandra or filter" placeholder="Ask or filter, e.g. “Dubai hotels, next 90 nights vs budget”" [(mode)]="live.mode" (submitted)="onAsk($event)" />
           </header>
           <div class="border-border/60 sticky top-0 z-20 -mx-2 border-b bg-(--background)/92 px-2 py-2 backdrop-blur">
             <app-filter-bar />
@@ -296,7 +296,7 @@ export class SavedWidget {
               </div>
               <button hlmBtn variant="outline" size="sm" [hlmDropdownMenuTrigger]="boardMenu" align="end" aria-label="Board actions"><ng-icon name="phosphorDotsThreeBold" />Board</button>
             </header>
-            <app-ask-bar label="Describe a view for Kassandra" placeholder="Describe a view, e.g. “channel profitability after commission for Lisbon”" (submitted)="describe(b, $event)" />
+            <kassandra-describe-view [boardId]="b.id" [boardName]="b.name" placeholder="Describe a view, e.g. “channel profitability after commission for Lisbon”" />
             <div class="grid gap-4 lg:grid-cols-2">
               @for (w of b.widgets; track w.id) {
                 <app-saved-widget [class]="wideWidget(w) ? 'lg:col-span-2' : ''" [widgetRef]="w" [boardRef]="b" />
@@ -395,10 +395,6 @@ export class BoardView {
     const req = parseFilterRequest(text);
     if (req) this.filters.set(req.patch, 'kassandra', req.said);
     else this.live.askNew(text);
-  }
-  /** "Describe a view": Kassandra answers with charts, which land on this board (Live adds them with a receipt). */
-  protected describe(b: Board, text: string) {
-    this.live.describeForBoard(b.id, b.name, text);
   }
   protected deltaLine(k: { delta: number | null; deltaText: string }) {
     if (k.delta === null) return '';

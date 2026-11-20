@@ -5,4 +5,5 @@ export * from './chat-socket';
 export * from './chat-turns';
 export * from './hotels-api';
 export * from './kassandra-chat';
+export * from './round2-contracts';
 export * from './workflows-api';

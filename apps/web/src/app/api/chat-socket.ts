@@ -1,6 +1,7 @@
 import { computed, signal, type Signal } from '@angular/core';
 import type { AnswerMode, ChatClientMessage, ChatEntry, ChatLive, ChatServerMessage } from '@compass/contracts';
 import { groupTurns, type ChatTurn, type PendingAsk, type Usage } from './chat-turns';
+import type { AskScope } from './round2-contracts';
 
 /** The part of a `WebSocket` the client uses, so tests can pass a fake. */
 export interface SocketLike {
@@ -30,6 +31,8 @@ export interface ChatSocketOptions<Extra extends { type: string } = never> {
 
 interface QueuedAsk extends PendingAsk {
   mode?: AnswerMode;
+  /** The hotels the question is asked for (round2-contracts §1); absent for the whole group. */
+  scope?: AskScope;
   /** Sent on the current or an earlier socket; false while it waits for a connection. */
   sent: boolean;
 }
@@ -121,13 +124,14 @@ export class ChatSocket<Extra extends { type: string } = never> {
 
   /**
    * Asks a question and returns its id, or null when the text is empty. It shows at once as a pending turn. While
-   * the socket is down it is kept and sent after the reconnect.
+   * the socket is down it is kept and sent after the reconnect. `scope` restricts the answer to those hotels; leave
+   * it out (or empty) for the whole group.
    */
-  ask(text: string, mode?: AnswerMode): string | null {
+  ask(text: string, mode?: AnswerMode, scope?: AskScope): string | null {
     const question = text.trim();
     if (!question) return null;
     this._error.set(null);
-    const ask: QueuedAsk = { id: newId(), text: question, ...(mode ? { mode } : {}), sent: false };
+    const ask: QueuedAsk = { id: newId(), text: question, ...(mode ? { mode } : {}), ...(scope?.hotels.length ? { scope: { hotels: [...scope.hotels] } } : {}), sent: false };
     this._pending.update((pending) => [...pending, ask]);
     if (this.connected()) this.sendAsk(ask);
     else this.connect();
@@ -239,7 +243,8 @@ export class ChatSocket<Extra extends { type: string } = never> {
   }
 
   private sendAsk(ask: QueuedAsk): void {
-    const sent = this.send({ type: 'ask', text: ask.text, id: ask.id, ...(ask.mode ? { mode: ask.mode } : {}) });
+    const message = { type: 'ask', text: ask.text, id: ask.id, ...(ask.mode ? { mode: ask.mode } : {}), ...(ask.scope ? { scope: ask.scope } : {}) };
+    const sent = this.send(message);
     if (sent && !ask.sent) this._pending.update((pending) => pending.map((other) => (other.id === ask.id ? { ...other, sent: true } : other)));
   }
 

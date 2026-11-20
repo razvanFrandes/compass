@@ -20,6 +20,7 @@ import { ScopeSwitcher } from './scope/scope-switcher';
 import { OrbLab } from './orb/orb-lab';
 import { CatalogView } from './charts/catalog';
 import { GROUP } from './data';
+import { KassandraThreadList } from './kassandra/kassandra-thread-list';
 import * as icons from './icons';
 
 /**
@@ -28,7 +29,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, KassandraThreadList, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
   providers: [provideIcons({ ...icons }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   template: `
@@ -37,7 +38,7 @@ import * as icons from './icons';
       @defer (on immediate) {
         <app-workflow-builder />
       } @placeholder {
-        <p class="text-muted-foreground grid min-h-dvh place-items-center text-[14px]">Opening the workflow builder…</p>
+        <p class="text-muted-foreground grid min-h-dvh place-items-center text-[14px]">Opening the agent builder…</p>
       }
     } @else if (store.view() === 'orb-lab') {
       <!-- /orb-lab: the demo page for the Kassandra orb; its code loads only there -->
@@ -76,18 +77,7 @@ import * as icons from './icons';
           }
         </ul>
 
-        @if (live.conversations().length) {
-          <div class="flex min-h-0 flex-col gap-1">
-            <p class="text-muted-foreground px-2 text-[12px] font-medium tracking-[0.04em] uppercase">Threads</p>
-            <ul class="flex min-h-0 flex-col gap-px overflow-y-auto text-[13px]">
-              @for (t of live.conversations().slice(0, 8); track t.id) {
-                <li>
-                  <button type="button" class="block w-full truncate rounded-md px-2 py-1 text-left transition-colors" [class]="store.view() === 'thread' && live.chat.conversation() === t.id ? 'bg-foreground/6 text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-foreground/4'" (click)="live.openConversation(t.id)">{{ t.title }}</button>
-                </li>
-              }
-            </ul>
-          </div>
-        }
+        <kassandra-thread-list />
 
         <div class="text-muted-foreground mt-auto flex flex-col gap-px text-[14px]">
           <button type="button" class="hover:text-foreground hover:bg-foreground/4 flex items-center gap-2.5 rounded-md px-2 py-1.5" (click)="toggleTheme()">
@@ -241,6 +231,8 @@ export function pageTitle(view: View, thread: string, board: string): string {
       return 'Not found · Juyo';
     case 'orb-lab':
       return 'Kassandra orb · Juyo';
+    case 'catalog':
+      return 'Chart catalogue · Juyo';
     default:
       return 'Morning brief · Juyo';
   }

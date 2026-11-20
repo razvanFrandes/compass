@@ -256,7 +256,7 @@ export class BuilderSocket {
     // The server follows a test only while a socket is open, so a run in flight is lost to this page.
     if (this.run()?.status === 'running') {
       this.run.set(null);
-      this.error.set('The connection dropped during the test. The run may still finish; check the workflow for its result.');
+      this.error.set('The connection dropped during the test. The run may still finish; check the agent for its result.');
     }
     const delay = this.#backoff[Math.min(this.#attempt, this.#backoff.length - 1)]!;
     this.#attempt += 1;

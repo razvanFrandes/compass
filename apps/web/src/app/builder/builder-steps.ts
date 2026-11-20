@@ -121,7 +121,7 @@ export function stepsSummary(steps: readonly BuilderStep[]): string {
 function editNote(data: unknown): string {
   const changed = data && typeof data === 'object' && Array.isArray((data as { changed?: unknown }).changed) ? ((data as { changed: unknown[] }).changed as unknown[]) : [];
   const names = [...new Set(changed.filter((id): id is string => typeof id === 'string').map((id) => NODE_NAMES[id.split(':')[0]!] ?? id))];
-  return names.length ? `You edited the ${joinWords(names)} on the canvas` : 'You edited the workflow on the canvas';
+  return names.length ? `You edited the ${joinWords(names)} on the canvas` : 'You edited the agent on the canvas';
 }
 
 function joinWords(words: readonly string[]): string {
@@ -211,7 +211,7 @@ const ISSUE_FIELDS: Record<string, string> = {
   delivery: 'Email address',
   approver: 'Approver',
   autonomy: 'Autonomy',
-  workflow: 'Workflow',
+  workflow: 'Agent',
 };
 
 /** `delivery.to: Invalid email` → `Email address: Invalid email`. */
