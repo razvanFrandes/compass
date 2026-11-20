@@ -1,0 +1,525 @@
+<title>Compass Architecture</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one wide system map with flow tabs, a step list for the chosen flow, then principles and the security list. */
+:root {
+  color-scheme: dark;
+  --bg: #0D1117;
+  --surface: #161C22;
+  --surface-2: #1E2429;
+  --surface-3: #2A2E33;
+  --line: #343B44;
+  --fg: #E6EAF0;
+  --muted: #9AA4B2;
+  --accent: #996AD5;
+  --accent-text: #B99AEA;
+  --ask: #5B8DEB;
+  --brief: #32BEBF;
+  --mcp: #9685E4;
+  --build: #EB75BE;
+  --approve: #FE7637;
+  --pi-1: #6FA0FB;
+  --pi-2: #A78CFB;
+  --pi-3: #EB75BE;
+  --on-pi: #0D1117;
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #F5F6F9; --surface: #FFFFFF; --surface-2: #EEF0F5; --surface-3: #E2E6EE; --line: #D0D6E0;
+    --fg: #0D1117; --muted: #55606F; --accent: #7A4BC4; --accent-text: #6A3DB5;
+    --ask: #2F62C9; --brief: #0B7F80; --mcp: #6652C8; --build: #B32D86; --approve: #B8480F;
+    --pi-1: #2F62C9; --pi-2: #6B46D6; --pi-3: #B32D86; --on-pi: #FFFFFF;
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #F5F6F9; --surface: #FFFFFF; --surface-2: #EEF0F5; --surface-3: #E2E6EE; --line: #D0D6E0;
+  --fg: #0D1117; --muted: #55606F; --accent: #7A4BC4; --accent-text: #6A3DB5;
+  --ask: #2F62C9; --brief: #0B7F80; --mcp: #6652C8; --build: #B32D86; --approve: #B8480F;
+  --pi-1: #2F62C9; --pi-2: #6B46D6; --pi-3: #B32D86; --on-pi: #FFFFFF;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-ui); font-size: 15px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  max-width: 1560px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 72px;
+  display: grid; gap: 40px;
+}
+.wrap > * { min-width: 0; }
+header { display: grid; gap: 10px; max-width: 76ch; }
+.eyebrow {
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted);
+}
+h1 { margin: 0; font-size: clamp(28px, 4vw, 42px); line-height: 1.1; letter-spacing: -.02em; font-weight: 600; text-wrap: balance; }
+h2 { margin: 0; font-size: 20px; letter-spacing: -.01em; font-weight: 600; }
+.lede { margin: 0; color: var(--muted); font-size: 16px; }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+
+/* Flow tabs */
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tab {
+  font: 500 14px/1 var(--font-ui); color: var(--fg);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px 14px 10px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  transition: border-color .15s, background .15s;
+}
+.tab:hover { border-color: color-mix(in oklab, var(--fg) 30%, var(--line)); }
+.tab:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.tab[aria-selected="true"] { background: var(--surface-2); border-color: var(--c, var(--fg)); }
+.tab .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--muted)); }
+.tab small { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+
+/* Map */
+.map-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+  display: grid; grid-template-columns: minmax(0, 1fr); overflow: hidden;
+}
+.map-top { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.lg-pi {
+  font: 600 10px/1 var(--font-mono); letter-spacing: .08em; font-style: normal; text-transform: uppercase;
+  color: var(--on-pi); padding: 5px 9px; border-radius: 999px;
+  background: linear-gradient(90deg, var(--pi-1), var(--pi-2), var(--pi-3));
+}
+.lg-dash { width: 22px; height: 12px; border-radius: 4px; border: 1.5px dashed var(--muted); }
+.scroller { overflow-x: auto; }
+.scroller:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
+svg.map { display: block; width: 100%; min-width: 1240px; height: auto; }
+
+.zone rect { stroke-width: 1; fill: color-mix(in oklab, var(--fg) 2.5%, transparent); stroke: var(--line); }
+.zone.cf rect { fill: color-mix(in oklab, var(--accent) 5%, transparent); stroke: color-mix(in oklab, var(--accent) 45%, transparent); }
+.zone text { font: 500 11px var(--font-mono); letter-spacing: .1em; fill: var(--muted); }
+.zone.cf text { fill: var(--accent-text); }
+
+.frame { transition: opacity .25s; }
+.frame .frame-box { fill: color-mix(in oklab, var(--pi-2) 7%, transparent); stroke: url(#pi-grad); stroke-width: 1.5; }
+.frame .frame-note { font: 400 10.5px var(--font-mono); fill: var(--muted); }
+.pi-badge { fill: url(#pi-grad); }
+.pi-text { font: 600 9.5px var(--font-mono); letter-spacing: .08em; fill: var(--on-pi); }
+
+.node { transition: opacity .25s; }
+.node .box { fill: var(--surface-2); stroke: var(--line); stroke-width: 1; transition: stroke .25s; }
+.node.dashed .box { stroke: var(--muted); stroke-dasharray: 5 4; }
+.node .title { font: 600 15px var(--font-ui); fill: var(--fg); }
+.node .sub { font: 400 11.5px var(--font-mono); fill: var(--muted); }
+.node .row { font: 400 12.5px var(--font-ui); fill: var(--fg); }
+.node .row.mono { font: 400 12px var(--font-mono); }
+.node .row.dim { fill: var(--muted); }
+.node .sep { stroke: var(--line); }
+.node .group { font: 500 10px var(--font-mono); letter-spacing: .1em; fill: var(--muted); }
+.node .bullet { fill: var(--muted); }
+.node .tag-box { fill: none; stroke: var(--muted); stroke-dasharray: 3 3; }
+.node .tag-text { font: 500 9.5px var(--font-mono); letter-spacing: .08em; fill: var(--muted); }
+
+.edge { transition: opacity .25s; }
+.edge path { fill: none; stroke: color-mix(in oklab, var(--muted) 60%, transparent); stroke-width: 1.5; marker-end: url(#m-base); transition: stroke .25s; }
+.edge .lbl-bg { fill: var(--surface); }
+.edge .lbl { font: 400 11px var(--font-mono); fill: var(--muted); }
+
+svg.map[data-flow] .node:not(.on), svg.map[data-flow] .frame:not(.on) { opacity: .26; }
+svg.map[data-flow] .edge:not(.on) { opacity: .12; }
+svg.map[data-flow] .edge.on path { stroke: var(--fc); stroke-width: 2; marker-end: var(--fm); stroke-dasharray: 6 5; animation: flow 1s linear infinite; }
+svg.map[data-flow] .edge.on .lbl { fill: var(--fg); }
+svg.map[data-flow] .node.on .box { stroke: var(--fc); stroke-dasharray: none; }
+svg.map[data-flow="ask"] { --fc: var(--ask); --fm: url(#m-ask); }
+svg.map[data-flow="brief"] { --fc: var(--brief); --fm: url(#m-brief); }
+svg.map[data-flow="mcp"] { --fc: var(--mcp); --fm: url(#m-mcp); }
+svg.map[data-flow="build"] { --fc: var(--build); --fm: url(#m-build); }
+svg.map[data-flow="approve"] { --fc: var(--approve); --fm: url(#m-approve); }
+@keyframes flow { to { stroke-dashoffset: -22; } }
+@media (prefers-reduced-motion: reduce) {
+  svg.map[data-flow] .edge.on path { animation: none; stroke-dasharray: none; }
+  .node, .edge, .frame, .tab, .node .box, .edge path { transition: none; }
+}
+
+/* Steps */
+.steps-wrap { display: grid; grid-template-columns: minmax(0, 280px) minmax(0, 1fr); gap: 24px 48px; padding: 24px 20px 28px; border-top: 1px solid var(--line); }
+.steps-head { display: grid; gap: 6px; align-content: start; }
+.steps-head p { margin: 0; color: var(--muted); font-size: 14px; }
+.steps-head .tag { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--fc, var(--muted)); }
+ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; counter-reset: s; }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; align-items: baseline; max-width: 84ch; }
+ol.steps li::before {
+  content: counter(s); font: 500 12px/24px var(--font-mono); text-align: center;
+  width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--fc, var(--line)); color: var(--fg);
+}
+
+/* Principles and security */
+section { display: grid; gap: 18px; }
+.section-note { margin: -8px 0 0; color: var(--muted); font-size: 14px; max-width: 76ch; }
+.cells { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.cells li { margin: 0 -1px -1px 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 18px 20px; display: grid; gap: 6px; align-content: start; }
+.cells strong { font-weight: 600; font-size: 15px; }
+.cells p { margin: 0; color: var(--muted); font-size: 14px; }
+.cells .k { font: 500 11px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent-text); }
+
+@media (max-width: 760px) {
+  .steps-wrap { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Compass MVP · Juyo take-home · as built, 20 Nov 2026</div>
+    <h1>One Worker, three Pi Durable agents, one read-only database</h1>
+    <p class="lede">The backend is a single Cloudflare Worker at <code>juyo.razvanfrandes.com</code>. Three Durable Objects run their agent loop on Pi Durable. Every number comes from SQL in a Postgres database that the Worker reaches through Hyperdrive and a Cloudflare Tunnel, with a role that can only read.</p>
+  </header>
+
+  <div class="map-card">
+    <div class="map-top">
+      <div class="tabs" role="tablist" aria-label="Request flows">
+        <button class="tab" role="tab" id="tab-all" aria-controls="steps-wrap" data-flow="" aria-selected="true">All parts</button>
+        <button class="tab" role="tab" id="tab-ask" aria-controls="steps-wrap" data-flow="ask" aria-selected="false" style="--c: var(--ask)"><span class="dot"></span>Ask Kassandra <small>Ask</small></button>
+        <button class="tab" role="tab" id="tab-brief" aria-controls="steps-wrap" data-flow="brief" aria-selected="false" style="--c: var(--brief)"><span class="dot"></span>Morning brief <small>Analyze</small></button>
+        <button class="tab" role="tab" id="tab-mcp" aria-controls="steps-wrap" data-flow="mcp" aria-selected="false" style="--c: var(--mcp)"><span class="dot"></span>Any AI via MCP <small>/mcp</small></button>
+        <button class="tab" role="tab" id="tab-build" aria-controls="steps-wrap" data-flow="build" aria-selected="false" style="--c: var(--build)"><span class="dot"></span>Build a workflow by talking <small>Act</small></button>
+        <button class="tab" role="tab" id="tab-approve" aria-controls="steps-wrap" data-flow="approve" aria-selected="false" style="--c: var(--approve)"><span class="dot"></span>Approve an action <small>Act</small></button>
+      </div>
+      <div class="legend" aria-label="Legend">
+        <span><i class="lg-pi">Pi Durable</i>agent loop that runs inside a Durable Object</span>
+        <span><i class="lg-dash"></i>still being built</span>
+      </div>
+    </div>
+    <div class="scroller" tabindex="0" role="group" aria-label="System map, scrolls sideways on narrow screens">
+      <svg class="map" id="map" viewBox="0 0 1620 1020" role="img" aria-labelledby="map-title">
+        <title id="map-title">Compass system map. Clients: the Angular web app and MCP clients. Cloudflare: one Worker with five Durable Objects (Kassandra, WorkflowBuilder and WorkflowAgents on Pi Durable, plus Briefs and Budget), the shared data tools, Hyperdrive, Workers AI, AI Gateway, Email Service and a cron trigger. A self-hosted VM with a Cloudflare Tunnel and Postgres 17 with pgvector. External: the Claude API.</title>
+        <defs>
+          <linearGradient id="pi-grad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" style="stop-color: var(--pi-1)"/>
+            <stop offset=".5" style="stop-color: var(--pi-2)"/>
+            <stop offset="1" style="stop-color: var(--pi-3)"/>
+          </linearGradient>
+          <marker id="m-base" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" style="fill: color-mix(in oklab, var(--muted) 60%, transparent)"/></marker>
+          <marker id="m-ask" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" style="fill: var(--ask)"/></marker>
+          <marker id="m-brief" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" style="fill: var(--brief)"/></marker>
+          <marker id="m-mcp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" style="fill: var(--mcp)"/></marker>
+          <marker id="m-build" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" style="fill: var(--build)"/></marker>
+          <marker id="m-approve" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" style="fill: var(--approve)"/></marker>
+        </defs>
+        <g class="zone clients"><rect x="14" y="40" width="254" height="964" rx="18"/><text x="32" y="66">CLIENTS</text></g>
+        <g class="zone cf"><rect x="286" y="40" width="1024" height="964" rx="18"/><text x="306" y="66">CLOUDFLARE · ONE WORKER DEPLOY · juyo.razvanfrandes.com</text></g>
+        <g class="zone vm"><rect x="1326" y="40" width="280" height="515" rx="18"/><text x="1346" y="66">SELF-HOSTED VM</text></g>
+        <g class="zone ext"><rect x="1326" y="571" width="280" height="189" rx="18"/><text x="1346" y="597">EXTERNAL</text></g>
+        <g class="frame" id="pi-frame" data-flows="ask build approve">
+          <rect class="frame-box" x="652" y="237" width="318" height="470" rx="16"/>
+          <rect class="pi-badge" x="664" y="245" width="92" height="20" rx="10"/>
+          <text class="pi-text" x="710" y="259" text-anchor="middle">PI DURABLE</text>
+          <text class="frame-note" x="766" y="259" data-max="194">PiHarness · durable agent loop</text>
+        </g>
+        <g id="edges"></g>
+        <g id="nodes"></g>
+      </svg>
+    </div>
+    <div class="steps-wrap" id="steps-wrap" role="tabpanel" aria-labelledby="tab-all">
+      <div class="steps-head">
+        <span class="tag" id="steps-tag">Overview</span>
+        <h2 id="steps-title">What runs where</h2>
+        <p id="steps-note">Pick a flow above to trace one request through the system.</p>
+      </div>
+      <ol class="steps" id="steps"></ol>
+    </div>
+  </div>
+
+  <section aria-labelledby="p-title">
+    <h2 id="p-title">Principles enforced by the architecture</h2>
+    <ul class="cells">
+      <li><strong>The model never computes a number</strong><p>Metric definitions live in SQL views and functions. The agents call tools that run that SQL; the model plans the calls and explains the result.</p></li>
+      <li><strong>Evidence travels with every result</strong><p>Each tool result carries its SQL, parameters, period, sources and metric definitions. The chat sends them to the app as <code>evidence</code>.</p></li>
+      <li><strong>One door to the data</strong><p>Kassandra, the workflow builder, workflow runs and outside MCP clients all use the same catalog of 24 tools, with the same guard.</p></li>
+      <li><strong>Durable by construction</strong><p>The three agents run on Pi Durable. A conversation, a draft or a run survives a deploy or an eviction, and a run that waits for approval holds no compute.</p></li>
+      <li><strong>Compass only reads</strong><p>The database role can only <code>SELECT</code>. An approved action becomes an RMS task for the revenue manager and an audit entry. Nothing is written to a source system.</p></li>
+      <li><strong>A person decides on prices and channels</strong><p><code>adjust_bar</code>, <code>close_channel</code> and <code>open_channel</code> are high risk in code, whatever the model says. No autonomy level applies them alone.</p></li>
+      <li><strong>One spec for people and AI</strong><p>The builder agent and a person editing by hand change the same <code>WorkflowSpec</code> draft. The graph is derived from it, so every graph can run.</p></li>
+      <li><strong>The answer comes to you</strong><p>A cron runs fixed SQL detectors at 05:00 UTC, before anyone opens the app. The model only writes the sentence that summarises each finding.</p></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="s-title">
+    <h2 id="s-title">Security of a public demo</h2>
+    <p class="section-note">There is no login: reviewers use the app and the MCP endpoint as they are, and every model call is paid from the owner's key. The limits below keep the public surface safe and the daily spend bounded.</p>
+    <ul class="cells">
+      <li><span class="k">Database</span><strong>Read-only role</strong><p><code>compass_ro</code> has <code>SELECT</code> on schema <code>hotel</code> only, and every transaction is read-only. Postgres listens on localhost; the VM has no inbound port.</p></li>
+      <li><span class="k">Custom SQL</span><strong>SQL guard and statement timeout</strong><p><code>run_readonly_query</code> accepts one <code>SELECT</code>, refuses <code>pg_*</code> names, locks and session statements, and is wrapped to 200 rows of at most 32 KB. The role stops any statement at 5 s.</p></li>
+      <li><span class="k">Prompt injection</span><strong><code>&lt;untrusted_data&gt;</code> wrapping</strong><p>Guest reviews, account names and custom query results reach the model inside the tag, with <code>&lt;</code> escaped. The system prompt treats that text as data, never as instructions.</p></li>
+      <li><span class="k">Spend</span><strong>Daily budgets and rate limits</strong><p>Per UTC day, for all visitors: 300 questions, 60 workflow runs, 120 decisions, 24 brief refreshes, 2000 embeddings. Per client: 6 questions and 60 MCP requests per minute. At most 30 enabled workflows.</p></li>
+      <li><span class="k">Email</span><strong>Limits on mail from our domain</strong><p>3 per hour and 6 per day per address, 10 per hour per client, 50 per day for everyone. One recipient per workflow, a fixed template, and every outside link removed.</p></li>
+      <li><span class="k">Privacy</span><strong>Masked addresses</strong><p>API answers, the audit log, graph labels and run logs show <code>si****@gmail.com</code>. Only the builder socket shows the address, and its draft id is a random secret. Quota counters key on a hash.</p></li>
+      <li><span class="k">MCP</span><strong>No CORS on <code>/mcp</code></strong><p>Responses carry no <code>Access-Control-*</code> headers and browser requests from other origins get 403, so a web page cannot read an MCP answer. Bodies are at most 64 KB.</p></li>
+      <li><span class="k">API</span><strong>Same-origin writes, no internals in errors</strong><p>Mutating <code>/api</code> calls from another site get 403, and both sockets check their Origin. JSON bodies are at most 16 KB. Unexpected errors return a generic 500 and go to the logs.</p></li>
+      <li><span class="k">Accepted</span><strong>What the demo does not prevent</strong><p>Without a login, a visitor can use up the day's budget or approve a proposal. Nothing outside Compass changes, and the cost of a bad day is capped.</p></li>
+    </ul>
+  </section>
+</div>
+
+<script>
+(function () {
+  var NS = 'http://www.w3.org/2000/svg';
+  var ROW = 21;
+
+  // Grid: clients x30; Worker x340; Durable Objects x664; services x1050; VM and external x1342.
+  // Row offsets (y) inside the Worker and the web app line a route up with the edge that leaves at that height.
+  var nodes = [
+    { id: 'mcpc', x: 30, y: 104, w: 224, title: 'MCP clients', sub: 'Claude Desktop, any client',
+      flows: ['mcp'], rows: ['Streamable HTTP · no login', 'bring their own model'] },
+    { id: 'web', x: 30, y: 243, w: 224, h: 477, dashed: true, tag: 'IN PROGRESS', title: 'Web app', sub: 'Angular 22 · signals',
+      flows: ['ask', 'brief', 'build', 'approve'],
+      rows: [
+        { t: 'Kassandra chat', y: 91 },
+        { group: 'STACK', y: 140 }, { t: 'Spartan UI · Phosphor icons', y: 158, dim: true }, { t: 'Inbox → Thread → Board', y: 179, dim: true },
+        { t: 'Workflow builder', y: 233 },
+        { group: 'CONTRACT', y: 282 }, { t: '@compass/contracts types', y: 300, dim: true },
+        { t: 'Brief · workflows · approvals', y: 386 },
+        { group: 'STATUS', y: 425 }, { t: 'built in another session', y: 443, dim: true }, { t: 'not served by the Worker yet', y: 464, dim: true }
+      ] },
+    { id: 'worker', x: 340, y: 104, w: 250, h: 616, title: 'Worker', sub: 'compass-juyo · nodejs_compat',
+      flows: ['ask', 'brief', 'mcp', 'build', 'approve'],
+      rows: [
+        { t: '/mcp', y: 80, mono: true },
+        { t: '/api/budget', y: 105, mono: true },
+        { t: 'ASSETS · not bound yet', y: 136, mono: true, dim: true },
+        { t: '/api/kassandra/ws', y: 230, mono: true },
+        { t: 'POST /api/kassandra/ask', y: 251, mono: true, dim: true },
+        { group: 'GUARDS', y: 286 }, { t: 'Origin check on every write', y: 304, dim: true }, { t: 'JSON ≤ 16 KB · /mcp ≤ 64 KB', y: 325, dim: true },
+        { t: '/api/workflows/builder/ws', y: 372, mono: true },
+        { group: 'RATE LIMITS · PER CLIENT', y: 418 }, { t: '6 questions per minute', y: 436, dim: true }, { t: '60 MCP requests per minute', y: 457, dim: true },
+        { t: '/api/workflows · /api/runs', y: 504, mono: true },
+        { t: '/api/proposals', y: 525, mono: true },
+        { t: '/api/audit', y: 546, mono: true },
+        { t: '/api/brief (+ /refresh)', y: 596, mono: true }
+      ] },
+    { id: 'cron', x: 340, y: 895, w: 250, title: 'Cron trigger', sub: '0 5 * * * · 05:00 UTC',
+      flows: ['brief'], rows: ['brief first, then workflows'] },
+
+    { id: 'budget', x: 664, y: 104, w: 292, title: 'Budget', sub: 'one DO · all visitors · UTC day',
+      flows: ['mcp'], rows: ['300 questions · 60 workflow runs', '120 decisions · 2000 embeddings'] },
+    { id: 'kass', x: 664, y: 271, w: 292, badge: 'pi', title: 'Kassandra', sub: 'one DO per conversation · SQLite',
+      flows: ['ask'], rows: ['Quick → Haiku 5.5 · 10 tools', 'Thinker → Sonnet 5.5 · 24 tools'] },
+    { id: 'builder', x: 664, y: 414, w: 292, badge: 'pi', title: 'WorkflowBuilder', sub: 'one DO per draft · Sonnet 5.5',
+      flows: ['build'], rows: ['7 draft tools, one node per call', 'graph = specToGraph(draft)'] },
+    { id: 'wf', x: 664, y: 557, w: 292, badge: 'pi', title: 'WorkflowAgents', sub: 'one DO · Sonnet 5.5 · SQLite',
+      flows: ['brief', 'build', 'approve'],
+      rows: ['each run is a durable Pi session', 'approval parks on a durable signal', 'apply_action → RMS task + audit log'] },
+    { id: 'email', x: 664, y: 735, w: 292, title: 'Email Service', sub: 'binding EMAIL · one sender',
+      flows: ['build'], rows: [{ t: 'alerts@compass.razvanfrandes.com', mono: true }, '3/h · 6/day per address · 50/day'] },
+    { id: 'briefs', x: 664, y: 874, w: 292, title: 'Briefs', sub: 'one DO · group halcyon',
+      flows: ['brief'], rows: ['8 fixed SQL detectors, ranked by €', 'Haiku 5.5 writes the summary only'] },
+
+    { id: 'wai', x: 1050, y: 104, w: 240, title: 'Workers AI', sub: '@cf/baai/bge-m3 · env.AI',
+      flows: ['mcp'], rows: ['embeds find_reviews questions'] },
+    { id: 'tools', x: 1050, y: 222, w: 240, title: 'Data tools', sub: '24 read-only tools',
+      flows: ['ask', 'mcp', 'build', 'approve'],
+      rows: ['used by /mcp and the agents', 'SQL guard · 200 rows · 5 s', '<untrusted_data> wrapping', 'evidence: SQL, period, source', 'model reads at most 60 rows'] },
+    { id: 'hyper', x: 1050, y: 424, w: 240, title: 'Hyperdrive', sub: 'compass-db · env.HYPERDRIVE',
+      flows: ['ask', 'brief', 'mcp', 'build', 'approve'], rows: ['pooling + query cache', 'Workers VPC service → tunnel'] },
+    { id: 'aigw', x: 1050, y: 615, w: 240, title: 'AI Gateway', sub: 'compass · env.AI',
+      flows: ['ask', 'brief', 'build', 'approve'], rows: ['BYOK: the key stays here', 'logs each model call'] },
+
+    { id: 'pg', x: 1342, y: 104, w: 248, h: 296, title: 'Postgres 17 + pgvector', sub: '127.0.0.1:5433 · TLS · scram',
+      flows: ['ask', 'brief', 'mcp', 'build', 'approve'],
+      rows: ['schema hotel · 20 hotels', '1.2M reservations', 'metrics live in SQL views', 'review_passages · vector(1024)',
+        { group: 'ROLE compass_ro' }, 'SELECT on schema hotel only', 'read-only transactions', 'statement_timeout = 5 s'] },
+    { id: 'tunnel', x: 1342, y: 424, w: 248, title: 'Cloudflare Tunnel', sub: 'cloudflared · outbound only',
+      flows: ['ask', 'brief', 'mcp', 'build', 'approve'], rows: ['dials out to Cloudflare', 'no inbound port on the VM'] },
+    { id: 'claude', x: 1342, y: 615, w: 248, title: 'Claude API', sub: 'Anthropic',
+      flows: ['ask', 'brief', 'build', 'approve'], rows: ['Haiku 5.5 · Quick, brief text', 'Sonnet 5.5 · Thinker, workflows'] }
+  ];
+
+  var edges = [
+    { d: 'M254 180 H340', flows: ['mcp'], label: 'MCP', lx: 297, ly: 180 },
+    { d: 'M254 330 H340', flows: ['ask'], label: 'WebSocket', lx: 297, ly: 330 },
+    { d: 'M254 472 H340', flows: ['build'], label: 'WebSocket', lx: 297, ly: 472 },
+    { d: 'M254 625 H340', flows: ['brief', 'approve'], label: 'HTTPS', lx: 297, ly: 625 },
+    { d: 'M540 104 V84 H1020 V250 H1050', flows: ['mcp'], label: '/mcp · createMcpHandler', lx: 790, ly: 84 },
+    { d: 'M590 205 H664', flows: ['mcp'] },
+    { d: 'M590 330 H664', flows: ['ask'] },
+    { d: 'M590 472 H664', flows: ['build'] },
+    { d: 'M590 625 H664', flows: ['approve'] },
+    { d: 'M590 696 H616 V925 H664', flows: ['brief'] },
+    { d: 'M590 960 H664', flows: ['brief'] },
+    { d: 'M664 895 H636 V670 H664', flows: ['brief'] },
+    { d: 'M810 529 V557', flows: ['build'], label: 'save · test run', lx: 884, ly: 543 },
+    { d: 'M810 693 V735', flows: ['build'], label: 'send_email', lx: 870, ly: 722 },
+    { d: 'M970 310 H1050', flows: ['ask', 'build', 'approve'], label: 'tools', lx: 1010, ly: 310 },
+    { d: 'M1170 222 V198', flows: ['mcp'], label: 'embed question', lx: 1234, ly: 210 },
+    { d: 'M1170 400 V424', flows: ['ask', 'mcp', 'build', 'approve'], label: 'compass_ro', lx: 1224, ly: 412 },
+    { d: 'M1290 481 H1342', flows: ['ask', 'brief', 'mcp', 'build', 'approve'] },
+    { d: 'M1466 424 V400', flows: ['ask', 'brief', 'mcp', 'build', 'approve'], label: 'localhost only', lx: 1528, ly: 412 },
+    { d: 'M970 660 H1050', flows: ['ask', 'build', 'approve'], label: 'model', lx: 1026, ly: 660 },
+    { d: 'M1290 672 H1342', flows: ['ask', 'brief', 'build', 'approve'] },
+    { d: 'M956 905 H995 V510 H1050', flows: ['brief'] },
+    { d: 'M956 930 H1020 V700 H1050', flows: ['brief'] }
+  ];
+
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function text(str, attrs, parent) { var t = el('text', attrs, parent); t.textContent = str; return t; }
+
+  var gN = document.getElementById('nodes');
+  nodes.forEach(function (n) {
+    var h = n.h || 94 + ROW * (n.rows.length - 1);
+    var g = el('g', { class: 'node' + (n.dashed ? ' dashed' : ''), 'data-flows': n.flows.join(' ') }, gN);
+    el('rect', { class: 'box', x: n.x, y: n.y, width: n.w, height: h, rx: 12 }, g);
+    var pill = n.badge ? 86 : n.tag ? 88 : 0;
+    if (pill) {
+      var px = n.x + n.w - 12 - pill;
+      el('rect', { class: n.badge ? 'pi-badge' : 'tag-box', x: px, y: n.y + 11, width: pill, height: 20, rx: 10 }, g);
+      text(n.badge ? 'PI DURABLE' : n.tag, { class: n.badge ? 'pi-text' : 'tag-text', x: px + pill / 2, y: n.y + 25, 'text-anchor': 'middle' }, g);
+    }
+    text(n.title, { class: 'title', x: n.x + 16, y: n.y + 27, 'data-max': n.w - 32 - (pill ? pill + 10 : 0) }, g);
+    text(n.sub, { class: 'sub', x: n.x + 16, y: n.y + 45, 'data-max': n.w - 32 }, g);
+    el('line', { class: 'sep', x1: n.x + 16, x2: n.x + n.w - 16, y1: n.y + 58, y2: n.y + 58 }, g);
+    var y = n.y + 80;
+    n.rows.forEach(function (r) {
+      if (typeof r === 'string') r = { t: r };
+      var ry = r.y ? n.y + r.y : y;
+      if (r.group) { text(r.group, { class: 'group', x: n.x + 16, y: ry - 1, 'data-max': n.w - 32 }, g); y = ry + ROW; return; }
+      el('circle', { class: 'bullet', cx: n.x + 19, cy: ry - 4, r: 1.6 }, g);
+      text(r.t, { class: 'row' + (r.mono ? ' mono' : '') + (r.dim ? ' dim' : ''), x: n.x + 28, y: ry, 'data-max': n.w - 40 }, g);
+      y = ry + ROW;
+    });
+  });
+
+  var gE = document.getElementById('edges');
+  var labels = [];
+  edges.forEach(function (e) {
+    var g = el('g', { class: 'edge', 'data-flows': e.flows.join(' ') }, gE);
+    el('path', { d: e.d }, g);
+    if (e.label) {
+      var bg = el('rect', { class: 'lbl-bg', rx: 4 }, g);
+      var t = text(e.label, { class: 'lbl', x: e.lx, y: e.ly + 4, 'text-anchor': 'middle' }, g);
+      labels.push({ bg: bg, t: t });
+    }
+  });
+
+  var svg = document.getElementById('map');
+
+  // Text is measured once with the fallback font and again when the web fonts arrive.
+  function measure() {
+    svg.querySelectorAll('text[data-max]').forEach(function (t) {
+      t.removeAttribute('textLength'); t.removeAttribute('lengthAdjust');
+      var max = Number(t.getAttribute('data-max'));
+      try {
+        if (t.getComputedTextLength() > max) { t.setAttribute('textLength', max); t.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
+      } catch (err) {}
+    });
+    labels.forEach(function (l) {
+      try {
+        var b = l.t.getBBox();
+        l.bg.setAttribute('x', b.x - 6); l.bg.setAttribute('y', b.y - 2);
+        l.bg.setAttribute('width', b.width + 12); l.bg.setAttribute('height', b.height + 4);
+      } catch (err) { l.bg.setAttribute('width', 0); }
+    });
+  }
+  measure();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure, function () {});
+
+  var FLOWS = {
+    '': { tag: 'Overview', title: 'What runs where', note: 'Pick a flow above to trace one request through the system.', steps: [
+      'One <b>Worker</b>, <code>compass-juyo</code>, answers every <code>/api</code> and <code>/mcp</code> request on <code>juyo.razvanfrandes.com</code>. The Angular app is still being built in another session and the Worker does not serve it yet.',
+      'Three Durable Objects run their agent loop on <b>Pi Durable</b> (<code>@earendil-works/pi-durable</code>, through <code>PiHarness</code>): <b>Kassandra</b>, <b>WorkflowBuilder</b> and <b>WorkflowAgents</b>. A conversation, a draft or a run survives a deploy or an eviction.',
+      'The agents and outside MCP clients read the hotel data through the same <b>24 data tools</b>. Each tool call runs SQL through <b>Hyperdrive</b>, a Workers VPC service and a <b>Cloudflare Tunnel</b> to Postgres 17 on a VM. The VM opens no inbound port.',
+      'Claude is called through <b>AI Gateway</b> <code>compass</code> with a stored key (BYOK), so the key is in neither the Worker nor the browser. <b>Workers AI</b> embeds the question for <code>find_reviews</code>.',
+      '<b>Briefs</b> holds the morning brief and <b>Budget</b> counts the demo’s daily usage. The Worker and the agent objects ask Budget before they spend a model call.',
+      'Compass only reads. The database role is <code>compass_ro</code>, and an approved action becomes an RMS task and an audit entry.'
+    ]},
+    ask: { tag: 'Ask · Kassandra', title: 'A question in the chat', note: 'One Durable Object per conversation, running Pi Durable.', steps: [
+      'The app opens <code>wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=&lt;id&gt;</code>. The Worker checks the Origin and passes the socket to the <b>Kassandra</b> object for that id.',
+      'The app sends <code>ask</code> with a mode. The object checks the rate limit (6 questions per minute per client) and the daily budget, then starts a Pi Durable turn.',
+      '<b>Quick</b> uses Haiku 5.5 with 10 governed-metric tools and at most 4 turns. <b>Thinker</b> uses Sonnet 5.5 with all 24 tools and at most 10 turns. Both go through AI Gateway.',
+      'Each tool call opens a Hyperdrive client and runs SQL as <code>compass_ro</code>. The data tools are marked <code>replay: "safe"</code>, so Pi runs a call again if the object is evicted in the middle of it.',
+      'The model reads a capped text of the rows, with outside free text inside <code>&lt;untrusted_data&gt;</code>. The full rows and the evidence (SQL, period, definitions) go to the app only.',
+      'The socket streams the answer as <code>live</code> and commits finished turns as <code>entries</code>. Reconnecting with the same id returns a snapshot of the transcript.'
+    ]},
+    brief: { tag: 'Analyze · answer comes to you', title: 'The morning brief', note: 'Detectors are fixed SQL. The model writes one sentence per finding.', steps: [
+      'At 05:00 UTC the cron trigger runs the Worker’s <code>scheduled()</code> handler, which asks the <b>Briefs</b> object to regenerate.',
+      'Briefs runs 8 fixed SQL detectors through Hyperdrive: stale data feed, pace behind, underpriced demand, account loss, web conversion drop, staffing gap, rooms out of order and GOP miss.',
+      'The findings are ranked: a stale feed first, then by absolute EUR impact.',
+      'Haiku 5.5, through AI Gateway, writes a <code>summary</code> for each item from that item’s facts. If the model fails, the item keeps its title and has no summary.',
+      'The Worker then hands the brief to <b>WorkflowAgents</b>, which runs the enabled workflows whose trigger matches a finding, plus the daily ones.',
+      'The app reads <code>GET /api/brief</code>. <code>POST /api/brief/refresh</code> regenerates it on demand, within the rate limit and 24 refreshes per day.'
+    ]},
+    mcp: { tag: 'MCP · public, read-only', title: 'Ask the hotel data from any AI', note: 'The same 24 tools the agents use, with no login.', steps: [
+      'A reviewer adds <code>https://juyo.razvanfrandes.com/mcp</code> to Claude Desktop as a custom connector (Streamable HTTP).',
+      'The Worker allows 60 requests per minute per client and bodies up to 64 KB. Browser requests from another origin get 403, and responses carry no CORS headers.',
+      '<code>createMcpHandler</code> serves the tool catalog that Kassandra and the workflows use. The client brings its own model, so these calls spend no Claude tokens of ours.',
+      'A tool runs SQL as <code>compass_ro</code> through Hyperdrive and the tunnel. <code>run_readonly_query</code> first passes the SQL guard and is capped at 200 rows, 32 KB per row and 5 s.',
+      '<code>find_reviews</code> embeds the question with Workers AI <code>bge-m3</code>, then ranks review sentences by cosine distance in pgvector. Each call takes one of 2000 daily embeddings from <b>Budget</b>; when they are spent the tool points to <code>search_reviews</code>.'
+    ]},
+    build: { tag: 'Act · workflow builder', title: 'Build a workflow by talking', note: 'The agent fills in one node per tool call. The person can edit the same draft.', steps: [
+      'The app opens <code>/api/workflows/builder/ws?draft=&lt;id&gt;</code> with a random id. Each draft is one <b>WorkflowBuilder</b> object that keeps the conversation, the draft and the id of the saved workflow.',
+      'The person describes what to watch. The builder runs Sonnet 5.5 on Pi Durable and can call the data tools to look at the numbers first.',
+      'The agent changes the draft through tool calls: <code>set_trigger</code>, <code>set_hotels</code>, <code>add_check</code>, <code>remove_check</code>, <code>set_goal</code>, <code>set_action</code>, <code>set_email</code>.',
+      'After every change the socket sends <code>draft</code> with the graph from <code>specToGraph(draft)</code>: trigger → scope → checks → analyze → approval, if needed → action. A manual <code>edit</code> is validated the same way and reaches the agent as one <code>app.edit</code> event on its next turn.',
+      '<code>save</code> creates the workflow in <b>WorkflowAgents</b> once the draft has no issues.',
+      '<code>test</code> saves if needed and runs the workflow once, against the daily workflow-run budget. The builder follows the run and sends <code>run</code> messages with the active node.',
+      'The run agent calls <code>send_email</code>, once per run. The mail leaves from <code>alerts@compass.razvanfrandes.com</code> with a fixed template, one recipient and no outside links, within the email limits.'
+    ]},
+    approve: { tag: 'Act · durable approval', title: 'Approve an action', note: 'The run waits on a durable signal and holds no compute while it waits.', steps: [
+      'A run starts from the morning cron, a brief finding or <code>POST /api/workflows/:id/run</code>. Each run is a durable Pi session inside <b>WorkflowAgents</b>.',
+      'The agent runs the workflow’s checks through the data tools and Sonnet 5.5 explains what it found.',
+      '<code>propose_action</code> records a proposal with the change (before, after, scope), the rationale, the EUR impact and the risk. Price and channel actions are high risk in code.',
+      'Under <code>approve</code> autonomy the tool call parks on a durable signal. The run shows <code>waiting_approval</code>, and the wait survives deploys.',
+      'The app lists <code>GET /api/proposals?status=pending</code>. <code>POST /api/proposals/:id/decision</code> delivers the signal and counts against the daily decision budget.',
+      'On approval, <code>apply_action</code> hands the action to the revenue manager as an RMS task and writes the audit log (<code>GET /api/audit</code>). <code>/undo</code> adds a compensating task. Nothing is written to the hotel data.'
+    ]}
+  };
+
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+  var wrap = document.getElementById('steps-wrap');
+  var colors = { ask: 'var(--ask)', brief: 'var(--brief)', mcp: 'var(--mcp)', build: 'var(--build)', approve: 'var(--approve)' };
+
+  function select(flow) {
+    if (flow) svg.setAttribute('data-flow', flow); else svg.removeAttribute('data-flow');
+    svg.querySelectorAll('.node, .edge, .frame').forEach(function (g) {
+      var f = (g.getAttribute('data-flows') || '').split(' ');
+      g.classList.toggle('on', !!flow && f.indexOf(flow) !== -1);
+    });
+    tabs.forEach(function (t) {
+      var on = t.getAttribute('data-flow') === flow;
+      t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1;
+      if (on) wrap.setAttribute('aria-labelledby', t.id);
+    });
+    var F = FLOWS[flow];
+    wrap.style.setProperty('--fc', flow ? colors[flow] : '');
+    document.getElementById('steps-tag').textContent = F.tag;
+    document.getElementById('steps-title').textContent = F.title;
+    document.getElementById('steps-note').textContent = F.note;
+    document.getElementById('steps').innerHTML = F.steps.map(function (s) { return '<li><span>' + s + '</span></li>'; }).join('');
+    try { localStorage.setItem('compass-arch-flow-v2', flow); } catch (e) {}
+  }
+
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { select(t.getAttribute('data-flow')); });
+    t.addEventListener('keydown', function (ev) {
+      var to = ev.key === 'ArrowRight' ? i + 1 : ev.key === 'ArrowLeft' ? i - 1 : ev.key === 'Home' ? 0 : ev.key === 'End' ? tabs.length - 1 : null;
+      if (to === null) return;
+      ev.preventDefault();
+      var n = tabs[(to + tabs.length) % tabs.length];
+      n.focus(); select(n.getAttribute('data-flow'));
+    });
+  });
+
+  var saved = '';
+  try { saved = localStorage.getItem('compass-arch-flow-v2') || ''; } catch (e) {}
+  select(FLOWS[saved] ? saved : '');
+})();
+</script>

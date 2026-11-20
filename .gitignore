@@ -1,5 +1,6 @@
 # Private context (not for the public repo)
 JUYO_CONTEXT.md
+JUYO_PRODUCT_ANALYSIS.md
 
 node_modules/
 dist/
