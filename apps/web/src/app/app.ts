@@ -1,13 +1,13 @@
 import { Component, DOCUMENT, computed, effect, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
+import { phosphorCompassLight } from '@ng-icons/phosphor-icons/light';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmToasterImports } from '@spartan-ng/helm/sonner';
-import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { provideBrnTooltipGroup } from '@spartan-ng/brain/tooltip';
 import { BoardView, BoardsList } from './board';
 import { InboxView } from './inbox';
 import { CompassStore, View } from './store';
-import { THEMES, Theme } from './theme';
+import { Theme } from './theme';
 import { ThemeLab } from './theme-lab/theme-lab';
 import { ThreadView } from './thread';
 import { WatchersView } from './watchers';
@@ -21,8 +21,9 @@ import { BoardsService } from './boards/boards.service';
 import { ScopeSwitcher } from './scope/scope-switcher';
 import { OrbLab } from './orb/orb-lab';
 import { CatalogView } from './charts/catalog';
-import { GROUP } from './data';
-import { KassandraThreadList } from './kassandra/kassandra-thread-list';
+import { isActiveNav } from './shell/nav';
+import { Sidebar } from './shell/sidebar';
+import { RAIL_WIDTH, SIDEBAR_WIDTH, SidebarState } from './shell/sidebar-state';
 import * as icons from './icons';
 
 /**
@@ -31,9 +32,22 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, KassandraThreadList, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
-  providers: [provideIcons({ ...icons }), provideBrnTooltipGroup()],
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, Sidebar, HlmButtonImports, HlmToasterImports],
+  providers: [provideIcons({ ...icons, phosphorCompassLight }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
+  styles: `
+    /* The sidebar's column: the panel or the rail. The main area follows the change, it does not jump. */
+    @media (min-width: 64rem) {
+      .shell {
+        grid-template-columns: ${SIDEBAR_WIDTH}px minmax(0, 1fr);
+        transition: grid-template-columns var(--motion-moderate, 200ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+      }
+      .shell--rail { grid-template-columns: ${RAIL_WIDTH}px minmax(0, 1fr); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .shell { transition: none; }
+    }
+  `,
   template: `
     @if (store.view() === 'builder') {
       <!-- The workflow builder is a full-screen page with its own header and back link; its code loads on first visit -->
@@ -49,51 +63,9 @@ import * as icons from './icons';
       }
     } @else {
     <a href="#content" class="bg-foreground text-background sr-only z-50 rounded-md px-3 py-2 focus:not-sr-only focus:fixed focus:top-3 focus:left-3">Skip to content</a>
-    <div class="lg:grid lg:h-dvh lg:grid-cols-[232px_minmax(0,1fr)] lg:overflow-hidden">
-      <!-- Navigation recedes: dimmer surface, light icons, Fill only for the current place -->
-      <nav class="bg-(--rail) border-border/70 hidden min-h-0 flex-col gap-5 border-r px-3 py-4 lg:flex" aria-label="Main">
-        <a href="/" class="text-foreground flex items-center px-2 py-0.5" aria-label="Juyo, morning brief" (click)="$event.preventDefault(); store.go('inbox')">
-          <app-juyo-logo [size]="22" />
-        </a>
-
-        <!-- The scope: which hotels the brief, Kassandra and new workflows work on (src/app/scope) -->
-        <app-scope-switcher variant="sidebar" [group]="group.name" />
-
-        <ul class="flex flex-col gap-px text-[14px]">
-          @for (n of nav(); track n.view) {
-            <li>
-              <button
-                type="button"
-                class="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors"
-                [class]="isActive(n.view) ? 'bg-foreground/6 text-foreground font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-foreground/4'"
-                [attr.aria-current]="isActive(n.view) ? 'page' : null"
-                (click)="store.go(n.view)"
-              >
-                <ng-icon [name]="isActive(n.view) ? n.iconActive : n.icon" class="text-[16px]" />
-                <span class="flex-1 text-left">{{ n.label }}</span>
-                @if (n.count) {
-                  <span class="text-(--brass-ink) text-[12px] font-medium tabular-nums">{{ n.count }}</span>
-                }
-              </button>
-            </li>
-          }
-        </ul>
-
-        <kassandra-thread-list />
-
-        <div class="text-muted-foreground mt-auto flex flex-col gap-px text-[14px]">
-          <div class="px-2 pb-1.5">
-            <p id="theme-label" class="pb-1 text-[12px] font-medium">Theme</p>
-            <div class="seg seg--fill" role="radiogroup" aria-labelledby="theme-label">
-              @for (t of themes; track t.id) {
-                <button type="button" role="radio" [attr.aria-checked]="theme.id() === t.id" [attr.aria-label]="t.label" [hlmTooltip]="t.label" (click)="theme.set(t.id)">{{ t.short }}</button>
-              }
-            </div>
-          </div>
-          <button type="button" class="flex items-center gap-2.5 rounded-md px-2 py-1.5" [class]="store.view() === 'theme-lab' ? 'bg-foreground/6 text-foreground font-medium' : 'hover:text-foreground hover:bg-foreground/4'" [attr.aria-current]="store.view() === 'theme-lab' ? 'page' : null" (click)="store.go('theme-lab')"><ng-icon name="phosphorSwatchesLight" class="text-[16px]" />Theme lab</button>
-          <p class="px-2 pt-3 text-[12px]/relaxed">Halcyon Hospitality is a fictional group with generated data. Business date Fri 20 Nov 2026.</p>
-        </div>
-      </nav>
+    <div class="shell lg:grid lg:h-dvh lg:overflow-hidden" [class.shell--rail]="sidebar.collapsed()">
+      <!-- Navigation recedes: dimmer surface, light icons, Fill only for the current place. It collapses to a rail of icons (src/app/shell). -->
+      <nav appSidebar [items]="nav()"></nav>
 
       <main id="content" class="min-w-0 max-lg:overflow-x-clip lg:min-h-0" [class]="store.view() === 'thread' ? 'h-dvh' : 'lg:overflow-y-auto'">
         @if (store.view() !== 'thread') {
@@ -179,9 +151,8 @@ export class App {
   protected readonly store = inject(CompassStore);
   protected readonly live = inject(Live);
   private readonly doc = inject(DOCUMENT);
-  protected readonly group = GROUP;
   protected readonly theme = inject(Theme);
-  protected readonly themes = THEMES;
+  protected readonly sidebar = inject(SidebarState);
   protected readonly phone = signal(this.doc.defaultView?.matchMedia('(max-width: 1023px)').matches ?? false);
 
   constructor() {
@@ -197,8 +168,7 @@ export class App {
   ]);
 
   protected isActive(v: View) {
-    const cur = this.store.view();
-    return cur === v || (v === 'inbox' && cur === 'thread') || (v === 'boards' && cur === 'board') || (v === 'watchers' && cur === 'watcher');
+    return isActiveNav(this.store.view(), v);
   }
 
   /** ⌘K / Ctrl+K: ask from anywhere. */
