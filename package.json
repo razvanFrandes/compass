@@ -7,7 +7,9 @@
   },
   "scripts": {
     "test": "pnpm -r --if-present test",
-    "typecheck": "pnpm -r --if-present typecheck"
+    "typecheck": "pnpm -r --if-present typecheck",
+    "build:web": "pnpm --filter @compass/web build",
+    "deploy": "pnpm build:web && pnpm --filter @compass/worker run deploy"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

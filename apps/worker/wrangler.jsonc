@@ -7,6 +7,17 @@
   "routes": [{ "pattern": "juyo.razvanfrandes.com", "custom_domain": true }],
   "observability": { "enabled": true },
 
+  // The Angular app (apps/web, built by `pnpm build:web` at the repo root), served from the same origin as the API.
+  // Unknown paths get index.html, so deep links like /boards/portfolio open the app. /api/* and /mcp always run the
+  // Worker first: an unknown API path stays a JSON 404 and is never answered with the app's HTML.
+  // Response headers (CSP and the others) come from apps/web/public/_headers.
+  "assets": {
+    "directory": "../web/dist/spartan-demo/browser",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/mcp"]
+  },
+
   // Postgres (the compass-datagen database) through Hyperdrive.
   // Locally: CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE in .env (read-only role compass_ro).
   "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "0d5570d3cead4ad69805cd67233d92b3" }],

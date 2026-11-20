@@ -4,8 +4,15 @@ import { isDraftId, routeOf } from '../src/presentation/http/routes.ts';
 describe('routeOf', () => {
   it.each([
     ['/mcp', 'mcp'],
-    ['/', 'not_found'],
-    ['/apix', 'not_found'],
+    ['/mcp/', 'assets'],
+    ['/', 'assets'],
+    ['/index.html', 'assets'],
+    ['/main-ABC123.js', 'assets'],
+    ['/boards/portfolio', 'assets'],
+    ['/api', 'assets'],
+    ['/apix', 'assets'],
+    ['/api/', 'api'],
+    ['/api/nope', 'api'],
     ['/api/kassandra/ws', 'kassandra_ws'],
     ['/api/workflows/builder/ws', 'builder'],
     ['/api/workflows', 'workflows'],

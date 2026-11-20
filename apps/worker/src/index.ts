@@ -122,7 +122,12 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     );
   }
 
-  if (target === 'not_found') return error(404, 'Not found');
+  if (target === 'assets') {
+    // The Angular app. Its files and browser navigations are answered before the Worker runs; what reaches this
+    // line is any other request for a path that is no file (a script, curl), which gets index.html too.
+    if (request.method !== 'GET' && request.method !== 'HEAD') return error(404, 'Not found');
+    return env.ASSETS.fetch(request);
+  }
 
   // Every mutating API call must come from the app (or from a script without Origin), never from another site.
   const crossSite = rejectCrossSite(request);

@@ -1,3 +1,7 @@
 packages:
   - apps/*
   - packages/*
+
+minimumReleaseAgeExclude:
+  - '@spartan-ng/brain@1.10.0'
+  - '@spartan-ng/cli@1.10.0'

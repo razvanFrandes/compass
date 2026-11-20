@@ -5,6 +5,8 @@ import type { WorkflowAgents } from './presentation/agents/workflow-agents.ts';
 import type { WorkflowBuilder } from './presentation/agents/workflow-builder.ts';
 
 export interface Env {
+  /** The Angular app's files (wrangler.jsonc `assets`): unknown paths answer with index.html. */
+  ASSETS: Fetcher;
   AI: Ai;
   HYPERDRIVE: Hyperdrive;
   MCP_RATE_LIMIT: RateLimit;
