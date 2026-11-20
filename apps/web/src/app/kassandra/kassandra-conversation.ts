@@ -9,15 +9,12 @@ import { WorkflowsApi, type ChatStep, type ChatTurn, type Usage } from '../api';
 import { usageText } from '../chat-turn';
 import { Markdown } from '../markdown';
 import { CompassStore } from '../store';
+import type { EvidenceSelection } from './evidence-target';
 import { KassandraWidget } from './kassandra-widget';
 import { SkeletonHold, shownPhase, stepCount, widgetSlots } from './live-slots';
 import { failureText, followUps, modeOf, phaseText, stepDetail, stepStatus, stepTitle, workedText } from './turn-text';
 
-/** "How this was computed" was asked for one tool result of one turn. */
-export interface EvidenceSelection {
-  turnKey: string;
-  callId: string;
-}
+export type { EvidenceSelection } from './evidence-target';
 
 let nextSteps = 0;
 const TRIGGER = (w: WorkflowSpec) => (w.trigger.kind === 'schedule' ? `Every ${w.trigger.every}` : w.trigger.kind === 'brief' ? `When the brief finds ${w.trigger.finding.replace(/_/g, ' ')}` : 'When you run it');
@@ -81,7 +78,7 @@ const AUTONOMY: Record<string, string> = { suggest: 'suggest only', approve: 'af
                   <p class="text-[12.5px] text-(--negative)">{{ s.error }}</p>
                 }
                 @if (s.evidence && showEvidence()) {
-                  <button type="button" class="k-link text-muted-foreground hover:text-foreground mt-0.5 rounded text-[12px] underline underline-offset-2" (click)="evidenceSelected.emit(s.callId)">How this was computed</button>
+                  <button type="button" class="k-link text-muted-foreground hover:text-foreground mt-0.5 rounded text-[12px] underline underline-offset-2" (click)="evidenceSelected.emit({ callId: s.callId })">How this was computed</button>
                 }
               </li>
             }
@@ -91,7 +88,7 @@ const AUTONOMY: Record<string, string> = { suggest: 'suggest only', approve: 'af
     }
 
     @for (w of widgets(); track w.callId) {
-      <kassandra-widget [slot]="w" [held]="hold.held().has(w.callId)" [question]="t.question" [showEvidence]="showEvidence()" [addable]="addToBoard()" (evidence)="evidenceSelected.emit($event)" />
+      <kassandra-widget [slot]="w" [held]="hold.held().has(w.callId)" [question]="t.question" [showEvidence]="showEvidence()" [addable]="addToBoard()" (evidence)="evidenceSelected.emit({ callId: $event, widgetCallId: w.callId })" />
     }
 
     @for (d of drafts(); track d.callId) {
@@ -186,8 +183,8 @@ export class KassandraTurn {
   readonly suggestions = input<string[]>([]);
   /** The whole conversation's spend, shown in the last turn's details. */
   readonly conversationUsage = input<Usage | null>(null);
-  /** "How this was computed" for one tool result (its call id). */
-  readonly evidenceSelected = output<string>();
+  /** "How this was computed" for one tool result (its call id), and the chart it was asked on, if any. */
+  readonly evidenceSelected = output<Omit<EvidenceSelection, 'turnKey'>>();
   readonly suggestionPicked = output<string>();
   readonly stopped = output<void>();
 
@@ -268,7 +265,7 @@ export class KassandraTurn {
         [stoppable]="stoppable()"
         [suggestions]="last && suggest() ? next() : []"
         [conversationUsage]="last && usage()?.tokens ? usage() : null"
-        (evidenceSelected)="evidenceSelected.emit({ turnKey: t.key, callId: $event })"
+        (evidenceSelected)="evidenceSelected.emit({ turnKey: t.key, callId: $event.callId, widgetCallId: $event.widgetCallId })"
         (suggestionPicked)="suggestionPicked.emit($event)"
         (stopped)="stopped.emit()"
       />

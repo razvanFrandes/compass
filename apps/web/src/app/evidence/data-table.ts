@@ -1,26 +1,53 @@
-import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, linkedSignal, signal, untracked, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorArrowDownLight, phosphorArrowUpLight, phosphorArrowsDownUpLight } from '@ng-icons/phosphor-icons/light';
-import { columnHeader, formatCell, formatNumber, isHidden, isNumericKind, resolveColumns, sortRows, visibleColumns, yearOf, type FormatContext, type SortDirection } from './format';
+import { columnDecimals, columnHeader, formatCell, formatNumber, isNumericKind, resolveColumns, sortRows, yearOf, type FormatContext, type SortDirection } from './format';
 import { HotelDirectory } from './hotel-directory';
+import { MAX_COLUMNS, planColumns } from './relevance';
 import type { EvidenceColumn, EvidenceRow } from './types';
 
 /** Above this many rows "Show all" still stops: a table is for reading, and the full result is in the SQL. */
 const MAX_ROWS = 1000;
 /** Text longer than this wraps instead of stretching the table. */
 const LONG_TEXT = 48;
+/** The rows an answer quotes are all shown, up to this many. */
+const MAX_QUOTED_ROWS = 12;
+/** What a column needs to read well (px): the one that names the row, and each one after it. */
+const LEAD_WIDTH = 150;
+const COLUMN_WIDTH = 104;
+/** However narrow the box, the row's name and three columns are shown; they scroll if they must. */
+const MIN_COLUMNS = 4;
+
+/** How many columns fit a box this wide without scrolling, between `MIN_COLUMNS` and `MAX_COLUMNS`. An unmeasured box gets the most. */
+export function columnsThatFit(width: number): number {
+  if (!(width > 0)) return MAX_COLUMNS;
+  return Math.min(MAX_COLUMNS, Math.max(MIN_COLUMNS, 1 + Math.floor((width - LEAD_WIDTH) / COLUMN_WIDTH)));
+}
+
+/** On its side, a table needs this much (px) for the names of the columns, and this much for each row. */
+const FIELD_WIDTH = 190;
+const RECORD_WIDTH = 124;
+/** More rows than this never read well side by side. */
+const MAX_TURNED_ROWS = 3;
 
 /**
- * The first column is frozen, so it should tell the rows apart. When it holds one value for every row (one hotel,
- * 193 stay dates) and a later naming column varies, that column leads instead.
+ * Whether a few rows read better on their side: the rows across, their columns down. So when the columns do not
+ * fit the box as a table, and the rows do fit it side by side. Two quoted accounts with six figures each then show
+ * every figure, with nothing to scroll to.
  */
-export function leadWithWhatVaries(columns: EvidenceColumn[], rows: readonly EvidenceRow[]): EvidenceColumn[] {
-  const first = columns[0];
-  if (!first || rows.length < 2 || isNumericKind(first.kind)) return columns;
-  const varies = (column: EvidenceColumn) => rows.some((row) => row[column.key] !== rows[0]![column.key]);
-  if (varies(first)) return columns;
-  const lead = columns.find((column) => !isNumericKind(column.kind) && varies(column));
-  return lead ? [lead, ...columns.filter((column) => column !== lead)] : columns;
+export function turnsOnSide(width: number, rows: number, columns: number): boolean {
+  if (!(width > 0) || rows < 1 || rows > MAX_TURNED_ROWS || columns < 3) return false;
+  return LEAD_WIDTH + (columns - 1) * COLUMN_WIDTH > width && FIELD_WIDTH + rows * RECORD_WIDTH <= width;
+}
+
+/**
+ * The rows on screen before "Show all": the ones the answer quotes when it quotes some of them (not all), else the
+ * first `pageSize`. Indices into the result, in its order.
+ */
+export function rowsToStartWith(total: number, quoted: readonly number[], pageSize: number): { indices: number[]; quotedOnly: boolean } {
+  const valid = [...new Set(quoted)].filter((index) => Number.isInteger(index) && index >= 0 && index < total).sort((a, b) => a - b);
+  if (valid.length && valid.length < total) return { indices: valid.slice(0, MAX_QUOTED_ROWS), quotedOnly: true };
+  return { indices: Array.from({ length: Math.min(total, pageSize) }, (_, index) => index), quotedOnly: false };
 }
 
 interface Cell {
@@ -32,10 +59,13 @@ interface Cell {
 }
 
 /**
- * Rows a person can read: human headers, hotel names instead of codes, numbers, percentages, money and dates
- * formatted with tabular figures, numeric columns right-aligned. Internal columns (ids, kinds) are hidden until
- * asked for. The table scrolls sideways inside its own box, with the first column frozen and a fade on the edge
- * that has more; it starts with a few rows and "Show all N rows" opens the rest. Headers sort.
+ * Rows a person can read, never a dump of the result. It starts with the rows the answer quotes (the rest behind
+ * "Show all N rows") and the columns worth the space (the rest behind "More columns"): the one that tells the rows
+ * apart, the ones the answer quotes, then as many as fit, six at most. Human headers, hotel names instead of
+ * codes, and every number of a column written the same way, right-aligned in tabular figures. Hairlines between
+ * rows and nothing else. A few quoted rows with more columns than fit are turned on their side (rows across,
+ * columns down), so every quoted figure shows. Otherwise it scrolls sideways only when the columns that must show
+ * do not fit, with the first column frozen and a fade on the edge that has more. Headers sort.
  */
 @Component({
   selector: 'juyo-data-table',
@@ -43,10 +73,11 @@ interface Cell {
   providers: [provideIcons({ phosphorArrowDownLight, phosphorArrowUpLight, phosphorArrowsDownUpLight })],
   host: { class: 'block min-w-0' },
   styles: `
+    /* The rows reach a little past the text on both sides, so a tinted row has air and the text still lines up with the card's. */
     .dt-frame {
       position: relative;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-container, 10px);
+      margin-inline: calc(var(--dt-gutter, 10px) * -1);
+      border-radius: var(--radius-control, 8px);
       overflow: hidden;
       background: var(--dt-bg, var(--card));
     }
@@ -68,10 +99,10 @@ interface Cell {
     }
     th,
     td {
-      padding: 6px 10px;
+      padding: 7px 10px;
       text-align: left;
       white-space: nowrap;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
       background: var(--dt-row, var(--dt-bg, var(--card)));
     }
     tbody tr:last-child > * {
@@ -83,9 +114,12 @@ interface Cell {
       z-index: 2;
       padding: 0;
       vertical-align: bottom;
+      font-size: 11.5px;
+      line-height: 15px;
       font-weight: 500;
       color: var(--muted-foreground);
-      background: var(--dt-head, color-mix(in srgb, var(--foreground) 5%, var(--dt-bg, var(--card))));
+      background: var(--dt-bg, var(--card));
+      border-bottom-color: var(--input);
     }
     tbody th {
       font-weight: 500;
@@ -99,7 +133,8 @@ interface Cell {
     /* A table cell ignores max-width, so the frozen column is kept narrow by what is inside it. */
     .dt-clip {
       display: block;
-      max-width: min(38vw, 15rem);
+      min-width: 5.5rem;
+      max-width: min(38vw, 14rem);
       overflow: hidden;
       text-overflow: ellipsis;
     }
@@ -125,17 +160,22 @@ interface Cell {
     }
     .dt-long {
       white-space: normal;
-      min-width: 34ch;
-      max-width: 60ch;
+      min-width: 28ch;
+      max-width: 56ch;
     }
     .dt-empty {
       color: var(--muted-foreground);
     }
     @media (hover: hover) {
       tbody tr:hover {
-        --dt-row: color-mix(in srgb, var(--foreground) 5%, var(--dt-bg, var(--card)));
+        --dt-row: color-mix(in srgb, var(--foreground) 4%, var(--dt-bg, var(--card)));
       }
     }
+    /* A row the answer quotes, among the others. */
+    tbody tr.dt-quoted {
+      --dt-row: color-mix(in srgb, var(--focus-brand) 9%, var(--dt-bg, var(--card)));
+    }
+    /* The row of the figure the person asked about. */
     tbody tr.dt-hit {
       --dt-row: color-mix(in srgb, var(--focus-brand) 16%, var(--dt-bg, var(--card)));
     }
@@ -148,15 +188,15 @@ interface Cell {
       display: flex;
       width: max-content;
       align-items: flex-end;
-      gap: 4px;
-      padding: 7px 10px 6px;
+      gap: 3px;
+      padding: 6px 10px;
       font: inherit;
       color: inherit;
       text-align: left;
       white-space: normal;
       text-wrap: balance;
-      max-width: 17ch;
-      min-height: 32px;
+      max-width: 15ch;
+      min-height: 28px;
       cursor: pointer;
       outline: none;
       transition: color 120ms ease;
@@ -175,21 +215,40 @@ interface Cell {
       box-shadow: inset 0 0 0 2px var(--ring);
       border-radius: 4px;
     }
+    /* The arrow takes no room until the column is sorted, so a narrow header keeps its width for words. */
     .dt-sort ng-icon {
       flex: none;
-      font-size: 12px;
-      margin-bottom: 3px;
+      width: 0;
+      font-size: 11px;
+      margin-bottom: 2px;
       opacity: 0;
+      overflow: hidden;
       transition: opacity 120ms ease;
     }
     .dt-sort:hover ng-icon,
     .dt-sort:focus-visible ng-icon {
+      width: auto;
       opacity: 0.7;
     }
     [aria-sort='ascending'] .dt-sort ng-icon,
     [aria-sort='descending'] .dt-sort ng-icon {
+      width: auto;
       opacity: 1;
       color: var(--brand);
+    }
+    /* On its side: the names of the rows across the top, the columns down the left. Words wrap, so it always fits. */
+    .dt-turned thead th {
+      padding: 6px 10px;
+      white-space: normal;
+      text-wrap: balance;
+    }
+    .dt-turned thead th.dt-record {
+      color: var(--foreground);
+    }
+    .dt-turned tbody th {
+      font-weight: 400;
+      color: var(--muted-foreground);
+      white-space: normal;
     }
     .dt-fade {
       position: absolute;
@@ -204,6 +263,25 @@ interface Cell {
     .dt-more-end .dt-fade {
       opacity: 1;
     }
+    .dt-link {
+      border-radius: 4px;
+      color: color-mix(in srgb, var(--foreground) 90%, transparent);
+      text-decoration: underline;
+      text-decoration-color: var(--input);
+      text-underline-offset: 3px;
+      outline: none;
+      cursor: pointer;
+      transition:
+        color 120ms ease,
+        text-decoration-color 120ms ease;
+    }
+    .dt-link:hover {
+      color: var(--foreground);
+      text-decoration-color: currentColor;
+    }
+    .dt-link:focus-visible {
+      box-shadow: 0 0 0 2px var(--ring);
+    }
     @media (pointer: coarse) {
       .dt-sort {
         min-height: 40px;
@@ -216,6 +294,7 @@ interface Cell {
     @media (prefers-reduced-motion: reduce) {
       .dt-fade,
       .dt-first::after,
+      .dt-link,
       .dt-sort,
       .dt-sort ng-icon {
         transition: none;
@@ -224,6 +303,14 @@ interface Cell {
   `,
   template: `
     @if (shown().length && rows().length) {
+      @if (shared().length && !showMore()) {
+        <p class="text-muted-foreground mb-2 text-[12.5px]/[18px]" data-shared>
+          Every row ·
+          @for (s of shared(); track s.label; let last = $last) {
+            {{ s.label }}: <span class="text-foreground">{{ s.value }}</span>{{ last ? '' : ' · ' }}
+          }
+        </p>
+      }
       <div class="dt-frame" [class.dt-more-end]="moreEnd()" [class.dt-scrolled]="scrolled()">
         <div
           #scroller
@@ -234,6 +321,32 @@ interface Cell {
           [attr.aria-label]="overflowing() ? caption() + ', scrollable table' : null"
           (scroll)="measure()"
         >
+          @if (turned()) {
+            <table class="dt-turned">
+              <caption class="sr-only">
+                {{ caption() }}: {{ summary() }}, one column for each
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="dt-first">{{ header(shown()[0]!) }}</th>
+                  @for (r of page(); track r.index) {
+                    <th scope="col" class="dt-num dt-record">{{ r.cells[0]!.text }}</th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (c of shown().slice(1); track c.key; let at = $index) {
+                  <tr>
+                    <th scope="row" class="dt-first">{{ header(c) }}</th>
+                    @for (r of page(); track r.index) {
+                      @let cell = r.cells[at + 1]!;
+                      <td class="dt-num" [class.dt-empty]="cell.empty" [class.dt-hit-cell]="r.index === highlight()?.rowIndex && cell.key === highlight()?.key" [attr.data-row]="r.index">{{ cell.text }}</td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
           <table>
             <caption class="sr-only">
               {{ caption() }}: {{ summary() }}
@@ -252,10 +365,15 @@ interface Cell {
             </thead>
             <tbody>
               @for (r of page(); track r.index) {
-                <tr [class.dt-hit]="r.index === highlight()?.rowIndex" [attr.data-row]="r.index">
+                <tr [class.dt-quoted]="r.quoted && mixed()" [class.dt-hit]="r.index === highlight()?.rowIndex" [attr.data-row]="r.index">
                   @for (cell of r.cells; track cell.key; let first = $first) {
                     @if (first && !cell.numeric) {
-                      <th scope="row" class="dt-first" [class.dt-empty]="cell.empty"><span class="dt-clip" [attr.title]="cell.text">{{ cell.text }}</span></th>
+                      <th scope="row" class="dt-first" [class.dt-empty]="cell.empty">
+                        <span class="dt-clip" [attr.title]="cell.text">{{ cell.text }}</span>
+                        @if (r.quoted && mixed()) {
+                          <span class="sr-only"> (quoted in the answer)</span>
+                        }
+                      </th>
                     } @else {
                       <td
                         [class.dt-first]="first"
@@ -272,21 +390,20 @@ interface Cell {
               }
             </tbody>
           </table>
+          }
         </div>
         <div class="dt-fade" aria-hidden="true"></div>
       </div>
 
-      @if (canExpand() || hiddenCount()) {
+      @if (canExpand() || moreCount()) {
         <div class="text-muted-foreground mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px]">
           @if (canExpand()) {
-            <button type="button" class="text-foreground/90 hover:text-foreground rounded-[4px] underline decoration-(--input) underline-offset-[3px] outline-none transition-colors hover:decoration-current focus-visible:ring-2 focus-visible:ring-(--ring)" [attr.aria-expanded]="expanded()" (click)="expanded.set(!expanded())">
-              {{ expanded() ? 'Show the first ' + pageSize() : 'Show all ' + total() + ' rows' }}
-            </button>
+            <button type="button" class="dt-link" [attr.aria-expanded]="expanded()" (click)="expanded.set(!expanded())">{{ rowsToggle() }}</button>
             <span>{{ summary() }}</span>
           }
-          @if (hiddenCount()) {
-            <button type="button" class="text-foreground/90 hover:text-foreground rounded-[4px] underline decoration-(--input) underline-offset-[3px] outline-none transition-colors hover:decoration-current focus-visible:ring-2 focus-visible:ring-(--ring) ml-auto" [attr.aria-pressed]="showHidden()" (click)="showHidden.set(!showHidden())">
-              {{ showHidden() ? 'Hide internal columns' : hiddenText() }}
+          @if (moreCount()) {
+            <button type="button" class="dt-link ml-auto" [attr.aria-expanded]="showMore()" (click)="showMore.set(!showMore())">
+              {{ showMore() ? 'Fewer columns' : 'More columns (' + moreCount() + ')' }}
             </button>
           }
         </div>
@@ -305,33 +422,57 @@ export class DataTable {
   readonly caption = input('Result');
   /** The data's "today" (ISO): dates in its year are written without the year. */
   readonly businessDate = input<string | undefined>(undefined);
-  /** Rows shown before "Show all". */
+  /** Rows shown before "Show all", when the answer quotes none of them. */
   readonly pageSize = input(8);
+  /** The rows (by index) that back numbers the answer quotes: the table starts with these alone. */
+  readonly quotedRows = input<readonly number[]>([]);
+  /** Column keys that must stay on screen: the ones the answer quotes, the ones a chart draws. */
+  readonly prefer = input<readonly string[]>([]);
+  /** Column keys whose value, the same on every row, is already said beside the table (the hotel in a card's title). */
+  readonly stated = input<readonly string[]>([]);
+  /** Start with every row (a chart draws all of them). */
+  readonly allRows = input(false);
   /** A cell to point at (a figure quoted in the answer): its row is tinted and brought into view. */
   readonly highlight = input<{ rowIndex: number; key?: string } | null>(null);
 
   private readonly hotels = inject(HotelDirectory);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
 
-  protected readonly expanded = signal(false);
-  protected readonly showHidden = signal(false);
+  protected readonly expanded = linkedSignal(() => this.allRows());
+  protected readonly showMore = signal(false);
   protected readonly sort = signal<{ key: string; direction: SortDirection } | null>(null);
   protected readonly moreEnd = signal(false);
   protected readonly scrolled = signal(false);
   protected readonly overflowing = signal(false);
+  /** The width of the table's box, 0 until it is measured. */
+  private readonly width = signal(0);
   private shownHit: { rowIndex: number; key?: string } | null = null;
 
   private readonly context = computed<FormatContext>(() => ({ hotelName: this.hotels.name, baseYear: yearOf(this.businessDate()) }));
   private readonly all = computed(() => resolveColumns(this.rows(), this.columns(), this.hotels.has));
-  protected readonly shown = computed(() => leadWithWhatVaries(this.showHidden() ? this.all() : visibleColumns(this.all()), this.rows()));
-  protected readonly hiddenCount = computed(() => {
-    const hidden = this.all().filter(isHidden).length;
-    // When every column is internal, they are all shown already and there is nothing to toggle.
-    return hidden < this.all().length ? hidden : 0;
+  private readonly plan = computed(() => {
+    const pointed = this.highlight()?.key;
+    return planColumns(this.all(), this.rows(), { prefer: pointed ? [pointed, ...this.prefer()] : this.prefer(), max: columnsThatFit(this.width()) });
   });
-  protected readonly hiddenText = computed(() => `Show ${this.hiddenCount()} internal ${this.hiddenCount() === 1 ? 'column' : 'columns'}`);
+  protected readonly shown = computed(() => (this.showMore() ? [...this.plan().shown, ...this.plan().more] : this.plan().shown));
+  protected readonly moreCount = computed(() => this.plan().more.length);
+  /** What every row says alike, said once above the table instead of in a column of its own. */
+  protected readonly shared = computed(() => {
+    const row = this.rows()[0];
+    const stated = this.stated();
+    if (!row) return [];
+    return this.plan()
+      .shared.filter((column) => !stated.includes(column.key))
+      .map((column) => ({ label: column.label, value: formatCell(row[column.key], column, this.context()) }));
+  });
+  private readonly decimals = computed(() => new Map(this.all().map((column) => [column.key, columnDecimals(column, this.rows())])));
   protected readonly total = computed(() => formatNumber(this.rows().length, 0));
-  protected readonly canExpand = computed(() => this.rows().length > this.pageSize());
+  private readonly start = computed(() => rowsToStartWith(this.rows().length, this.quotedRows(), this.pageSize()));
+  private readonly quotedSet = computed(() => new Set(this.start().quotedOnly ? this.quotedRows() : []));
+  protected readonly canExpand = computed(() => this.rows().length > this.start().indices.length);
+  /** Quoted rows and others are on screen together, so the quoted ones are marked. */
+  protected readonly mixed = computed(() => this.start().quotedOnly && this.expanded());
 
   private readonly sorted = computed(() => {
     const indexed = this.rows().map((row, index) => ({ ...row, __index: index }));
@@ -344,33 +485,49 @@ export class DataTable {
   protected readonly page = computed(() => {
     const columns = this.shown();
     const context = this.context();
-    const limit = this.expanded() ? MAX_ROWS : this.pageSize();
-    return this.sorted()
-      .slice(0, limit)
-      .map((row) => ({
-        index: row.__index,
-        cells: columns.map((column): Cell => {
-          const text = formatCell((row as EvidenceRow)[column.key], column, context);
-          const numeric = isNumericKind(column.kind);
-          return { key: column.key, text, numeric, long: !numeric && text.length > LONG_TEXT, empty: text === '–' };
-        }),
-      }));
+    const decimals = this.decimals();
+    const quoted = this.quotedSet();
+    const start = new Set(this.start().indices);
+    const rows = this.expanded() ? this.sorted().slice(0, MAX_ROWS) : this.sorted().filter((row) => start.has(row.__index));
+    return rows.map((row) => ({
+      index: row.__index,
+      quoted: quoted.has(row.__index),
+      cells: columns.map((column): Cell => {
+        const text = formatCell((row as EvidenceRow)[column.key], column, context, decimals.get(column.key));
+        const numeric = isNumericKind(column.kind);
+        return { key: column.key, text, numeric, long: !numeric && text.length > LONG_TEXT, empty: text === '–' };
+      }),
+    }));
+  });
+
+  /** The few quoted rows are shown on their side, because their columns do not fit the box as a table. */
+  protected readonly turned = computed(() => {
+    const lead = this.shown()[0];
+    if (this.expanded() || !this.start().quotedOnly || !lead || isNumericKind(lead.kind)) return false;
+    return turnsOnSide(this.width(), this.page().length, this.shown().length);
   });
 
   protected readonly summary = computed(() => {
     const count = this.rows().length;
     const shown = this.page().length;
     if (shown >= count) return `${this.total()} ${count === 1 ? 'row' : 'rows'}`;
+    if (this.start().quotedOnly) return `${formatNumber(shown, 0)} of ${this.total()} rows: ${shown === 1 ? 'the one' : 'the ones'} the answer quotes`;
     return `First ${formatNumber(shown, 0)} of ${this.total()} rows`;
   });
 
+  protected readonly rowsToggle = computed(() => {
+    if (!this.expanded()) return `Show all ${this.total()} rows`;
+    const start = this.start();
+    if (!start.quotedOnly) return `Show the first ${this.pageSize()}`;
+    return start.indices.length === 1 ? 'Show only the quoted row' : `Show only the ${start.indices.length} quoted rows`;
+  });
+
   constructor() {
-    // A quoted figure further down than the first page opens the table, so its row is there to point at.
+    // A figure in a row that is not on screen opens the table, so its row is there to point at.
     effect(() => {
       const hit = this.highlight();
       if (!hit) return;
-      const position = untracked(() => this.sorted().findIndex((row) => row.__index === hit.rowIndex));
-      if (position >= untracked(this.pageSize)) this.expanded.set(true);
+      if (!untracked(() => this.start().indices.includes(hit.rowIndex))) this.expanded.set(true);
     });
     afterRenderEffect(() => {
       // Re-read the edges whenever what is rendered changes.
@@ -386,9 +543,13 @@ export class DataTable {
       this.measure();
     });
     afterRenderEffect((onCleanup) => {
-      const element = this.scroller()?.nativeElement;
-      if (!element || typeof ResizeObserver === 'undefined') return;
-      const observer = new ResizeObserver(() => this.measure());
+      const element = this.host.nativeElement;
+      this.width.set(element.clientWidth);
+      if (typeof ResizeObserver === 'undefined') return;
+      const observer = new ResizeObserver(() => {
+        this.width.set(element.clientWidth);
+        this.measure();
+      });
       observer.observe(element);
       onCleanup(() => observer.disconnect());
     });
