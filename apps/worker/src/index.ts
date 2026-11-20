@@ -3,10 +3,9 @@ import { HotelData } from './application/hotel-data.ts';
 import { openPostgres } from './infrastructure/postgres.ts';
 import { createCompassMcpServer } from './presentation/mcp/server.ts';
 
-export interface Env {
-  HYPERDRIVE: Hyperdrive;
-  MCP_RATE_LIMIT: RateLimit;
-}
+import type { Env } from './env.ts';
+
+export { Kassandra } from './presentation/agents/kassandra.ts';
 
 const PUBLIC_HOST = 'juyo.razvanfrandes.com';
 
@@ -51,6 +50,20 @@ export default {
           allowedOriginHostnames: [PUBLIC_HOST],
         })(request, env, ctx),
       );
+    }
+
+    if (url.pathname === '/api/kassandra/ask' && request.method === 'POST') {
+      // Every question spends model tokens, so it is rate-limited per client.
+      const client = request.headers.get('cf-connecting-ip') ?? 'local';
+      if (!(await env.ASK_RATE_LIMIT.limit({ key: client })).success) {
+        return Response.json({ error: 'Too many questions. Wait a minute and try again.' }, { status: 429 });
+      }
+      const body = (await request.json().catch(() => null)) as { conversation?: string; question?: string } | null;
+      const question = body?.question?.trim();
+      if (!question || question.length > 2000) return Response.json({ error: 'Send { question } (max 2000 characters).' }, { status: 400 });
+      const conversation = body?.conversation && /^[\w-]{1,64}$/.test(body.conversation) ? body.conversation : crypto.randomUUID();
+      const answer = await env.KASSANDRA.getByName(conversation).ask(question);
+      return Response.json({ conversation, ...answer });
     }
 
     if (url.pathname === '/api/health') {

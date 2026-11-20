@@ -5,10 +5,10 @@ description: Build Compass's durable agents with @earendil-works/pi-durable host
 
 # Pi Durable on Cloudflare (Compass)
 
-Written 2026-11-20 from the official sources in `references/`:
-- `pi-durable-README-1.5.2.md`: the package README at tag v1.5.2;
-- `cloudflare-pi-harness.md`: `agents@0.33.0/docs/harnesses/pi.md`;
-- `cloudflare-models-pi-ai.md`: `agents@0.33.0/docs/models-pi-ai.md`.
+Written 2026-11-20 from the official sources in `references/`, then verified in a working spike (Kassandra in `apps/worker/src/presentation/agents/`):
+- `pi-durable-README-1.6.0.md`: the package README at tag v1.6.0;
+- `cloudflare-pi-harness.md`: `agents@0.34.0/docs/harnesses/pi.md`;
+- `cloudflare-models-pi-ai.md`: `agents@0.34.0/docs/models-pi-ai.md`.
 
 **When this file and the references disagree, the references win.** When the references and the installed `.d.ts` types disagree, the types win. Grep the references before guessing an API.
 
@@ -16,10 +16,10 @@ Written 2026-11-20 from the official sources in `references/`:
 
 | Package | Version | Why |
 |---|---|---|
-| `agents` | `0.33.0` | the first release with `PiHarness` on Pi 1.5 |
-| `@earendil-works/pi-durable`, `pi-ai`, `pi-schema`, `chord` | **`1.5.2` exact** | `agents` peer range is `~1.5.0` |
+| `agents` | `0.34.0` | `PiHarness` on Pi 1.6: signals, tools that park, gates |
+| `@earendil-works/pi-durable`, `pi-ai`, `pi-schema`, `chord` | **`1.6.0` exact** | `agents` peer range is `~1.6.0` |
 
-- **Do not install Pi 1.6.** It came out on 2026-11-20 and `agents` does not support it yet. 1.6 adds `defineSignal`, tools that park, and approval gates. **These APIs do not exist in 1.5**, so do not copy them from the `main` README or the CHANGELOG.
+- Pi 1.6 adds `defineSignal`, `harness.signal()`, tools that park (`{ sleep: { signals, until } }`) and `beforeTool` gates. Use them for approvals; see "Workflows" below.
 - **Never roll back across a Pi minor.** Conversations stored by a newer minor cannot be read by an older one. Fix a bad deploy by rolling forward.
 - Use exact versions in `package.json` (no `^` or `~`).
 
@@ -46,7 +46,7 @@ import { Lifecycle } from 'agents/lifecycle';
 import { createAI } from 'agents/models/pi-ai';
 
 export class Kassandra extends DurableObject<Env> {
-  ai = createAI({ binding: this.env.AI, byokAlias: 'compass' }); // the Claude key lives on AI Gateway
+  ai = createAI({ binding: this.env.AI, gateway: { id: 'compass', byokAlias: 'compass', collectLog: true } }); // the Claude key lives on AI Gateway
   registry = createRegistry();                                  // per object, NEVER at module scope
 
   harness = new PiHarness({
@@ -59,7 +59,7 @@ export class Kassandra extends DurableObject<Env> {
         onReport: (r) => console.warn('pi', r.kind, r.error),
       }, context);
     },
-    defaults: { model: this.ai('anthropic/claude-sonnet-5.5'), maxTurns: 8 },
+    defaults: { model: this.ai('anthropic/claude-sonnet-5.5'), thinkingLevel: 'low', maxTurns: 8 },
   });
 
   lifecycle = Lifecycle.install(this).use(this.harness);
@@ -70,7 +70,11 @@ wrangler: `"ai": { "binding": "AI" }`, a DO binding, and the migration `new_sqli
 
 ## Models (Claude via AI Gateway)
 
-- **Verified** catalog ids in pi-ai 1.5.2: `anthropic/claude-sonnet-5.5`, `anthropic/claude-haiku-5.5`, `anthropic/claude-opus-5.5` (with dots). Any other string throws a `TypeError`.
+- **Verified pitfall:** without a `thinkingLevel`, Pi sends `thinking: { type: "disabled" }`. Claude Sonnet 5.5 rejects that with a 400 (`To turn thinking off on this model, send "between_tools"`), and the run ends `unanswered / model_error`. Set `thinkingLevel: 'low'` (or higher) in `defaults`.
+- **Debugging a `model_error`:** `cf ai-gateway logs list --gateway-id compass`, then `cf ai-gateway logs get-response --gateway-id compass <id>` shows the provider's error body.
+- **Gateway:** `compass` (BYOK only, logs on, cache off), with the Anthropic key under alias `compass`.
+
+- **Verified** catalog ids in pi-ai 1.6.0 (also in 1.5.2): `anthropic/claude-sonnet-5.5`, `anthropic/claude-haiku-5.5`, `anthropic/claude-opus-5.5` (with dots). Any other string throws a `TypeError`.
 - A session stores its model as `{ provider: 'cloudflare', modelId: 'anthropic/claude-sonnet-5.5' }`.
 - Options passed to `ai(id, options)` **do not reach the session**. Put gateway options on `createAI(...)`.
 - Keys: **none in the Worker.** AI Gateway holds the Anthropic key (BYOK, selected by `byokAlias`) or uses Unified Billing.
@@ -147,7 +151,7 @@ The entries are Pi's own format. Map them to our UI models; never render raw.
 
 Server API on PiHarness: `prompt`, `submit(input, { operationId, whenBusy, whenIdle, entry })`, `wait(operationId)`, `steer`, `continue`, `abort`, `pending`, `messages`, `watch`, `entries`, `reset`, `setModel`, `busy`, `harness.sessions.create/get/list/fork`.
 
-## Workflows (Act): durable patterns that exist in 1.5
+## Workflows (Act): durable patterns (Pi 1.6)
 
 - **Schedule / wait:** a task defined with `defineTask` whose phase calls `runtime.sleepUntil(at, nextCheckpoint, context)`.
   - There is no sleep in the middle of a phase: work after the wait goes in the next phase, and what it needs goes in the checkpoint.
@@ -155,11 +159,15 @@ Server API on PiHarness: `prompt`, `submit(input, { operationId, whenBusy, whenI
 - **Steps:** each step is a phase or a child task.
   - Wait for children with `{ status: 'waiting', on, policy: 'allSettled' | 'failFast' }`.
   - Abort runs bottom-up.
-- **Approval (1.5 way):**
-  1. `propose_action` writes the proposal into an `app.proposals` doc and returns `control: { terminate: true }`.
-  2. Approve or Deny in the UI → `session.submit('Approved: …', { entry: { kind: 'app.approval', data: { proposalId, by } }, operationId: 'approve:'+proposalId })`.
-  3. `apply_action` checks the doc for a matching approval and otherwise throws.
-  4. A `beforeTool` hook can also `block` `apply_action` without approval.
+- **Approval (1.6):** a tool parks until a person answers.
+  1. Define the signal: `defineSignal({ name: 'app.approval', version: 1, schema: obj({ approved: bool(), by: str() }) })`.
+  2. In `execute`, call `api.readSignal(Approval, 'approval', context)`.
+     - No value yet: write the proposal to an `app.proposals` doc and return `{ sleep: { signals: [Approval.key('approval')] } }`. The call holds no invocation, so the DO can hibernate.
+     - A value: act, or report the denial.
+  3. The UI's Approve button calls the DO, which calls `this.harness.signal(taskId, Approval, 'approval', { approved, by })`. Returns `delivered | duplicate | invalid | closed | not_found`.
+  4. Give the tool a `cancel()` for cleanup if the parked call is aborted.
+  5. A `beforeTool` hook can park any call the same way, as a gate. It must be idempotent: it runs again on every wake.
+  See the "Tools that wait" section in `references/cloudflare-pi-harness.md`.
 - **Audit / undo:** our own `app.audit` doc (`history: 'rewindable'` allows `snapshotAsOf`). Undo = a compensating action, also audited.
 - **Idempotency:** a stable `operationId` / `requestId` for every submit, so a retry finds the same submission.
 
@@ -172,7 +180,7 @@ Server API on PiHarness: `prompt`, `submit(input, { operationId, whenBusy, whenI
 5. The model never computes numbers. Numbers come from tools (SQL/MCP), and the prompt sections say so.
 6. Read-only tools are `replay: 'safe'`. Tools with side effects are `unsafe` and idempotent by key.
 7. Set `maxTurns` (default unlimited) and `settings.restartLimit` (default 5) on purpose.
-8. Not available yet in PiHarness: tool approvals built into Pi (1.6) and deleting conversations.
+8. Not available yet: deleting conversations.
 
 ## Testing (TDD)
 
@@ -183,7 +191,7 @@ Server API on PiHarness: `prompt`, `submit(input, { operationId, whenBusy, whenI
   ```
 - Test recovery: open over Node SQLite (`openNodeSqliteStorage`), close mid-run, reopen, call `harness.resume()`, and assert.
 - Integration on Workers: `@cloudflare/vitest-pool-workers` with the real DO.
-- Official runnable examples (repo `packages/durable/test/examples` at tag `v1.5.2`):
+- Official runnable examples (repo `packages/durable/test/examples` at tag `v1.6.0`; 38–46 cover signals, parking tools, approval gates):
   - 13 chat;
   - 19 inbox;
   - 21/22 subagents;
