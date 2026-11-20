@@ -1,4 +1,4 @@
-import { formatCell, isHidden, isNumericKind, rowLabel, visibleColumns, type FormatContext } from './format';
+import { columnDecimals, formatCell, isHidden, isNumericKind, rowLabel, visibleColumns, type FormatContext } from './format';
 import type { EvidenceColumn, EvidenceRow } from './types';
 
 /*
@@ -110,15 +110,28 @@ function matchScore(cell: number, column: EvidenceColumn, target: AnswerNumber):
   return 0;
 }
 
+/**
+ * The columns that name a row, most telling first: the one that tells the rows of this result apart, then the
+ * hotel, then the rest. "Vantor Consulting · Arbor New York Midtown", not the hotel every row shares first.
+ */
+function namingColumns(table: FigureTable): EvidenceColumn[] {
+  const labels = visibleColumns(table.columns).filter((column) => !isNumericKind(column.kind));
+  const varies = (column: EvidenceColumn) => table.rows.some((row) => row[column.key] !== table.rows[0]![column.key]);
+  const lead = labels.find(varies) ?? labels[0];
+  const hotel = labels.find((column) => column.kind === 'hotel' && column !== lead);
+  return [lead, hotel, ...labels.filter((column) => column !== lead && column !== hotel)].filter((column): column is EvidenceColumn => !!column);
+}
+
 function figureAt(table: FigureTable, rowIndex: number, column: EvidenceColumn, context: FormatContext): Figure {
   const row = table.rows[rowIndex]!;
   return {
     callId: table.callId,
     rowIndex,
     key: column.key,
-    value: formatCell(row[column.key], column, context),
+    // Written as the table writes its column, so the figure and its cell read the same.
+    value: formatCell(row[column.key], column, context, columnDecimals(column, table.rows)),
     label: column.label,
-    context: rowLabel(row, table.columns, context),
+    context: rowLabel(row, namingColumns(table), context),
     source: table.title,
   };
 }

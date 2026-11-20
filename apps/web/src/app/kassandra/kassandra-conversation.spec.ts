@@ -178,12 +178,22 @@ describe('KassandraConversation: widgets', () => {
     });
   });
 
-  it('reports which tool result a widget’s "How this was computed" is about', () => {
+  it('reports which tool result a widget’s "How this was computed" is about, and which chart was asked', () => {
     const fixture = render([withWidget()]);
     const picked: EvidenceSelection[] = [];
     fixture.componentInstance.evidenceSelected.subscribe((selection) => picked.push(selection));
     button(fixture, 'How this was computed')!.click();
-    expect(picked).toEqual([{ turnKey: 't1', callId: 'c1' }]);
+    expect(picked).toEqual([{ turnKey: 't1', callId: 'c1', widgetCallId: 'c2' }]);
+  });
+
+  it('reports a chart drawn from an earlier answer with the turn it sits in and the result it draws', () => {
+    const asked = turn({ key: 't1', answer: 'Lisbon is behind.', steps: [step({ rows: [{}, {}], evidence: evidence() })] });
+    const charted = turn({ key: 't2', question: 'Show this as a chart', answer: 'See the chart.', steps: [step({ callId: 'c9', name: 'show_widget', widget: widget() })] });
+    const fixture = render([asked, charted]);
+    const picked: EvidenceSelection[] = [];
+    fixture.componentInstance.evidenceSelected.subscribe((selection) => picked.push(selection));
+    button(fixture, 'How this was computed')!.click();
+    expect(picked).toEqual([{ turnKey: 't2', callId: 'c1', widgetCallId: 'c9' }]);
   });
 
   it('saves a widget on the chosen board with the rows it was drawn from', async () => {
@@ -242,6 +252,6 @@ describe('KassandraConversation: what the person can do', () => {
     button(fixture, 'Worked for')!.click();
     fixture.detectChanges();
     button(fixture, 'How this was computed')!.click();
-    expect(picked).toEqual([{ turnKey: 't7', callId: 'c5' }]);
+    expect(picked).toEqual([{ turnKey: 't7', callId: 'c5', widgetCallId: undefined }]);
   });
 });

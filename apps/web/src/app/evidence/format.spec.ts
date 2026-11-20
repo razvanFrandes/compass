@@ -1,4 +1,5 @@
 import {
+  columnDecimals,
   columnHeader,
   dataAsOf,
   formatCell,
@@ -40,6 +41,48 @@ describe('formatting numbers', () => {
     expect(formatCurrency(-1336633, 'EUR')).toBe('−€1,336,633');
     expect(formatCurrency(200)).toBe('200');
     expect(formatCurrency(1500, 'IDR')).toBe('1,500 IDR');
+  });
+});
+
+describe('one way of writing a column', () => {
+  const money = { key: 'v', kind: 'currency', unit: 'EUR' } as const;
+  const percent = { key: 'v', kind: 'percent' } as const;
+  const number = { key: 'v', kind: 'number' } as const;
+  const rows = (...values: unknown[]) => values.map((v) => ({ v }));
+
+  it('writes money in whole units once any value reaches 1,000, else with cents if any value has them', () => {
+    expect(columnDecimals(money, rows(485652, 900.5))).toBe(0);
+    expect(columnDecimals(money, rows(196.56, 201))).toBe(2);
+    expect(columnDecimals(money, rows(196, 201))).toBe(0);
+    expect(formatCell(900.5, money, {}, 0)).toBe('€901');
+    expect(formatCell(201, money, {}, 2)).toBe('€201.00');
+  });
+
+  it('gives percentages one decimal when any value needs it, plain numbers as many as the most precise (two at most)', () => {
+    expect(columnDecimals(percent, rows(-12.3, 5))).toBe(1);
+    expect(columnDecimals(percent, rows(12, 5))).toBe(0);
+    expect(columnDecimals({ ...percent, unit: 'ratio' }, rows(0.1098))).toBe(0);
+    expect(columnDecimals(number, rows(1.04, 0.9, 2))).toBe(2);
+    expect(columnDecimals(number, rows(8.5, 9))).toBe(1);
+    expect(formatCell(5, percent, {}, 1)).toBe('5.0%');
+    expect(formatCell(0.9, number, {}, 2)).toBe('0.90');
+  });
+
+  it('leaves a column with no numbers, and one that is not numeric, to each value', () => {
+    expect(columnDecimals(money, rows(null, '–'))).toBeNull();
+    expect(columnDecimals({ key: 'v', kind: 'text' }, rows(1.5))).toBeNull();
+    expect(columnDecimals({ key: 'v', kind: 'count' }, rows(12))).toBe(0);
+  });
+
+  it('writes only a currency code with the amount: any other unit is said once, in the header', () => {
+    expect(formatCurrency(485652, 'local currency')).toBe('485,652');
+    expect(columnHeader({ key: 'revenue_otb', label: 'Revenue on the books', kind: 'currency', unit: 'local currency' })).toBe('Revenue on the books (local currency)');
+    expect(columnHeader({ key: 'revenue_eur', label: 'Room revenue', kind: 'currency', unit: 'EUR' })).toBe('Room revenue');
+  });
+
+  it('does not repeat a unit the label already says', () => {
+    expect(columnHeader({ key: 'room_nights', label: 'Room nights', kind: 'count', unit: 'room nights' })).toBe('Room nights');
+    expect(columnHeader({ key: 'rooms_otb', label: 'On the books', kind: 'count', unit: 'room nights' })).toBe('On the books (room nights)');
   });
 });
 

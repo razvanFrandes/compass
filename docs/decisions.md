@@ -349,6 +349,27 @@ The owner's review: evidence tables overflowed and showed internal names (`hotel
 - **Phones get a bottom sheet.** Under 1024 px the evidence is a native modal `<dialog>`: the browser traps focus, Esc closes it, and focus returns to the button that opened it.
 - **Open point for the backend:** a percent column whose values are fractions (today only `pickup_pct`, 0.1098 = 11%) needs `unit: 'ratio'` in its column metadata; the frontend already reads it.
 
+## Evidence panel: what fed the answer, and following a chart (Round 3, 2026-11-21)
+
+The owner's review of "What happened with Vantor Consulting at Arbor New York Midtown, and what did it cost?": the panel opened with the 20-row hotel list, and "How this was computed" on a chart from a later turn ("Show this as a chart") opened an empty panel. This replaces three points of the Round 2 section above: cards are no longer one closed card per call, internal columns are no longer behind "Show N internal columns", and the table no longer starts with the first 8 rows when the answer quotes some.
+
+- **Tool calls have a role** (`evidence/relevance.ts`): *data* (read the numbers), *check* (`get_data_health`, `get_brief`) and *reference* (`list_hotels`, `list_metrics`, `get_schema`).
+  - A reference call is a lookup whenever the answer read anything else. A check is a lookup unless the answer quotes it or has no data call.
+  - Lookups sit in one closed "Lookups" row at the end ("Kassandra also looked up the hotel list and checked data freshness"). They are never first and never open by themselves.
+  - A number of the answer is never traced to a lookup table while there is anything else: the 477 rooms of a hotel would "back" any 477.
+- **The cards that fed the answer come first, open, ordered by how many of its numbers they back.** When the answer quotes nothing we can trace, the first card opens. A run log with no answer keeps every card closed.
+- **The table starts with the rows the answer quotes**, the rest behind "Show all N rows"; with all rows shown the quoted ones are tinted.
+- **Columns:** the one that tells the rows apart leads, then the ones the answer quotes (never dropped), then as many as fit, six at most. The rest is behind "More columns": a code beside its name, the country and currency of a hotel, empty columns, ids. A value every row shares is said once above the table ("Every row · Hotel: …"), unless the card's title already says it.
+- **A few quoted rows whose columns do not fit are turned on their side** (rows across, columns down), so every quoted figure shows without scrolling. Sideways scrolling is the last resort; the first column stays frozen.
+- **One way of writing a column:** money in whole units once any value reaches 1,000, a percentage with one decimal if any value needs it, a number with the most decimals any value needs (two at most). A unit that is not a currency code ("local currency") is said in the header, not in every cell.
+- **The panel follows the chart that was clicked** (`kassandra/evidence-target.ts`).
+  - A turn's evidence is its own data calls plus the results its charts draw from, even when those were read in an earlier turn. A source that is out of the transcript is rebuilt from the widget's own rows, columns and evidence.
+  - The click carries the chart (`widgetCallId`). The header says "For the chart “…”" or "For the answer to “…”"; the source card opens, is outlined and scrolled to, with the chart's columns and every row.
+  - A chart's title counts as text of the answer, so the figure in it is traced too.
+- **The empty state is only for a conversation with no answer.** An answer that used tools but read no data says so.
+- **Folded away, the panel leaves a labelled rail** ("How this was computed"), not an icon alone.
+- **Not done:** the sideways layout has no sorting; the hotel a row is about is taken from the call's `hotels` argument, so a result for one hotel without that argument repeats the hotel above the table.
+
 ## Widget chart catalogue, Round 2 (2026-11-21)
 
 Built from `docs/round2-contracts.md` §2–§3. It sits next to the Portfolio catalogue above and does not replace it: the Portfolio charts answer fixed questions from the extract; these draw whatever rows a tool returned, from a `WidgetSpec` Kassandra chose.

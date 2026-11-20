@@ -21,6 +21,7 @@ const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/;
 const ISO_MONTH = /^(\d{4})-(\d{2})$/;
 const NUMERIC_KINDS: readonly EvidenceColumnKind[] = ['number', 'percent', 'currency', 'count'];
 const CURRENCY_SYMBOL: Record<string, string> = { EUR: '€', USD: '$', GBP: '£' };
+const ISO_CURRENCY = /^[A-Za-z]{3}$/;
 
 const weekdayFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 const dayFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -42,16 +43,19 @@ export function formatNumber(value: number, maxDecimals = 2, minDecimals = 0): s
 }
 
 /** A percentage with at most one decimal: −12.3 → "−12.3%". `ratio` values are fractions (0.1098 → "11%"). */
-export function formatPercent(value: number, ratio = false): string {
+export function formatPercent(value: number, ratio = false, decimals?: number | null): string {
   const percent = ratio ? value * 100 : value;
+  if (typeof decimals === 'number') return `${formatNumber(percent, decimals, decimals)}%`;
   return `${formatNumber(percent, decimalsFor(percent, 1))}%`;
 }
 
 /** Money: whole units from 1,000 up, two decimals below (an ADR of 196.56). The symbol only when the unit is known. */
-export function formatCurrency(value: number, unit?: string): string {
+export function formatCurrency(value: number, unit?: string, decimals?: number | null): string {
   const cents = !Number.isInteger(value) && Math.abs(value) < 1000;
-  const body = formatNumber(Math.abs(value), cents ? 2 : 0, cents ? 2 : 0);
-  const code = unit?.toUpperCase();
+  const places = typeof decimals === 'number' ? decimals : cents ? 2 : 0;
+  const body = formatNumber(Math.abs(value), places, places);
+  // Only a currency code is written with the amount; "local currency" is said once, in the header.
+  const code = unit && ISO_CURRENCY.test(unit.trim()) ? unit.trim().toUpperCase() : undefined;
   const symbol = code ? (CURRENCY_SYMBOL[code] ?? '') : '';
   const sign = value < 0 ? '−' : '';
   const suffix = code && !symbol ? ` ${code}` : '';
@@ -210,7 +214,11 @@ export function visibleColumns(columns: readonly EvidenceColumn[]): EvidenceColu
 /** The header text: the label, with a unit the cells do not already carry ("Length of stay (nights)"). */
 export function columnHeader(column: EvidenceColumn): string {
   const unit = column.unit?.trim();
-  if (!unit || column.kind === 'percent' || column.kind === 'currency' || unit === 'ratio') return column.label;
+  if (!unit || column.kind === 'percent' || unit === 'ratio') return column.label;
+  // A currency code is in every cell already; anything else ("local currency") is only said here.
+  if (column.kind === 'currency' && ISO_CURRENCY.test(unit)) return column.label;
+  // "Room nights (room nights)" says it twice.
+  if (column.label.toLowerCase().includes(unit.toLowerCase())) return column.label;
   return `${column.label} (${unit})`;
 }
 
@@ -234,8 +242,37 @@ function plainText(value: unknown, baseYear?: number): string {
   return text;
 }
 
-/** One value as the table shows it. */
-export function formatCell(value: unknown, column: Pick<EvidenceColumn, 'kind' | 'unit'>, context: FormatContext = {}): string {
+/** The decimals a number needs when it is written with at most `max`: 12 → 0, 12.5 → 1, 12.3456 → 2. */
+function decimalsNeeded(value: number, max: number): number {
+  for (let places = 0; places < max; places++) {
+    if (Number(value.toFixed(max)) === Number(value.toFixed(places))) return places;
+  }
+  return max;
+}
+
+/**
+ * How many decimals the numbers of a column are written with, so the column reads as one and its figures line up:
+ * money in whole units once any value reaches 1,000 (else with cents, if any has them), a percentage with one
+ * decimal if any value needs it, a plain number with the most any value needs (two at most). Null leaves each
+ * value to itself (a column with no numbers, or a kind that is not numeric).
+ */
+export function columnDecimals(column: Pick<EvidenceColumn, 'key' | 'kind' | 'unit'>, rows: readonly EvidenceRow[]): number | null {
+  if (!isNumericKind(column.kind)) return null;
+  if (column.kind === 'count') return 0;
+  const values: number[] = [];
+  for (const row of rows) {
+    const value = row[column.key];
+    if (typeof value === 'number' && Number.isFinite(value)) values.push(value);
+    if (values.length >= 500) break;
+  }
+  if (!values.length) return null;
+  if (column.kind === 'currency') return values.some((value) => Math.abs(value) >= 1000) || values.every(Number.isInteger) ? 0 : 2;
+  if (column.kind === 'percent') return values.some((value) => decimalsNeeded(column.unit === 'ratio' ? value * 100 : value, 1) > 0) ? 1 : 0;
+  return Math.max(...values.map((value) => decimalsNeeded(value, 2)));
+}
+
+/** One value as the table shows it. `decimals` is the column's (`columnDecimals`); without it the value decides. */
+export function formatCell(value: unknown, column: Pick<EvidenceColumn, 'kind' | 'unit'>, context: FormatContext = {}, decimals?: number | null): string {
   if (value === null || value === undefined || value === '') return EMPTY_CELL;
   switch (column.kind) {
     case 'hotel':
@@ -245,13 +282,13 @@ export function formatCell(value: unknown, column: Pick<EvidenceColumn, 'kind' |
     case 'month':
       return typeof value === 'string' ? formatMonth(value) : plainText(value, context.baseYear);
     case 'percent':
-      return typeof value === 'number' ? formatPercent(value, column.unit === 'ratio') : plainText(value, context.baseYear);
+      return typeof value === 'number' ? formatPercent(value, column.unit === 'ratio', decimals) : plainText(value, context.baseYear);
     case 'currency':
-      return typeof value === 'number' ? formatCurrency(value, column.unit) : plainText(value, context.baseYear);
+      return typeof value === 'number' ? formatCurrency(value, column.unit, decimals) : plainText(value, context.baseYear);
     case 'count':
       return typeof value === 'number' ? formatNumber(value, 0) : plainText(value, context.baseYear);
     case 'number':
-      return typeof value === 'number' ? formatNumber(value, 2) : plainText(value, context.baseYear);
+      return typeof value === 'number' ? formatNumber(value, decimals ?? 2, decimals ?? 0) : plainText(value, context.baseYear);
     case 'id':
       return String(value);
     default:

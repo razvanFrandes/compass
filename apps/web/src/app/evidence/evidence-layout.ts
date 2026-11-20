@@ -1,4 +1,4 @@
-import { Component, DestroyRef, DOCUMENT, ElementRef, Injector, afterNextRender, effect, inject, input, linkedSignal, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, DOCUMENT, ElementRef, Injector, afterNextRender, computed, effect, inject, input, linkedSignal, signal, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorSidebarSimpleLight, phosphorXLight } from '@ng-icons/phosphor-icons/light';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -94,8 +94,8 @@ const DESKTOP = '(min-width: 1024px)';
           <header class="border-border/70 flex h-14 shrink-0 items-center gap-2 border-b pr-3 pl-5">
             <div class="min-w-0 flex-1">
               <h2 class="truncate text-[14px]/5 font-medium">How this was computed</h2>
-              @if (question(); as q) {
-                <p class="text-muted-foreground truncate text-[12.5px]/[18px]">{{ q }}</p>
+              @if (subject(); as about) {
+                <p class="text-muted-foreground truncate text-[12.5px]/[18px]" [attr.title]="about">{{ about }}</p>
               }
             </div>
             <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground shrink-0" aria-label="Hide how this was computed" title="Hide" (click)="split.collapse()">
@@ -103,7 +103,7 @@ const DESKTOP = '(min-width: 1024px)';
             </button>
           </header>
           <div class="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-8">
-            <juyo-evidence-panel [entries]="entries()" [answer]="answer()" [focusCallId]="focus()" [empty]="empty()" />
+            <juyo-evidence-panel [entries]="entries()" [answer]="answer()" [focusCallId]="focus()" [focusColumns]="focusColumns()" [empty]="empty()" />
           </div>
         </aside>
       }
@@ -115,15 +115,15 @@ const DESKTOP = '(min-width: 1024px)';
         <header class="flex shrink-0 items-center gap-2 pt-1 pr-2 pb-2 pl-4">
           <div class="min-w-0 flex-1">
             <h2 class="truncate text-[15px]/6 font-semibold" [id]="uid + '-title'">How this was computed</h2>
-            @if (question(); as q) {
-              <p class="text-muted-foreground truncate text-[12.5px]/[18px]">{{ q }}</p>
+            @if (subject(); as about) {
+              <p class="text-muted-foreground truncate text-[12.5px]/[18px]">{{ about }}</p>
             }
           </div>
           <button hlmBtn variant="ghost" size="icon-lg" class="shrink-0" aria-label="Close" (click)="closeSheet()"><ng-icon name="phosphorXLight" /></button>
         </header>
         <div class="border-border/70 min-h-0 flex-1 overflow-y-auto overscroll-contain border-t px-4 pt-4 pb-[max(24px,env(safe-area-inset-bottom,0px))]">
           @if (sheetOpen()) {
-            <juyo-evidence-panel [entries]="entries()" [answer]="answer()" [focusCallId]="focus()" [empty]="empty()" />
+            <juyo-evidence-panel [entries]="entries()" [answer]="answer()" [focusCallId]="focus()" [focusColumns]="focusColumns()" [empty]="empty()" />
           }
         </div>
       </dialog>
@@ -135,8 +135,12 @@ export class EvidenceLayout {
   readonly entries = input.required<readonly EvidenceEntry[]>();
   /** That answer's final text, so its numbers can be traced to rows. */
   readonly answer = input<string | null | undefined>(null);
-  /** The question that answer replied to, shown under the title. */
+  /** The question that answer replied to: the header says which answer is explained. */
   readonly question = input<string | null | undefined>(null);
+  /** The title of the chart that was asked about, when one was: the header names it instead of the question. */
+  readonly chart = input<string | null | undefined>(null);
+  /** The columns that chart draws from the focused call: its table keeps them on screen. */
+  readonly focusColumns = input<readonly string[]>([]);
   /** A tool call to open. Same as calling `open(callId)`, for callers that prefer a binding. */
   readonly focusCallId = input<string | null>(null);
   /** Shown while there is no evidence yet. */
@@ -158,6 +162,13 @@ export class EvidenceLayout {
   /** The bottom sheet is open (phones). */
   readonly sheetOpen = signal(false);
   protected readonly focus = linkedSignal(() => this.focusCallId());
+  /** What is being explained, in words: the chart that was clicked, else the answer to the question. */
+  protected readonly subject = computed(() => {
+    const chart = this.chart()?.trim();
+    if (chart) return `For the chart “${chart}”`;
+    const question = this.question()?.trim();
+    return question ? `For the answer to “${question}”` : '';
+  });
 
   constructor() {
     const query = this.view?.matchMedia?.(DESKTOP);
