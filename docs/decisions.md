@@ -308,3 +308,15 @@ Built strictly from stages 1 and 2 of `docs/research/reports/Filtre și grafice 
 - Board widgets trust the client for their rows (contracts §4). A stricter API would take `{ conversation, callId }` and copy the widget on the server.
 - `EvidenceColumn` is defined once, in `packages/contracts/src/evidence.ts`; widgets and boards import it from there.
 
+
+## Evidence panel, tables and the resizable split (Round 2, 2026-11-20)
+
+The owner's review: evidence tables overflowed and showed internal names (`hotel_code`, `data_stale:BER:POS`, `hotel.v_hotel_day`, "Get pace · 45"). The code is in `apps/web/src/app/evidence/`.
+
+- **The panel leads with the numbers the answer quotes.** Each number in the final answer is matched to a cell of a tool result (rounded and scaled figures too: "€1.34M" finds 1,336,633) and shown as a button that opens the row it came from. When nothing matches, the panel shows the first figures of each result under "Key figures". A number the model derived in words is not listed, because no row holds it.
+- **One card per tool call, closed by default.** The title is the server's `evidence.title`, else a label map ("Pace vs last year"). The period and the business date are written in words. Sources show by name (`sourceLabels`, else a map). Raw source names, the SQL and its parameters are only inside "Technical details".
+- **Tables are for reading.** Headers come from the server's `columns` (contracts §2); without them, labels and kinds are inferred from keys and values. Columns of kind `id` or marked `hidden` are behind "Show N internal columns". Hotel codes show as names (`GET /api/hotels`, else the hotel list the app ships with, else the code). Numbers, percentages, money and dates are formatted with tabular figures; numeric columns are right-aligned. The table scrolls inside its card with the first column frozen and a fade on the edge that has more. It starts with 8 rows; "Show all N rows" opens the rest in a box with its own scroll. Headers sort.
+- **The frozen column is the one that tells rows apart.** When the first column holds one value for every row (one hotel, 193 stay dates), the first naming column that varies leads instead.
+- **The split is a WAI-ARIA window splitter.** Drag the divider; Left and Right move it 2% (Shift: 10%); Home and End go to the limits; Enter folds the evidence away to a rail; double-click resets. The position and the collapse are kept in `localStorage` (`compass.evidence.split`); blocked storage is ignored.
+- **Phones get a bottom sheet.** Under 1024 px the evidence is a native modal `<dialog>`: the browser traps focus, Esc closes it, and focus returns to the button that opened it.
+- **Open point for the backend:** a percent column whose values are fractions (today only `pickup_pct`, 0.1098 = 11%) needs `unit: 'ratio'` in its column metadata; the frontend already reads it.
