@@ -9,6 +9,12 @@ export { Kassandra } from './presentation/agents/kassandra.ts';
 
 const PUBLIC_HOST = 'juyo.razvanfrandes.com';
 
+/** Browsers may open the chat socket from the app itself and from local development. */
+function isAllowedOrigin(origin: string): boolean {
+  const { hostname } = new URL(origin);
+  return hostname === PUBLIC_HOST || hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
 /**
  * One database client per request, as Hyperdrive recommends: it pools the real connections for us.
  * MCP answers stream (SSE) and the tool runs while the body streams, so the client is closed only once
@@ -50,6 +56,15 @@ export default {
           allowedOriginHostnames: [PUBLIC_HOST],
         })(request, env, ctx),
       );
+    }
+
+    if (url.pathname === '/api/kassandra/ws') {
+      // The chat WebSocket: one Durable Object per conversation id.
+      const origin = request.headers.get('Origin');
+      if (origin && !isAllowedOrigin(origin)) return new Response('Origin not allowed', { status: 403 });
+      const conversation = url.searchParams.get('conversation') ?? '';
+      if (!/^[\w-]{1,64}$/.test(conversation)) return new Response('Pass ?conversation=<id> (letters, digits, - or _)', { status: 400 });
+      return env.KASSANDRA.getByName(conversation).fetch(request);
     }
 
     if (url.pathname === '/api/kassandra/ask' && request.method === 'POST') {

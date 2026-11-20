@@ -69,6 +69,15 @@ describe('getMetric', () => {
     expect(result.value.evidence.notes.join(' ')).toMatch(/actuals only/);
   });
 
+  it('gives one row for the whole period with grain total, also against last year', async () => {
+    const result = await data.getMetric({ metric: 'occupancy', hotels: ['BER'], from: '2026-10-21', to: '2026-11-19', grain: 'total', compare: 'stly' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.rows).toHaveLength(1);
+    expect(result.value.rows[0]).toMatchObject({ period: '2026-10-21', hotel_code: 'BER' });
+    expect(result.value.rows[0]!.compare_value).toBeGreaterThan(0);
+  });
+
   it('rejects a period that ends before it starts', async () => {
     const result = await data.getMetric({ metric: 'adr', from: '2026-10-31', to: '2026-10-01', grain: 'month', compare: 'none' });
     expect(result.ok).toBe(false);

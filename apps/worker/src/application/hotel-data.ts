@@ -97,20 +97,20 @@ export class HotelData {
     const join = COMP_SET_METRICS.has(query.metric)
       ? 'join hotel.comp_set_daily c on c.hotel_code = d.hotel_code and c.date = d.date'
       : '';
-    // $1 grain, $2 from, $3 to, $4 hotels (null = all), $5 shift in days (0 now, 364 for STLY)
+    // $1 from, $2 to, $3 hotels (null = all); SHIFT is 0 for the period itself and 364 for STLY (weekdays line up)
     const window = `
-      select to_char(date_trunc($1, d.date + $5::int), 'YYYY-MM-DD') as period, d.hotel_code, ${expr}::float8 as value
+      select to_char(${period(query.grain, 'd.date + SHIFT', '$1')}, 'YYYY-MM-DD') as period, d.hotel_code, ${expr}::float8 as value
         from hotel.v_hotel_day d ${join}
-       where d.date between $2::date - $5::int and $3::date - $5::int
-         and ($4::text[] is null or d.hotel_code = any($4::text[]))
+       where d.date between $1::date - SHIFT and $2::date - SHIFT
+         and ($3::text[] is null or d.hotel_code = any($3::text[]))
        group by 1, 2`;
     const sql =
       query.compare === 'stly'
-        ? `with cur as (${window.replaceAll('$5', '0')}), ly as (${window.replaceAll('$5', '364')})
+        ? `with cur as (${window.replaceAll('SHIFT', '0')}), ly as (${window.replaceAll('SHIFT', '364')})
            select cur.period, cur.hotel_code, cur.value, ly.value as compare_value
              from cur left join ly using (period, hotel_code) order by 1, 2`
-        : `${window.replaceAll('$5', '0')} order by 1, 2`;
-    const params = [query.grain, query.from, query.to, query.hotels?.length ? query.hotels : null];
+        : `${window.replaceAll('SHIFT', '0')} order by 1, 2`;
+    const params = [query.from, query.to, query.hotels?.length ? query.hotels : null];
     const notes = [
       'Stay dates on or after the business date are on the books, not actuals.',
       ...(query.compare === 'stly' ? ['compare_value is the same period last year, shifted 364 days so weekdays line up.'] : []),

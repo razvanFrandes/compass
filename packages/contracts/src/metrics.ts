@@ -12,7 +12,8 @@ export const MetricKey = z.enum([
 ]);
 export type MetricKey = z.infer<typeof MetricKey>;
 
-export const Grain = z.enum(['day', 'week', 'month']);
+/** `total` gives one row for the whole period. */
+export const Grain = z.enum(['day', 'week', 'month', 'total']);
 export type Grain = z.infer<typeof Grain>;
 
 /** `stly`: same time last year (−364 days, so weekdays line up). */
