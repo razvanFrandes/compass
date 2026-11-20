@@ -348,3 +348,43 @@ The owner's review: evidence tables overflowed and showed internal names (`hotel
 - **The split is a WAI-ARIA window splitter.** Drag the divider; Left and Right move it 2% (Shift: 10%); Home and End go to the limits; Enter folds the evidence away to a rail; double-click resets. The position and the collapse are kept in `localStorage` (`compass.evidence.split`); blocked storage is ignored.
 - **Phones get a bottom sheet.** Under 1024 px the evidence is a native modal `<dialog>`: the browser traps focus, Esc closes it, and focus returns to the button that opened it.
 - **Open point for the backend:** a percent column whose values are fractions (today only `pickup_pct`, 0.1098 = 11%) needs `unit: 'ratio'` in its column metadata; the frontend already reads it.
+
+## Widget chart catalogue, Round 2 (2026-11-21)
+
+Built from `docs/round2-contracts.md` §2–§3. It sits next to the Portfolio catalogue above and does not replace it: the Portfolio charts answer fixed questions from the extract; these draw whatever rows a tool returned, from a `WidgetSpec` Kassandra chose.
+
+- **One entry point:** `<juyo-widget-chart [spec] [rows] [columns] [compact]>` in `apps/web/src/app/charts/` draws all 21 `WidgetKind`s. Optional `[header]` (off when the host card shows the title) and `[loading]`.
+  - **Loading states for generative UI:** `[loading]` is `'none' | 'skeleton' | 'title'`. Kassandra's branch drives it from the streaming tool call.
+    - `skeleton`: the whole widget as a placeholder for the spec's kind. The title and subtitle are the real words, invisible, with a bar on each line, so the header already has its final height; before the title has streamed in, two stub lines stand in.
+    - `title`: the real title and subtitle, with the chart area still a placeholder.
+    - `none`: the widget. Rows that are null or undefined still show `title`.
+    - Each kind has its own skeleton in the layout it will have (`widget-skeleton.ts`): bars that lie down or stand up as the chart will, a ring for a donut, an arc for a gauge, rows and columns for a table, tiles for KPIs, bands for a sankey. A pure plan (`builders/skeleton.ts`) decides from the spec what the rows would decide later: bar direction, a legend row, the number of tiles.
+    - The body height depends only on the kind, the density and the width, and "View as table" keeps its place in the header in every state, so the box is identical through skeleton → title → loaded (measured for all 23 gallery widgets at 1440, 820 and 390 px, both densities; layout shift during the replay is 0).
+    - A soft band of the surface colour sweeps across the shapes (transform only); under `prefers-reduced-motion` it is off and the skeleton is static.
+  - `WidgetSpec` and `EvidenceColumn` are mirrored in `charts/widget-types.ts` until `@compass/contracts` exports them; the shapes are identical.
+- **Every kind has a pure builder** (`charts/builders/`): rows + columns + spec → an ECharts option, or a view model for the kinds that are HTML (kpi, kpi_row, sparkline_list, table). Builders never fetch and never invent a number; they format by the column's `kind` and `unit`.
+  - Percent columns are read as 0–100, which is what the backend sends (`round(100.0 * …, 1)`). A column with `unit: 'ratio'` is read as a fraction.
+  - Money is three significant figures on charts (€1.34M, €18.4M, €164k) and in full in tables and tooltips.
+- **How each kind reads its spec:**
+  - `x` is the category or date, `y` the value columns, `compare` the comparison column, `group` splits long rows into series or parts.
+  - Sankey: `x` is the source, `group` the target. Heatmap: `x` the columns, `group` the rows. Treemap: `x` the leaf, `group` its parent. Scatter: `x` and `y[0]` are the two measures, `group` names the points.
+  - KPI tiles find their own comparison (`revpar` → `revpar_ly`, `_budget`, …) when the spec has several `y` columns. A fall reads as good news for costs, commissions and cancellations.
+  - Waterfall: a `kind`/`type` column marks totals; without one the first row opens and the last row closes when it equals the opening plus the steps.
+- **Colour:** the current period is blue, the comparison purple (dashed line, tick or bar), parts take a fixed order of five hues (blue, teal, purple, amber, pink), the sixth is a tint and the rest grey; "Other" is always grey. Magnitude is one blue ramp. Green and red appear only with ▲/▼.
+  - Amber and pink are new and live in `charts/tokens.ts`. The five-hue order was checked with the dataviz validator: adjacent colour-blind ΔE ≥ 8, normal-vision ΔE ≥ 15 and ≥ 3:1 against the card in both themes. Juyo's own teal and purple sit outside the validator's lightness band in dark mode; they are kept because they are the brand's.
+  - Colours are read from the tokens in effect on the widget's own element, so a subtree with its own theme is drawn in that theme.
+- **Honest fallbacks, always with a note:** a pie or donut outside 2–7 parts (or with a negative part) is drawn as bars; flows that loop are shown as a table; an unknown kind is shown as a table; rows that don't fit are cut with "Showing the first N of M rows". No rows gives a sentence, not an empty axis.
+- **One value axis, never two.** A bridge whose steps are small next to its totals gets a broken axis, and says so.
+- **Labels before legends:** line ends carry the series names, bars carry their values, slices carry name and share. A legend appears only where a direct label can't (stacks, phone widths).
+- **Accessibility:**
+  - Each chart is a focusable image with a text alternative built from the data (kind, size, highest and lowest).
+  - The arrow keys step through the marks; the tooltip follows and a live region reads the point.
+  - "View as table" shows the same rows, formatted and sortable, with a sticky header and first column.
+  - `prefers-reduced-motion` turns chart animation off.
+- **`/catalog`** shows every kind with sample rows shaped like Halcyon's (the page says they are samples). It previews the app theme, dark, light or both side by side, at both densities, and in each loading state (Skeleton, Title, Loaded); "Replay stream" plays the three in order. The preview themes are read from the stylesheet, so the page keeps no second copy of the palette.
+  - It is not in the navigation; the shell's owner decides where the link goes.
+- **Checks:** unit tests for formatting, every builder and the component; axe (WCAG 2.2 AA plus best practice) on `/catalog` in nine states with no violations; no horizontal overflow at 390 px; no console errors.
+- **Limits:**
+  - axe cannot measure text inside the chart SVGs; their inks come from tokens that the unit tests hold to 4.5:1 on the surface and to the better of black or white on a fill.
+  - The extra chart types add about 30 kB (gzipped) to the first load.
+  - Scatter labels are dropped where they would overlap; the tooltip and the table carry the rest.

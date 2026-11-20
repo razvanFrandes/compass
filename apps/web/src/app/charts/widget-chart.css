@@ -1,0 +1,1006 @@
+/*
+  <juyo-widget-chart>. Everything is prefixed .wc- (the component has no style encapsulation, so the rules
+  also reach the SVG and the tooltip that ECharts creates). Colours are the app's tokens; --wc-surface names
+  the surface a widget sits on when that is not the card.
+*/
+.juyo-wc {
+  display: block;
+  min-width: 0;
+  --wc-bg: var(--wc-surface, var(--card));
+  font-family: var(--font-sans);
+  container-type: inline-size;
+}
+.wc {
+  margin: 0;
+  min-width: 0;
+}
+.wc-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 28px;
+  margin-bottom: 12px;
+}
+.wc-titles {
+  min-width: 0;
+  flex: 1;
+}
+.wc-title {
+  color: var(--foreground);
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-wrap: balance;
+}
+.wc-subtitle {
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.juyo-wc--compact .wc-title {
+  font-size: 14px;
+}
+.juyo-wc--compact .wc-head {
+  margin-bottom: 8px;
+}
+
+.wc-toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  min-width: 28px;
+  justify-content: center;
+  padding: 0 8px;
+  border-radius: 7px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+.wc-toggle ng-icon {
+  font-size: 15px;
+}
+.wc-toggle:hover:not(:disabled) {
+  color: var(--foreground);
+  background: var(--overlay-hover);
+}
+.wc-toggle:disabled {
+  opacity: 0.5;
+}
+.wc-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+/* Inside the body the ring is drawn inwards, so the body's clipping never cuts it. */
+.wc-sort:focus-visible,
+.wc-plot:focus-visible,
+.wc-table-wrap:focus-visible,
+.wc-sparks:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+@media (pointer: coarse) {
+  .wc-toggle {
+    min-width: 44px;
+    height: 44px;
+    margin: -8px -8px -8px 0;
+  }
+}
+
+.wc-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.wc-plot {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  border-radius: 6px;
+}
+/* Numbers line up in ticks, labels and tooltips; Inter's open digits and disambiguated l. */
+.wc-plot svg text,
+.wc-plot svg tspan {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings:
+    'cv05' on,
+    'cv08' on;
+}
+.wc-empty {
+  margin: auto 0;
+  color: var(--muted-foreground);
+  font-size: 13.5px;
+}
+.wc-note {
+  flex: none;
+  margin-top: 8px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Legend: quiet, above the plot, with the same marks the chart draws */
+.wc-legend-row {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin-bottom: 8px;
+}
+.wc-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.wc-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wc-mark {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--wc-mark);
+}
+.wc-mark[data-mark='line'] {
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+}
+.wc-mark[data-mark='dashed'] {
+  width: 12px;
+  height: 0;
+  border-top: 2px dashed var(--wc-mark);
+  border-radius: 0;
+  background: none;
+}
+.wc-mark[data-mark='tick'] {
+  width: 3px;
+  height: 12px;
+  border-radius: 1px;
+}
+.wc-mark[data-mark='outline'] {
+  border: 1.5px solid var(--wc-mark);
+  background: none;
+}
+.wc-ramp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.wc-ramp-bar {
+  display: inline-flex;
+  gap: 2px;
+}
+.wc-ramp-bar i {
+  width: 14px;
+  height: 8px;
+  border-radius: 2px;
+}
+.wc-ramp-end {
+  color: var(--foreground);
+}
+
+/* KPI */
+.wc-kpi {
+  display: flex;
+  height: 100%;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.wc-kpi-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.wc-kpi-label {
+  color: var(--muted-foreground);
+  font-size: 12.5px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wc-kpi-value {
+  margin-top: 2px;
+  color: var(--foreground);
+  font-size: 40px;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.juyo-wc--compact .wc-kpi-value {
+  font-size: 30px;
+}
+.wc-delta-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--muted-foreground);
+  font-size: 12.5px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.wc-delta {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+.wc-delta[data-tone='good'] {
+  color: var(--positive);
+}
+.wc-delta[data-tone='bad'] {
+  color: var(--negative);
+}
+
+/* KPI row */
+.wc-tiles {
+  display: grid;
+  height: 100%;
+  grid-template-columns: repeat(var(--wc-tiles, 4), minmax(0, 1fr));
+  gap: 8px;
+}
+.wc-tile,
+.wc-sk-tile {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+.wc-tile-value {
+  margin-top: 2px;
+  color: var(--foreground);
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.juyo-wc--compact .wc-tile-value {
+  font-size: 20px;
+}
+.wc-tile-foot {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+.wc-tile .wc-delta-line {
+  margin-top: 0;
+  min-width: 0;
+  flex: none;
+  font-size: 12px;
+}
+.wc-versus {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sparklines: stretched SVG with a non-scaling stroke, and an HTML end dot so it stays round */
+.wc-spark {
+  position: relative;
+  display: block;
+}
+.wc-spark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.wc-spark-line {
+  fill: none;
+  stroke: var(--series);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.wc-spark-area {
+  fill: var(--series);
+  opacity: 0.12;
+}
+.wc-spark-dot {
+  position: absolute;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  border-radius: 50%;
+  background: var(--series);
+  box-shadow: 0 0 0 2px var(--wc-bg);
+}
+.wc-spark--kpi {
+  width: min(46%, 220px);
+  height: 56px;
+  margin: 0 4px 6px 0;
+}
+.wc-spark--tile {
+  min-width: 0;
+  max-width: 84px;
+  height: 26px;
+  flex: 1;
+  margin: 0 3px 2px 0;
+}
+.wc-tile:has(.wc-spark--tile) .wc-versus {
+  display: none;
+}
+
+/* Sparkline list */
+.wc-sparks {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  overflow-y: auto;
+  border-radius: 6px;
+}
+.wc-spark-row {
+  display: grid;
+  min-height: 34px;
+  max-height: 48px;
+  flex: 1;
+  grid-template-columns: minmax(0, 1.2fr) minmax(64px, 1fr) minmax(56px, auto) 76px;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.wc-spark-row:last-child {
+  border-bottom: 0;
+}
+.wc-spark-row .wc-spark {
+  height: 22px;
+  margin-right: 4px;
+}
+.wc-spark-name {
+  overflow: hidden;
+  color: var(--foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wc-spark-value {
+  color: var(--foreground);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.wc-spark-delta {
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Table: sticky header and first column, numbers right-aligned in tabular figures */
+.wc-table-wrap {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  border-radius: 6px;
+}
+.wc-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.wc-table th,
+.wc-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--wc-bg);
+  text-align: left;
+  white-space: nowrap;
+}
+.wc-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+.wc-table tbody th {
+  color: var(--foreground);
+  font-weight: 500;
+}
+.wc-table td {
+  color: var(--text-1);
+}
+.wc-table th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  max-width: 46vw;
+  overflow: hidden;
+  padding-left: 0;
+  text-overflow: ellipsis;
+  box-shadow: 1px 0 0 var(--border);
+}
+.wc-table thead th:first-child {
+  z-index: 3;
+}
+.wc-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.wc-table .wc-num {
+  text-align: right;
+}
+.wc-table .wc-null {
+  color: var(--muted-foreground);
+}
+@media (hover: hover) {
+  .wc-table tbody tr:hover > * {
+    background: color-mix(in srgb, var(--foreground) 4%, var(--wc-bg));
+  }
+}
+.wc-sort {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+}
+.wc-table th:first-child .wc-sort {
+  padding-left: 0;
+}
+.wc-num .wc-sort {
+  flex-direction: row-reverse;
+}
+.wc-sort ng-icon {
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.wc-sort:hover,
+.wc-sort:focus-visible {
+  color: var(--foreground);
+}
+.wc-sort:hover ng-icon,
+.wc-sort:focus-visible ng-icon {
+  opacity: 0.7;
+}
+.wc-sort ng-icon.wc-sort-on {
+  color: var(--foreground);
+  opacity: 1;
+}
+
+/*
+  Skeletons. One layout per kind, in the box the finished widget will have. Shapes are a tint of the ink;
+  a soft band of the surface colour sweeps across them (transform only), and stands still under reduced motion.
+*/
+.juyo-wc {
+  --wc-sk: color-mix(in srgb, var(--foreground) 9%, transparent);
+  --wc-sk-line: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+.wc-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.wc-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(100deg, transparent 35%, color-mix(in srgb, var(--wc-bg) 62%, transparent) 50%, transparent 65%);
+  transform: translateX(-100%);
+  animation: wc-shimmer 1.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+@keyframes wc-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+.wc-sk {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex-direction: column;
+}
+.wc-sk i {
+  display: block;
+}
+/* A line of text, a block, a hairline */
+.wc-sk-t {
+  height: 10px;
+  max-width: 100%;
+  border-radius: 4px;
+  background: var(--wc-sk);
+}
+.wc-sk-b {
+  border-radius: 4px;
+  background: var(--wc-sk);
+}
+.wc-sk-fill {
+  fill: var(--wc-sk);
+  stroke: var(--wc-sk-line);
+}
+.wc-sk-solid {
+  fill: var(--wc-sk);
+}
+.wc-sk-hair {
+  stroke: var(--wc-sk);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.wc-sk-legend {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  height: 17px;
+  margin-bottom: 8px;
+}
+.wc-sk-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wc-sk-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--wc-sk-line);
+}
+.wc-sk-plot {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+}
+.wc-sk-plot > * {
+  height: 100%;
+}
+.wc-sk-host {
+  height: 100%;
+  min-width: 0;
+}
+
+/* Title placeholders: the real text, invisible, with a bar where each line will be */
+.wc-ink {
+  border-radius: 4px;
+  /* A bar on each line of the text, a little shorter than the line, so wrapped lines stay apart. */
+  background: linear-gradient(var(--wc-sk), var(--wc-sk)) center / 100% 58% no-repeat;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* The words take up their room but are not there to see, select or read out. */
+.wc-ink > span {
+  visibility: hidden;
+}
+.wc-ink--stub {
+  display: inline-block;
+  width: min(100%, var(--wc-stub, 240px));
+}
+.wc-toggle--stub {
+  visibility: hidden;
+}
+
+/* KPI and tiles */
+.wc-sk-kpi {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.wc-sk-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wc-sk-wave {
+  overflow: visible;
+}
+.wc-sk-wave path,
+.wc-sk-stroke {
+  fill: none;
+  stroke: var(--wc-sk-line);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.wc-sk-stroke--cmp {
+  stroke: var(--wc-sk);
+  stroke-dasharray: 4 4;
+}
+.wc-sk-wash {
+  fill: var(--wc-sk);
+  opacity: 0.6;
+}
+.wc-sk-kpi .wc-sk-wave {
+  width: min(46%, 220px);
+  height: 56px;
+  margin: 0 4px 6px 0;
+}
+.wc-sk-tiles {
+  display: grid;
+  grid-template-columns: repeat(var(--wc-tiles, 4), minmax(0, 1fr));
+  gap: 8px;
+}
+.wc-sk-tile-foot {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+.wc-sk-tile-foot .wc-sk-wave {
+  width: 38%;
+  max-width: 84px;
+  height: 22px;
+}
+
+/* Upright charts */
+.wc-sk-xy {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) 20px;
+  column-gap: 8px;
+}
+.wc-sk-yticks {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-bottom: 2px;
+}
+.wc-sk-area {
+  position: relative;
+  min-height: 0;
+  border-bottom: 1px solid var(--wc-sk-line);
+  background-image: linear-gradient(var(--wc-sk) 1px, transparent 1px);
+  background-size: 100% 33.4%;
+}
+.wc-sk-area svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.wc-sk-xticks {
+  display: flex;
+  grid-column: 2;
+  align-items: flex-end;
+  justify-content: space-around;
+}
+.wc-sk-cols {
+  display: flex;
+  height: 100%;
+  align-items: flex-end;
+  justify-content: space-around;
+  padding-top: 6%;
+}
+.wc-sk-col {
+  position: relative;
+  display: flex;
+  width: min(20px, 9%);
+  height: 100%;
+  align-items: flex-end;
+}
+.wc-sk-col > .wc-sk-b {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+}
+.wc-sk-col--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+.wc-sk-col--stack > .wc-sk-b {
+  border-radius: 2px;
+}
+.wc-sk-col--pair {
+  width: min(34px, 12%);
+  gap: 3px;
+}
+.wc-sk-col > .wc-sk-float {
+  position: absolute;
+  left: 0;
+  border-radius: 3px;
+}
+.wc-sk-col {
+  min-width: 10px;
+}
+.wc-sk-point {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px;
+  border-radius: 50%;
+  background: var(--wc-sk-line);
+}
+.wc-sk-cross {
+  position: absolute;
+  background: var(--wc-sk-line);
+}
+.wc-sk-cross--v {
+  top: 0;
+  bottom: 0;
+  left: 55%;
+  width: 1px;
+}
+.wc-sk-cross--h {
+  right: 0;
+  bottom: 50%;
+  left: 0;
+  height: 1px;
+}
+
+/* Lying bars, bullets, lists */
+.wc-sk-rows,
+.wc-sk-list,
+.wc-sk-heat,
+.wc-sk-funnel,
+.wc-sk-table {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+}
+.wc-sk-row {
+  display: grid;
+  grid-template-columns: 28% minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 12px;
+}
+.wc-sk-hbar,
+.wc-sk-track,
+.wc-sk-hpair {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+.wc-sk-hbar {
+  gap: 2px;
+}
+.wc-sk-hbar > .wc-sk-b {
+  height: 16px;
+  border-radius: 2px;
+}
+.wc-sk-hbar--one > .wc-sk-b {
+  border-radius: 0 4px 4px 0;
+}
+.wc-sk-track {
+  height: 10px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+.wc-sk-track > .wc-sk-b {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--wc-sk-line);
+}
+.wc-sk-hpair {
+  flex-direction: column;
+  gap: 3px;
+}
+.wc-sk-hpair > .wc-sk-b {
+  height: 8px;
+  border-radius: 0 3px 3px 0;
+}
+.wc-sk-tick {
+  position: absolute;
+  top: 50%;
+  width: 3px;
+  height: 20px;
+  margin-top: -10px;
+  border-radius: 1px;
+  background: var(--wc-sk-line);
+}
+.wc-sk-spark-row {
+  display: grid;
+  min-height: 34px;
+  max-height: 48px;
+  flex: 1;
+  grid-template-columns: minmax(0, 1.2fr) minmax(64px, 1fr) minmax(56px, auto) 76px;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.wc-sk-spark-row:last-child {
+  border-bottom: 0;
+}
+.wc-sk-spark-row .wc-sk-wave {
+  width: 100%;
+  height: 20px;
+}
+
+/* Table */
+.wc-sk-table {
+  justify-content: flex-start;
+}
+.wc-sk-tr {
+  display: grid;
+  height: 37px;
+  flex: none;
+  grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr));
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.wc-sk-th {
+  height: 34px;
+}
+.wc-sk-th .wc-sk-t {
+  height: 8px;
+}
+
+/* Heatmap and calendar */
+.wc-sk-heat {
+  gap: 3px;
+  justify-content: stretch;
+}
+.wc-sk-heat-row {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: 24% repeat(7, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 3px;
+}
+.wc-sk-heat-row > .wc-sk-t {
+  align-self: center;
+  justify-self: end;
+  margin-right: 8px;
+}
+.wc-sk-heat-row > .wc-sk-b {
+  border-radius: 3px;
+}
+.wc-sk-heat-x {
+  height: 20px;
+  flex: none;
+  align-items: end;
+}
+.wc-sk-cal-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 20px;
+}
+.wc-sk-cal {
+  display: grid;
+  height: min(100%, 196px);
+  grid-auto-columns: auto;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+.wc-sk-cal > .wc-sk-b {
+  height: 100%;
+  aspect-ratio: 1;
+  border-radius: 3px;
+}
+
+/* Round charts keep their proportions and sit in the middle */
+.wc-sk-round {
+  display: block;
+  width: 100%;
+  margin: 0 auto;
+}
+.wc-sk-round circle,
+.wc-sk-round > path {
+  stroke: var(--wc-sk-line);
+}
+.wc-sk[data-kind='pie'] .wc-sk-plot,
+.wc-sk[data-kind='donut'] .wc-sk-plot,
+.wc-sk[data-kind='radar'] .wc-sk-plot {
+  padding: 2% 0;
+}
+
+/* Funnel, treemap, sankey */
+.wc-sk-funnel {
+  gap: 2px;
+  justify-content: stretch;
+  padding: 6px 0;
+}
+.wc-sk-funnel-row {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: 28% minmax(0, 40%) minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+.wc-sk-funnel-step {
+  height: 100%;
+  justify-self: center;
+  border-radius: 2px;
+  clip-path: polygon(0 0, 100% 0, calc(50% + 50% * var(--wc-next, 0.7)) 100%, calc(50% - 50% * var(--wc-next, 0.7)) 100%);
+}
+.wc-sk-tree {
+  display: grid;
+  grid-template-areas:
+    't0 t0 t1 t1 t3 t4'
+    't0 t0 t1 t1 t3 t4'
+    't0 t0 t2 t2 t5 t5'
+    't0 t0 t2 t2 t6 t6';
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+}
+.wc-sk-tree > .wc-sk-b {
+  border-radius: 2px;
+}
+.wc-sk-flow {
+  display: block;
+  width: 100%;
+}
+.wc-sk-band {
+  fill: var(--wc-sk);
+  opacity: 0.7;
+}
+.wc-sk-flow .wc-sk-fill {
+  fill: var(--wc-sk-line);
+  stroke: none;
+}
+
+@container (max-width: 479.98px) {
+  .wc-sk-funnel-row {
+    grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
+  }
+  .wc-sk-funnel-row > .wc-sk-t:first-child {
+    display: none;
+  }
+  .wc-sk-funnel-step {
+    justify-self: start;
+    clip-path: polygon(0 0, 100% 0, calc(100% * var(--wc-next, 0.7)) 100%, 0 100%);
+  }
+  .wc-sk-tr {
+    grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 1fr));
+  }
+  .wc-sk-spark-row {
+    grid-template-columns: minmax(0, 1.3fr) minmax(48px, 0.8fr) auto 68px;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 479.98px) {
+  .wc-spark-row {
+    grid-template-columns: minmax(0, 1.3fr) minmax(48px, 0.8fr) auto 68px;
+    gap: 10px;
+  }
+  .wc-kpi-value {
+    font-size: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wc-shimmer::after {
+    display: none;
+    animation: none;
+  }
+  .wc-toggle,
+  .wc-sort ng-icon {
+    transition: none;
+  }
+}

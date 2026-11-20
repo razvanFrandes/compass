@@ -675,7 +675,7 @@ export interface NightDecision {
 const RATE_LATEST = { when: 'today 06:00', headline: 'Raise Dubai Business Bay to the comp-set median for 16–18 Dec', why: 'Gulf Tech Week · 0.78× the comp set · 3 competitors sold out' };
 const NEXT_RUN: Record<string, string> = { rate: 'next in 21 h 40 min', pace: 'next in 22 h 40 min', feeds: 'next in 40 min' };
 
-export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watcher' | 'builder' | 'notfound' | 'orb-lab';
+export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watcher' | 'builder' | 'notfound' | 'orb-lab' | 'catalog';
 
 /** Views with an address of their own; the rest live at "/". The builder is at /workflows/new and /workflows/<id>/edit. */
 const BUILDER_PATH = '/workflows/new';

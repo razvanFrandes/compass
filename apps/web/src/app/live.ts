@@ -146,6 +146,8 @@ export class Live {
       case 'notfound':
       case 'orb-lab':
         return null;
+      case 'catalog':
+        return { path: '/catalog' };
       default:
         return { path: '/' };
     }
@@ -172,6 +174,7 @@ export class Live {
       }
       return this.store.view.set('thread');
     }
+    if (path === '/catalog') return this.store.view.set('catalog');
     // Agent Studio lives at /studio; /watchers is its old address and still opens it.
     if (path.startsWith('/watchers')) globalThis.history?.replaceState(null, '', `${path.replace(/^\/watchers/, '/studio')}${loc.search}`);
     if (path === '/studio' || path === '/watchers') return this.store.view.set('watchers');

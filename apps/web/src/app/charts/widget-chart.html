@@ -1,0 +1,185 @@
+@let s = spec();
+@let b = built();
+<figure
+  class="wc"
+  [class.wc-shimmer]="state() === 'skeleton'"
+  [attr.aria-labelledby]="header() && state() !== 'skeleton' ? uid + '-t' : null"
+  [attr.aria-label]="header() && state() !== 'skeleton' ? null : s.title || 'Chart'"
+  [attr.aria-busy]="b ? null : 'true'"
+>
+  <figcaption class="wc-head">
+    <div class="wc-titles">
+      @if (header()) {
+        @if (state() === 'skeleton') {
+          <!-- The real words, invisible, with a bar on each line: the header is already the height it will be -->
+          <p class="wc-title" aria-hidden="true"><span class="wc-ink" [class.wc-ink--stub]="!s.title"><span>{{ s.title || nbsp }}</span></span></p>
+          @if (s.subtitle || !s.title) {
+            <p class="wc-subtitle" aria-hidden="true"><span class="wc-ink" [class.wc-ink--stub]="!s.subtitle" style="--wc-stub: 180px"><span>{{ s.subtitle || nbsp }}</span></span></p>
+          }
+        } @else {
+          <p class="wc-title" [id]="uid + '-t'">{{ s.title }}</p>
+          @if (s.subtitle) {
+            <p class="wc-subtitle">{{ s.subtitle }}</p>
+          }
+        }
+      }
+    </div>
+    @if (toggleSlot()) {
+      <button type="button" class="wc-toggle" [class.wc-toggle--stub]="state() === 'skeleton' || (b && !canToggle())" [disabled]="!canToggle()" [attr.aria-label]="(asTable() ? 'View as chart: ' : 'View as table: ') + s.title" (click)="asTable.set(!asTable())">
+        <ng-icon [name]="asTable() ? 'phosphorChartBarLight' : 'phosphorTableLight'" aria-hidden="true" />
+        @if (!compact() && !narrow()) {
+          <span>{{ asTable() ? 'View as chart' : 'View as table' }}</span>
+        }
+      </button>
+    }
+  </figcaption>
+
+  <div class="wc-body" [style.height.px]="height()">
+    @if (!b) {
+      <!-- A skeleton of this kind, in the box the finished widget will have -->
+      <div class="wc-sk-host" [class.wc-shimmer]="state() !== 'skeleton'" role="status">
+        <span class="sr-only">Loading {{ s.title || 'chart' }}</span>
+        <juyo-widget-skeleton [plan]="plan()" [compact]="compact()" [narrow]="narrow()" />
+      </div>
+    } @else if (b.render === 'empty') {
+      <p class="wc-empty">{{ b.message }}</p>
+    } @else if (showTable()) {
+      <div class="wc-table-wrap" tabindex="0" role="group" [attr.aria-label]="s.title + ' (data table)'">
+        <table class="wc-table">
+          <caption class="sr-only">
+            {{ s.title }}
+          </caption>
+          <thead>
+            <tr>
+              @for (col of b.table.columns; track col.key; let i = $index) {
+                <th scope="col" [class.wc-num]="col.align === 'right'" [attr.aria-sort]="ariaSort(i)">
+                  <button type="button" class="wc-sort" (click)="sortBy(i)">
+                    <span>{{ col.label }}</span>
+                    <ng-icon [name]="sortIcon(i)" aria-hidden="true" [class.wc-sort-on]="ariaSort(i) !== 'none'" />
+                  </button>
+                </th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of sortedRows(); track $index) {
+              <tr>
+                @for (cell of row; track $index; let i = $index) {
+                  @if (i === 0) {
+                    <th scope="row" [class.wc-num]="b.table.columns[i].align === 'right'">{{ cell.text }}</th>
+                  } @else {
+                    <td [class.wc-num]="b.table.columns[i].align === 'right'" [class.wc-null]="cell.sort === null">{{ cell.text }}</td>
+                  }
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else if (b.render === 'echarts') {
+      @if (b.legend.length || b.ramp) {
+        <div class="wc-legend-row">
+          @if (b.legend.length) {
+            <ul class="wc-legend" aria-label="Legend">
+              @for (l of b.legend; track l.label) {
+                <li><i class="wc-mark" [attr.data-mark]="l.mark" [style.--wc-mark]="l.color" aria-hidden="true"></i>{{ l.label }}</li>
+              }
+            </ul>
+          }
+          @if (b.ramp; as r) {
+            <p class="wc-ramp">
+              <span>{{ r.label }}</span>
+              <span class="wc-ramp-end">{{ r.min }}</span>
+              <span class="wc-ramp-bar" aria-hidden="true">
+                @for (color of r.colors; track $index) {
+                  <i [style.background]="color"></i>
+                }
+              </span>
+              <span class="wc-ramp-end">{{ r.max }}</span>
+            </p>
+          }
+        </div>
+      }
+      <div class="wc-plot" role="img" tabindex="0" [attr.aria-label]="b.summary" [attr.aria-describedby]="b.points.length ? uid + '-k' : null" (keydown)="onKey($event)" (blur)="leave()">
+        <juyo-echart [option]="b.option" />
+      </div>
+      @if (b.points.length) {
+        <span class="sr-only" [id]="uid + '-k'">Use the arrow keys to step through the data. The same numbers are in “View as table”.</span>
+      }
+    } @else if (b.render === 'kpi') {
+      <div class="wc-kpi">
+        <div class="wc-kpi-text">
+          <p class="wc-kpi-label">{{ b.kpi.label }}</p>
+          <p class="wc-kpi-value">{{ b.kpi.value }}</p>
+          @if (b.kpi.delta; as d) {
+            <p class="wc-delta-line">
+              <span class="wc-delta" [attr.data-tone]="d.tone"><span aria-hidden="true">{{ d.text }}</span><span class="sr-only">{{ d.spoken }}</span></span>
+              <span>{{ b.kpi.versus }}</span>
+            </p>
+          }
+        </div>
+        @if (b.kpi.spark; as sp) {
+          <div class="wc-spark wc-spark--kpi" aria-hidden="true">
+            <svg viewBox="0 0 100 28" preserveAspectRatio="none">
+              <path class="wc-spark-area" [attr.d]="sp.area" />
+              <path class="wc-spark-line" [attr.d]="sp.line" />
+            </svg>
+            <i class="wc-spark-dot" [style.top.%]="sp.lastY * 100"></i>
+          </div>
+        }
+      </div>
+    } @else if (b.render === 'kpi_row') {
+      <ul class="wc-tiles" [style.--wc-tiles]="tileCols()">
+        @for (k of b.tiles; track k.label) {
+          <li class="wc-tile">
+            <p class="wc-kpi-label">{{ k.label }}</p>
+            <p class="wc-tile-value">{{ k.value }}</p>
+            <div class="wc-tile-foot">
+              @if (k.delta; as d) {
+                <p class="wc-delta-line">
+                  <span class="wc-delta" [attr.data-tone]="d.tone"><span aria-hidden="true">{{ d.text }}</span><span class="sr-only">{{ d.spoken }}</span></span>
+                  <span class="wc-versus">{{ k.versus }}</span>
+                </p>
+              }
+              @if (k.spark; as sp) {
+                <div class="wc-spark wc-spark--tile" aria-hidden="true">
+                  <svg viewBox="0 0 100 28" preserveAspectRatio="none">
+                    <path class="wc-spark-area" [attr.d]="sp.area" />
+                    <path class="wc-spark-line" [attr.d]="sp.line" />
+                  </svg>
+                  <i class="wc-spark-dot" [style.top.%]="sp.lastY * 100"></i>
+                </div>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+    } @else if (b.render === 'sparklines') {
+      <ul class="wc-sparks" tabindex="0" [attr.aria-label]="s.title + ' (trends)'">
+        @for (it of b.items; track it.label) {
+          <li class="wc-spark-row">
+            <span class="wc-spark-name">{{ it.label }}</span>
+            <span class="wc-spark" aria-hidden="true">
+              @if (it.spark; as sp) {
+                <svg viewBox="0 0 100 28" preserveAspectRatio="none">
+                  <path class="wc-spark-line" [attr.d]="sp.line" />
+                </svg>
+                <i class="wc-spark-dot" [style.top.%]="sp.lastY * 100"></i>
+              }
+            </span>
+            <span class="wc-spark-value">{{ it.value }}</span>
+            <span class="wc-spark-delta">
+              @if (it.delta; as d) {
+                <span class="wc-delta" [attr.data-tone]="d.tone"><span aria-hidden="true">{{ d.text }}</span><span class="sr-only">{{ d.spoken }}</span></span>
+              }
+            </span>
+          </li>
+        }
+      </ul>
+    }
+    @if (b?.note; as note) {
+      <p class="wc-note">{{ note }}</p>
+    }
+  </div>
+  <span class="sr-only" aria-live="polite">{{ announce() }}</span>
+</figure>
