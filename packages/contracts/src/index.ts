@@ -7,3 +7,5 @@ export * from './workflows.ts';
 export * from './workflow-graph.ts';
 export * from './builder.ts';
 export * from './voice.ts';
+export * from './widgets.ts';
+export * from './boards.ts';

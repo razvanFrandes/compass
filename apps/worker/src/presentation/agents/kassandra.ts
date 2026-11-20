@@ -1,4 +1,4 @@
-import type { ChatClientMessage } from '@compass/contracts';
+import type { ChatClientMessage, Widget } from '@compass/contracts';
 import { DurableObject } from 'cloudflare:workers';
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context';
 import { createModels } from '@earendil-works/pi-ai/models';
@@ -10,10 +10,12 @@ import { HotelData } from '../../application/hotel-data.ts';
 import { openPostgres } from '../../infrastructure/postgres.ts';
 import { WorkersAiEmbedder } from '../../infrastructure/workers-ai-embedder.ts';
 import type { Env } from '../../env.ts';
+import { projectEntries } from './chat-projection.ts';
 import { serveChatSocket } from './chat-socket.ts';
 import { KASSANDRA_SECTIONS } from './kassandra-prompt.ts';
 import { agentChangeFor, THINKER_MODEL, type AnswerMode } from './modes.ts';
 import { createDataExtension } from './pi-data-extension.ts';
+import { widgetsOfLastAnswer, withWidgets } from './widgets.ts';
 import { createDraftWorkflowExtension } from '../../application/workflows/draft-tool.ts';
 import { BUDGET_NAME } from '../budget.ts';
 import { budgetMessage } from '../http/budget-response.ts';
@@ -28,6 +30,8 @@ export interface KassandraAnswer {
   reason: string | null;
   durationMs: number;
   mode: AnswerMode;
+  /** The widgets Kassandra showed with this answer (show_widget), in order. */
+  widgets: Widget[];
 }
 
 /**
@@ -42,12 +46,15 @@ export class Kassandra extends DurableObject<Env> {
   // One registry per object, never at module scope: Pi keeps each Harness subscribed to its registry.
   // The hotel scope of the conversation is kept in storage (`scope`: hotel codes), so a run that resumes after an
   // eviction reads the same hotels. Every tool call reads it.
-  data = createDataExtension(
-    () => {
-      const db = openPostgres(this.env.HYPERDRIVE.connectionString);
-      return { data: new HotelData(db, new WorkersAiEmbedder(this.env.AI)), close: () => db.close() };
-    },
-    async () => (await this.ctx.storage.get<string[]>('scope')) ?? [],
+  // The data tools, plus show_widget: a chart, table or KPI drawn from the rows of one of their results.
+  data = withWidgets(
+    createDataExtension(
+      () => {
+        const db = openPostgres(this.env.HYPERDRIVE.connectionString);
+        return { data: new HotelData(db, new WorkersAiEmbedder(this.env.AI)), close: () => db.close() };
+      },
+      async () => (await this.ctx.storage.get<string[]>('scope')) ?? [],
+    ),
   );
   registry = createKassandraRegistry(this.data);
 
@@ -145,12 +152,14 @@ export class Kassandra extends DurableObject<Env> {
     const started = Date.now();
     await this.#useMode(mode, scope);
     const result = await this.harness.prompt(question, operationId ? { operationId } : undefined);
+    const widgets = widgetsOfLastAnswer(projectEntries(await this.harness.session().messages()));
     return {
       status: result.status,
       text: result.text ?? null,
       reason: result.reason ?? null,
       durationMs: Date.now() - started,
       mode,
+      widgets,
     };
   }
 }

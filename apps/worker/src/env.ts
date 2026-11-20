@@ -1,3 +1,4 @@
+import type { Boards } from './presentation/boards.ts';
 import type { Budget } from './presentation/budget.ts';
 import type { Kassandra } from './presentation/agents/kassandra.ts';
 import type { Briefs } from './presentation/briefs.ts';
@@ -13,11 +14,14 @@ export interface Env {
   ASK_RATE_LIMIT: RateLimit;
   /** POST /api/voice/token: 10 temporary keys per minute per client. */
   VOICE_RATE_LIMIT: RateLimit;
+  /** Board changes: 60 per minute per client. */
+  BOARD_RATE_LIMIT: RateLimit;
   KASSANDRA: DurableObjectNamespace<Kassandra>;
   BRIEFS: DurableObjectNamespace<Briefs>;
   WORKFLOWS: DurableObjectNamespace<WorkflowAgents>;
   BUDGET: DurableObjectNamespace<Budget>;
   WORKFLOW_BUILDER: DurableObjectNamespace<WorkflowBuilder>;
+  BOARDS: DurableObjectNamespace<Boards>;
   /** Cloudflare Email Sending; the only sender allowed is alerts@compass.razvanfrandes.com. */
   EMAIL: SendEmail;
   /** The app's public origin, for links in emails: https://juyo.razvanfrandes.com. */

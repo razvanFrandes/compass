@@ -18,7 +18,8 @@ Compass is a public demo. Reviewers use it without an account, and every model c
 | Speech-to-text spend and the Soniox key (the owner's account) | A script asks for temporary keys all day and streams audio with them; the permanent key leaks through an answer or a log. | `POST /api/voice/token` passes the origin check, a per-client limit of 10 per minute and a daily `voice` budget (300). Each temporary key is single use, must connect within 120 s and carries at most 180 s of audio. The permanent key (`SONIOX_API_KEY`, a Worker secret) is sent to Soniox in the Authorization header and nowhere else: a refusal reports the HTTP status and never the response body, a network error reports only its class, and an answer whose key equals the permanent one is refused. Every failure reads the same to the client. | A determined visitor can use up the day's 300 keys (at most 15 hours of audio); voice then answers 429 until midnight UTC and the app falls back to typing. A temporary key is visible to the page that asked for it, by design. |
 | Hotel scope ("answer only for my hotels") | A visitor sends another scope, or text in place of a hotel code, to reach other hotels or the prompt. | The scope is checked against the hotel list: only known codes pass, and the names in the prompt come from the database, never from the client. Tool calls are cut down to the scope in code, whatever the model asks. | **Not access control.** There is no login, so anyone may choose any scope, or none; the data is the same fictional data for everyone. Inside a scope, a custom query (`run_readonly_query`) is only filtered on its `hotel_code` column: it can still aggregate other hotels inside itself. |
 | A saved workflow opened in the builder (`&workflow=<id>`) | Workflow ids are listed, so anyone can open any workflow in a draft; the draft holds the recipient's address. | The address that came from the saved workflow is masked on the socket for as long as the draft holds it, and the agent only ever reads the masked chain. Changing the address on save makes a new workflow, as before. A test from such a draft mails the saved recipient, inside the same per-recipient limits as "Run now". | **Accepted,** as for the rest of the workflow state: a visitor can edit, duplicate or delete any workflow. Whether a guessed address is the saved one can be learned (the draft keeps it masked, and `PATCH` already told). |
-| Availability of the Worker | Huge request bodies. | JSON bodies at most 16 KB, MCP bodies at most 64 KB (413). | None worth noting. |
+| Boards (the saved Canvas, one set for all visitors) | Someone with curl fills the boards with junk, deletes them, or stores a widget with invented numbers that the next visitor reads as real. | Origin check (browsers only). 60 changes per minute per client and a daily `board_write` budget for everyone. Hard limits: 50 boards, 24 widgets per board, 200 rows and 256 KB per widget. Every field is validated, unknown fields are refused, and a widget must fit its rows by the rules of `show_widget`. Board text is data: the app must render it as text (Angular's default), never as HTML. | **Accepted.** There is no login, so anyone can change or delete any board, and a script can post a widget whose rows it made up: the server checks the shape of a widget, not where its rows came from. Each widget shows its evidence (SQL, sources) next to it, and nothing outside Compass changes. The sample boards are not restored once deleted. |
+| Availability of the Worker | Huge request bodies. | JSON bodies at most 16 KB, a board widget at most 256 KB, MCP bodies at most 64 KB (413). | None worth noting. |
 | The model's context (Kassandra, workflows, MCP clients) | A tool result with huge rows (200 rows of 32 KB from a custom query, or a selected embedding) floods the context. | The text a model reads holds at most 60 rows and at most 50,000 characters of rows, counted after the `<` escaping of untrusted text, then says `… N more rows not shown.` `get_schema` marks vector columns `(vector; never select it)`. | `structuredContent` still carries every row, for the UI and for MCP clients that read it. |
 
 ## What changed
@@ -31,7 +32,8 @@ Compass is a public demo. Reviewers use it without an account, and every model c
   - `decision`: `POST /api/proposals/:id/decision` (a decision wakes the workflow agent, which calls the model);
   - `brief_refresh`: `POST /api/brief/refresh`;
   - `embedding`: `find_reviews` calls through `/mcp` (one Workers AI embedding each). It is not a 429: the tool answers that semantic search is unavailable;
-  - `voice`: `POST /api/voice/token` (one temporary speech-to-text key each).
+  - `voice`: `POST /api/voice/token` (one temporary speech-to-text key each);
+  - `board_write`: every change to a board (create, rename, reorder, delete, add or remove a widget). It spends no model tokens; it bounds how much stored state a day of visitors can write.
 - **First runs.** The first read of the workflows or the proposals starts the first run of each brief-triggered workflow that never ran (`application/workflows/seed.ts`). Nobody asked for those runs, so they are bounded in code: it happens once (a flag in the object's storage), at most five runs, never an email workflow, and each run takes from `workflow_run` like "Run now". When the budget is spent the rest waits; a retry happens at most every 10 minutes.
 - Over the limit, the API answers 429 with `{ error, resetsAt }` and a `Retry-After` header. The socket sends an `error` message. `GET /api/budget` shows today's usage.
 - The cron is not budgeted. It runs once a day, and the cap of 30 enabled workflows bounds it. Workflows that are off do not count towards the cap; at 100 stored workflows a create deletes the oldest one that is off (never a template).
@@ -115,6 +117,15 @@ Rulings from the final review of the workflow builder.
   - The neutralisation removes links, not meaning: a model talked into it can still write a misleading sentence in 500 characters, or a domain spelled out in words.
   - A client that changes its address gets a new per-client window; the per-recipient and global limits do not depend on the client.
 
+### 7. Widgets and boards
+
+- **A widget's numbers come from a tool result.** `show_widget` takes the id of a data tool result and column keys. The server reads that result from the conversation's durable transcript and copies its rows, columns and evidence; the model's arguments hold no data. A key that is not a column, a `y` that is not a number column, or a kind that does not suit the rows (`application/widgets/fit.ts`) fails the call with a sentence for the model. The title and the subtitle are the model's words, like the answer text.
+- **Bounds.** At most 200 rows per widget and 4 widgets per answer (counted in the transcript since the last question), so widgets cannot flood the transcript or the socket.
+- **Guest text in rows.** A widget's rows are the data tool's rows for the UI, which were never wrapped in `<untrusted_data>` (only the model's copy is). A table widget over reviews or account names shows outside text: the app must escape it, as it does in the evidence panel.
+- **Boards are public demo state.** `presentation/http/board-routes.ts` runs each write through the per-client rate limit (`BOARD_RATE_LIMIT`), the body limit and the request schema, and the `board_write` budget, in that order, before the `Boards` object is called; the object validates again and fits the widget to its rows. A body with the wrong shape never spends the budget.
+- **What is not checked:** that the rows of a board widget came from a tool result. The client sends them (contracts §4), so a script can store invented rows. A stricter design would take `{ conversation, callId }` and copy the widget from that conversation's transcript on the server.
+- **Sample boards** are built on first use by server code that runs the catalog tools (`application/boards/seed.ts`): no model, no visitor input.
+
 ## Limits and how to change them
 
 | Limit | Value | Where |
@@ -129,6 +140,11 @@ Rulings from the final review of the workflow builder.
 | A temporary Soniox key | single use, 120 s to connect, 180 s of audio | `EXPIRES_IN_SECONDS`, `MAX_SESSION_SECONDS` in `infrastructure/soniox.ts` |
 | First runs of brief-triggered workflows | once, at most 5 | `MAX_SEED_RUNS` in `application/workflows/seed.ts` |
 | Hotels in a scope | 50 | `HotelScope` in `packages/contracts/src/hotels.ts` |
+| Daily board changes (all visitors) | 600 | `vars.DAILY_LIMITS.board_write` |
+| Board changes per client | 60 per minute | `ratelimits` `BOARD_RATE_LIMIT` |
+| Boards, widgets per board, rows per widget | 50, 24, 200 | `BOARD_LIMITS` in `packages/contracts/src/boards.ts` |
+| Board widget body | 256 KB | `MAX_WIDGET_BYTES` in `presentation/http/board-routes.ts` |
+| Widgets per answer | 4 (the prompt asks for 3) | `MAX_WIDGETS_PER_ANSWER` in `presentation/agents/widgets.ts` |
 | Questions per client | 6 per minute | `ratelimits` `ASK_RATE_LIMIT` (also runs and refreshes) |
 | MCP requests per client | 60 per minute | `ratelimits` `MCP_RATE_LIMIT` |
 | Enabled workflows | 30 | `MAX_WORKFLOWS` in `application/workflows/capacity.ts` |

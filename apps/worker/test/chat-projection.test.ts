@@ -55,6 +55,18 @@ describe('projectEntries', () => {
     expect(other && 'sent' in other).toBe(false);
   });
 
+  it('passes a widget through to the UI, and never from a failed call', () => {
+    const widget = { kind: 'bar', title: 'Lisbon is 17.4% behind', sourceCallId: 'c1', x: 'hotel_code', y: ['pace_pct'], rows: [{ hotel_code: 'LIS', pace_pct: -17.4 }], columns: [], evidence: { sources: [] } };
+    const result = (id: number, isError: boolean, details: unknown) => ({
+      id, kind: 'pi.tool-result', model: [{ role: 'toolResult', toolCallId: `c${id}`, toolName: 'show_widget', isError, content: [{ type: 'text', text: 'Shown' }], details, timestamp: 1 }],
+    });
+    const [shown, failed, malformed] = projectEntries([result(1, false, { widget }), result(2, true, { widget }), result(3, false, { widget: { kind: 'bar' } })]);
+    expect(shown).toMatchObject({ kind: 'tool_result', name: 'show_widget', widget });
+    expect(shown && 'rows' in shown).toBe(false);
+    expect(failed && 'widget' in failed).toBe(false);
+    expect(malformed && 'widget' in malformed).toBe(false);
+  });
+
   it('projects our own labelled inputs as events', () => {
     const [event] = projectEntries([
       { id: 99, kind: 'app.approval', data: { approved: true, by: 'rm' }, model: [{ role: 'user', content: 'Approved', timestamp: 1 }] },

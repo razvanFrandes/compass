@@ -5,10 +5,10 @@ Base URL: `https://juyo.razvanfrandes.com`. Locally, `wrangler dev` in `apps/wor
 ## Rules for every call
 
 - **Same origin.** `POST`, `PATCH`, `PUT` and `DELETE` under `/api/` are refused (403) when `Origin` is another site. CORS is allowed only for the Angular dev server (`http://localhost:4200`), and never on `/mcp`.
-- **Body size.** JSON bodies are at most 16 KB (413). Invalid JSON gets 400.
+- **Body size.** JSON bodies are at most 16 KB (413). Invalid JSON gets 400. A board widget (`POST /api/boards/:id/widgets`) may be up to 256 KB, because it carries its rows.
 - **Errors** are `{ "error": "…" }`. A 500 never carries internals.
-- **Daily budget.** Questions, workflow runs, decisions, brief refreshes and voice dictations are counted per UTC day for all visitors together. Over the limit: 429 with `{ error, resetsAt }` and `Retry-After`. Show `error` as is. See `docs/security.md`.
-- **`GET /api/budget`** returns today's usage: `{ question: { used, limit }, workflow_run: …, decision: …, brief_refresh: …, embedding: …, voice: … }`. `embedding` counts `find_reviews` calls made through `/mcp`; `voice` counts the temporary keys of `POST /api/voice/token`.
+- **Daily budget.** Questions, workflow runs, decisions, brief refreshes, voice dictations and board changes are counted per UTC day for all visitors together. Over the limit: 429 with `{ error, resetsAt }` and `Retry-After`. Show `error` as is. See `docs/security.md`.
+- **`GET /api/budget`** returns today's usage: `{ question: { used, limit }, workflow_run: …, decision: …, brief_refresh: …, embedding: …, voice: …, board_write: … }`. `embedding` counts `find_reviews` calls made through `/mcp`; `voice` counts the temporary keys of `POST /api/voice/token`; `board_write` counts changes to boards.
 
 The types live in `packages/contracts` (`@compass/contracts`). Import them instead of redefining them.
 
@@ -58,10 +58,11 @@ wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=<id>
 - `assistant` — `{ text, toolCalls: [{ callId, name, args }], model, usage: { tokens, costUsd }, stopReason }`
   - `stopReason: 'toolUse'` means tool calls follow. The interim `text` of such a turn is the agent narrating its steps: show it as a step, not as the answer.
   - `stopReason: 'stop'` is the final answer, in Markdown.
-- `tool_result` — `{ callId, name, isError, error?, rows?, evidence?, sent? }`
+- `tool_result` — `{ callId, name, isError, error?, rows?, evidence?, sent?, widget? }`
   - `rows` and `evidence` feed widgets and the "How this was computed" panel.
   - `evidence` holds: `sources`, `definitions`, `period`, `sql`, `params`, `businessDate`, `notes`, and what the panel needs to show the rows: `title`, `columns`, `sourceLabels` (see "Evidence: titles and columns").
   - `sent` is on `send_email` results only (workflow run logs): whether a mail went out. It is `false` when a limit refused it or there was nothing to report.
+  - `widget` is on `show_widget` results only: a chart, table or KPI to draw under the answer. See "Widgets in answers".
 - `event` — our own labelled inputs (e.g. `app.approval`, the builder's `app.edit`), `{ type, data }`.
 
 `ChatLive`:
@@ -86,8 +87,8 @@ wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=<id>
 - **`ask`:** pass an `id` so a resend after a dropped connection is not asked twice. Sent while busy, it is queued as a follow-up.
 - **`scope`** (optional): the hotels the answer is for. See "Hotels and scope". Send it with every question while a scope is selected; a question without it is for the whole group.
 - **`mode`** (the Quick / Thinker selector in the composer):
-  - **`quick`:** Claude Haiku 5.5, only the governed-metric tools (plus `get_pnl` and `get_forecast`), at most 4 turns, three sentences. About 5–9 s and a few cents.
-  - **`thinker`** (default): Claude Sonnet 5.5, all 24 data tools, cross-source diagnosis. About 8–20 s.
+  - **`quick`:** Claude Haiku 5.5, only the governed-metric tools (plus `get_pnl`, `get_forecast` and `show_widget`), at most 5 turns, three sentences. About 5–9 s and a few cents; a widget adds a few seconds.
+  - **`thinker`** (default): Claude Sonnet 5.5, all 24 data tools and `show_widget`, cross-source diagnosis. About 8–20 s.
   - The mode applies from the next question. A question sent while an answer is running keeps the current mode.
 - **Rate limit:** 6 questions per minute per client, and the daily budget (`steer` counts as a question). Over a limit, the server sends an `error` message.
 
@@ -96,7 +97,8 @@ wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=<id>
 ```
 user entry
   └ assistant (stopReason toolUse)       → "Worked for 4s · 3 steps" (collapsed), one step per toolCall
-      └ tool_result (matched by callId)  → step done ✓ / error; rows + evidence for widgets
+      └ tool_result (matched by callId)  → step done ✓ / error; rows + evidence for the evidence panel
+      └ tool_result with `widget`        → a chart, table or KPI under the answer, with "Add to board"
   └ assistant (stopReason stop)          → the answer (Markdown)
 live.phase                               → "Thinking…" / "Writing…" / tool steps while the run is going
 live.streamingText                       → the answer while it is being written
@@ -111,10 +113,10 @@ Open a new socket with the same `conversation`. You get a fresh `snapshot`; merg
 `POST /api/kassandra/ask` with body `{ "conversation"?: string, "question": string, "mode"?: "quick" | "thinker", "scope"?: { "hotels": string[] } }` returns:
 
 ```json
-{ "conversation": "…", "status": "done" | "unanswered", "text": "…", "reason": null, "durationMs": 7379, "mode": "thinker", "scope": ["AMS", "LIS"] }
+{ "conversation": "…", "status": "done" | "unanswered", "text": "…", "reason": null, "durationMs": 7379, "mode": "thinker", "scope": ["AMS", "LIS"], "widgets": [] }
 ```
 
-It waits for the whole answer, with no streaming. Use the WebSocket in the UI. `scope` in the answer is the scope that was applied (hotel codes; empty for the whole group). An invalid scope gets 400.
+It waits for the whole answer, with no streaming. Use the WebSocket in the UI. `scope` in the answer is the scope that was applied (hotel codes; empty for the whole group). An invalid scope gets 400. `widgets` holds the widgets of this answer (`Widget[]`, the same objects the socket sends as `tool_result.widget`), in the order they were shown.
 
 ## Evidence: titles and columns
 
@@ -151,6 +153,101 @@ Every data tool's `evidence` says how to show its rows, so the panel never guess
 - **`sourceLabels`:** a human name for each entry of `sources` ("Daily hotel performance" for `hotel.v_hotel_day`). Show the label; keep the id for the SQL view.
 - **`run_readonly_query`:** the columns are inferred from the property names and the values (`hotel_code` → `hotel`, `…_eur` → `currency` in EUR, `…_pct` → `percent`, `…_id` → hidden `id`, ISO dates → `date`, whole numbers → `count`). The labels are the property names in words ("Room revenue"). Treat them as a best guess.
 - **`list_metrics`** now has an `evidence` too (title "Governed metrics"). `get_schema` returns no rows and has none.
+
+## Widgets in answers
+
+When a chart, a table or a KPI tile makes an answer clearer, Kassandra calls the `show_widget` tool after a data tool. The `tool_result` entry of that call carries `widget` (`Widget` in `@compass/contracts`):
+
+```ts
+type Widget = WidgetSpec & { rows: Record<string, unknown>[]; columns: EvidenceColumn[]; evidence: Evidence };
+
+interface WidgetSpec {
+  kind: WidgetKind;        // one of the 21 kinds below
+  title: string;           // a conclusion: "Lisbon is 17.4% behind last year; 5 more hotels trail"
+  subtitle?: string;       // the scope: hotels and period
+  sourceCallId: string;    // the callId of the data tool_result the rows came from
+  x?: string;              // column keys of `rows`; what they mean depends on the kind
+  y?: string[];
+  group?: string;
+  compare?: string;
+  format?: 'number' | 'percent' | 'currency' | 'count';
+}
+```
+
+- **The model never supplies a number.** It picks the kind, the title, the subtitle and the column keys. The server reads the tool result that `sourceCallId` names back from the transcript and copies its `rows`, `columns` and `evidence` into the widget. So `widget.rows` are the rows of that data `tool_result`, and "How this was computed" for a widget is `widget.evidence`.
+- **The server checks the fit.** Every key must be a column of those rows, `y` and `compare` must be number columns, and the kind must suit the shape (the table below). A widget that does not fit never reaches the client: the model gets a sentence saying what is wrong and tries again or answers without it.
+- **The spec is normalised.** It holds only the fields its kind uses. `format` is filled from the kind of the first `y` column when the model leaves it out (absent for a table, and for a plain number column).
+- **`columns`** describe every column of the rows: `{ key, label, kind, unit?, hidden? }` with `kind` one of `text | hotel | date | month | number | percent | currency | count | id`. Use `label` for axis and legend names and `kind` and `unit` to format values. They come from the data tool's evidence when it names them, else they are read from the rows (key names and values).
+- **Limits:** at most 200 rows per widget, at most 4 widgets per answer (the prompt asks for at most 3; a board view may show 4).
+- **Order:** a widget belongs to the answer of its run. Show the widgets of a run under its final `assistant` entry, in the order of their entries.
+- **Skeleton:** `live.tools` shows `show_widget` as `running` while the widget is being built.
+- **Add to board:** send the widget as it is to `POST /api/boards/:id/widgets` (see "Boards").
+
+What each kind takes. `x`, `y`, `group` and `compare` are column keys; "label" columns are text, the rest are numbers.
+
+| `kind` | Rows | `x` | `y` | `group` | `compare` |
+|---|---|---|---|---|---|
+| `kpi` | 1 | – | 1: the number | – | optional: last year, budget |
+| `kpi_row` | 1 | – | 2–6: one tile per column (labels from `columns`) | – | – |
+| `kpi_row` | 2–6 | label of each tile | 1: the number | – | optional |
+| `gauge` | 1 | – | 1: a percent, or any number with `compare` | – | the target or maximum |
+| `line`, `area` | ≥ 2 points | ordered: date, month or number | 1–6 lines; exactly 1 with `group` | optional: one line per value (≤ 20) | optional, with one `y` and no `group` |
+| `sparkline_list` | ≥ 2 points per group | ordered | 1 | one sparkline per value (≤ 30) | – |
+| `calendar_heatmap` | one per day | a day column (`YYYY-MM-DD`) | 1 | – | – |
+| `bar` | 2–50, one per category | the category | 1 | – | optional |
+| `grouped_bar`, `stacked_bar` | one per `x` (and `group`) | the category or period | 2–8 series; exactly 1 with `group` | optional: one series per value (≤ 12) | – |
+| `pie`, `donut` | 2–7 parts of one whole | – | 1, not negative; a percent column must add up to 100 | the part's label | – |
+| `treemap` | 2–60 parts | – | 1, not negative | the part's label | – |
+| `table` | any | – | optional: the columns to show, in order (any kind) | – | – |
+| `heatmap` | one per cell | across | 1: the cell value | down | – |
+| `funnel` | 1–4, one funnel per row | label of each funnel (when > 1 row) | 2–8 stage columns in order, never growing | – | – |
+| `funnel` | 2–8, one stage per row | the stage's label | 1, never growing down the rows | – | – |
+| `waterfall` | 2–20, one step per row | the step's label | 1: the change (may be negative) | – | – |
+| `bullet` | 1–20 | label (when > 1 row) | 1: the actual | – | required: the target |
+| `scatter` | ≥ 3 | a number | 1 | optional: the point's label | – |
+| `radar` | 1–6, one shape per row | label (when > 1 row) | 3–8 axes on one scale | – | – |
+| `sankey` | 2–100, one per flow | the source | 1: the flow, not negative | the target | – |
+
+A table without `y` shows every column that is not `hidden`.
+
+## Boards
+
+Boards are saved on the server, one set for the whole group (no login: every visitor sees and edits the same boards). A board holds widgets copied from answers. Types: `Board`, `BoardWidget`, `BoardSummary`, `BOARD_LIMITS` and the request schemas `BoardCreate`, `BoardPatch`, `BoardWidgetCreate` in `@compass/contracts`.
+
+```ts
+interface Board { id: string; name: string; description: string; hotels: string[]; widgets: BoardWidget[]; createdAt: string; updatedAt: string }
+interface BoardWidget { id: string; spec: WidgetSpec; rows: Record<string, unknown>[]; columns: EvidenceColumn[]; evidence: Evidence; question?: string; addedAt: string }
+```
+
+| Method | Path | Body | Answer |
+|---|---|---|---|
+| GET | `/api/boards` | – | `BoardSummary[]`, oldest first. Each widget is `{ id, spec, question?, addedAt }`: no rows, columns or evidence. |
+| POST | `/api/boards` | `{ name, description?, hotels? }` | 201 `Board` (no widgets yet) |
+| GET | `/api/boards/:id` | – | `Board` with every widget in full |
+| PATCH | `/api/boards/:id` | `{ name?, description?, hotels?, order? }` | `Board` |
+| DELETE | `/api/boards/:id` | – | 204 |
+| POST | `/api/boards/:id/widgets` | `{ spec, rows, columns, evidence, question? }` | 201 `BoardWidget` |
+| DELETE | `/api/boards/:id/widgets/:widgetId` | – | 204 |
+
+- **Fields.** `name` is 1–80 characters, `description` at most 300, `hotels` at most 40 hotel codes (empty = the whole group). Unknown fields are refused.
+- **`order`** reorders the widgets: it must list every widget id of the board exactly once.
+- **Add to board.** Send a `Widget` from an answer: `spec` is the widget without `rows`, `columns` and `evidence`, which go next to it; `question` is the question that was asked (at most 2000 characters). The server checks the widget against its rows with the same rules as `show_widget`, so a widget that came from an answer always passes. The answer is the stored `BoardWidget` with its new `id`. "Undo" is `DELETE` on that id.
+- **Limits.** 50 boards, 24 widgets per board, 200 rows per widget, 256 KB per widget body.
+- **Errors.** 400 with the reason (`{ "error": "name: Too small: …" }`) for an invalid body or a widget that does not fit its rows; 404 for an unknown board or widget; 409 at a limit ("A board holds at most 24 widgets. Remove one and try again."); 413 for a body over the limit; 429 from the rate limit or the daily budget.
+- **Write limits.** Writes follow the same-origin rule above, a rate limit of 60 changes per minute per client, and the daily `board_write` budget (600 per UTC day for all visitors). Reads are not limited. A body with the wrong shape is refused before it counts against the budget.
+- **Sample boards.** The first request seeds three boards from the database, so the page is never empty: `portfolio` ("Portfolio overview", 5 widgets), `dubai-business-bay` (4) and `amsterdam-web` (4). Their widgets are built by the same data tools Kassandra uses, with periods relative to the business date at the time of seeding; their `sourceCallId` starts with `seed:` and `question` is the question that gives the same view in Kassandra. That first request takes a few seconds. A sample board that is deleted stays deleted.
+- **`sourceCallId` on a board** names the tool call in the conversation the widget came from. It is kept for reference only: the board has its own copy of the rows.
+
+### "Describe a view"
+
+The person describes what a board should show; Kassandra answers with widgets, and the client adds them to the board.
+
+1. Ask Kassandra with the text `Build a board view: <the description>` (Thinker mode). Use the chat socket, so the person sees the steps, or `POST /api/kassandra/ask`, whose answer has `widgets`. It counts as one question.
+2. For that prefix Kassandra returns 2 to 4 widgets (a headline number or ranking, a trend, a breakdown) and one or two sentences that name what the view shows. A hotel scope on the question applies as to any other question.
+3. For each `widget` of the answer, `POST /api/boards/:id/widgets` with `{ spec, rows, columns, evidence, question: <the description> }`. Keep the returned ids for the receipt and its Undo (`DELETE` each).
+4. If the answer has no widget (the data cannot show what was asked), show its text.
+
+The description is the person's own text; send it only on their action, like any question.
 
 ## Morning brief
 

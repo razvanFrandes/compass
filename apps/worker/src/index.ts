@@ -8,8 +8,10 @@ import type { BudgetKind } from './domain/budget.ts';
 import { openPostgres } from './infrastructure/postgres.ts';
 import { sonioxMinter } from './infrastructure/soniox.ts';
 import { WorkersAiEmbedder } from './infrastructure/workers-ai-embedder.ts';
+import { BOARDS_NAME } from './presentation/boards.ts';
 import { BUDGET_NAME } from './presentation/budget.ts';
 import { hasAdminKey } from './presentation/http/admin.ts';
+import { boardRoutes, isBoardsPath, type BoardsApi } from './presentation/http/board-routes.ts';
 import { MAX_MCP_BYTES, readJson, withBodyLimit } from './presentation/http/body.ts';
 import { budgetExceeded } from './presentation/http/budget-response.ts';
 import { groupHotels, HOTELS_UNAVAILABLE, scopeFor } from './presentation/hotels.ts';
@@ -23,6 +25,7 @@ import { createCompassMcpServer } from './presentation/mcp/server.ts';
 import type { Env } from './env.ts';
 
 export { Kassandra } from './presentation/agents/kassandra.ts';
+export { Boards } from './presentation/boards.ts';
 export { Briefs } from './presentation/briefs.ts';
 export { WorkflowAgents } from './presentation/agents/workflow-agents.ts';
 export { Budget } from './presentation/budget.ts';
@@ -176,7 +179,8 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     if (spent) return spent;
     const conversation = typeof body?.conversation === 'string' && /^[\w-]{1,64}$/.test(body.conversation) ? body.conversation : crypto.randomUUID();
     const mode = body?.mode === 'quick' ? 'quick' : 'thinker';
-    const answer = await env.KASSANDRA.getByName(conversation).ask(question, mode, undefined, scope.value);
+    // `as object`: the RPC stub's type cannot describe the widgets' rows (unknown values), so the answer is not spreadable as typed.
+    const answer = (await env.KASSANDRA.getByName(conversation).ask(question, mode, undefined, scope.value)) as object;
     return Response.json({ conversation, ...answer, scope: scope.value.map((hotel) => hotel.code) });
   }
 
@@ -221,6 +225,17 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   }
 
   if (target === 'workflows') return workflowRoutes(request, url, env);
+
+  if (isBoardsPath(url.pathname)) {
+    // Boards: one object for the group. A change spends no model tokens, but it is stored state anyone can write, so
+    // it is rate-limited per client and counted against a daily budget of its own.
+    return boardRoutes(request, url, {
+      // The RPC stub's type cannot describe the widgets' rows (unknown values); the methods are the object's own.
+      boards: env.BOARDS.getByName(BOARDS_NAME) as unknown as BoardsApi,
+      rateLimited: () => rateLimited(env.BOARD_RATE_LIMIT, request, 'Too many changes. Wait a minute and try again.'),
+      overBudget: () => overBudget(env, request, 'board_write'),
+    });
+  }
 
   if (url.pathname === '/api/health') {
     return withData(env, ctx, async (data) => Response.json({ ok: true, businessDate: await data.businessDate() }));

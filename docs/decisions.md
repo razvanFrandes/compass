@@ -258,3 +258,27 @@ Built strictly from stages 1 and 2 of `docs/research/reports/Filtre și grafice 
 - **First runs on first use** instead of a deploy hook: the first read of the workflows or the proposals starts the first run of each brief-triggered workflow that never ran, once, from the `workflow_run` budget, never for an email workflow. It gives the Inbox a real proposal without a second cron or a manual step after a deploy.
 - **Voice:** Soniox real-time (`stt-rt-v6`, English and Romanian among its languages) with temporary keys minted by the Worker: single use, 120 s to connect, 180 s of audio, 10 per minute per client and 300 a day. The browser connects straight to Soniox, so audio never passes through the Worker.
 
+## Round 2 backend: widgets in answers and boards on the server (2026-11-20)
+
+**Widgets (`show_widget`)**
+- **The model names data, it does not carry it.** The tool's arguments are a kind, a title, the id of an earlier data tool result (`sourceCallId`) and column keys. The server reads that result from the Pi transcript and copies its rows, columns and evidence into the tool result as `widget`. So a widget cannot show a number that no tool returned.
+- **The model learns the id from the tool result.** Every data result Kassandra reads ends with `Result id: <callId>`. We do not rely on the provider showing tool call ids to the model.
+- **The server checks that the kind fits the rows** (`application/widgets/fit.ts`, one rule per kind): pie and donut only for 2–7 parts of a whole (percentages must add up to 100), line and area only over an ordered x, funnel only over stages that shrink, one row per bar, and so on. A refusal is a sentence that says what to do instead, so the model corrects itself in one turn.
+- **No row filter in the tool.** When a result has the wrong shape (a row per hotel where one row is needed), the model calls the data tool again narrower. That keeps the widget's rows identical to a tool result, with its SQL as evidence.
+- **The spec is normalised by the server:** only the fields the kind uses, and `format` from the column.
+- **Limits:** 200 rows per widget; 4 widgets per answer on the server, 3 in the prompt (a board view may use 4).
+- **Quick mode offers `show_widget`** and takes 5 turns instead of 4: showing a widget is a tool round of its own, and it must not cost the answer.
+- **Column metadata:** a widget uses the columns its data tool names in the evidence (contracts §2). Until every tool does, `application/widgets/columns.ts` reads kinds and labels from key names and values. Only keys with `eur` are money: rates in local currency stay plain numbers.
+
+**Boards**
+- **One `Boards` Durable Object for the group,** like `Briefs` and `WorkflowAgents`. A board's summary and each widget are separate values, so listing boards reads no rows.
+- **A board widget is a copy** (spec, rows, columns, evidence, the question), not a live query. It shows what the answer showed, with its evidence. Refreshing a widget against today's data is not built.
+- **The same fit rules guard the board:** a widget posted to a board is checked like one from `show_widget`.
+- **Sample boards are seeded from the database on first use,** through the catalog tools, with periods relative to the business date: "Portfolio overview", "Dubai Business Bay", "Amsterdam web". A widget whose tool fails is left out; if nothing can be built, seeding is tried again a minute later. A deleted sample board stays deleted.
+- **Writes are public and bounded:** same-origin, 60 per minute per client, a daily `board_write` budget, and hard limits (50 boards, 24 widgets, 200 rows, 256 KB per widget).
+- **"Describe a view" has no endpoint of its own.** The client asks Kassandra with the prefix "Build a board view:" and posts the widgets of the answer to the board. A prompt section makes that prefix return 2–4 widgets and little prose.
+
+**Open**
+- Board widgets trust the client for their rows (contracts §4). A stricter API would take `{ conversation, callId }` and copy the widget on the server.
+- `EvidenceColumn` is defined once, in `packages/contracts/src/evidence.ts`; widgets and boards import it from there.
+

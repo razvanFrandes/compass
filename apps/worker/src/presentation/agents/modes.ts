@@ -22,6 +22,8 @@ export const QUICK_TOOLS = [
   'get_brief',
   'get_pnl',
   'get_forecast',
+  // Not a data tool: it draws a widget from the rows of one of the above (presentation/agents/widgets.ts).
+  'show_widget',
 ] as const;
 
 const QUICK_INSTRUCTIONS =
@@ -36,7 +38,8 @@ export function agentChangeFor(mode: AnswerMode, data: Extension, scope: string 
       model: { provider: 'cloudflare', modelId: QUICK_MODEL },
       thinkingLevel: 'low',
       modelTools: tools.filter((t) => (QUICK_TOOLS as readonly string[]).includes(t.name)),
-      maxTurns: 4,
+      // One more than a Quick answer needed before widgets: showing one is a tool round of its own.
+      maxTurns: 5,
       instructions: scope ? `${QUICK_INSTRUCTIONS}\n\n${scope}` : QUICK_INSTRUCTIONS,
     };
   }
