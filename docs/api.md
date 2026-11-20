@@ -7,10 +7,32 @@ Base URL: `https://juyo.razvanfrandes.com`. Locally, `wrangler dev` in `apps/wor
 - **Same origin.** `POST`, `PATCH`, `PUT` and `DELETE` under `/api/` are refused (403) when `Origin` is another site. CORS is allowed only for the Angular dev server (`http://localhost:4200`), and never on `/mcp`.
 - **Body size.** JSON bodies are at most 16 KB (413). Invalid JSON gets 400.
 - **Errors** are `{ "error": "…" }`. A 500 never carries internals.
-- **Daily budget.** Questions, workflow runs, decisions and brief refreshes are counted per UTC day for all visitors together. Over the limit: 429 with `{ error, resetsAt }` and `Retry-After`. Show `error` as is. See `docs/security.md`.
-- **`GET /api/budget`** returns today's usage: `{ question: { used, limit }, workflow_run: …, decision: …, brief_refresh: …, embedding: … }`. `embedding` counts `find_reviews` calls made through `/mcp`.
+- **Daily budget.** Questions, workflow runs, decisions, brief refreshes and voice dictations are counted per UTC day for all visitors together. Over the limit: 429 with `{ error, resetsAt }` and `Retry-After`. Show `error` as is. See `docs/security.md`.
+- **`GET /api/budget`** returns today's usage: `{ question: { used, limit }, workflow_run: …, decision: …, brief_refresh: …, embedding: …, voice: … }`. `embedding` counts `find_reviews` calls made through `/mcp`; `voice` counts the temporary keys of `POST /api/voice/token`.
 
 The types live in `packages/contracts` (`@compass/contracts`). Import them instead of redefining them.
+
+## Hotels and scope
+
+**`GET /api/hotels`** returns the group's hotels, `HotelRef[]` (`@compass/contracts` hotels.ts), for the scope switcher and the hotel pickers:
+
+```json
+[{ "code": "LIS", "name": "Arbor Lisbon Chiado", "city": "Lisbon", "country": "PT", "region": "Europe", "brand": "Arbor", "rooms": 150 }]
+```
+
+- 20 hotels, ordered by region, then code. `country` is the ISO code as the database has it. Codes are 3–4 characters (`LIS`, `DXB1`, `LON2`).
+- Read from the database and kept in the Worker's memory for 10 minutes; the answer carries `Cache-Control: public, max-age=300`. If the database cannot be read and nothing is in memory: 503 `{ error }`.
+
+**Scope.** A question may carry the hotels the person works on: `scope: { hotels: ["LIS", "AMS"] }` on `ask` (Kassandra socket and builder socket) and on `POST /api/kassandra/ask`. No scope, an empty list, or every hotel of the group is the whole group.
+
+- **Checked on the server.** Codes are matched against the hotel list (letter case and spaces do not matter). A code the group does not have, more than 50 codes, or another shape is refused before the question takes from the budget: an `error` message on a socket, 400 on HTTP ("The scope names a hotel the group does not have: XXX.").
+- **In the prompt.** The conversation's instructions say "You are answering for: Arbor Lisbon Chiado (LIS), Arbor Amsterdam Centraal (AMS)." with names from the hotel list, never from the client.
+- **On every data tool.** A call's `hotels` are cut down to the scope; a call without `hotels` reads the scope; a call only for hotels outside it fails with a message the model reads ("PAR is outside the hotels you are answering for (LIS, AMS). Use only those hotels."). `list_hotels` and `get_brief` return only the scope's rows. `run_readonly_query` must return a `hotel_code` column and keeps only the scope's rows. `list_metrics` and `get_schema` are unchanged.
+- **In the evidence.** A scoped result has a note `Scope: only LIS, AMS.` (plus `Left out, outside the scope: PAR.` when the call asked for more), in `evidence.notes` and in the text the model reads.
+- **Roll-ups.** With `by: region | brand | group`, a row is the roll-up of the scope's hotels only, under the region's, brand's or group's name. The scope note says so.
+- **When it applies.** The scope goes with a question. A question sent while an answer is running keeps the scope (and mode) of that answer, like `mode`. `steer` has no scope.
+- **Not access control.** There is no login: the scope is the person's working mode, not a permission. The public `/mcp` server has no scope.
+- **The brief** is not scoped on the server: filter `GET /api/brief` by `hotel_code` on the client.
 
 ## Kassandra chat: WebSocket
 
@@ -38,7 +60,7 @@ wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=<id>
   - `stopReason: 'stop'` is the final answer, in Markdown.
 - `tool_result` — `{ callId, name, isError, error?, rows?, evidence?, sent? }`
   - `rows` and `evidence` feed widgets and the "How this was computed" panel.
-  - `evidence` holds: `sources`, `definitions`, `period`, `sql`, `params`, `businessDate`, `notes`.
+  - `evidence` holds: `sources`, `definitions`, `period`, `sql`, `params`, `businessDate`, `notes`, and what the panel needs to show the rows: `title`, `columns`, `sourceLabels` (see "Evidence: titles and columns").
   - `sent` is on `send_email` results only (workflow run logs): whether a mail went out. It is `false` when a limit refused it or there was nothing to report.
 - `event` — our own labelled inputs (e.g. `app.approval`, the builder's `app.edit`), `{ type, data }`.
 
@@ -56,12 +78,13 @@ wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=<id>
 ### Client → server (`ChatClientMessage`)
 
 ```json
-{ "type": "ask", "text": "Why is Lisbon pacing behind?", "id": "q-123", "mode": "thinker" }
+{ "type": "ask", "text": "Why is Lisbon pacing behind?", "id": "q-123", "mode": "thinker", "scope": { "hotels": ["LIS"] } }
 { "type": "steer", "text": "Use the last 30 days instead" }
 { "type": "abort" }
 ```
 
 - **`ask`:** pass an `id` so a resend after a dropped connection is not asked twice. Sent while busy, it is queued as a follow-up.
+- **`scope`** (optional): the hotels the answer is for. See "Hotels and scope". Send it with every question while a scope is selected; a question without it is for the whole group.
 - **`mode`** (the Quick / Thinker selector in the composer):
   - **`quick`:** Claude Haiku 5.5, only the governed-metric tools (plus `get_pnl` and `get_forecast`), at most 4 turns, three sentences. About 5–9 s and a few cents.
   - **`thinker`** (default): Claude Sonnet 5.5, all 24 data tools, cross-source diagnosis. About 8–20 s.
@@ -85,13 +108,49 @@ Open a new socket with the same `conversation`. You get a fresh `snapshot`; merg
 
 ## Kassandra: one-shot HTTP (scripts, evals)
 
-`POST /api/kassandra/ask` with body `{ "conversation"?: string, "question": string, "mode"?: "quick" | "thinker" }` returns:
+`POST /api/kassandra/ask` with body `{ "conversation"?: string, "question": string, "mode"?: "quick" | "thinker", "scope"?: { "hotels": string[] } }` returns:
 
 ```json
-{ "conversation": "…", "status": "done" | "unanswered", "text": "…", "reason": null, "durationMs": 7379, "mode": "thinker" }
+{ "conversation": "…", "status": "done" | "unanswered", "text": "…", "reason": null, "durationMs": 7379, "mode": "thinker", "scope": ["AMS", "LIS"] }
 ```
 
-It waits for the whole answer, with no streaming. Use the WebSocket in the UI.
+It waits for the whole answer, with no streaming. Use the WebSocket in the UI. `scope` in the answer is the scope that was applied (hotel codes; empty for the whole group). An invalid scope gets 400.
+
+## Evidence: titles and columns
+
+Every data tool's `evidence` says how to show its rows, so the panel never guesses from property names (`@compass/contracts` evidence.ts):
+
+```json
+{ "title": "Pace vs last year",
+  "columns": [
+    { "key": "hotel_code", "label": "Hotel", "kind": "hotel" },
+    { "key": "rooms_otb", "label": "On the books", "kind": "count", "unit": "room nights" },
+    { "key": "pace_pct", "label": "Pace vs last year", "kind": "percent" },
+    { "key": "revenue_otb", "label": "Revenue on the books", "kind": "currency", "unit": "local currency" } ],
+  "sourceLabels": { "hotel.pace_vs_stly()": "Pace against the same time last year" } }
+```
+
+- **`title`:** the tool's card title. It follows the call where a tool can show different things: `get_metric` → "Occupancy", "ADR vs last year"; `get_mix` → "Business mix by channel type"; `get_pnl` → "Profit and loss by line".
+- **`columns`:** one entry per row property, in display order. A column never names a property the rows do not have, and every property has a column (a test runs every tool against the database for this).
+
+| `kind` | The value | Show |
+|---|---|---|
+| `hotel` | a hotel code | the hotel's name from `GET /api/hotels` |
+| `text` | a string; sometimes a boolean (`favourable`) or an object (`facts`, `mentions_by_hotel`, both hidden) | as it is |
+| `date` | `YYYY-MM-DD` (`last_sync_at` is `YYYY-MM-DD HH:MM`) | a date; the label says what it is ("Week starting", "Period from") |
+| `month` | the first day of a month, `YYYY-MM-01` | "Oct 2026" |
+| `number` | a number that is not a count | with its decimals and `unit` ("index", "pts", "out of 10", "hours", "sqm") |
+| `percent` | a percentage already in percent: `81.2` means 81.2% | with a `%` sign |
+| `currency` | an amount | `unit` is `EUR`, or `local currency` where the tool returns the hotel's own currency |
+| `count` | a whole number | grouped thousands; `unit` such as "room nights" |
+| `id` | an identifier | hidden |
+
+- **`hidden: true`** marks plumbing (ids, internal kinds, raw objects): leave it out of the table by default.
+- **`pickup_pct`** of `get_pickup` is a share between 0 and 1 (`0.031` is 3.1% of capacity), not a percentage. Its column is `number` with the unit "of capacity (1 = all rooms)". Multiply by 100 to show it as a percentage.
+- **`change`** of `get_metric` with `compare: "stly"` is in the metric's own unit; for a percentage metric it is in points (`kind: "number"`, `unit: "pts"`).
+- **`sourceLabels`:** a human name for each entry of `sources` ("Daily hotel performance" for `hotel.v_hotel_day`). Show the label; keep the id for the SQL view.
+- **`run_readonly_query`:** the columns are inferred from the property names and the values (`hotel_code` → `hotel`, `…_eur` → `currency` in EUR, `…_pct` → `percent`, `…_id` → hidden `id`, ISO dates → `date`, whole numbers → `count`). The labels are the property names in words ("Room revenue"). Treat them as a best guess.
+- **`list_metrics`** now has an `evidence` too (title "Governed metrics"). `get_schema` returns no rows and has none.
 
 ## Morning brief
 
@@ -115,6 +174,8 @@ Agents that watch the numbers, propose an action and act once a person approves.
 | POST | `/api/workflows` | Create from a `WorkflowSpec` (e.g. a Kassandra draft). Returns `Workflow`. At most 30 **enabled** workflows: a create (or a PATCH that turns one on) beyond that gets 409 "The demo runs at most 30 active workflows. Turn one off and try again." Workflows that are off do not count. At 100 stored workflows, a create deletes the oldest one that is off and was not a template. |
 | GET | `/api/workflows/:id` | `{ workflow, runs, proposals }` |
 | PATCH | `/api/workflows/:id` | Change fields, e.g. `{ "enabled": false }` or `{ "autonomy": "suggest" }`. The recipient of an email workflow cannot be changed (400). |
+| POST | `/api/workflows/:id/duplicate` | A copy as a new `Workflow`: `createdBy: "user"`, `enabled: false`, the name with " (copy)" (cut to 80 characters), no runs and no emails counted. An email workflow's copy keeps the recipient (masked in the answer). 404 for an unknown id. |
+| DELETE | `/api/workflows/:id` | 204. The workflow is gone; its runs, proposals and audit entries stay, each with `deletedWorkflowName`. 409 while a run of it is in progress or a proposal of it waits for a decision: decide it first. 404 for an unknown id. |
 | POST | `/api/workflows/:id/run` | Run now ("Run now" button). Returns `WorkflowRun`. Rate-limited and budgeted. 409 while the workflow has a run in progress. |
 | GET | `/api/runs/:runId` | `{ run, entries: ChatEntry[] }`: the run's log, projected like the chat. |
 | GET | `/api/proposals?status=pending` | The approval inbox: `Proposal[]` with `change: { before, after, scope }`, `rationale`, `impact_eur`, `risk`. |
@@ -131,6 +192,10 @@ Agents that watch the numbers, propose an action and act once a person approves.
 
 **Run status:** `running → waiting_approval → running → done | failed`. Poll `/api/runs/:id` or `/api/proposals?status=pending` every few seconds. A run that stopped without being recorded (a deploy in the middle of it) is settled the next time it is read or its workflow is run: after 15 minutes with no live session it becomes `failed`.
 
+**After a delete:** `GET /api/proposals`, `GET /api/audit` and `GET /api/runs/:runId` still return what the workflow did. `workflowId` no longer resolves (`GET /api/workflows/:id` is 404), so show `deletedWorkflowName` ("Event pricing watch") in its place. The five templates are created once: deleting them all leaves an empty list.
+
+**First runs.** The first time the workflows or the proposals are read, each enabled workflow that waits for a brief finding, has never run and has its finding in today's brief runs once, in the background. So the approval inbox has a real pending proposal (Dubai Business Bay's event nights priced under the market) without waiting for the 05:00 cron: poll `GET /api/proposals?status=pending`. In a local run the proposal was there about 15 seconds after that first read; allow up to a minute. It happens once. Email workflows are never started this way, at most five runs start, and each takes from the daily `workflow_run` budget; if that is spent the rest waits (retried at most every 10 minutes).
+
 **From chat:** Kassandra's `draft_workflow` tool returns a `tool_result` entry with `draft: WorkflowSpec`. Show it as an editable card; **Save** sends it to `POST /api/workflows`.
 
 **Schedule:** every morning at 05:00 UTC the cron regenerates the brief, then runs the enabled workflows whose trigger matches a brief finding for their hotels, plus the scheduled ones that are due. A daily workflow (`every: 'day'`) is due every morning. A weekly one (`every: 'week'`) first runs at the first 05:00 UTC cron after it was created, then again when 7 days have passed since its last run. The check allows 12 hours of tolerance (6.5 days), so a cron that fires a few seconds early does not push the week to 8 days. "Last run" is the latest run that was not a test, whoever started it and however it ended: a run that failed and a run that found nothing to send both count, so the workflow then waits a week.
@@ -139,6 +204,7 @@ Agents that watch the numbers, propose an action and act once a person approves.
 
 ```
 wss://juyo.razvanfrandes.com/api/workflows/builder/ws?draft=<id>
+wss://juyo.razvanfrandes.com/api/workflows/builder/ws?draft=<new id>&workflow=<workflow id>     (edit a saved workflow)
 ```
 
 Kassandra builds a workflow with the person. The chat is on one side and the workflow, as a chain of nodes, on the other. The agent fills in one node per tool call; the person can also edit a node by hand.
@@ -147,7 +213,18 @@ Kassandra builds a workflow with the person. The chat is on one side and the wor
 - **Keep the id private.** The id is the only key to the draft: whoever has it sees the conversation and the draft, including the email address in full. That is accepted because the holder is the person who typed the address, and a random UUID cannot be guessed. Never use a short or predictable id, and do not list or share draft ids.
 - **Origins:** as the Kassandra socket.
 - **Chat:** the socket speaks the Kassandra protocol above (`snapshot`, `entries`, `live`, `error`; `ask`, `steer`, `abort`), so the chat UI is reused. `snapshot.conversation` is the draft id. `ask` takes no `mode`: the builder always uses Claude Sonnet 5.5.
+- **Scope:** `ask` takes the same `scope` as Kassandra's. The data tools then read only those hotels, and the agent sets those hotels on a new workflow unless the person names others.
 - **Types:** `BuilderServerMessage`, `BuilderClientMessage`, `WorkflowDraft`, `WorkflowGraph`, `specToGraph` in `@compass/contracts`.
+
+### Editing a saved workflow
+
+"Edit" on a workflow opens the builder with a **new** draft id and `&workflow=<id>` (1–64 letters, digits, `-` or `_`; 400 otherwise).
+
+- The server loads the workflow into the draft and binds the draft to it: the first `draft` message has the whole chain, `workflowId` set to that workflow, and no `issues`.
+- **Save** then updates that workflow. If the person types another address, the save creates a new workflow and turns the old one off, as for any draft.
+- **The address stays on the server.** The draft holds the real recipient, but `draft.delivery.to` reads masked (`si****@gmail.com`) for as long as it is the saved one. An address the person types in this draft shows in full. To keep the address, leave `delivery` out of an `edit`, or send the masked one back: the server reads it as the saved address.
+- The transcript gets one `event` entry, `app.loaded`, with `data: { name, chain }`, so the agent knows what is on the canvas. Show it like `app.edit` or leave it out.
+- `&workflow=` only loads into an empty draft. Reconnecting with the same URL keeps the draft as the person left it. If the workflow is gone, the draft stays empty and you get an `error` message ("That workflow no longer exists.").
 
 ### Server → client, on top of the chat messages
 
@@ -214,6 +291,25 @@ A run walks the chain: `trigger` and `scope` are done at once; a check is active
 - **Lifetime:** a scheduled email workflow turns itself off after 7 days or 5 emails, whichever comes first. The last mail says so, also when the 7 days will be over before the workflow's next run. The next run is the next 05:00 UTC cron for a daily workflow and for one on a brief finding, also when a person started this run. For a weekly workflow it is the first 05:00 UTC cron at least 6.5 days after this run started: 7 days after a morning run, up to 8 after a run started later in the day. So a weekly email workflow that nobody runs by hand sends one mail, the morning after it was created, and that mail says it is the last: the next weekly run would fall after the 7 days. When a person runs it first, the cron's run about a week later can still fall inside the 7 days, and then that one is the last. Test runs are not counted, only the hourly and daily limits.
 - **"Explore in Kassandra"** in the mail links to `https://juyo.razvanfrandes.com/ask?q=<question, URL-encoded>`. This is a contract for the app: the route `/ask` must open Kassandra and **pre-fill** the composer with the question from `q`. It must not send it: the person reads the question and presses send. (Anyone can make such a link, so opening one must never spend a question or act on its own.)
 
+## Voice input (Soniox)
+
+**`POST /api/voice/token`** (no body) returns a `VoiceToken` (`@compass/contracts` voice.ts) for one dictation:
+
+```json
+{ "apiKey": "snx_temp_…", "expiresAt": "2026-11-21T10:02:00.000Z", "model": "stt-rt-v6", "wsUrl": "wss://stt-rt.soniox.com/transcribe-websocket" }
+```
+
+- **The key** is a temporary Soniox key: single use (one connection), to be used before `expiresAt` (120 seconds), for at most 180 seconds of audio. Ask for one when the person presses the microphone, after the browser has granted it. Never store it. The answer is `Cache-Control: no-store`.
+- **Limits:** 10 per minute per client (429 `{ error }`), and the daily `voice` budget of 300 for all visitors (429 with `resetsAt`).
+- **Not available:** 503 `{ "error": "Voice input is not available right now. Type your question instead." }` when the Worker has no Soniox key or Soniox refuses. Fall back to Web Speech, or hide the microphone.
+- **Using it** (Soniox's real-time API, as documented on 2026-11-20):
+  1. `new WebSocket(wsUrl, ['soniox-api-key', apiKey])`. The key goes in the subprotocol list; do not put it in the first message (`api_key` there is deprecated).
+  2. Send one JSON text message: `{ "model": model, "audio_format": "auto", "language_hints": ["en", "ro"], "enable_language_identification": true, "enable_endpoint_detection": true }`.
+  3. Send the microphone audio as binary frames (`MediaRecorder` chunks). `auto` detects webm and ogg among others; Soniox's list does not name mp4, which Safari records, so test Safari or send raw PCM (a raw format needs `sample_rate` and `num_channels`; see Soniox's audio formats).
+  4. Read `{ "tokens": [{ "text", "is_final", … }] }` messages: show the non-final tokens as the live tail and append the final ones to the composer.
+  5. End with an empty text frame (`ws.send('')`) and wait for `{ "finished": true }`. An error arrives as `{ "error_code", "error_type", "error_message" }` and the socket closes.
+- **Content Security Policy:** the app's `connect-src` (`apps/web/public/_headers`) must allow `wss://stt-rt.soniox.com`, or the browser refuses the socket.
+
 ## MCP (public, read-only)
 
 `https://juyo.razvanfrandes.com/mcp` (Streamable HTTP) exposes 24 data tools. Kassandra uses the same tools.
@@ -226,7 +322,7 @@ A run walks the chain: `trigger` and `scope` are done at once; a check is active
 
 Connect Claude Desktop to it under Settings → Connectors → Add custom connector. Rate limit: 60 requests per minute per client. Bodies at most 64 KB. Browser requests from other origins get 403, and responses carry no CORS headers: MCP clients are not browsers.
 
-Tools that return outside free text (`find_reviews`, `search_reviews`, `get_account_production`, `get_brief`, `run_readonly_query`) wrap their rows in `<untrusted_data>` in the text content. `structuredContent` is not wrapped.
+Tools that return outside free text (`find_reviews`, `search_reviews`, `get_account_production`, `get_brief`, `run_readonly_query`) wrap their rows in `<untrusted_data>` in the text content. `structuredContent` is not wrapped. Its `evidence` has the `title`, `columns` and `sourceLabels` described under "Evidence: titles and columns". The MCP server has no hotel scope.
 
 - **Text cap.** The text content holds at most 60 rows and at most 50,000 characters of rows, then ends the rows with `… N more rows not shown.` `structuredContent` keeps every row.
 - **Errors.** A failed call has `isError: true`. Only `run_readonly_query` returns the database's error text, with a hint to fix the query, and only for SQL errors (syntax, missing column, timeout). A connection failure there, and any database failure in another tool, answers `The data source failed to answer. Try again in a moment, or use another tool.`
