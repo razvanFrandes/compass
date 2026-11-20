@@ -4,7 +4,7 @@ import { admitWorkflow, mayEnable, MAX_STORED_WORKFLOWS, MAX_WORKFLOWS } from '.
 import { DurableWorkflowStore } from '../src/infrastructure/do-workflow-store.ts';
 import { FakeStorage } from './fixtures/fake-storage.ts';
 
-const FULL = 'The demo runs at most 30 active workflows. Turn one off and try again.';
+const FULL = 'The demo runs at most 30 agents at a time. Pause one and try again.';
 
 const workflow = (n: number, over: Partial<Workflow> = {}): Workflow => ({
   id: `wf-${n}`, name: `Workflow ${n}`, description: '', hotels: ['ALL'], trigger: { kind: 'manual' },

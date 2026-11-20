@@ -286,13 +286,13 @@ interface Cell {
           }
           @if (hiddenCount()) {
             <button type="button" class="text-foreground/90 hover:text-foreground rounded-[4px] underline decoration-(--input) underline-offset-[3px] outline-none transition-colors hover:decoration-current focus-visible:ring-2 focus-visible:ring-(--ring) ml-auto" [attr.aria-pressed]="showHidden()" (click)="showHidden.set(!showHidden())">
-              {{ showHidden() ? 'Hide internal columns' : hiddenText() }}
+              {{ showHidden() ? 'Show fewer columns' : hiddenText() }}
             </button>
           }
         </div>
       }
     } @else {
-      <p class="text-muted-foreground text-[12.5px]">No rows came back for this step.</p>
+      <p class="text-muted-foreground text-[12.5px]">Nothing came back for this. Try a wider period or more hotels.</p>
     }
   `,
 })
@@ -329,7 +329,7 @@ export class DataTable {
     // When every column is internal, they are all shown already and there is nothing to toggle.
     return hidden < this.all().length ? hidden : 0;
   });
-  protected readonly hiddenText = computed(() => `Show ${this.hiddenCount()} internal ${this.hiddenCount() === 1 ? 'column' : 'columns'}`);
+  protected readonly hiddenText = computed(() => `Show ${this.hiddenCount()} more ${this.hiddenCount() === 1 ? 'column' : 'columns'}`);
   protected readonly total = computed(() => formatNumber(this.rows().length, 0));
   protected readonly canExpand = computed(() => this.rows().length > this.pageSize());
 

@@ -121,7 +121,7 @@ function withView(name: string, args: Record<string, unknown>, outcome: ToolOutc
  */
 function withScopeNote(outcome: ToolOutcome, scope: readonly string[], outside: readonly string[]): ToolOutcome {
   if (!outcome.ok) return outcome;
-  const note = `Scope: only ${scope.join(', ')}.${outside.length ? ` Left out, outside the scope: ${outside.join(', ')}.` : ''}`;
+  const note = `Limited to the hotels selected: ${scope.join(', ')}.${outside.length ? ` Left out, not among them: ${outside.join(', ')}.` : ''}`;
   const evidence = (outcome.structured as { evidence?: Evidence }).evidence;
   return {
     ...outcome,
@@ -165,7 +165,7 @@ export const DATA_TOOLS = [
   }),
   tool({
     name: 'list_metrics',
-    description: 'List the governed metrics get_metric can compute, with their definitions and units.',
+    description: 'List the metrics get_metric can compute, with their fixed definitions and units.',
     input: z.object({}),
     run: async (data) => {
       const { rows } = data.listMetrics();
@@ -177,7 +177,7 @@ export const DATA_TOOLS = [
         params: [],
         rowCount: rows.length,
         businessDate: await data.businessDate(),
-        notes: ['The catalog is part of Compass, not a query: each definition is fixed and every ratio is computed from sums.'],
+        notes: ['These definitions are fixed in Compass. Every ratio is computed from sums, never from an average of ratios.'],
       };
       return { ok: true, text: JSON.stringify(rows), structured: { rows, evidence } };
     },
@@ -185,7 +185,7 @@ export const DATA_TOOLS = [
   tool({
     name: 'get_metric',
     description:
-      'A governed hotel metric (occupancy, ADR, RevPAR, room revenue, rooms sold, MPI, ARI, RGI) per period, per hotel or ' +
+      'A hotel metric with a fixed definition (occupancy, ADR, RevPAR, room revenue, rooms sold, MPI, ARI, RGI) per period, per hotel or ' +
       'rolled up by region, brand or the whole group, optionally against the same time last year. Ratios are computed from ' +
       'sums; money is in EUR. MPI, ARI and RGI are per hotel only.',
     input: z.object({

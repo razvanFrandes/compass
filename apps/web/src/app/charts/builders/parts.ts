@@ -34,11 +34,11 @@ export const PIE_MAX = 7;
 
 function pieLike(c: Ctx, donut: boolean): Built {
   const { parts: ps, col, labelKey } = parts(c);
-  if (!ps.length) return empty(c, 'No data to plot for this period.');
+  if (!ps.length) return empty(c, 'No data for this period.');
   const name = donut ? 'donut' : 'pie';
   // A pie only reads for a few parts of one whole; anything else is honest as bars.
   if (ps.length < PIE_MIN || ps.length > PIE_MAX || ps.some((p) => p.value < 0)) {
-    const why = ps.some((p) => p.value < 0) ? `A ${name} can't show negative parts` : ps.length > PIE_MAX ? `${ps.length} parts are too many for a ${name} (it reads for ${PIE_MIN} to ${PIE_MAX})` : `A ${name} needs at least ${PIE_MIN} parts`;
+    const why = ps.some((p) => p.value < 0) ? `A ${name} can’t show negative parts` : ps.length > PIE_MAX ? `${ps.length} parts are too many for a ${name} (it works for ${PIE_MIN} to ${PIE_MAX})` : `A ${name} needs at least ${PIE_MIN} parts`;
     return buildBar({ ...c, spec: { ...c.spec, kind: 'bar', x: labelKey, group: undefined, compare: undefined } }, `${why}, so this is shown as bars.`);
   }
   const total = ps.reduce((s, p) => s + p.value, 0);
@@ -163,12 +163,12 @@ export function buildFunnel(c: Ctx): Built {
 export function buildTreemap(c: Ctx): Built {
   const yKey = pickValueKey(c);
   const leafKey = pickLabelKey(c, c.spec.x, c.spec.group);
-  if (!yKey || !leafKey || !c.rows.length) return empty(c, 'No data to plot for this period.');
+  if (!yKey || !leafKey || !c.rows.length) return empty(c, 'No data for this period.');
   const col = valueColumn(c, yKey);
   const leafCol = column(c, leafKey);
   const parentKey = c.spec.group && c.spec.x && c.spec.group !== c.spec.x ? c.spec.group : null;
   const leaves = c.rows.map((r) => ({ name: label(cell(r, leafKey), leafCol), parent: parentKey ? String(cell(r, parentKey) ?? '') : '', value: Math.max(0, numberAt(r, yKey) ?? 0) })).filter((l) => l.value > 0);
-  if (!leaves.length) return empty(c, 'No data to plot for this period.');
+  if (!leaves.length) return empty(c, 'No data for this period.');
   const total = leaves.reduce((s, l) => s + l.value, 0);
   const max = Math.max(...leaves.map((l) => l.value));
   const parents = distinct(leaves.map((l) => l.parent));
@@ -251,7 +251,7 @@ export function buildSankey(c: Ctx): Built {
   const targetKey = c.spec.group;
   const yKey = pickValueKey(c);
   const table = tableModel(c, specKeys(c.spec));
-  if (!sourceKey || !targetKey || !yKey) return { ...empty(c, 'A flow needs a source column (x), a target column (group) and a value (y).'), table };
+  if (!sourceKey || !targetKey || !yKey) return { ...empty(c, 'This flow can’t be drawn: it needs a from, a to and a value. Ask Kassandra for it again.'), table };
   const col = valueColumn(c, yKey);
   const flows: Flow[] = [];
   for (const r of c.rows) {

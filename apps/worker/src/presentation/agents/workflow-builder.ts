@@ -189,7 +189,7 @@ export class WorkflowBuilder extends DurableObject<Env> {
     return this.#inTurn(async () => {
       if ((await this.#workflowId()) !== null || Object.keys(await this.#draft()).length > 0) return null;
       const workflow = await this.env.WORKFLOWS.getByName('halcyon').loadForBuilder(workflowId);
-      if ('error' in workflow) return workflow.status === 404 ? 'That workflow no longer exists.' : workflow.error;
+      if ('error' in workflow) return workflow.status === 404 ? 'That agent no longer exists.' : workflow.error;
       const draft = draftOfWorkflow(workflow as Workflow);
       await this.ctx.storage.put({ draft, workflowId, saved: draft, ...(draft.delivery ? { loaded: draft.delivery.to } : {}) });
       const conversation = await this.harness.conversation(ROOT_SESSION);
@@ -239,10 +239,10 @@ export class WorkflowBuilder extends DurableObject<Env> {
       case 'ask':
       case 'steer': {
         const text = typeof message.text === 'string' ? message.text.trim() : '';
-        if (!text || text.length > 2000) throw new PublicError('Send a question of 1–2000 characters.');
+        if (!text || text.length > 2000) throw new PublicError('Write a message of up to 2,000 characters.');
         // Every question spends model tokens: rate-limited per client and counted against the demo's daily budget.
         if (!(await this.env.ASK_RATE_LIMIT.limit({ key: client })).success) {
-          throw new PublicError('Too many questions. Wait a minute and try again.');
+          throw new PublicError('Too many messages. Wait a minute and try again.');
         }
         // A scope that is not valid is refused before the question takes from the budget.
         let scope: ScopeHotel[] | null = null;
@@ -286,7 +286,7 @@ export class WorkflowBuilder extends DurableObject<Env> {
    * free, cannot grow the transcript or the context of the next question.
    */
   async #edit(rawPatch: unknown, client: string): Promise<void> {
-    if (!this.#editLimit.allow(client, Date.now())) throw new PublicError('Too many edits. Wait a minute and try again.');
+    if (!this.#editLimit.allow(client, Date.now())) throw new PublicError('Too many changes. Wait a minute and try again.');
     const sent = clientPatch(rawPatch);
     if (!sent) throw new PublicError('Send { "type": "edit", "patch": { … } } with the fields to change.');
     // A client that sends back the masked address of a workflow it opened means the address it was saved with.
@@ -328,7 +328,7 @@ export class WorkflowBuilder extends DurableObject<Env> {
   async #saveNow(): Promise<{ workflowId: string; draft: WorkflowDraft }> {
     const draft = await this.#draft();
     const issues = draftIssues(draft);
-    if (issues.length) throw new PublicError(`The workflow cannot be saved yet. ${issues.join(' ')}`);
+    if (issues.length) throw new PublicError(`The agent can't be saved yet. ${issues.join(' ')}`);
 
     const agents = this.env.WORKFLOWS.getByName('halcyon');
     const current = await this.#workflowId();
@@ -355,7 +355,7 @@ export class WorkflowBuilder extends DurableObject<Env> {
       const stopped = await agents.update(current, { enabled: false });
       if ('error' in stopped) {
         console.error('workflow builder could not turn off the replaced workflow', current, stopped.error);
-        throw new PublicError(`Saved as a new workflow, but the earlier one (${current}) could not be turned off. Turn it off in the workflow list.`);
+        throw new PublicError('Saved as a new agent, but the earlier one could not be paused. Pause it in Agent Studio.');
       }
     }
     return { workflowId: workflowId as string, draft };
@@ -381,7 +381,7 @@ export class WorkflowBuilder extends DurableObject<Env> {
         this.#follow(run.id, specToGraph(draft))
           .catch((error: unknown) => {
             console.error('workflow builder could not follow the run', error);
-            this.#broadcast({ type: 'error', message: 'The test run could not be followed. See the workflow for its result.' });
+            this.#broadcast({ type: 'error', message: 'Lost track of the test run. Open the agent in Agent Studio to see its result.' });
           })
           .finally(() => {
             this.#testing = false;
@@ -416,7 +416,7 @@ export class WorkflowBuilder extends DurableObject<Env> {
       if (followEnds(status) || this.#sockets.size === 0) return;
       if (Date.now() >= until) {
         this.#broadcast({ type: 'run', runId, status: 'failed', ...runProgress(log.entries, graph, 'failed') });
-        this.#broadcast({ type: 'error', message: 'The test run is taking too long; check the run log.' });
+        this.#broadcast({ type: 'error', message: 'The test run is taking longer than usual. Open the agent in Agent Studio to read its run log.' });
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, POLL_MS));

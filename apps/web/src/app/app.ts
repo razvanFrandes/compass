@@ -91,7 +91,7 @@ import * as icons from './icons';
             </div>
           </div>
           <button type="button" class="flex items-center gap-2.5 rounded-md px-2 py-1.5" [class]="store.view() === 'theme-lab' ? 'bg-foreground/6 text-foreground font-medium' : 'hover:text-foreground hover:bg-foreground/4'" [attr.aria-current]="store.view() === 'theme-lab' ? 'page' : null" (click)="store.go('theme-lab')"><ng-icon name="phosphorSwatchesLight" class="text-[16px]" />Theme lab</button>
-          <p class="px-2 pt-3 text-[12px]/relaxed">Halcyon Hospitality is a fictional group with generated data. Business date Fri 20 Nov 2026.</p>
+          <p class="px-2 pt-3 text-[12px]/relaxed">Halcyon Hospitality is a fictional group. All figures are generated, as of Fri 20 Nov 2026.</p>
         </div>
       </nav>
 
@@ -132,7 +132,7 @@ import * as icons from './icons';
             @defer (on immediate) {
               <app-theme-lab />
             } @placeholder {
-              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading…</p>
+              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading the theme lab…</p>
             }
           }
           @case ('watcher') {
@@ -140,7 +140,7 @@ import * as icons from './icons';
             @defer (on immediate) {
               <app-watcher-page />
             } @placeholder {
-              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading…</p>
+              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading the agent…</p>
             }
           }
           @case ('catalog') {
@@ -148,7 +148,7 @@ import * as icons from './icons';
             @defer (on immediate) {
               <app-catalog />
             } @placeholder {
-              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading…</p>
+              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading the chart catalogue…</p>
             }
           }
         }
@@ -234,7 +234,7 @@ export function pageTitle(view: View, thread: string, board: string): string {
     case 'builder':
       return 'New agent · Agent Studio · Juyo';
     case 'notfound':
-      return 'Not found · Juyo';
+      return 'Page not found · Juyo';
     case 'orb-lab':
       return 'Kassandra orb · Juyo';
     case 'catalog':

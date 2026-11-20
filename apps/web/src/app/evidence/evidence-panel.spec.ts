@@ -61,9 +61,9 @@ describe('EvidencePanel', () => {
     expect(el.querySelector('h3')!.textContent).toBe('Numbers in this answer');
     const figures = Array.from(el.querySelectorAll('.ev-figure')).map(words);
     expect(figures).toEqual([
-      '−12.3% Pace vs last year Arbor Lisbon Chiado Show the row in Pace vs last year',
-      '2,928 Rooms on the books Arbor Lisbon Chiado Show the row in Pace vs last year',
-      '3,337 Same time last year Arbor Lisbon Chiado Show the row in Pace vs last year',
+      '−12.3% Pace vs last year Arbor Lisbon Chiado Show this figure in Pace vs last year',
+      '2,928 Rooms on the books Arbor Lisbon Chiado Show this figure in Pace vs last year',
+      '3,337 Same time last year Arbor Lisbon Chiado Show this figure in Pace vs last year',
     ]);
   });
 
@@ -75,7 +75,7 @@ describe('EvidencePanel', () => {
 
   it('shows one closed card per tool call, with a human title and no raw names', () => {
     const { el, heads } = render([pace, brief]);
-    expect(heads().map(words)).toEqual(['Pace vs last year Arbor Lisbon Chiado · 1 row', 'The morning brief 1 row']);
+    expect(heads().map(words)).toEqual(['Pace vs last year Arbor Lisbon Chiado · 1 row', 'Morning brief 1 row']);
     expect(heads().every((head) => head.getAttribute('aria-expanded') === 'false')).toBe(true);
     expect(el.querySelector('table')).toBeNull();
     for (const raw of ['get_pace', 'Get pace', '· 45', 'hotel_code', 'hotel.', 'data_stale']) expect(el.textContent).not.toContain(raw);
@@ -145,11 +145,11 @@ describe('EvidencePanel', () => {
     const items = Array.from(el.querySelectorAll('ol > li')).map(words);
     expect(items).toHaveLength(3);
     expect(items[1]).toBe('Forecast Reading the data…');
-    expect(items[2]).toBe('Profit and loss This step failed, so nothing from it is in the answer.');
+    expect(items[2]).toBe('Profit and loss Couldn’t read this, so the answer doesn’t use it. Ask again to retry.');
   });
 
   it('says where evidence will appear when there is none', () => {
     const { el } = render([]);
-    expect(el.textContent).toContain('Numbers in the answer will show where they came from here.');
+    expect(el.textContent).toContain('Each number in the answer shows its source, period and definition here.');
   });
 });

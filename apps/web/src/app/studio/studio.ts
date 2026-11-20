@@ -10,17 +10,32 @@ export type Autonomy = Workflow['autonomy'];
 
 /** Trust is earned in this order: suggest → approve → act alone on low-risk actions. */
 export const AUTONOMY_ORDER: readonly Autonomy[] = ['suggest', 'approve', 'auto_low_risk'];
-export const AUTONOMY_SHORT: Record<Autonomy, string> = { suggest: 'Suggest', approve: 'Approve', auto_low_risk: 'Act alone' };
+export const AUTONOMY_SHORT: Record<Autonomy, string> = { suggest: 'Suggest', approve: 'Ask first', auto_low_risk: 'Act alone' };
 export const AUTONOMY_LONG: Record<Autonomy, string> = {
-  suggest: 'Suggests only',
+  suggest: 'Only suggests',
   approve: 'Acts after you approve',
-  auto_low_risk: 'Acts alone on low-risk actions',
+  auto_low_risk: 'Acts alone on low-risk actions, asks you for the rest',
 };
 /** What a level lets the workflow do, for the confirmation before raising it. */
 export const AUTONOMY_MEANS: Record<Autonomy, string> = {
-  suggest: 'It only records what it would do. Nothing is sent anywhere.',
-  approve: 'It prepares the action and waits. Nothing happens until you approve it in the inbox.',
-  auto_low_risk: 'It creates tasks and notifications on its own. Prices and channels still wait for your approval.',
+  suggest: 'It shows you what it would do and sends nothing.',
+  approve: 'It prepares the action and waits. Nothing happens until you approve it.',
+  auto_low_risk: 'It creates tasks and notifies the team on its own. Prices and channels still wait for your approval.',
+};
+
+/**
+ * What the brief found, after "When the brief finds …". The same words as `FINDING_LABELS` in @compass/contracts,
+ * kept here so the first bundle does not load zod.
+ */
+export const FINDING_LABEL: Record<string, string> = {
+  data_stale: 'a data feed that stopped syncing',
+  pace_behind: 'a hotel behind last year’s pace',
+  underpriced_demand: 'nights priced under the comp set',
+  account_loss: 'an account that stopped booking',
+  web_conversion_drop: 'a drop in website conversion',
+  staffing_gap: 'a staffing gap',
+  rooms_out_of_order: 'rooms out of order',
+  gop_miss: 'GOP under budget',
 };
 
 /** More freedom for the workflow than it has now. Raising asks first; lowering is immediate, with Undo. */
@@ -54,7 +69,7 @@ export const OUTCOME_LABEL: Record<RunOutcome, string> = {
   finding: 'Found something',
   pending: 'Needs your decision',
   failed: 'Couldn’t run',
-  running: 'Running',
+  running: 'Running…',
 };
 
 export interface RunTick {
@@ -80,7 +95,7 @@ export function stripSummary(ticks: readonly RunTick[]): string {
   const count = (outcome: RunOutcome) => runs.filter((tick) => tick.outcome === outcome).length;
   const parts = [
     count('finding') + count('pending') ? `${count('finding') + count('pending')} found something` : '',
-    count('none') ? `${count('none')} found nothing` : '',
+    count('none') ? `${count('none')} had nothing to flag` : '',
     count('failed') ? `${count('failed')} couldn’t run` : '',
     count('running') ? `${count('running')} running now` : '',
   ].filter(Boolean);
@@ -99,7 +114,7 @@ export function studioStatus(workflow: Pick<Workflow, 'lastRun'>, runs: readonly
   if (workflow.lastRun?.status === 'failed') return { tone: 'failed', text: OUTCOME_LABEL.failed };
   if (!workflow.lastRun) return { tone: 'quiet', text: 'Hasn’t run yet' };
   const last = runs.find((run) => run.id === workflow.lastRun?.runId);
-  if (last?.test) return { tone: 'quiet', text: 'Test ran' };
+  if (last?.test) return { tone: 'quiet', text: 'Test run' };
   const outcome = last ? runOutcome(last, proposals, audit) : 'none';
   return outcome === 'finding' ? { tone: 'finding', text: OUTCOME_LABEL.finding } : { tone: 'quiet', text: OUTCOME_LABEL.none };
 }
@@ -184,5 +199,17 @@ export function nextRunText(workflow: Pick<Workflow, 'enabled' | 'trigger' | 'la
   const at = nextRunAt(workflow, runs, now);
   if (at === null) return 'No run scheduled';
   const when = formatWhen(at, now, timeZone);
-  return workflow.trigger.kind === 'brief' ? `Reads the next brief ${when}` : `Next run ${when}`;
+  return workflow.trigger.kind === 'brief' ? `Next run ${when} · after the brief` : `Next run ${when}`;
+}
+
+/**
+ * "Run the workflow now (trigger: manual, test from builder, test run)." → "Started by hand · test run".
+ * Anything else (a question someone typed) is left as it is.
+ */
+export function runStartText(question: string | null): string | null {
+  if (question === null) return null;
+  const match = /^Run the (?:workflow|agent) now \(trigger: (\w+)(.*)\)\.$/.exec(question.trim());
+  if (!match) return question;
+  const how = ({ manual: 'Started by hand', schedule: 'Started on schedule', brief: 'Started after the morning brief' } as Record<string, string>)[match[1]!] ?? 'Started';
+  return /, test run$/.test(match[2] ?? '') ? `${how} · test run` : how;
 }

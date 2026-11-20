@@ -29,7 +29,7 @@ describe('lazySettlement', () => {
     expect(STALE_RUN_MS).toBe(15 * 60_000);
     expect(lazySettlement(run, { live: false }, at('2026-11-20T06:15:00.000Z'))).toBeNull();
     expect(lazySettlement(run, { live: false }, at('2026-11-20T06:15:00.001Z'))).toEqual({
-      status: 'failed', endedAt: '2026-11-20T06:15:00.001Z', summary: 'The run stopped before it finished.',
+      status: 'failed', endedAt: '2026-11-20T06:15:00.001Z', summary: 'The run stopped before it finished. Run the agent again.',
     });
   });
 

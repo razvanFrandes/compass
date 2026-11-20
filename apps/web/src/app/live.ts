@@ -277,7 +277,7 @@ export class Live {
         chips,
         patch,
         said: d.dimension === 'hotel' ? { hotels: `clicked ${d.label}` } : d.dimension === 'channel' ? { channel: `clicked ${d.label}` } : d.dimension === 'segment' ? { segment: `clicked ${d.label}` } : {},
-        note: patch ? undefined : 'A single night isn’t a dashboard preset',
+        note: patch ? undefined : 'The Portfolio board shows periods, not single nights',
       },
       `drill:${question}`,
     );
@@ -334,7 +334,7 @@ export class Live {
     this.refreshing.set(true);
     const r = await this.briefApi.refresh();
     this.refreshing.set(false);
-    if (!r.ok) toast('The brief wasn’t refreshed', { description: r.error.message, duration: 8000 });
+    if (!r.ok) toast('Couldn’t refresh the brief', { description: r.error.message, duration: 8000 });
   }
 
   /* ── Workflow actions (errors are values: the server's text is shown as is) ── */
@@ -342,8 +342,8 @@ export class Live {
     this.mark(w.id, 'Running…');
     const r = await this.workflowsApi.run(w.id);
     this.mark(w.id, null);
-    if (!r.ok) toast(`${w.name} didn’t start`, { description: r.error.message, duration: 8000 });
-    else toast(`${w.name} is running`, { description: 'Its result will show here when it finishes.', duration: 5000 });
+    if (!r.ok) toast(`Couldn’t start ${w.name}`, { description: r.error.message, duration: 8000 });
+    else toast(`${w.name} is running`, { description: 'What it finds will show here when it finishes.', duration: 5000 });
     this.workflows.reload();
     return r;
   }
@@ -351,24 +351,24 @@ export class Live {
     this.mark(w.id, enabled ? 'Turning on…' : 'Pausing…');
     const r = await this.workflowsApi.patch(w.id, { enabled });
     this.mark(w.id, null);
-    if (!r.ok) toast(`${w.name} wasn’t changed`, { description: r.error.message, duration: 8000 });
+    if (!r.ok) toast(`Couldn’t update ${w.name}`, { description: r.error.message, duration: 8000 });
     this.workflows.reload();
     return r;
   }
   async setAutonomy(w: Workflow, autonomy: Workflow['autonomy']) {
     const r = await this.workflowsApi.patch(w.id, { autonomy });
-    if (!r.ok) toast(`${w.name} wasn’t changed`, { description: r.error.message, duration: 8000 });
+    if (!r.ok) toast(`Couldn’t update ${w.name}`, { description: r.error.message, duration: 8000 });
     this.workflows.reload();
     return r;
   }
   async decide(p: Proposal, approved: boolean, note = '') {
-    this.mark(p.id, approved ? 'Approving…' : 'Denying…');
+    this.mark(p.id, approved ? 'Approving…' : 'Declining…');
     const r = await this.workflowsApi.decide(p.id, { approved, by: DECIDER, note });
     this.mark(p.id, null);
-    if (!r.ok) toast('The decision wasn’t saved', { description: r.error.message, duration: 8000 });
+    if (!r.ok) toast('Couldn’t save your decision', { description: r.error.message, duration: 8000 });
     else
-      toast(approved ? 'Approved' : 'Denied', {
-        description: approved ? 'Handed to the revenue manager as an RMS task; it shows in the audit log.' : 'Nothing will be changed.',
+      toast(approved ? 'Approved' : 'Declined', {
+        description: approved ? 'Sent to the revenue manager as a task. It’s in the audit log.' : 'Nothing changes.',
         duration: 6000,
         ...(approved ? { action: { label: 'Undo', onClick: () => void this.undo(p) } } : {}),
       });
@@ -377,8 +377,8 @@ export class Live {
   }
   async undo(p: Proposal) {
     const r = await this.workflowsApi.undo(p.id, DECIDER);
-    if (!r.ok) toast('Undo failed', { description: r.error.message, duration: 8000 });
-    else toast('Undone', { description: 'A compensating RMS task was sent and audited.', duration: 5000 });
+    if (!r.ok) toast('Couldn’t undo the decision', { description: r.error.message, duration: 8000 });
+    else toast('Undone', { description: 'The revenue manager has a task to reverse it. It’s in the audit log.', duration: 5000 });
     this.reloadAll();
     return r;
   }

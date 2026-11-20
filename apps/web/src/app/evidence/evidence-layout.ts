@@ -11,7 +11,7 @@ const DESKTOP = '(min-width: 1024px)';
 
 /**
  * A conversation with its evidence. Whatever is projected (the conversation) takes the first pane. On wide
- * screens "How this was computed" is the second pane, behind a divider that can be dragged, moved with the
+ * screens "Behind the numbers" is the second pane, behind a divider that can be dragged, moved with the
  * keyboard, reset and collapsed. On phones it is a bottom sheet: a modal dialog, so focus stays inside it and Esc
  * or a tap outside closes it.
  *
@@ -84,21 +84,21 @@ const DESKTOP = '(min-width: 1024px)';
       [storageKey]="storageKey()"
       [single]="!desktop()"
       [(collapsed)]="collapsed"
-      label="Resize the conversation and how this was computed"
+      label="Resize the conversation and the Behind the numbers panel"
       startLabel="conversation"
-      endLabel="how this was computed"
+      endLabel="behind the numbers"
     >
       <div paneStart class="flex h-full min-h-0 min-w-0 flex-1 flex-col"><ng-content /></div>
       @if (desktop()) {
-        <aside paneEnd class="flex h-full min-h-0 min-w-0 flex-1 flex-col" aria-label="How this was computed">
+        <aside paneEnd class="flex h-full min-h-0 min-w-0 flex-1 flex-col" aria-label="Behind the numbers">
           <header class="border-border/70 flex h-14 shrink-0 items-center gap-2 border-b pr-3 pl-5">
             <div class="min-w-0 flex-1">
-              <h2 class="truncate text-[14px]/5 font-medium">How this was computed</h2>
+              <h2 class="truncate text-[14px]/5 font-medium">Behind the numbers</h2>
               @if (question(); as q) {
                 <p class="text-muted-foreground truncate text-[12.5px]/[18px]">{{ q }}</p>
               }
             </div>
-            <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground shrink-0" aria-label="Hide how this was computed" title="Hide" (click)="split.collapse()">
+            <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground shrink-0" aria-label="Close Behind the numbers" title="Hide" (click)="split.collapse()">
               <ng-icon name="phosphorSidebarSimpleLight" class="-scale-x-100 text-[18px]" />
             </button>
           </header>
@@ -114,7 +114,7 @@ const DESKTOP = '(min-width: 1024px)';
         <span class="ev-grab" aria-hidden="true"></span>
         <header class="flex shrink-0 items-center gap-2 pt-1 pr-2 pb-2 pl-4">
           <div class="min-w-0 flex-1">
-            <h2 class="truncate text-[15px]/6 font-semibold" [id]="uid + '-title'">How this was computed</h2>
+            <h2 class="truncate text-[15px]/6 font-semibold" [id]="uid + '-title'">Behind the numbers</h2>
             @if (question(); as q) {
               <p class="text-muted-foreground truncate text-[12.5px]/[18px]">{{ q }}</p>
             }
@@ -140,7 +140,7 @@ export class EvidenceLayout {
   /** A tool call to open. Same as calling `open(callId)`, for callers that prefer a binding. */
   readonly focusCallId = input<string | null>(null);
   /** Shown while there is no evidence yet. */
-  readonly empty = input('Numbers in the answer will show where they came from here.');
+  readonly empty = input('Each number in the answer shows its source, period and definition here.');
   /** Where the split is remembered. */
   readonly storageKey = input<string | null>('compass.evidence.split');
 

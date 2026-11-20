@@ -15,7 +15,7 @@ import { AUTONOMY_LABEL, RUN_STATUS, maskEmail, triggerText } from './watchers';
 import { scopeLabel } from './scope/hotels';
 import { ScopeService } from './scope/scope.service';
 import { ConfirmDialog } from './studio/confirm';
-import { AUTONOMY_ORDER, AUTONOMY_SHORT } from './studio/studio';
+import { AUTONOMY_ORDER, AUTONOMY_SHORT, runStartText } from './studio/studio';
 import { WorkflowActions } from './studio/workflow-actions';
 import { WorkflowMenu } from './studio/workflow-menu';
 import * as icons from './icons';
@@ -39,7 +39,7 @@ import * as icons from './icons';
       </nav>
 
       @if (error(); as e) {
-        <p role="alert" class="border-border rounded-[10px] border border-dashed p-3 text-[13.5px]">Couldn’t load this agent: {{ e }} <button hlmBtn variant="ghost" size="sm" (click)="detail.reload()">Try again</button></p>
+        <p role="alert" class="border-border rounded-[10px] border border-dashed p-3 text-[13.5px]">Couldn’t load this agent. {{ e }} <button hlmBtn variant="ghost" size="sm" (click)="detail.reload()">Try again</button></p>
       }
 
       @if (wf(); as w) {
@@ -51,7 +51,7 @@ import * as icons from './icons';
             }
           </div>
           <div class="flex items-center gap-2">
-            <button type="button" class="toggle" role="switch" [attr.aria-checked]="w.enabled" [attr.aria-label]="w.enabled ? 'Pause this agent' : 'Turn this agent on'" (click)="toggle(w)"><i></i></button>
+            <button type="button" class="toggle" role="switch" [attr.aria-checked]="w.enabled" [attr.aria-label]="w.enabled ? 'Pause this agent' : 'Resume this agent'" (click)="toggle(w)"><i></i></button>
             <span class="text-muted-foreground mr-2 text-[13px]">{{ w.enabled ? 'On' : 'Paused' }}</span>
             <button hlmBtn variant="secondary" (click)="actions.edit(w)"><ng-icon name="phosphorPencilSimpleLight" aria-hidden="true" />Edit</button>
             <button hlmBtn [disabled]="!!busy() || running() || !w.enabled" (click)="runNow(w)">{{ busy() || (running() ? 'Running…' : 'Run now') }}</button>
@@ -62,7 +62,7 @@ import * as icons from './icons';
         <section class="insight-card grid gap-x-8 gap-y-3 p-5 text-[13.5px] sm:grid-cols-2" aria-label="What it does">
           <div><p class="text-muted-foreground text-[12px]">When</p><p>{{ trigger(w) }}</p></div>
           <div><p class="text-muted-foreground text-[12px]">Hotels</p><p>{{ hotels(w.hotels) }}</p>@if (hotelNames(w.hotels); as names) {<p class="text-muted-foreground text-[12.5px]">{{ names }}</p>}</div>
-          <div class="sm:col-span-2"><p class="text-muted-foreground text-[12px]">What it watches</p><p>{{ w.goal }}</p></div>
+          <div class="sm:col-span-2"><p class="text-muted-foreground text-[12px]">What it watches for</p><p>{{ w.goal }}</p></div>
           <div>
             <p class="text-muted-foreground text-[12px]">Action</p>
             <p>{{ action(w) }}{{ w.delivery ? ' to ' + mask(w.delivery.to) : '' }}</p>
@@ -71,7 +71,7 @@ import * as icons from './icons';
             }
           </div>
           <div>
-            <p class="text-muted-foreground text-[12px]" id="aut-label">Autonomy</p>
+            <p class="text-muted-foreground text-[12px]" id="aut-label">How far it may go</p>
             @if (w.action.type === 'email') {
               <!-- Email is low risk: it needs no approval (contracts: approvalNode) -->
               <p>Sends an email · no approval needed</p>
@@ -81,23 +81,23 @@ import * as icons from './icons';
                   <button type="button" role="radio" [attr.aria-checked]="w.autonomy === a" [attr.tabindex]="w.autonomy === a ? 0 : -1" [disabled]="!!busy()" (click)="actions.setAutonomy(w, a)" (keydown)="autonomyKey($event, w)">{{ autonomyShort(a) }}</button>
                 }
               </div>
-              <p class="text-muted-foreground mt-1 text-[12.5px]">{{ autonomy(w) }} · approver: {{ w.approver === 'gm' ? 'general manager' : 'revenue manager' }}</p>
+              <p class="text-muted-foreground mt-1 text-[12.5px]">{{ autonomy(w) }}. Approver: the {{ w.approver === 'gm' ? 'general manager' : 'revenue manager' }}.</p>
             }
           </div>
           @if (w.checks.length) {
-            <div class="sm:col-span-2"><p class="text-muted-foreground text-[12px]">Checks first</p><p>{{ checks(w) }}</p></div>
+            <div class="sm:col-span-2"><p class="text-muted-foreground text-[12px]">Data it reads first</p><p>{{ checks(w) }}</p></div>
           }
         </section>
 
         <!-- "Ask about this": the question opens a thread with this workflow as its subject, and is sent at once -->
         <section aria-labelledby="wp-ask">
-          <h2 id="wp-ask" class="mb-3 text-[15px] font-semibold">Ask about this</h2>
-          <kassandra-composer label="Ask Kassandra about this agent" placeholder="Ask about this agent, e.g. “why did it fire today?”" [scope]="[w.name, hotels(w.hotels)]" [(mode)]="live.mode" (submitted)="ask(w, $event)" />
+          <h2 id="wp-ask" class="mb-3 text-[15px] font-semibold">Ask about this agent</h2>
+          <kassandra-composer label="Ask Kassandra about this agent" placeholder="Ask about this agent, e.g. “What did it find this week?”" [scope]="[w.name, hotels(w.hotels)]" [(mode)]="live.mode" (submitted)="ask(w, $event)" />
         </section>
 
         @if (proposals().length) {
           <section aria-labelledby="wp-prop">
-            <h2 id="wp-prop" class="mb-3 text-[15px] font-semibold">Proposals</h2>
+            <h2 id="wp-prop" class="mb-3 text-[15px] font-semibold">Decisions</h2>
             <div class="grid gap-4 md:grid-cols-2">
               @for (p of proposals(); track p.id) {
                 <app-proposal-card [proposal]="p" />
@@ -114,8 +114,8 @@ import * as icons from './icons';
                 <li>
                   <button type="button" class="w-full rounded-[10px] border p-3 text-left text-[13px] transition-colors" [attr.aria-pressed]="r.id === runId()" [class]="r.id === runId() ? 'border-(--focus-brand) bg-(--overlay-hover)' : 'border-border hover:bg-(--overlay-hover)'" (click)="pickRun(r.id)">
                     <span class="flex items-center justify-between gap-2">
-                      <span [class]="r.status === 'failed' ? 'text-(--negative) font-medium' : r.status === 'waiting_approval' ? 'text-(--decision) font-medium' : 'font-medium'">{{ status(r.status) }}{{ r.test ? ' · test' : '' }}</span>
-                      <span class="text-muted-foreground text-[12px]">{{ ago(r.startedAt) }} · {{ r.trigger }}</span>
+                      <span [class]="r.status === 'failed' ? 'text-(--negative) font-medium' : r.status === 'waiting_approval' ? 'text-(--decision) font-medium' : 'font-medium'">{{ status(r.status) }}{{ r.test ? ' · test run' : '' }}</span>
+                      <span class="text-muted-foreground text-[12px]">{{ ago(r.startedAt) }} · {{ startedBy(r.trigger) }}</span>
                     </span>
                     @if (r.summary) {
                       <span class="text-muted-foreground md-inline mt-1 line-clamp-3" [innerHTML]="summary(r.summary)"></span>
@@ -123,7 +123,7 @@ import * as icons from './icons';
                   </button>
                 </li>
               } @empty {
-                <li class="text-muted-foreground text-[13.5px]">No runs yet. Run now starts one.</li>
+                <li class="text-muted-foreground text-[13.5px]">No runs yet. Choose “Run now” to start one.</li>
               }
             </ul>
           </div>
@@ -131,28 +131,28 @@ import * as icons from './icons';
             <h2 class="mb-3 text-[15px] font-semibold">Run log</h2>
             @if (runId()) {
               @if (log.isLoading() && !log.hasValue()) {
-                <p class="text-muted-foreground text-[13.5px]" role="status">Loading the log…</p>
+                <p class="text-muted-foreground text-[13.5px]" role="status">Loading the run log…</p>
               }
               <div class="insight-card px-4 pb-4">
                 <kassandra-conversation [turns]="turns()" (evidenceSelected)="evidenceFor.set($event.callId)">
                   @if (!log.isLoading()) {
-                    <p class="text-muted-foreground pt-4 text-[13.5px]">This run has no log entries.</p>
+                    <p class="text-muted-foreground pt-4 text-[13.5px]">Nothing was recorded for this run.</p>
                   }
                 </kassandra-conversation>
               </div>
               @if (evidenceFor()) {
                 <div class="mt-4">
-                  <h3 class="mb-2 text-[13.5px] font-semibold">How this was computed</h3>
+                  <h3 class="mb-2 text-[13.5px] font-semibold">Behind the numbers</h3>
                   <app-evidence-panel [allSteps]="allSteps()" [focus]="evidenceFor()" />
                 </div>
               }
             } @else {
-              <p class="text-muted-foreground text-[13.5px]">Pick a run to read what the agent checked and why.</p>
+              <p class="text-muted-foreground text-[13.5px]">Select a run to see what the agent checked and why.</p>
             }
           </div>
         </section>
       } @else if (!error()) {
-        <p class="text-muted-foreground text-[14px]" role="status">Loading…</p>
+        <p class="text-muted-foreground text-[14px]" role="status">Loading the agent…</p>
       }
     </div>
     <app-confirm-dialog />
@@ -170,7 +170,8 @@ export class WatcherPage {
   protected readonly proposals = computed(() => (this.detail.hasValue() ? (this.detail.value()?.proposals ?? []) : []).slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
   protected readonly runId = computed(() => this.picked() ?? this.runs()[0]?.id ?? null);
   protected readonly log = this.live.workflowsApi.runLogResource(() => this.runId() ?? undefined);
-  protected readonly turns = computed(() => groupTurns(this.log.hasValue() ? (this.log.value()?.entries ?? []) : []));
+  /** A run opens with an instruction to the agent; the log shows it as what started the run. */
+  protected readonly turns = computed(() => groupTurns(this.log.hasValue() ? (this.log.value()?.entries ?? []) : []).map((turn) => ({ ...turn, question: runStartText(turn.question) })));
   protected readonly allSteps = computed(() => this.turns().flatMap((t) => t.steps));
   protected readonly evidenceFor = signal<string | null>(null);
   protected readonly running = computed(() => this.runs().some((r) => r.status === 'running'));
@@ -229,6 +230,10 @@ export class WatcherPage {
   }
   protected status(s: WorkflowRun['status']) {
     return RUN_STATUS[s] ?? s;
+  }
+  /** What started the run, in words: "run by hand", not "manual". */
+  protected startedBy(trigger: WorkflowRun['trigger']) {
+    return ({ manual: 'run by hand', schedule: 'on schedule', brief: 'after the brief' } as Record<string, string>)[trigger] ?? trigger;
   }
   protected action(w: Workflow) {
     return ACTION_LABEL[w.action.type] ?? w.action.type;

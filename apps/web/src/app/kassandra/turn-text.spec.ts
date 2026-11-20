@@ -14,15 +14,15 @@ describe('step text', () => {
   });
 
   it('shows the arguments worth reading, with dates in words and no ids or objects', () => {
-    expect(stepDetail(step({ args: { hotels: ['LIS', 'DXB2'], from: '2026-12-01', to: '2026-12-31', sourceCallId: 'call_9', filter: { a: 1 }, empty: '' } }))).toBe('LIS, DXB2 · 1 Dec · 31 Dec');
+    expect(stepDetail(step({ args: { hotels: ['LIS', 'DXB2'], from: '2026-12-01', to: '2026-12-31', sourceCallId: 'call_9', filter: { a: 1 }, empty: '' } }))).toBe('Lisbon Chiado, Dubai Business Bay · 1 Dec · 31 Dec');
     expect(stepDetail(step({ name: 'show_widget', args: { kind: 'bar', title: 'x' } }))).toBe('');
   });
 
   it('says how a step ended', () => {
     expect(stepStatus(step({ rows: [{}, {}] }))).toBe('2 rows');
     expect(stepStatus(step({ rows: [{}] }))).toBe('1 row');
-    expect(stepStatus(step({ status: 'error' }))).toBe('failed');
-    expect(stepStatus(step({ status: 'running' }))).toBe('working');
+    expect(stepStatus(step({ status: 'error' }))).toBe('couldn’t finish');
+    expect(stepStatus(step({ status: 'running' }))).toBe('in progress');
     expect(stepStatus(step({ name: 'send_email', sent: false }))).toBe('nothing sent');
     expect(stepStatus(step({ name: 'show_widget', widget: widget() }))).toBe('');
   });

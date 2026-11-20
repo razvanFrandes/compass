@@ -30,40 +30,40 @@ export interface WorkflowGraph {
  */
 export const CHECK_LABELS: Record<string, string> = {
   get_pace: 'Pace vs last year',
-  get_pickup: 'Pickup in the last days',
+  get_pickup: 'Recent pickup',
   get_rate_position: 'Rate vs the comp set',
   get_channel_mix: 'Channel mix',
   get_mix: 'Business mix',
-  get_metric: 'A metric',
+  get_metric: 'A metric over time',
   get_forecast: 'Forecast',
   get_pnl: 'Profit and loss',
   get_data_health: 'Data freshness',
-  get_web_funnel: 'Website funnel',
+  get_web_funnel: 'Website booking funnel',
   get_account_production: 'Account production',
   get_review_scores: 'Review scores',
   find_reviews: 'What guests say',
-  get_brief: 'The morning brief',
+  get_brief: 'Morning brief',
 };
 
 const FINDING_LABELS: Record<z.infer<typeof BriefTriggerKind>, string> = {
-  data_stale: 'stale data',
-  pace_behind: 'pace behind',
-  underpriced_demand: 'underpriced demand',
-  account_loss: 'an account loss',
-  web_conversion_drop: 'a web conversion drop',
+  data_stale: 'a data feed that stopped syncing',
+  pace_behind: 'a hotel behind last year’s pace',
+  underpriced_demand: 'nights priced under the comp set',
+  account_loss: 'an account that stopped booking',
+  web_conversion_drop: 'a drop in website conversion',
   staffing_gap: 'a staffing gap',
   rooms_out_of_order: 'rooms out of order',
-  gop_miss: 'a GOP miss',
+  gop_miss: 'GOP under budget',
 };
 
 const ACTION_LABELS: Record<ActionType, string> = {
-  adjust_bar: 'Adjust BAR',
+  adjust_bar: 'Change the rate',
   close_channel: 'Close a channel',
   open_channel: 'Open a channel',
-  contact_account: 'Contact an account',
+  contact_account: 'Contact the account',
   create_task: 'Create a task',
   notify: 'Notify the team',
-  email: 'Email',
+  email: 'Send an email',
 };
 
 const APPROVER_LABELS = { revenue_manager: 'the revenue manager', gm: 'the general manager' } as const;
@@ -73,15 +73,15 @@ const stateOf = (field: z.ZodType, value: unknown): WorkflowNode['state'] => (fi
 
 function triggerNode(trigger: WorkflowTrigger | undefined): WorkflowNode {
   const node = { id: 'trigger', kind: 'trigger' } as const;
-  if (!trigger) return { ...node, label: 'Choose a trigger', detail: 'When should it run?', state: 'empty' };
+  if (!trigger) return { ...node, label: 'Choose when it runs', detail: 'Every morning, every week, or when the brief finds something', state: 'empty' };
   const state = stateOf(fields.trigger, trigger);
   if (trigger.kind === 'schedule') {
-    return { ...node, label: trigger.every === 'week' ? 'Every week, after the brief' : 'Every morning, after the brief', detail: 'On a schedule', state };
+    return { ...node, label: trigger.every === 'week' ? 'Every week, after the morning brief' : 'Every morning, after the brief', detail: 'On a schedule', state };
   }
   if (trigger.kind === 'brief') {
     return { ...node, label: `When the brief finds ${FINDING_LABELS[trigger.finding] ?? trigger.finding}`, detail: 'After the morning brief', state };
   }
-  return { ...node, label: 'Run by hand', detail: 'Only when someone starts it', state };
+  return { ...node, label: 'Only when you run it', detail: 'No schedule', state };
 }
 
 function scopeNode(hotels: string[] | undefined): WorkflowNode {
@@ -93,14 +93,14 @@ function scopeNode(hotels: string[] | undefined): WorkflowNode {
 }
 
 function checkNodes(checks: string[] | undefined): WorkflowNode[] {
-  if (!checks?.length) return [{ id: 'check', kind: 'check', label: 'Add a check', detail: 'Which numbers should it look at?', state: 'empty' }];
+  if (!checks?.length) return [{ id: 'check', kind: 'check', label: 'Choose the data', detail: 'Which numbers should it read?', state: 'empty' }];
   return [...new Set(checks)].map((tool) => ({ id: `check:${tool}`, kind: 'check', label: CHECK_LABELS[tool] ?? tool, detail: 'Read first on every run', state: 'complete' }));
 }
 
 function analyzeNode(goal: string | undefined): WorkflowNode {
   const node = { id: 'analyze', kind: 'analyze' } as const;
-  if (!goal) return { ...node, label: 'Describe what to watch', detail: 'What should it look for, and when should it act?', state: 'empty' };
-  return { ...node, label: 'Kassandra explains why', detail: goal, state: stateOf(fields.goal, goal) };
+  if (!goal) return { ...node, label: 'Describe what to watch for', detail: 'What should it look for, and when should it act?', state: 'empty' };
+  return { ...node, label: 'Kassandra looks for this', detail: goal, state: stateOf(fields.goal, goal) };
 }
 
 /** Email is low risk and needs no approval; a workflow that only suggests never acts, so it has nothing to approve. */
@@ -111,8 +111,8 @@ function approvalNode(draft: WorkflowDraft): WorkflowNode | null {
   return {
     id: 'approval',
     kind: 'approval',
-    label: autonomy === 'auto_low_risk' ? 'Approval for higher-risk actions' : 'Waits for approval',
-    detail: autonomy === 'auto_low_risk' ? `Acts alone on low-risk actions, asks ${approver} for the rest` : `Approved by ${approver}`,
+    label: autonomy === 'auto_low_risk' ? 'Asks before higher-risk actions' : 'Waits for approval',
+    detail: autonomy === 'auto_low_risk' ? `Acts alone on low-risk actions, asks ${approver} for the rest` : `Goes to ${approver} to approve or decline`,
     state: 'complete',
   };
 }
@@ -123,9 +123,9 @@ function actionNode(draft: WorkflowDraft): WorkflowNode {
   if (!action) return { ...node, label: 'Choose an action', detail: 'What should it do when it finds something?', state: 'empty' };
   const detail = action.guidance ?? '';
   if (action.type === 'email') {
-    if (!delivery) return { ...node, label: 'Email', detail: detail || 'Needs an address to send to', state: 'draft' };
+    if (!delivery) return { ...node, label: 'Send an email', detail: detail || 'Add the address to send to', state: 'draft' };
     const valid = stateOf(fields.action, action) === 'complete' && stateOf(fields.delivery, delivery) === 'complete';
-    return { ...node, label: `Email ${maskEmail(delivery.to)}`, detail, state: valid ? 'complete' : 'draft' };
+    return { ...node, label: `Send an email to ${maskEmail(delivery.to)}`, detail, state: valid ? 'complete' : 'draft' };
   }
   // A recipient on any other action is not a valid workflow yet.
   const state = delivery ? 'draft' : stateOf(fields.action, action);

@@ -126,7 +126,7 @@ describe('workflow approval flow', () => {
     await harness.signal(store.taskOf(pending.id)!, DecisionSignal, 'decision', { approved: false, by: 'Ana (RM)', note: 'Event demand is soft this year' }, context);
     await submission.wait(context);
 
-    expect(afterDecision).toContain('Denied by Ana (RM)');
+    expect(afterDecision).toContain('Declined by Ana (RM)');
     expect(afterDecision).toContain('Event demand is soft this year');
     expect(store.proposals.get(pending.id)!.status).toBe('denied');
     expect(store.audit).toHaveLength(0);

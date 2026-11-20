@@ -44,7 +44,7 @@ function bringToTop(card: HTMLElement): void {
 }
 
 /**
- * "How this was computed", from the evidence every data tool returns. It leads with the numbers the answer
+ * "Behind the numbers", from the evidence every data tool returns. It leads with the numbers the answer
  * quotes, each one a button that opens the row it came from. Below, one card per tool call, closed by default:
  * a human title, the period and the business date in words, the sources by name, the definitions, the rows as a
  * readable table. Raw source names, the SQL and its parameters stay inside "Technical details". Facts only,
@@ -175,13 +175,13 @@ function bringToTop(card: HTMLElement): void {
                   <span class="text-[20px]/7 font-semibold tracking-[-0.01em] tabular-nums">{{ f.value }}</span>
                   <span class="text-[12.5px]/[18px]">{{ f.label }}</span>
                   <span class="text-muted-foreground truncate text-[12px]/[18px]">{{ f.context || f.source }}</span>
-                  <span class="sr-only">Show the row in {{ f.source }}</span>
+                  <span class="sr-only">Show this figure in {{ f.source }}</span>
                 </button>
               </li>
             }
           </ul>
           <p class="text-muted-foreground mt-2 text-[12px]">
-            {{ quoted() ? 'Each figure opens the row it came from.' : 'The first figures of each result. Each one opens its row.' }}
+            {{ quoted() ? 'Select a figure to see it in its table.' : 'The first figures of each table. Select one to see it in its table.' }}
           </p>
         </section>
       }
@@ -279,7 +279,7 @@ function bringToTop(card: HTMLElement): void {
             <li class="ev-card flex items-center gap-3 px-4 py-3">
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-[14px]/5 font-medium">{{ x.title }}</span>
-                <span class="text-muted-foreground block text-[12.5px]/[18px]">This step failed, so nothing from it is in the answer.</span>
+                <span class="text-muted-foreground block text-[12.5px]/[18px]">Couldn’t read this, so the answer doesn’t use it. Ask again to retry.</span>
               </span>
               <ng-icon name="phosphorWarningCircleLight" class="text-muted-foreground text-[18px]" aria-hidden="true" />
             </li>
@@ -294,9 +294,9 @@ export class EvidencePanel {
   readonly entries = input.required<readonly EvidenceEntry[]>();
   /** The final answer (Markdown). Its numbers are matched to rows; without it the panel leads with key figures. */
   readonly answer = input<string | null | undefined>(null);
-  /** A tool call to open and bring into view ("How this was computed" on one step). */
+  /** A tool call to open and bring into view ("Behind the numbers" on one step). */
   readonly focusCallId = input<string | null>(null);
-  readonly empty = input('Numbers in the answer will show where they came from here.');
+  readonly empty = input('Each number in the answer shows its source, period and definition here.');
 
   private static count = 0;
   protected readonly uid = `ev${++EvidencePanel.count}`;

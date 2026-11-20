@@ -72,8 +72,8 @@ describe('DataTable', () => {
 
   it('shows internal columns on request', () => {
     const { text, click, button } = render(pace);
-    expect(button('Show 1 internal column')).toBeTruthy();
-    click('Show 1 internal column');
+    expect(button('Show 1 more column')).toBeTruthy();
+    click('Show 1 more column');
     expect(text('thead th')[0]).toBe('ID');
     expect(text('tbody tr:nth-child(1) > *')[0]).toBe('p:LIS');
   });
@@ -133,6 +133,6 @@ describe('DataTable', () => {
   it('says so when there are no rows', () => {
     const { el } = render([]);
     expect(el.querySelector('table')).toBeNull();
-    expect(el.textContent).toContain('No rows came back');
+    expect(el.textContent).toContain('Nothing came back for this');
   });
 });

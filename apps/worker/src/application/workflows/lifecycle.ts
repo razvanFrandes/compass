@@ -46,12 +46,15 @@ export interface WorkflowRecords {
  */
 export async function removeWorkflow(store: WorkflowRecords, id: string): Promise<Result<{ name: string }, WorkflowError>> {
   const workflow = await store.getWorkflow(id);
-  if (!workflow) return err({ error: 'No such workflow.', status: 404 });
+  if (!workflow) return err({ error: 'That agent no longer exists.', status: 404 });
   const runs = await store.listRuns(id);
   const active = runs.find((run) => run.status === 'running' || run.status === 'waiting_approval');
   if (active) {
-    const why = active.status === 'waiting_approval' ? 'a proposal waiting for a decision' : 'a run in progress';
-    return err({ error: `This workflow has ${why}. Decide it or wait for the run to end, then delete the workflow.`, status: 409 });
+    const why =
+      active.status === 'waiting_approval'
+        ? 'This agent has a decision waiting for you. Approve or decline it, then delete the agent.'
+        : 'This agent is running. Wait for the run to finish, then delete it.';
+    return err({ error: why, status: 409 });
   }
   const deletedWorkflowName = workflow.name;
   for (const run of runs) await store.updateRun(run.id, { deletedWorkflowName });

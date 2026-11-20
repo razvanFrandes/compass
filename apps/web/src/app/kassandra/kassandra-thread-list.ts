@@ -30,19 +30,19 @@ export function agoShort(at: number, now: number): string {
   host: { class: 'flex min-h-0 flex-col gap-1' },
   template: `
     @if (threads().length) {
-      <h2 class="text-muted-foreground px-2 text-[12px] font-medium tracking-[0.04em] uppercase">Threads</h2>
+      <h2 class="text-muted-foreground px-2 text-[12px] font-medium tracking-[0.04em] uppercase">Conversations</h2>
       <ul class="-mx-1 flex min-h-0 flex-col gap-px overflow-y-auto px-1 py-0.5 text-[13px]">
         @for (t of threads(); track t.id) {
           <li class="k-thread group/thread" [class.k-thread--current]="isCurrent(t.id)">
             @if (editing() === t.id) {
-              <label class="sr-only" [for]="'rename-' + t.id">Rename thread</label>
+              <label class="sr-only" [for]="'rename-' + t.id">Rename conversation</label>
               <input #rename [id]="'rename-' + t.id" class="k-thread-input" [value]="t.title" maxlength="120" autocomplete="off" (keydown.enter)="commit(t.id, rename.value)" (keydown.escape)="$event.stopPropagation(); editing.set(null)" (blur)="commit(t.id, rename.value)" />
             } @else {
               <button type="button" class="k-thread-open" [attr.aria-current]="isCurrent(t.id) ? 'page' : null" [title]="t.title" (click)="live.openConversation(t.id)">
                 <span class="min-w-0 flex-1 truncate">{{ t.title }}</span>
                 <span class="k-thread-time">{{ t.ago }}</span>
               </button>
-              <button type="button" class="k-thread-more" [attr.aria-label]="'More for ' + t.title" [hlmDropdownMenuTrigger]="menu" [hlmDropdownMenuTriggerData]="{ $implicit: t }" align="start">
+              <button type="button" class="k-thread-more" [attr.aria-label]="'Actions for ' + t.title" [hlmDropdownMenuTrigger]="menu" [hlmDropdownMenuTriggerData]="{ $implicit: t }" align="start">
                 <ng-icon name="phosphorDotsThreeBold" class="text-[16px]" aria-hidden="true" />
               </button>
             }
@@ -105,6 +105,6 @@ export class KassandraThreadList {
   protected remove(thread: ConversationRef) {
     const removed = this.live.deleteConversation(thread.id);
     if (!removed) return;
-    toast('Thread deleted', { description: removed.title, duration: 8000, action: { label: 'Undo', onClick: () => this.live.restoreConversation(removed) } });
+    toast('Conversation deleted', { description: removed.title, duration: 8000, action: { label: 'Undo', onClick: () => this.live.restoreConversation(removed) } });
   }
 }

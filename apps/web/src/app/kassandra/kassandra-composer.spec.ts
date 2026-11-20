@@ -114,7 +114,7 @@ describe('KassandraComposer: Quick or Thinker', () => {
     const { fixture } = render();
     const group = el(fixture).querySelector('[role=radiogroup]')!;
     expect(group.getAttribute('aria-label')).toBe('Answer mode');
-    expect(text(el(fixture).querySelector(`#${group.getAttribute('aria-describedby')}`))).toBe('Reasons across every source; slower');
+    expect(text(el(fixture).querySelector(`#${group.getAttribute('aria-describedby')}`))).toBe('Works across several sources; takes longer');
     expect(radios(fixture).map((r) => [text(r), r.getAttribute('aria-checked'), r.getAttribute('tabindex')])).toEqual([
       ['Quick', 'false', '-1'],
       ['Thinker', 'true', '0'],
@@ -210,7 +210,7 @@ describe('KassandraComposer: voice', () => {
     say(fixture, 'Why is Lisbon behind?');
     expect(text(byLabel(fixture, 'Stop listening'))).toBe('Stop');
     expect(byLabel(fixture, 'Send what I said')!.getAttribute('type')).toBe('submit');
-    expect(hint(fixture)).toBe('Tap send when you’re done');
+    expect(hint(fixture)).toBe('Send when you’re done');
     vi.advanceTimersByTime(100);
     expect(document.activeElement).toBe(byLabel(fixture, 'Send what I said'));
     el(fixture).remove();
@@ -318,7 +318,7 @@ describe('KassandraComposer: voice', () => {
     const { fixture } = listen();
     voice.events!.onListening('demo');
     fixture.detectChanges();
-    expect(status(fixture)).toBe('No microphone here · demo transcript');
+    expect(status(fixture)).toBe('No microphone found · this is a sample question');
   });
 
   it('says why voice is not available and goes back to typing', () => {

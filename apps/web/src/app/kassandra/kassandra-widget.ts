@@ -43,7 +43,7 @@ const LOADING: Record<SlotPhase, WidgetLoading> = { chosen: 'skeleton', describe
       <div class="mt-3 flex min-h-8 flex-wrap items-center justify-between gap-2">
         @if (phase() === 'ready' && s.widget; as w) {
           @if (showEvidence()) {
-            <button type="button" class="k-link text-muted-foreground hover:text-foreground text-[12.5px] underline underline-offset-2" (click)="evidence.emit(w.sourceCallId)">How this was computed</button>
+            <button type="button" class="k-link text-muted-foreground hover:text-foreground text-[12.5px] underline underline-offset-2" (click)="evidence.emit(w.sourceCallId)">Behind the numbers</button>
           }
           @if (addable()) {
             <kassandra-board-picker class="ml-auto" [widget]="w" [question]="question()" />
@@ -67,7 +67,7 @@ export class KassandraWidget {
   readonly showEvidence = input(true);
   /** "Add to board" is offered. */
   readonly addable = input(true);
-  /** "How this was computed": the call id of the tool result the widget draws. */
+  /** "Behind the numbers": the call id of the tool result the widget draws. */
   readonly evidence = output<string>();
 
   protected readonly phase = computed(() => shownPhase(this.slot().phase, this.held()));

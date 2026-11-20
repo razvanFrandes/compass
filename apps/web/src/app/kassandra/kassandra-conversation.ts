@@ -9,19 +9,41 @@ import { WorkflowsApi, type ChatStep, type ChatTurn, type Usage } from '../api';
 import { usageText } from '../chat-turn';
 import { Markdown } from '../markdown';
 import { CompassStore } from '../store';
+import { ScopeService } from '../scope/scope.service';
 import { KassandraWidget } from './kassandra-widget';
 import { SkeletonHold, shownPhase, stepCount, widgetSlots } from './live-slots';
 import { failureText, followUps, modeOf, phaseText, stepDetail, stepStatus, stepTitle, workedText } from './turn-text';
 
-/** "How this was computed" was asked for one tool result of one turn. */
+/** "Behind the numbers" was asked for one tool result of one turn. */
 export interface EvidenceSelection {
   turnKey: string;
   callId: string;
 }
 
 let nextSteps = 0;
-const TRIGGER = (w: WorkflowSpec) => (w.trigger.kind === 'schedule' ? `Every ${w.trigger.every}` : w.trigger.kind === 'brief' ? `When the brief finds ${w.trigger.finding.replace(/_/g, ' ')}` : 'When you run it');
-const AUTONOMY: Record<string, string> = { suggest: 'suggest only', approve: 'after you approve', auto_low_risk: 'low-risk on its own' };
+/** What the brief found, as it reads after "When the brief finds …". Kept in step with FINDING_LABELS in @compass/contracts. */
+const FINDING: Record<string, string> = {
+  data_stale: 'a data feed that stopped syncing',
+  pace_behind: 'a hotel behind last year’s pace',
+  underpriced_demand: 'nights priced under the comp set',
+  account_loss: 'an account that stopped booking',
+  web_conversion_drop: 'a drop in website conversion',
+  staffing_gap: 'a staffing gap',
+  rooms_out_of_order: 'rooms out of order',
+  gop_miss: 'GOP under budget',
+};
+const TRIGGER = (w: WorkflowSpec) =>
+  w.trigger.kind === 'schedule' ? (w.trigger.every === 'week' ? 'Every week, after the morning brief' : 'Every morning, after the brief') : w.trigger.kind === 'brief' ? `When the brief finds ${FINDING[w.trigger.finding] ?? w.trigger.finding.replace(/_/g, ' ')}` : 'When you run it';
+const ACTION: Record<string, string> = {
+  adjust_bar: 'Change the rate',
+  close_channel: 'Close a channel',
+  open_channel: 'Open a channel',
+  contact_account: 'Contact the account',
+  create_task: 'Create a task',
+  notify: 'Notify the team',
+  email: 'Send an email',
+};
+const AUTONOMY: Record<string, string> = { suggest: 'only suggests', approve: 'asks you first', auto_low_risk: 'acts alone on low-risk actions' };
 
 /**
  * One turn: the question, the work collapsed to one line ("Worked for 4s · 3 steps"), what Kassandra is doing right
@@ -81,7 +103,7 @@ const AUTONOMY: Record<string, string> = { suggest: 'suggest only', approve: 'af
                   <p class="text-[12.5px] text-(--negative)">{{ s.error }}</p>
                 }
                 @if (s.evidence && showEvidence()) {
-                  <button type="button" class="k-link text-muted-foreground hover:text-foreground mt-0.5 rounded text-[12px] underline underline-offset-2" (click)="evidenceSelected.emit(s.callId)">How this was computed</button>
+                  <button type="button" class="k-link text-muted-foreground hover:text-foreground mt-0.5 rounded text-[12px] underline underline-offset-2" (click)="evidenceSelected.emit(s.callId)">Behind the numbers</button>
                 }
               </li>
             }
@@ -103,13 +125,13 @@ const AUTONOMY: Record<string, string> = { suggest: 'suggest only', approve: 'af
           <dt class="text-muted-foreground">When</dt>
           <dd>{{ trigger(d.draft) }}</dd>
           <dt class="text-muted-foreground">Hotels</dt>
-          <dd>{{ d.draft.hotels.join(', ') }}</dd>
+          <dd>{{ hotels(d.draft) }}</dd>
           <dt class="text-muted-foreground">Action</dt>
-          <dd>{{ d.draft.action.type.replace('_', ' ') }} · {{ autonomy(d.draft) }}</dd>
+          <dd>{{ action(d.draft) }} · {{ autonomy(d.draft) }}</dd>
         </dl>
         <div class="mt-3 flex gap-2">
           @if (saved()[d.callId]; as id) {
-            <button hlmBtn variant="secondary" size="sm" (click)="openWorkflow(id)"><ng-icon name="phosphorCheckLight" aria-hidden="true" />Saved · open</button>
+            <button hlmBtn variant="secondary" size="sm" (click)="openWorkflow(id)"><ng-icon name="phosphorCheckLight" aria-hidden="true" />Saved. Open agent</button>
           } @else {
             <button hlmBtn size="sm" [disabled]="saving()" (click)="save(d.callId, d.draft)">{{ saving() ? 'Saving…' : 'Save agent' }}</button>
           }
@@ -137,7 +159,7 @@ const AUTONOMY: Record<string, string> = { suggest: 'suggest only', approve: 'af
 
     @if (t.failure; as f) {
       <p role="alert" class="border-border rounded-[10px] border border-dashed p-3 text-[13.5px]">
-        <span class="font-medium">No answer this time:</span> {{ failure(f.reason) }}@if (f.detail) {<span class="text-muted-foreground"> ({{ f.detail }})</span>}
+        <span class="font-medium">No answer this time.</span> {{ failure(f.reason) }}@if (f.detail) {<span class="text-muted-foreground"> ({{ f.detail }})</span>}
       </p>
     }
 
@@ -176,7 +198,7 @@ export class KassandraTurn {
   readonly phase = input<ChatLive['phase'] | null>(null);
   /** The tool calls of the run in progress (`live.tools`), for the running turn only: a chart gets its skeleton here. */
   readonly liveTools = input<ChatLive['tools'] | null | undefined>(null);
-  /** "How this was computed" links are shown. */
+  /** "Behind the numbers" links are shown. */
   readonly showEvidence = input(true);
   /** Widgets offer "Add to board". */
   readonly addToBoard = input(true);
@@ -186,7 +208,7 @@ export class KassandraTurn {
   readonly suggestions = input<string[]>([]);
   /** The whole conversation's spend, shown in the last turn's details. */
   readonly conversationUsage = input<Usage | null>(null);
-  /** "How this was computed" for one tool result (its call id). */
+  /** "Behind the numbers" for one tool result (its call id). */
   readonly evidenceSelected = output<string>();
   readonly suggestionPicked = output<string>();
   readonly stopped = output<void>();
@@ -194,6 +216,7 @@ export class KassandraTurn {
   protected readonly stepsId = `kassandra-steps-${nextSteps++}`;
   private readonly api = inject(WorkflowsApi);
   private readonly store = inject(CompassStore);
+  private readonly scope = inject(ScopeService);
   protected readonly open = signal(false);
   protected readonly saving = signal(false);
   protected readonly saved = signal<Record<string, string>>({});
@@ -231,16 +254,24 @@ export class KassandraTurn {
   protected autonomy(draft: WorkflowSpec) {
     return AUTONOMY[draft.autonomy] ?? draft.autonomy;
   }
+  protected action(draft: WorkflowSpec) {
+    return ACTION[draft.action.type] ?? draft.action.type.replace(/_/g, ' ');
+  }
+  /** Hotel names, never codes: "All 20 hotels", "Arbor Lisbon Chiado, Kestrel London Mayfair". */
+  protected hotels(draft: WorkflowSpec) {
+    if (draft.hotels.includes('ALL')) return `All ${this.scope.catalog().length} hotels`;
+    return draft.hotels.map((code) => this.scope.nameOf(code)).join(', ');
+  }
   protected async save(callId: string, draft: WorkflowSpec) {
     this.saving.set(true);
     const result = await this.api.create(draft);
     this.saving.set(false);
     if (!result.ok) {
-      toast('The agent wasn’t saved', { description: result.error.message, duration: 8000 });
+      toast('Couldn’t save the agent', { description: result.error.message, duration: 8000 });
       return;
     }
     this.saved.update((map) => ({ ...map, [callId]: result.value.id }));
-    toast(`${result.value.name} saved`, { description: 'It runs on its trigger from now on.', duration: 6000, action: { label: 'Open', onClick: () => this.openWorkflow(result.value.id) } });
+    toast(`${result.value.name} saved`, { description: 'It’s in Agent Studio and runs from now on.', duration: 6000, action: { label: 'Open', onClick: () => this.openWorkflow(result.value.id) } });
   }
   protected openWorkflow(id: string) {
     this.store.activeWatcherId.set(id);

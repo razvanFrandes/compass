@@ -53,8 +53,8 @@ describe('hotel scope on the data tools', () => {
       const outcome = await runTool(tool, data, tool.input.parse({ ...firstCall(tool.name), hotels: ['PAR', 'LIS'] }), ['LIS', 'AMS']);
       expect(hotelsRead(calls)).toEqual(['LIS']);
       if (!outcome.ok) throw new Error(outcome.text);
-      expect(outcome.text).toContain('Scope: only LIS, AMS. Left out, outside the scope: PAR.');
-      expect((outcome.structured as { evidence: Evidence }).evidence.notes).toContain('Scope: only LIS, AMS. Left out, outside the scope: PAR.');
+      expect(outcome.text).toContain('Limited to the hotels selected: LIS, AMS. Left out, not among them: PAR.');
+      expect((outcome.structured as { evidence: Evidence }).evidence.notes).toContain('Limited to the hotels selected: LIS, AMS. Left out, not among them: PAR.');
     });
 
     it(`${tool.name}: a call only for hotels outside the scope is refused and reads nothing`, async () => {
@@ -85,7 +85,7 @@ describe('hotel scope on the data tools', () => {
     expect(calls[0]!.method).toBe(method);
     expect(calls[0]!.args[position]).toEqual(['LIS']);
     if (!outcome.ok) throw new Error(outcome.text);
-    expect(outcome.text).toContain('Scope: only LIS.');
+    expect(outcome.text).toContain('Limited to the hotels selected: LIS.');
   });
 
   it('leaves the tools that read no hotel data as they are', async () => {

@@ -18,7 +18,7 @@ export function boardNameFor(title: string): string {
 
 /**
  * "Add to board ▾" on a widget Kassandra showed: pick a board or make a new one. The widget is saved with its rows
- * through `BoardsService` (POST /api/boards/:id/widgets), so the Boards pages see it at once; a toast offers View and
+ * through `BoardsService` (POST /api/boards/:id/widgets), so the Boards pages see it at once; a toast offers Open and
  * Undo. Failures show the server's own words.
  */
 @Component({
@@ -29,7 +29,7 @@ export function boardNameFor(title: string): string {
   template: `
     @if (added(); as a) {
       <button hlmBtn type="button" variant="ghost" size="sm" class="text-muted-foreground max-w-[16rem]" (click)="view(a.boardId)">
-        <ng-icon name="phosphorCheckLight" aria-hidden="true" /><span class="truncate">On {{ a.boardName }} · View</span>
+        <ng-icon name="phosphorCheckLight" aria-hidden="true" /><span class="truncate">On {{ a.boardName }} · Open</span>
       </button>
     } @else {
       <button hlmBtn type="button" variant="outline" size="sm" [disabled]="saving()" [hlmDropdownMenuTrigger]="menu" align="end" (hlmDropdownMenuOpened)="load()">
@@ -77,7 +77,7 @@ export class KassandraBoardPicker {
   protected async addToNew() {
     this.saving.set(true);
     // A failure is said by the service, in the server's words.
-    const created = await this.api.create({ name: this.api.freshName(boardNameFor(this.widget().title)), description: 'Built from Kassandra’s answers' });
+    const created = await this.api.create({ name: this.api.freshName(boardNameFor(this.widget().title)), description: 'Charts from Kassandra’s answers' });
     if (!created.ok) {
       this.saving.set(false);
       return;
@@ -91,7 +91,7 @@ export class KassandraBoardPicker {
     const result = await this.api.addWidget(boardId, { spec, rows, columns, evidence, ...(this.question() ? { question: this.question()! } : {}) }, true);
     this.saving.set(false);
     if (!result.ok) {
-      toast(`Not added to ${boardName}`, { description: result.message, duration: 8000 });
+      toast(`Couldn’t add the chart to ${boardName}`, { description: result.message, duration: 8000 });
       return;
     }
     const widgetId = result.value.id;
@@ -100,7 +100,7 @@ export class KassandraBoardPicker {
     toast(`Added to ${boardName}`, {
       description: this.widget().title,
       duration: 10000,
-      action: { label: 'View', onClick: () => this.view(boardId) },
+      action: { label: 'Open', onClick: () => this.view(boardId) },
       cancel: { label: 'Undo', onClick: () => void this.undo(boardId, widgetId) },
     });
   }

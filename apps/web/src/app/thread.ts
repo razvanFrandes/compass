@@ -13,7 +13,7 @@ import * as icons from './icons';
   The thread is a live conversation with Kassandra (KassandraChat over WebSocket), drawn by the Kassandra component
   family: `kassandra-conversation` for the turns (the work collapsed to one line, the answer streaming in, charts
   with "Add to board", next questions) and `kassandra-composer` for the ask bar (voice, Quick or Thinker, the hotel
-  scope). On the right, "How this was computed" from the evidence every data tool returns.
+  scope). On the right, "Behind the numbers" from the evidence every data tool returns.
   Explore, a chart click and a KPI tile send their question at once; only /ask?q= fills the composer and waits.
 */
 @Component({
@@ -34,7 +34,7 @@ import * as icons from './icons';
           }
           @if (turnsWithEvidence().length) {
             <!-- Evidence integration point 2 of 3: on phones the evidence is a sheet, opened from here or from a step -->
-            <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground shrink-0 lg:hidden" aria-haspopup="dialog" aria-label="How this was computed" title="How this was computed" (click)="evidence.open()"><ng-icon name="phosphorDatabaseLight" /></button>
+            <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground shrink-0 lg:hidden" aria-haspopup="dialog" aria-label="Behind the numbers" title="Behind the numbers" (click)="evidence.open()"><ng-icon name="phosphorDatabaseLight" /></button>
           }
           <button hlmBtn variant="ghost" size="sm" class="shrink-0" (click)="live.newChat()"><ng-icon name="phosphorPlusLight" />New</button>
         </header>
@@ -43,12 +43,12 @@ import * as icons from './icons';
           <div class="mx-auto flex max-w-[640px] flex-col">
             <h2 class="sr-only">Conversation</h2>
             @if (live.scope(); as sc) {
-              <div class="flex flex-wrap items-center gap-1.5 pt-4" role="group" aria-label="Scope of this conversation">
+              <div class="flex flex-wrap items-center gap-1.5 pt-4" role="group" aria-label="What this conversation covers">
                 @for (c of sc.chips; track c) {
                   <span class="scope-chip">{{ c }}</span>
                 }
                 @if (sc.patch && store.scopeDiffers(sc)) {
-                  <button hlmBtn variant="ghost" size="sm" class="h-7 px-2 text-[12.5px]" (click)="store.applyScope(sc)"><ng-icon name="phosphorSlidersHorizontalLight" />Apply to dashboard</button>
+                  <button hlmBtn variant="ghost" size="sm" class="h-7 px-2 text-[12.5px]" (click)="store.applyScope(sc)"><ng-icon name="phosphorSlidersHorizontalLight" />Show on the Portfolio board</button>
                 } @else if (!sc.patch && sc.note) {
                   <span class="text-muted-foreground text-[12px]">{{ sc.note }}</span>
                 }
@@ -69,7 +69,7 @@ import * as icons from './icons';
               <div class="pt-10">
                 <span class="orb-mark block" style="width: 28px; height: 28px" aria-hidden="true"></span>
                 <p class="mt-3 text-[20px] font-semibold tracking-[-0.01em]">Ask Kassandra</p>
-                <p class="text-muted-foreground mt-1 text-[14px]">About any hotel, night or metric. Every number links to the query behind it.</p>
+                <p class="text-muted-foreground mt-1 text-[14px]">About any hotel, night or metric. Every number in the answer shows where it comes from.</p>
               </div>
             </kassandra-conversation>
           </div>
@@ -80,7 +80,7 @@ import * as icons from './icons';
             <kassandra-composer
               inputId="thread-ask"
               label="Ask Kassandra"
-              [placeholder]="chat.running() ? 'Add to the running answer…' : chat.turns().length ? 'Ask a follow-up…' : 'Ask about any hotel, night or metric…'"
+              [placeholder]="chat.running() ? 'Add to your question…' : chat.turns().length ? 'Ask a follow-up…' : 'Ask about any hotel, night or metric…'"
               [busy]="chat.running()"
               [steerable]="true"
               [prefill]="live.composer()"
@@ -95,13 +95,13 @@ import * as icons from './icons';
   `,
 })
 export class ThreadView {
-  /** "How this was computed" was asked for a tool result: the turn and the call id. */
+  /** "Behind the numbers" was asked for a tool result: the turn and the call id. */
   readonly evidenceSelected = output<EvidenceSelection>();
 
   protected readonly store = inject(CompassStore);
   protected readonly live = inject(Live);
   protected readonly chat = this.live.chat;
-  /** The turn picked with "How this was computed", and how many turns there were then: a new question lets go of it. */
+  /** The turn picked with "Behind the numbers", and how many turns there were then: a new question lets go of it. */
   private readonly selected = signal<{ key: string; turns: number } | null>(null);
   private readonly evidenceLayout = viewChild.required<EvidenceLayout>('evidence');
   private readonly liveTools = computed(() => this.chat.live()?.tools ?? null);
@@ -173,7 +173,7 @@ export class ThreadView {
     if (el) this.pinned = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   }
 
-  /** "How this was computed" on a step or a widget: picks the turn and opens that tool call's card (the sheet on a phone). */
+  /** "Behind the numbers" on a step or a widget: picks the turn and opens that tool call's card (the sheet on a phone). */
   protected showEvidence(selection: EvidenceSelection) {
     this.selected.set({ key: selection.turnKey, turns: this.chat.turns().length });
     this.evidenceSelected.emit(selection);

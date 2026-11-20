@@ -129,7 +129,7 @@ const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
             <p class="text-muted-foreground text-[12px] font-medium tracking-[0.06em] uppercase">Design system</p>
             <h1 class="mt-1 text-[26px] font-semibold tracking-[-0.02em]">Chart catalogue</h1>
             <p class="text-muted-foreground mt-2 max-w-[68ch] text-[14px]/relaxed">
-              Every widget Kassandra can put in an answer or on a board: {{ kinds }} kinds drawn by one component from one set of colour tokens. She chooses the kind and the columns; the component formats the values, draws the chart and offers the same rows as a table. The rows on this page are samples shaped like Halcyon’s data.
+              Every chart Kassandra can put in an answer or on a board: {{ kinds }} kinds, drawn by one component from one set of colour tokens. Kassandra chooses the kind and the columns; the component formats the values, draws the chart and offers the same numbers as a table. The numbers on this page are samples shaped like Halcyon’s data.
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-x-5 gap-y-3">

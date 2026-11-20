@@ -6,7 +6,7 @@ const TEMPLATES: (WorkflowSpecInput & { id: string })[] = [
   {
     id: 'tpl-event-pricing',
     name: 'Event pricing watch',
-    description: 'Catches high-demand nights sold below the market, such as a city event missing from the pricing calendar.',
+    description: 'Catches high-demand nights priced under the comp set, such as a city event missing from the pricing calendar.',
     hotels: ['ALL'],
     trigger: { kind: 'brief', finding: 'underpriced_demand' },
     goal:
@@ -44,8 +44,8 @@ const TEMPLATES: (WorkflowSpecInput & { id: string })[] = [
   },
   {
     id: 'tpl-booking-engine',
-    name: 'Booking engine monitor',
-    description: 'Spots a broken booking journey on the hotel website before it shows up in OTA commissions.',
+    name: 'Website conversion watch',
+    description: 'Spots a broken booking journey on the hotel website before the bookings move to OTAs and cost commission.',
     hotels: ['ALL'],
     trigger: { kind: 'brief', finding: 'web_conversion_drop' },
     goal:
@@ -57,7 +57,7 @@ const TEMPLATES: (WorkflowSpecInput & { id: string })[] = [
   },
   {
     id: 'tpl-data-feeds',
-    name: 'Data feed monitor',
+    name: 'Data feed watch',
     description: 'Tells the team when a source system stops syncing, so nobody acts on incomplete numbers.',
     hotels: ['ALL'],
     trigger: { kind: 'brief', finding: 'data_stale' },
@@ -72,16 +72,27 @@ export function templateWorkflows(createdAt: string): Workflow[] {
   return TEMPLATES.map(({ id, ...spec }) => ({ ...WorkflowSpec.parse(spec), id, createdAt, createdBy: 'template', lastRun: null }));
 }
 
+/**
+ * How an agent writes what a person reads: a decision's title and reasons, an email, the last words of a run.
+ * The same rules as docs/copy-glossary.md.
+ */
+const VOICE =
+  'How to write everything a person reads (titles, reasons, the email, your last message): for a revenue manager, in short active sentences. ' +
+  'Name a hotel by its name, never by its code. Write dates as "16–18 Dec", never as 2026-12-16. Lead with the money in euros, then the percentage. ' +
+  'Say "on the books", "last year" and "comp set". Give a rate against the comp set as a percentage ("26% under the comp set median"), never as a multiple like 0.74x. ' +
+  'Never mention tools, tables, columns, codes or what a tool did or did not return, and call yourself "the agent", never a workflow. ' +
+  'A title is one decision and starts with a verb. No exclamation marks.';
+
 /** The run brief a workflow agent starts from: its spec as instructions. `test` is a "send test now" run. */
 export function workflowInstructions(workflow: Workflow, test = false): string {
   const hotels = workflow.hotels.includes('ALL') ? 'all 20 hotels' : workflow.hotels.join(', ');
   if (workflow.action.type === 'email') {
     // The recipient is not here: the tool takes it from the workflow, so the model never sees or chooses it.
     return [
-      `You are running the Compass workflow "${workflow.name}" unattended, for ${hotels}.`,
+      `You are running the Compass agent "${workflow.name}" unattended, for ${hotels}.`,
       `Goal: ${workflow.goal}`,
       workflow.checks.length ? `Check first with: ${workflow.checks.join(', ')}. Start from get_brief when the trigger is a brief finding.` : '',
-      `Your only action is an email to the workflow's recipient, through send_email. ${workflow.action.guidance}`,
+      `Your only action is an email to the agent's recipient, through send_email. ${workflow.action.guidance}`,
       'Steps: 1) check the data with tools, comparing windows of equal length; 2) decide whether the condition in the goal holds today; ' +
         '3) on a test run always call send_email once, with would_fire saying whether the condition holds today; otherwise call ' +
         'send_email only when it holds; 4) end with two or three sentences on what you found and whether an email was sent. ' +
@@ -91,12 +102,13 @@ export function workflowInstructions(workflow: Workflow, test = false): string {
       test
         ? 'This is a test run: always call send_email exactly once, with would_fire saying whether the condition holds today, even when it does not hold.'
         : 'This is not a test run.',
+      VOICE,
     ]
       .filter(Boolean)
       .join('\n');
   }
   return [
-    `You are running the Compass workflow "${workflow.name}" unattended, for ${hotels}.`,
+    `You are running the Compass agent "${workflow.name}" unattended, for ${hotels}.`,
     `Goal: ${workflow.goal}`,
     workflow.checks.length ? `Check first with: ${workflow.checks.join(', ')}. Start from get_brief when the trigger is a brief finding.` : '',
     `You may propose: ${workflow.action.type}. ${workflow.action.guidance}`,
@@ -104,6 +116,7 @@ export function workflowInstructions(workflow: Workflow, test = false): string {
     'Steps: 1) check the data with tools, comparing windows of equal length; 2) if an action is warranted, call ' +
       'propose_action once per hotel, quoting numbers from tool results; 3) when a proposal is approved, call apply_action; ' +
       '4) end with two or three sentences on what you found and what was done. If nothing needs action, say so and propose nothing.',
+    VOICE,
   ]
     .filter(Boolean)
     .join('\n');

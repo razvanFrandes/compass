@@ -240,7 +240,7 @@ export class FinanceData {
       period: { from: input.from, to: input.to },
       notes: [
         'Monthly data: periods are whole calendar months. Money converted to EUR at each month\'s rate; future months use the latest rate.',
-        'Last year (ly) is the same months one year earlier, actuals only; it is empty when any of those months has no actuals (data starts in January 2025).',
+        'Last year is the same months one year earlier, actuals only; it is empty when any of those months has no actuals (data starts in January 2025).',
         ...(view === 'lines' ? ['For expense lines a positive variance means spending above budget: favourable says which way is good.'] : []),
         ...rollUpNote(by),
       ],
@@ -328,17 +328,17 @@ export class FinanceData {
       sources: ['hotel.forecasts', 'hotel.v_hotel_day', 'hotel.otb_as_of()', 'hotel.budgets'],
       definitions: {
         range:
-          'rooms_p10 / p50 / p90: the RMS forecast of room nights sold. P10 = 9 in 10 chances to beat it, P50 = median, ' +
-          'P90 = 1 in 10 chances to beat it. Quote the forecast as the P10–P90 range, not as one number.',
+          'The RMS forecast of room nights sold: low (P10), expected (P50) and high (P90). P10 has 9 in 10 chances of being beaten, ' +
+          'P50 is the median, P90 has 1 in 10. A forecast is quoted as the P10–P90 range, not as one number.',
         rooms_on_books: 'Room nights already booked for the future nights of the period (forecast snapshot).',
-        rooms_on_books_stly: 'Room nights on the books at the same point last year (−364 days) for the same nights.',
+        rooms_on_books_stly: 'Room nights on the books at the same time last year (364 days earlier) for the same nights.',
         room_revenue_p10_eur:
           'P10 and P90 room revenue = P10 / P90 room nights × the forecast ADR (P50); only room revenue has a P50 in the RMS.',
         budget_position: 'Where the room-night budget falls against the forecast range.',
       },
       period: input.from && input.to ? { from: input.from, to: input.to } : null,
       notes: [
-        `Forecast made on ${bd}. Periods are whole months; the current month adds its actual nights before the business date (rooms_actual), so it compares with the monthly budget.`,
+        `Forecast made on ${bd}. Periods are whole months; the current month includes the nights already sold before the business date, so it compares with the monthly budget.`,
         'Monthly ranges are sums of daily P10/P90: a deliberately wide range (it assumes the days move together).',
         'Money in EUR at each month\'s rate (the latest rate for future months).',
         ...rollUpNote(by),
@@ -403,7 +403,7 @@ export class FinanceData {
       sources: ['hotel.me_events', 'hotel.meeting_rooms', 'hotel.hotels'],
       definitions: {
         revenue_eur: 'Definite events: space hire + banquet F&B + AV, in EUR, by event start date.',
-        space_av_revenue_eur: 'Space hire + AV only: what the P&L books as ME_REVENUE (banquet F&B goes to FNB_REVENUE).',
+        space_av_revenue_eur: 'Space hire + AV only: what the P&L books as M&E revenue (banquet F&B is booked under F&B revenue).',
         revenue_per_sqm_eur: 'M&E revenue ÷ the hotel\'s meeting space in sqm, for the period.',
         utilisation_pct: 'Meeting-room days booked by definite events ÷ meeting-room days available (rooms × days), in %.',
         tentative_events: 'Pipeline: provisional bookings not yet confirmed, with their revenue if they convert.',
@@ -411,7 +411,7 @@ export class FinanceData {
       period: { from: input.from, to: input.to },
       notes: [
         'Dates after the business date are the pipeline: definite events are on the books, tentative ones may still convert or drop.',
-        'Hotels without meeting space (EZE, LON2) have no rows.',
+        'Tessera Buenos Aires Palermo and Tessera London King’s Cross have no meeting space, so they do not appear.',
         ...rollUpNote(by),
       ],
     });

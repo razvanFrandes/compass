@@ -103,7 +103,7 @@ describe('boards: create, read, change, delete', () => {
 
   it('answers not_found for a board that is not there', async () => {
     const boards = service();
-    const missing = { ok: false, error: { kind: 'not_found', message: 'No board has this id.' } };
+    const missing = { ok: false, error: { kind: 'not_found', message: 'This board no longer exists.' } };
     expect(await boards.get('nope')).toEqual(missing);
     expect(await boards.update('nope', { name: 'A' })).toEqual(missing);
     expect(await boards.remove('nope')).toEqual(missing);
@@ -116,7 +116,7 @@ describe('boards: create, read, change, delete', () => {
     for (let i = 0; i < BOARD_LIMITS.boards; i++) expect((await boards.create({ name: `Board ${i}` })).ok).toBe(true);
     expect(await boards.create({ name: 'One too many' })).toEqual({
       ok: false,
-      error: { kind: 'limit', message: 'The demo keeps at most 50 boards. Delete one and try again.' },
+      error: { kind: 'limit', message: 'This demo holds up to 50 boards. Delete one, then try again.' },
     });
   });
 });
@@ -174,7 +174,7 @@ describe('boards: widgets', () => {
     const { board } = await boardWith(boards, BOARD_LIMITS.widgetsPerBoard);
     expect(await boards.addWidget(board.id, widget())).toEqual({
       ok: false,
-      error: { kind: 'limit', message: 'A board holds at most 24 widgets. Remove one and try again.' },
+      error: { kind: 'limit', message: 'A board holds up to 24 charts. Remove one, then try again.' },
     });
   });
 
@@ -183,7 +183,7 @@ describe('boards: widgets', () => {
     const { board, widgets } = await boardWith(boards, 2);
     expect(await boards.removeWidget(board.id, widgets[0]!.id)).toEqual({ ok: true, value: null });
     expect(await boards.get(board.id)).toMatchObject({ ok: true, value: { widgets: [{ id: widgets[1]!.id }] } });
-    expect(await boards.removeWidget(board.id, widgets[0]!.id)).toEqual({ ok: false, error: { kind: 'not_found', message: 'This board has no widget with this id.' } });
+    expect(await boards.removeWidget(board.id, widgets[0]!.id)).toEqual({ ok: false, error: { kind: 'not_found', message: 'This chart is no longer on the board.' } });
   });
 
   it('reorders the widgets', async () => {
@@ -205,7 +205,7 @@ describe('boards: widgets', () => {
     const ids = widgets.map((w) => w.id);
     expect(await boards.update(board.id, { order: order(ids) })).toEqual({
       ok: false,
-      error: { kind: 'invalid', message: 'order: list every widget id of the board exactly once.' },
+      error: { kind: 'invalid', message: 'The new order must list every chart on the board exactly once.' },
     });
     expect((await boards.list())[0]!.widgets.map((w) => w.id)).toEqual(ids);
   });

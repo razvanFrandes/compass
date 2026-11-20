@@ -97,14 +97,14 @@ describe('budgetExceeded', () => {
     expect(response.status).toBe(429);
     expect(response.headers.get('Retry-After')).toBe('3600');
     const body = (await response.json()) as { error: string; resetsAt: string };
-    expect(body.error).toBe("The demo's daily budget of 300 questions is used up. It resets at 00:00 UTC.");
+    expect(body.error).toBe('Today’s limit of 300 questions for this demo is used up. It resets at midnight UTC.');
     expect(body.resetsAt).toBe('2026-11-21T00:00:00.000Z');
   });
 
   it('names board changes in plain words', async () => {
     const { budgetMessage } = await import('../src/presentation/http/budget-response.ts');
     expect(budgetMessage({ ok: false, kind: 'board_write', used: 600, limit: 600, remaining: 0, resetsAt: '' })).toBe(
-      "The demo's daily budget of 600 board changes is used up. It resets at 00:00 UTC.",
+      'Today’s limit of 600 board changes for this demo is used up. It resets at midnight UTC.',
     );
   });
 });

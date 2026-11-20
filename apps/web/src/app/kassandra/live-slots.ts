@@ -33,7 +33,7 @@ export interface WidgetSlot {
   widget: ChatWidget | null;
 }
 
-/** A data tool call that will become a card in "How this was computed". */
+/** A data tool call that will become a card in "Behind the numbers". */
 export interface EvidenceSlot {
   callId: string;
   phase: SlotPhase;

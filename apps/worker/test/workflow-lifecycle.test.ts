@@ -92,7 +92,7 @@ describe('removeWorkflow', () => {
 
   it('answers 404 for a workflow that is not there', async () => {
     const { store } = await seeded();
-    expect(await removeWorkflow(store, 'wf-9')).toEqual({ ok: false, error: { error: 'No such workflow.', status: 404 } });
+    expect(await removeWorkflow(store, 'wf-9')).toEqual({ ok: false, error: { error: 'That agent no longer exists.', status: 404 } });
   });
 
   it.each(['running', 'waiting_approval'] as const)('refuses while a run of it is %s: the run would lose its workflow', async (status) => {

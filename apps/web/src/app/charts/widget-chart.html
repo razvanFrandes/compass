@@ -38,7 +38,7 @@
     @if (!b) {
       <!-- A skeleton of this kind, in the box the finished widget will have -->
       <div class="wc-sk-host" [class.wc-shimmer]="state() !== 'skeleton'" role="status">
-        <span class="sr-only">Loading {{ s.title || 'chart' }}</span>
+        <span class="sr-only">Loading {{ s.title || 'chart' }}…</span>
         <juyo-widget-skeleton [plan]="plan()" [compact]="compact()" [narrow]="narrow()" />
       </div>
     } @else if (b.render === 'empty') {

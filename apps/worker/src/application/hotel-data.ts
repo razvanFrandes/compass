@@ -173,7 +173,7 @@ export class HotelData {
       'Stay dates on or after the business date are on the books, not actuals.',
       ...(level !== 'hotel' ? [`Rolled up by ${level} from sums over its hotels (money in EUR), not by averaging hotel ratios.`] : []),
       ...(query.compare === 'stly'
-        ? ['compare_value is the same period last year, shifted 364 days so weekdays line up; change and change_pct are value vs compare_value.']
+        ? ['Last year is the same period shifted back 364 days, so weekdays line up. The change is this year against last year.']
         : []),
       ...(join ? ['The comp set benchmark covers actuals only (stay dates before the business date). For future nights use the rate position.'] : []),
     ];
@@ -233,7 +233,7 @@ export class HotelData {
       {
         sources: ['hotel.pace_vs_stly()'],
         definitions: {
-          pace: `Room nights on the books for the next ${days} nights vs on the books at the same point last year (−364 days). Revenue in local currency.`,
+          pace: `Room nights on the books for the next ${days} nights vs on the books at the same time last year (364 days earlier). Revenue in local currency.`,
         },
       },
     );
@@ -253,7 +253,7 @@ export class HotelData {
       [input.hotels?.length ? input.hotels : null, input.from ?? null, input.to ?? null],
       {
         sources: ['hotel.v_rate_position'],
-        definitions: { bar_vs_comp: 'Our best available rate ÷ the median comp set rate from the latest shop. 1.00 = at the median.' },
+        definitions: { bar_vs_comp: 'Our best available rate ÷ the comp set median from the latest rate shop. 1.00 is at the median.' },
         period: input.from && input.to ? { from: input.from, to: input.to } : null,
       },
     );
@@ -275,7 +275,7 @@ export class HotelData {
       [input.from, input.to, input.hotels?.length ? input.hotels : null],
       {
         sources: ['hotel.v_channel_month', 'hotel.channels'],
-        definitions: { net_revenue: 'Room revenue after channel commission and GDS fees (channels.commission_pct), in EUR.' },
+        definitions: { net_revenue: 'Room revenue after channel commission and GDS fees, in EUR.' },
         period: { from: input.from, to: input.to },
       },
     );
@@ -375,7 +375,7 @@ export class HotelData {
       {
         sources: ['hotel.reservation_nights', 'hotel.reservations', 'hotel.accounts'],
         definitions: {
-          previous_room_nights: 'Room nights in the period of the same length immediately before `from` (equal windows).',
+          previous_room_nights: 'Room nights in the period of the same length just before this one.',
           last_stay_date: 'The last night the account stayed, across both windows.',
         },
         period: { from: input.from, to: input.to },
@@ -436,7 +436,7 @@ export class HotelData {
         sources: ['hotel.fnb_daily', 'hotel.outlets', 'hotel.v_hotel_day'],
         definitions: { covers_per_occupied_room: 'Covers ÷ room nights sold in the same period: how much in-house demand the outlets capture.' },
         period: { from: input.from, to: input.to },
-        notes: ['Meal periods: breakfast, lunch, dinner, all_day. A stale POS feed shows as missing days (check get_data_health).'],
+        notes: ['Meal periods: breakfast, lunch, dinner, all_day. A stalled POS feed shows as missing days: check data freshness first.'],
       },
     );
   }
@@ -542,7 +542,7 @@ export class HotelData {
       rows,
       evidence: await this.#evidence('brief detectors (see impact_basis on each item)', [], rows.length, {
         sources: [...new Set(rows.flatMap((r) => r.sources))],
-        notes: ['Found by fixed SQL detectors, not by the model. Stale data feeds come first, then items ranked by absolute EUR impact.'],
+        notes: ['Found by fixed checks on the data, not written by AI. Stalled data feeds come first, then the findings with the most money at stake.'],
       }),
     };
   }
@@ -575,7 +575,7 @@ export class HotelData {
     try {
       const result = await this.#run<Record<string, unknown>>(guarded.value, [], {
         sources: ['hotel.*'],
-        notes: [`Custom query written by the assistant, capped at ${MAX_ROWS} rows.`],
+        notes: [`A custom analysis written for this question, limited to ${MAX_ROWS} rows.`],
       });
       if (!hotels?.length) return ok(result);
       if (result.rows.length && !result.rows.some((row) => 'hotel_code' in row)) {

@@ -93,7 +93,7 @@ describe('send_email', () => {
 
     expect(settled.status).toBe('done');
     expect(sender.sent).toHaveLength(1);
-    expect(sender.sent[0]).toMatchObject({ to: 'silviu@example.com', subject: 'Compass alert · Lisbon pace watch' });
+    expect(sender.sent[0]).toMatchObject({ to: 'silviu@example.com', subject: 'Lisbon pace watch · Compass' });
     expect(sender.sent[0]!.text).toContain('Lisbon is 12% behind last year');
     expect(sender.sent[0]!.text).toContain('https://juyo.razvanfrandes.com/ask?q=');
     // The same normalised address goes to the quota and to the sender. A scheduled run has no client to limit.
@@ -168,8 +168,8 @@ describe('send_email', () => {
     await (await root.submit({ type: 'input', content: 'Run the workflow now.' }, context)).wait(context);
 
     expect(sender.sent).toHaveLength(1);
-    expect(sender.sent[0]!.subject).toBe('Test · Compass alert · Lisbon pace watch');
-    expect(sender.sent[0]!.text).toContain('Would not fire today');
+    expect(sender.sent[0]!.subject).toBe('Test run · Lisbon pace watch · Compass');
+    expect(sender.sent[0]!.text).toContain('It would not email you today');
     expect(store.audit[0]).toMatchObject({ outcome: 'emailed' });
     // A test does not use up the workflow's five emails.
     expect(store.workflows.get('wf-lisbon')!.emailsSent ?? 0).toBe(0);
@@ -212,7 +212,7 @@ describe('send_email', () => {
   });
 
   it('quota refusal sends nothing and says why', async () => {
-    const reason = 'This address already got 3 emails in the last hour. Try again later.';
+    const reason = 'This address has had its 3 emails for this hour. Try again later.';
     const { faux, harness, root, store, sender } = await setup({ quota: { take: async () => ({ ok: false, reason }) } });
     let seen: string[] = [];
     let sentFlags: (boolean | undefined)[] = [];
@@ -305,7 +305,7 @@ describe('send_email, at most once', () => {
 });
 
 describe('send_email, the last mail', () => {
-  const LAST = 'This was the last email from this workflow';
+  const LAST = 'This is the last email from this agent';
 
   it('the fifth email says it is the last', async () => {
     const { faux, harness, root, store, sender } = await setup();

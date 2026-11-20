@@ -135,13 +135,13 @@ function describe(c: Ctx, f: Frame, what: string, extra = ''): string {
 }
 
 const legendOf = (f: Frame, mark: (s: Series) => LegendItem['mark']): LegendItem[] => (f.series.length > 1 ? f.series.map((s) => ({ label: s.name, color: s.color, mark: mark(s) })) : []);
-const droppedNote = (f: Frame) => (f.dropped > 0 ? `Showing the first ${MAX_SERIES} series; ${f.dropped} more are in the table.` : undefined);
+const droppedNote = (f: Frame) => (f.dropped > 0 ? `Showing the first ${MAX_SERIES} series. “View as table” has the other ${f.dropped}.` : undefined);
 
 /* ───────── Line and area ───────── */
 
 function lineLike(c: Ctx, area: boolean): Built {
   const f = frame(c);
-  if (!f) return empty(c, 'No data to plot for this period.');
+  if (!f) return empty(c, 'No data for this period.');
   const multi = f.series.length > 1;
   // Name the series on the line ends when they fit; otherwise the legend carries them.
   const direct = !c.narrow && f.series.length <= 4;
@@ -205,7 +205,7 @@ function clip(c: Ctx, f: Frame, limit: number): { f: Frame; note?: string } {
   const cut = (xs: readonly string[]) => xs.slice(0, limit);
   return {
     f: { ...f, labels: cut(f.labels), full: cut(f.full), series: f.series.map((s) => ({ ...s, values: s.values.slice(0, limit) })) },
-    note: `Showing the first ${limit} of ${f.labels.length} rows; all of them are in the table.`,
+    note: `Showing the first ${limit} of ${f.labels.length}. “View as table” has them all.`,
   };
 }
 
@@ -242,7 +242,7 @@ const hiddenValueAxis = (c: Ctx, col: EvidenceColumn, extra: Record<string, unkn
 
 export function buildBar(c: Ctx, note?: string): Built {
   const whole = frame(c);
-  if (!whole) return empty(c, 'No data to plot for this period.');
+  if (!whole) return empty(c, 'No data for this period.');
   const { f, note: clipped } = whole.wordy ? clip(c, whole, maxRows(c)) : { f: whole, note: undefined };
   const main = f.series[0];
   const cmp = f.series.find((s) => s.role === 'compare');
@@ -288,7 +288,7 @@ export function buildBar(c: Ctx, note?: string): Built {
 
 function multiBar(c: Ctx, stacked: boolean): Built {
   const whole = frame(c);
-  if (!whole) return empty(c, 'No data to plot for this period.');
+  if (!whole) return empty(c, 'No data for this period.');
   const perRow = stacked ? 15 : 12 + whole.series.length * 7;
   const { f, note: clipped } = whole.wordy ? clip(c, whole, maxRows(c, perRow)) : { f: whole, note: undefined };
   const totals = f.labels.map((_, i) => f.series.reduce((sum, s) => sum + (s.values[i] ?? 0), 0));
@@ -423,7 +423,7 @@ export function waterfallBreak(steps: WaterfallStep[]): { start: number; end: nu
 
 export function buildWaterfall(c: Ctx): Built {
   const steps = waterfallSteps(c);
-  if (!steps.length) return empty(c, 'No steps to bridge.');
+  if (!steps.length) return empty(c, 'No steps to show.');
   const col = valueColumn(c, pickValueKey(c));
   const color = (s: WaterfallStep) => (s.type === 'total' ? c.t.series : s.type === 'up' ? c.t.pos : c.t.neg);
   const text = (s: WaterfallStep) => (s.type === 'total' ? formatValue(s.value, col, { compact: true }) : `${s.value >= 0 ? '▲' : '▼'} ${formatValue(Math.abs(s.value), col, { compact: true })}`);
@@ -515,7 +515,7 @@ interface WaterfallApi {
 export function buildBullet(c: Ctx): Built {
   const xKey = pickLabelKey(c, c.spec.x, c.spec.group);
   const yKey = pickValueKey(c);
-  if (!xKey || !yKey || !c.rows.length) return empty(c, 'No data to plot for this period.');
+  if (!xKey || !yKey || !c.rows.length) return empty(c, 'No data for this period.');
   const xCol = column(c, xKey);
   const col = valueColumn(c, yKey);
   const targetCol = c.spec.compare ? valueColumn(c, c.spec.compare) : null;
@@ -578,7 +578,7 @@ export function buildBullet(c: Ctx): Built {
     option,
     points: names.map((name, i) => ({ seriesIndex: 0, dataIndex: i, text: `${name}: ${fmt(actual[i], col)}${targetCol ? `, ${targetCol.label.toLowerCase()} ${fmt(target[i], targetCol)}${deltas[i] ? `, ${deltas[i]!.spoken}` : ''}` : ''}` })),
     legend: targetCol ? [{ label: col.label, color: c.t.series, mark: 'solid' }, { label: targetCol.label, color: c.t.cmp, mark: 'tick' }] : [],
-    note: c.rows.length > limit ? `Showing the first ${limit} of ${c.rows.length} rows; all of them are in the table.` : undefined,
+    note: c.rows.length > limit ? `Showing the first ${limit} of ${c.rows.length}. “View as table” has them all.` : undefined,
     table: tableModel(c, specKeys(c.spec)),
     summary: summary(c, `Bullet chart: ${col.label}${targetCol ? ` against ${targetCol.label}` : ''} for ${names.length} rows.`, extremes(names.map((name, i) => ({ name, value: actual[i], text: fmt(actual[i], col) })))),
   };

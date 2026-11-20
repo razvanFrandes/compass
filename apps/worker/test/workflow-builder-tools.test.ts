@@ -61,7 +61,7 @@ describe('draftIssues', () => {
   });
 
   it('says an email action still needs its address', () => {
-    expect(draftIssues({ ...complete, action: { type: 'email' } })).toEqual(['delivery: An email action needs the address to send to.']);
+    expect(draftIssues({ ...complete, action: { type: 'email' } })).toEqual(['delivery: Add the address to send the email to.']);
   });
 
   it('says nothing once the draft can be saved', () => {
@@ -132,8 +132,8 @@ describe('builder tools', () => {
     expect(results.map((r) => r.details?.changed)).toEqual([['trigger'], ['scope'], ['check:get_pace'], ['analyze'], ['action']]);
     expect(results.at(-1)!.details!.graph!.nodes.map((n) => n.id)).toEqual(['trigger', 'scope', 'check:get_pace', 'analyze', 'action']);
     // The model sees the whole chain after every call, with the address masked.
-    expect(results[1]!.text).toContain('Every morning, after the brief → LIS1 → (Add a check) → (Describe what to watch) → (Choose an action)');
-    expect(results.at(-1)!.text).toContain('Email an****@example.com');
+    expect(results[1]!.text).toContain('Every morning, after the brief → LIS1 → (Choose the data) → (Describe what to watch for) → (Choose an action)');
+    expect(results.at(-1)!.text).toContain('Send an email to an****@example.com');
     expect(results.at(-1)!.text).not.toContain('ana@example.com');
 
     expect(WorkflowSpec.safeParse(host.draft).success).toBe(true);

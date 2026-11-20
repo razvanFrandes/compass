@@ -159,8 +159,8 @@ describe('BuilderSocket', () => {
     const { client, socket } = connect();
     socket().open();
     client.save();
-    socket().receive({ type: 'error', message: 'The workflow cannot be saved yet.' });
-    expect(client.error()).toBe('The workflow cannot be saved yet.');
+    socket().receive({ type: 'error', message: 'The agent can’t be saved yet.' });
+    expect(client.error()).toBe('The agent can’t be saved yet.');
     expect(client.pending()).toBeNull();
     client.edit({ hotels: ['LIS'] });
     expect(client.error()).toBeNull();

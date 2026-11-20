@@ -26,15 +26,27 @@ interface Detector {
   question: (row: Row) => string;
 }
 
+/** "−€1.34M", "+€43k": signed, so a loss and money left on the table do not read the same. */
 const eur = (n: number | null) =>
-  n === null ? '' : `€${Math.abs(n) >= 1_000_000 ? `${(Math.abs(n) / 1e6).toFixed(2)}M` : `${Math.round(Math.abs(n) / 1000)}k`}`;
+  n === null ? '' : `${n < 0 ? '−' : '+'}€${Math.abs(n) >= 1_000_000 ? `${(Math.abs(n) / 1e6).toFixed(2)}M` : `${Math.round(Math.abs(n) / 1000)}k`}`;
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const count = (n: unknown) => Number(n).toLocaleString('en-GB');
+/** "2026-12-16", "2026-12-18" → "16–18 Dec"; across months "28 Dec – 3 Jan". Titles never show an ISO date. */
+function nights(first: unknown, last: unknown): string {
+  const [a, b] = [String(first), String(last)].map((iso) => ({ day: Number(iso.slice(8, 10)), month: MONTHS[Number(iso.slice(5, 7)) - 1]?.slice(0, 3) ?? '' }));
+  if (a!.month === b!.month) return a!.day === b!.day ? `${a!.day} ${a!.month}` : `${a!.day}–${b!.day} ${b!.month}`;
+  return `${a!.day} ${a!.month} – ${b!.day} ${b!.month}`;
+}
+/** "2026-10" → "October". */
+const monthName = (month: unknown) => MONTHS[Number(String(month).slice(5, 7)) - 1] ?? String(month);
 
 export const DETECTORS: Detector[] = [
   {
     kind: 'data_stale',
     severity: 'critical',
     sources: ['hotel.data_sources'],
-    impact_basis: 'not priced: figures from this source are incomplete until it syncs again',
+    impact_basis: 'not priced: figures from this feed are incomplete until it syncs again',
     sql: `
       select d.hotel_code, h.name as hotel_name, null::float8 as impact_eur, d.system, d.vendor, d.status,
              to_char(d.last_sync_at, 'YYYY-MM-DD HH24:MI') as last_sync_at,
@@ -42,14 +54,14 @@ export const DETECTORS: Detector[] = [
         from hotel.data_sources d join hotel.hotels h using (hotel_code)
        where d.status <> 'ok'`,
     detail: (r) => String(r['system']),
-    title: (r) => `${r.hotel_name}: ${r['system']} feed (${r['vendor']}) has not synced for ${r['days_behind']} days`,
-    question: (r) => `Is anything wrong with the data at ${r.hotel_name}? What does the stale ${r['system']} feed affect?`,
+    title: (r) => `${r.hotel_name}: the ${r['vendor']} ${r['system']} feed has not synced for ${Number(r['days_behind']) === 1 ? '1 day' : `${r['days_behind']} days`}`,
+    question: (r) => `Which figures at ${r.hotel_name} does the stalled ${r['vendor']} ${r['system']} feed affect?`,
   },
   {
     kind: 'pace_behind',
     severity: 'warning',
     sources: ['hotel.pace_vs_stly()'],
-    impact_basis: 'room revenue on the books vs the same point last year, next 45 nights',
+    impact_basis: 'room revenue on the books vs the same time last year, next 45 nights',
     sql: `
       select p.hotel_code, h.name as hotel_name,
              round(sum(p.revenue_otb - p.revenue_otb_stly) * hotel.eur_rate(h.currency, hotel.business_date()))::float8 as impact_eur,
@@ -65,7 +77,7 @@ export const DETECTORS: Detector[] = [
     kind: 'underpriced_demand',
     severity: 'warning',
     sources: ['hotel.v_rate_position', 'hotel.otb_as_of()', 'hotel.room_inventory_daily'],
-    impact_basis: 'gap to the comp set median × rooms already sold on those nights: revenue already left on the table at today\'s rate. Booked rooms cannot be repriced; the rooms still unsold can.',
+    impact_basis: 'the gap to the comp set median × the rooms already sold on those nights. Sold rooms keep their rate; the unsold ones can still be repriced',
     sql: `
       with bd as (select hotel.business_date() as d),
       otb as (select o.* from bd, hotel.otb_as_of(bd.d, null, bd.d, bd.d + 45) o)
@@ -81,14 +93,14 @@ export const DETECTORS: Detector[] = [
          and (r.comps_sold_out >= 2 or coalesce(o.rooms_on_books, 0) > 0.7 * i.rooms_available)
        group by r.hotel_code, h.name
       having count(*) >= 2`,
-    title: (r) => `${r.hotel_name} sells ${r['nights']} high-demand nights at ${r['avg_bar_vs_comp']}× the comp set (${r['first_night']} to ${r['last_night']})`,
-    question: (r) => `How is ${r.hotel_name} priced for ${r['first_night']} to ${r['last_night']} against its comp set?`,
+    title: (r) => `${r.hotel_name} is priced ${Math.round((1 - Number(r['avg_bar_vs_comp'])) * 100)}% under the comp set median on ${r['nights']} busy nights, ${nights(r['first_night'], r['last_night'])}`,
+    question: (r) => `How is ${r.hotel_name} priced against its comp set for ${nights(r['first_night'], r['last_night'])}?`,
   },
   {
     kind: 'account_loss',
     severity: 'warning',
     sources: ['hotel.reservation_nights', 'hotel.reservations', 'hotel.accounts'],
-    impact_basis: 'room revenue in the last 6 months vs the 6 months before',
+    impact_basis: 'room revenue from the account, last 6 months vs the 6 months before',
     sql: `
       with bd as (select hotel.business_date() as d),
       x as (
@@ -109,14 +121,14 @@ export const DETECTORS: Detector[] = [
         from x join hotel.hotels h using (hotel_code)
        where x.prev >= 500 and x.cur < 0.5 * x.prev`,
     detail: (r) => String(r['account']),
-    title: (r) => `${r.hotel_name} lost most of ${r['account']}: ${r['room_nights_last_6m']} room nights in 6 months vs ${r['room_nights_previous_6m']} before`,
+    title: (r) => `${r.hotel_name} lost most of ${r['account']}: ${count(r['room_nights_last_6m'])} room nights in the last 6 months, down from ${count(r['room_nights_previous_6m'])}`,
     question: (r) => `What happened with ${r['account']} at ${r.hotel_name}, and what did it cost?`,
   },
   {
     kind: 'web_conversion_drop',
     severity: 'warning',
     sources: ['hotel.web_daily'],
-    impact_basis: 'direct bookings lost in the last 30 days at the earlier conversion rate × average booking value',
+    impact_basis: 'direct bookings lost in the last 30 days: the earlier conversion rate × the average booking value',
     sql: `
       with bd as (select hotel.business_date() as d),
       w as (
@@ -133,7 +145,7 @@ export const DETECTORS: Detector[] = [
         from w join hotel.hotels h using (hotel_code)
        where w.s1 > 1000 and (w.b1::numeric / w.s1) < 0.7 * (w.b0::numeric / w.s0)`,
     detail: (r) => String(r['device']),
-    title: (r) => `${r.hotel_name}: ${r['device']} website conversion fell to ${r['conversion_pct_last_30d']}% from ${r['conversion_pct_previous_60d']}%`,
+    title: (r) => `${r.hotel_name}: ${r['device']} website conversion fell from ${r['conversion_pct_previous_60d']}% to ${r['conversion_pct_last_30d']}%`,
     question: (r) => `Why did ${r['device']} conversion on the ${r.hotel_name} website drop, and where did those bookings go?`,
   },
   {
@@ -157,14 +169,14 @@ export const DETECTORS: Detector[] = [
              g.department, g.staffing_pct::float8 as staffing_pct
         from gap g join hotel.hotels h using (hotel_code) left join fnb using (hotel_code)`,
     detail: (r) => String(r['department']),
-    title: (r) => `${r.hotel_name}: ${r['department']} worked ${r['staffing_pct']}% of the hours its workload needed in the last 30 days`,
+    title: (r) => `${r.hotel_name}: ${r['department']} was staffed at ${r['staffing_pct']}% of the hours it needed in the last 30 days`,
     question: (r) => `What is the ${r['department']} staffing gap at ${r.hotel_name} doing to guests and revenue?`,
   },
   {
     kind: 'rooms_out_of_order',
     severity: 'warning',
     sources: ['hotel.room_inventory_daily', 'hotel.v_hotel_day'],
-    impact_basis: 'out-of-order room nights in the next 30 days × last 30 days occupancy × ADR',
+    impact_basis: 'out-of-order room nights in the next 30 days × the occupancy and ADR of the last 30 days',
     sql: `
       with bd as (select hotel.business_date() as d),
       last30 as (
@@ -177,14 +189,14 @@ export const DETECTORS: Detector[] = [
        where i.date between bd.d and bd.d + 30
        group by i.hotel_code, h.name, l.occ, l.adr
       having avg(i.out_of_order) > 0.05 * max(i.physical_rooms)`,
-    title: (r) => `${r.hotel_name} has ${r['avg_rooms_out']} of ${r['physical_rooms']} rooms out of order on average for the next 30 days`,
+    title: (r) => `${r.hotel_name} has ${Math.round(Number(r['avg_rooms_out']))} of ${r['physical_rooms']} rooms out of order on average over the next 30 days`,
     question: (r) => `Why does ${r.hotel_name} have rooms out of order, and what are guests saying?`,
   },
   {
     kind: 'gop_miss',
     severity: 'warning',
     sources: ['hotel.pnl_monthly'],
-    impact_basis: 'GOP actual − budget in the last closed month, in EUR',
+    impact_basis: 'GOP vs budget in the last closed month',
     sql: `
       with m as (select max(month) as month from hotel.pnl_monthly where scenario = 'actual'),
       x as (
@@ -202,8 +214,8 @@ export const DETECTORS: Detector[] = [
              round(100 * x.gop / x.rev, 1)::float8 as gop_margin_pct, round(100 * x.gop_b / x.rev_b, 1)::float8 as gop_margin_budget_pct
         from x join hotel.hotels h using (hotel_code)
        where x.gop_b > 0 and x.gop < 0.9 * x.gop_b`,
-    title: (r) => `${r.hotel_name} missed its ${r['month']} GOP budget by ${Math.abs(Number(r['gop_var_pct']))}%`,
-    question: (r) => `Why did ${r.hotel_name} miss its GOP budget in ${r['month']}, and which P&L lines drove it?`,
+    title: (r) => `${r.hotel_name} missed its ${monthName(r['month'])} GOP budget by ${Math.abs(Number(r['gop_var_pct']))}%`,
+    question: (r) => `Why did ${r.hotel_name} miss its ${monthName(r['month'])} GOP budget, and which P&L lines drove it?`,
   },
 ];
 
