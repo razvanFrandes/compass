@@ -2,8 +2,10 @@ import { Component, DestroyRef, ElementRef, InjectionToken, type Signal, ViewEnc
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorArrowsDownUpLight, phosphorCaretDownLight, phosphorCaretUpLight, phosphorChartBarLight, phosphorTableLight } from '@ng-icons/phosphor-icons/light';
 import { type Built, type TableModel, bodyHeight, buildWidget, kpiColumns, kpiCount } from './builders';
+import { skeletonPlan } from './builders/skeleton';
 import { EChartHost } from './echart-host';
 import { readTokens } from './tokens';
+import { WidgetSkeleton } from './widget-skeleton';
 import type { EvidenceColumn, WidgetKind, WidgetRow, WidgetSpec } from './widget-types';
 
 /**
@@ -18,30 +20,13 @@ if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') 
   new MutationObserver(() => appTheme.update((n) => n + 1)).observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
 }
 
-type SkeletonShape = 'figure' | 'tiles' | 'bars' | 'line' | 'round' | 'grid' | 'list';
-const SKELETON: Record<WidgetKind, SkeletonShape> = {
-  kpi: 'figure',
-  kpi_row: 'tiles',
-  line: 'line',
-  area: 'line',
-  bar: 'bars',
-  stacked_bar: 'bars',
-  grouped_bar: 'bars',
-  waterfall: 'bars',
-  pie: 'round',
-  donut: 'round',
-  gauge: 'round',
-  radar: 'round',
-  heatmap: 'grid',
-  calendar_heatmap: 'grid',
-  treemap: 'grid',
-  table: 'list',
-  funnel: 'list',
-  bullet: 'list',
-  sparkline_list: 'list',
-  scatter: 'line',
-  sankey: 'list',
-};
+/**
+ * What to show while a widget is on its way (generative UI streams the spec before the rows):
+ * - `skeleton`: the whole widget as a placeholder for the spec's kind, at its final dimensions;
+ * - `title`: the real title and subtitle, with the chart area still a placeholder;
+ * - `none`: the widget itself (rows that are null or undefined still show the `title` state).
+ */
+export type WidgetLoading = 'none' | 'skeleton' | 'title';
 
 let nextId = 0;
 
@@ -50,13 +35,13 @@ let nextId = 0;
  *
  *   <juyo-widget-chart [spec]="w" [rows]="w.rows" [columns]="w.columns" />
  *
- * `rows` null or undefined shows the skeleton, which has the same dimensions as the finished widget.
- * Every chart can be read as a table ("View as table"), reached and stepped through with the keyboard,
+ * While it loads (`[loading]`, or rows that are null or undefined) it shows a skeleton of its own kind, in the
+ * box the finished widget will have. Every chart can be read as a table ("View as table"), reached and stepped through with the keyboard,
  * and follows the theme and prefers-reduced-motion.
  */
 @Component({
   selector: 'juyo-widget-chart',
-  imports: [EChartHost, NgIcon],
+  imports: [EChartHost, NgIcon, WidgetSkeleton],
   providers: [provideIcons({ phosphorArrowsDownUpLight, phosphorCaretDownLight, phosphorCaretUpLight, phosphorChartBarLight, phosphorTableLight })],
   encapsulation: ViewEncapsulation.None,
   styleUrl: './widget-chart.css',
@@ -72,8 +57,8 @@ export class WidgetChart {
   readonly compact = input(false);
   /** Shows the spec's title and subtitle above the widget (turn off when the host card already shows them). */
   readonly header = input(true);
-  /** Forces the skeleton even when rows are present. */
-  readonly loading = input(false);
+  /** The loading state to show; see WidgetLoading. Kassandra drives it from the streaming tool call. */
+  readonly loading = input<WidgetLoading>('none');
 
   protected readonly uid = `wc${nextId++}`;
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
@@ -99,20 +84,27 @@ export class WidgetChart {
   protected readonly tileCols = computed(() => kpiColumns(this.tiles(), this.width()));
   protected readonly height = computed(() => bodyHeight(this.spec(), this.compact(), this.width(), this.tiles()));
   protected readonly narrow = computed(() => this.width() < 480);
-  protected readonly skeleton = computed<SkeletonShape>(() => SKELETON[this.spec().kind] ?? 'list');
-  protected readonly tileCount = computed(() => Array.from({ length: this.tiles() }, (_, i) => i));
+  /** The state on screen: the one asked for, or `title` while there are no rows to draw. */
+  protected readonly state = computed<WidgetLoading>(() => (this.loading() !== 'none' ? this.loading() : this.rows() ? 'none' : 'title'));
+  protected readonly plan = computed(() => skeletonPlan(this.spec(), this.columns() ?? [], this.width()));
+  protected readonly nbsp = '\u00a0';
 
   protected readonly built = computed<Built | null>(() => {
     const rows = this.rows();
-    if (!rows || this.loading()) return null;
+    if (!rows || this.state() !== 'none') return null;
     return buildWidget({ spec: this.spec(), rows: rows as readonly WidgetRow[], columns: this.columns() ?? [], tokens: this.tokens(), width: this.width(), compact: this.compact(), motion: !this.reducedMotion() });
   });
 
   /** "View as table" resets when the widget becomes a different kind of chart. */
   protected readonly asTable = linkedSignal<WidgetKind, boolean>({ source: () => this.spec().kind, computation: () => false });
+  /**
+   * "View as table" has a place in the header for every kind but `table`, and keeps it while loading and when
+   * the result turns out empty, so the title wraps the same way in every state. It is only shown when it can do something.
+   */
+  protected readonly toggleSlot = computed(() => this.spec().kind !== 'table');
   protected readonly canToggle = computed(() => {
     const b = this.built();
-    return !b || (b.render !== 'table' && b.render !== 'empty');
+    return !!b && b.render !== 'table' && b.render !== 'empty';
   });
   protected readonly showTable = computed(() => {
     const b = this.built();

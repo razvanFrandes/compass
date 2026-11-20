@@ -1,17 +1,31 @@
 @let s = spec();
 @let b = built();
-<figure class="wc" [attr.aria-labelledby]="header() ? uid + '-t' : null" [attr.aria-label]="header() ? null : s.title" [attr.aria-busy]="b ? null : 'true'">
+<figure
+  class="wc"
+  [class.wc-shimmer]="state() === 'skeleton'"
+  [attr.aria-labelledby]="header() && state() !== 'skeleton' ? uid + '-t' : null"
+  [attr.aria-label]="header() && state() !== 'skeleton' ? null : s.title || 'Chart'"
+  [attr.aria-busy]="b ? null : 'true'"
+>
   <figcaption class="wc-head">
     <div class="wc-titles">
       @if (header()) {
-        <p class="wc-title" [id]="uid + '-t'">{{ s.title }}</p>
-        @if (s.subtitle) {
-          <p class="wc-subtitle">{{ s.subtitle }}</p>
+        @if (state() === 'skeleton') {
+          <!-- The real words, invisible, with a bar on each line: the header is already the height it will be -->
+          <p class="wc-title" aria-hidden="true"><span class="wc-ink" [class.wc-ink--stub]="!s.title"><span>{{ s.title || nbsp }}</span></span></p>
+          @if (s.subtitle || !s.title) {
+            <p class="wc-subtitle" aria-hidden="true"><span class="wc-ink" [class.wc-ink--stub]="!s.subtitle" style="--wc-stub: 180px"><span>{{ s.subtitle || nbsp }}</span></span></p>
+          }
+        } @else {
+          <p class="wc-title" [id]="uid + '-t'">{{ s.title }}</p>
+          @if (s.subtitle) {
+            <p class="wc-subtitle">{{ s.subtitle }}</p>
+          }
         }
       }
     </div>
-    @if (canToggle()) {
-      <button type="button" class="wc-toggle" [disabled]="!b" [attr.aria-label]="(asTable() ? 'View as chart: ' : 'View as table: ') + s.title" (click)="asTable.set(!asTable())">
+    @if (toggleSlot()) {
+      <button type="button" class="wc-toggle" [class.wc-toggle--stub]="state() === 'skeleton' || (b && !canToggle())" [disabled]="!canToggle()" [attr.aria-label]="(asTable() ? 'View as chart: ' : 'View as table: ') + s.title" (click)="asTable.set(!asTable())">
         <ng-icon [name]="asTable() ? 'phosphorChartBarLight' : 'phosphorTableLight'" aria-hidden="true" />
         @if (!compact() && !narrow()) {
           <span>{{ asTable() ? 'View as chart' : 'View as table' }}</span>
@@ -22,48 +36,10 @@
 
   <div class="wc-body" [style.height.px]="height()">
     @if (!b) {
-      <!-- Skeleton: the same box as the finished widget -->
-      <div class="wc-sk" [attr.data-shape]="skeleton()" [style.--wc-tiles]="tileCols()" role="status">
-        <span class="sr-only">Loading {{ s.title }}</span>
-        @switch (skeleton()) {
-          @case ('figure') {
-            <i class="wc-sk-line" style="width: 30%; height: 12px"></i>
-            <i class="wc-sk-line" style="width: 46%; height: 34px"></i>
-            <i class="wc-sk-line" style="width: 36%; height: 12px"></i>
-          }
-          @case ('tiles') {
-            @for (i of tileCount(); track i) {
-              <div class="wc-sk-tile">
-                <i class="wc-sk-line" style="width: 56%; height: 11px"></i>
-                <i class="wc-sk-line" style="width: 70%; height: 24px"></i>
-                <i class="wc-sk-line" style="width: 44%; height: 11px"></i>
-              </div>
-            }
-          }
-          @case ('bars') {
-            @for (h of [46, 72, 58, 88, 64, 40, 76, 52]; track $index) {
-              <i class="wc-sk-bar" [style.height.%]="h"></i>
-            }
-          }
-          @case ('line') {
-            <svg viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M0,30 L14,24 L28,27 L42,16 L56,19 L70,9 L84,13 L100,5" />
-            </svg>
-          }
-          @case ('round') {
-            <i class="wc-sk-ring"></i>
-          }
-          @case ('grid') {
-            @for (i of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]; track i) {
-              <i class="wc-sk-cell"></i>
-            }
-          }
-          @default {
-            @for (w of [92, 78, 86, 64, 72, 58]; track $index) {
-              <i class="wc-sk-line" [style.width.%]="w" style="height: 14px"></i>
-            }
-          }
-        }
+      <!-- A skeleton of this kind, in the box the finished widget will have -->
+      <div class="wc-sk-host" [class.wc-shimmer]="state() !== 'skeleton'" role="status">
+        <span class="sr-only">Loading {{ s.title || 'chart' }}</span>
+        <juyo-widget-skeleton [plan]="plan()" [compact]="compact()" [narrow]="narrow()" />
       </div>
     } @else if (b.render === 'empty') {
       <p class="wc-empty">{{ b.message }}</p>

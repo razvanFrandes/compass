@@ -1,6 +1,6 @@
-import { Component, DOCUMENT, computed, inject, signal } from '@angular/core';
+import { Component, DOCUMENT, DestroyRef, computed, inject, signal } from '@angular/core';
 import { SPECIMENS, type Specimen } from './catalog-samples';
-import { WIDGET_THEME_SCOPE, WidgetChart } from './widget-chart';
+import { WIDGET_THEME_SCOPE, WidgetChart, type WidgetLoading } from './widget-chart';
 
 type Preview = 'app' | 'dark' | 'light' | 'both';
 type Scope = 'app' | 'dark' | 'light';
@@ -73,7 +73,28 @@ function readThemeTokens(doc: Document): Record<'dark' | 'light', Record<string,
       color: var(--foreground);
       box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
     }
+    .cat-play {
+      height: 30px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--foreground);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .cat-play:hover:not(:disabled) {
+      background: var(--overlay-hover);
+    }
+    .cat-play:disabled {
+      color: var(--muted-foreground);
+    }
+    @media (pointer: coarse) {
+      .cat-play {
+        height: 44px;
+      }
+    }
     .cat-seg button:focus-visible,
+    .cat-play:focus-visible,
     .cat-jump:focus-visible {
       outline: 2px solid var(--ring);
       outline-offset: 2px;
@@ -158,9 +179,11 @@ function readThemeTokens(doc: Document): Record<'dark' | 'light', Record<string,
             <div class="flex items-center gap-2">
               <span id="cat-state" class="text-muted-foreground text-[12.5px]">State</span>
               <div class="cat-seg" role="group" aria-labelledby="cat-state">
-                <button type="button" [attr.aria-pressed]="!loading()" (click)="loading.set(false)">Loaded</button>
-                <button type="button" [attr.aria-pressed]="loading()" (click)="loading.set(true)">Loading</button>
+                @for (o of states; track o.value) {
+                  <button type="button" [attr.aria-pressed]="loading() === o.value" (click)="setState(o.value)">{{ o.label }}</button>
+                }
               </div>
+              <button type="button" class="cat-play" [disabled]="playing()" (click)="play()">{{ playing() ? 'Streaming…' : 'Replay stream' }}</button>
             </div>
           </div>
           <nav class="flex flex-wrap gap-x-4 gap-y-1 text-[13px]" aria-label="Sections">
@@ -210,7 +233,36 @@ export class CatalogView {
 
   protected readonly preview = signal<Preview>('app');
   protected readonly compact = signal(false);
-  protected readonly loading = signal(false);
+  /** The three states a widget goes through while Kassandra streams it: placeholder, title, chart. */
+  protected readonly states: { value: WidgetLoading; label: string }[] = [
+    { value: 'skeleton', label: 'Skeleton' },
+    { value: 'title', label: 'Title' },
+    { value: 'none', label: 'Loaded' },
+  ];
+  protected readonly loading = signal<WidgetLoading>('none');
+  protected readonly playing = signal(false);
+  private timers: ReturnType<typeof setTimeout>[] = [];
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.stop());
+  }
+
+  private stop() {
+    this.timers.forEach(clearTimeout);
+    this.timers = [];
+    this.playing.set(false);
+  }
+  protected setState(state: WidgetLoading) {
+    this.stop();
+    this.loading.set(state);
+  }
+  /** Plays the states in order, the way a streamed answer fills in: the box never changes size. */
+  protected play() {
+    this.stop();
+    this.playing.set(true);
+    this.loading.set('skeleton');
+    this.timers = [setTimeout(() => this.loading.set('title'), 1400), setTimeout(() => this.setState('none'), 2800)];
+  }
   protected readonly both = computed(() => this.preview() === 'both');
   /** The theme of the page itself: the chosen one, or the app's when both are shown side by side. */
   protected readonly canvas = computed<Scope>(() => (this.preview() === 'both' ? 'app' : (this.preview() as Scope)));

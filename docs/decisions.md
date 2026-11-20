@@ -253,7 +253,13 @@ Built strictly from stages 1 and 2 of `docs/research/reports/Filtre și grafice 
 Built from `docs/round2-contracts.md` §2–§3. It sits next to the Portfolio catalogue above and does not replace it: the Portfolio charts answer fixed questions from the extract; these draw whatever rows a tool returned, from a `WidgetSpec` Kassandra chose.
 
 - **One entry point:** `<juyo-widget-chart [spec] [rows] [columns] [compact]>` in `apps/web/src/app/charts/` draws all 21 `WidgetKind`s. Optional `[header]` (off when the host card shows the title) and `[loading]`.
-  - `rows` null or undefined shows the skeleton. The body height depends only on the kind, the density and whether the widget is phone-narrow, so the skeleton and the finished widget have the same box.
+  - **Loading states for generative UI:** `[loading]` is `'none' | 'skeleton' | 'title'`. Kassandra's branch drives it from the streaming tool call.
+    - `skeleton`: the whole widget as a placeholder for the spec's kind. The title and subtitle are the real words, invisible, with a bar on each line, so the header already has its final height; before the title has streamed in, two stub lines stand in.
+    - `title`: the real title and subtitle, with the chart area still a placeholder.
+    - `none`: the widget. Rows that are null or undefined still show `title`.
+    - Each kind has its own skeleton in the layout it will have (`widget-skeleton.ts`): bars that lie down or stand up as the chart will, a ring for a donut, an arc for a gauge, rows and columns for a table, tiles for KPIs, bands for a sankey. A pure plan (`builders/skeleton.ts`) decides from the spec what the rows would decide later: bar direction, a legend row, the number of tiles.
+    - The body height depends only on the kind, the density and the width, and "View as table" keeps its place in the header in every state, so the box is identical through skeleton → title → loaded (measured for all 23 gallery widgets at 1440, 820 and 390 px, both densities; layout shift during the replay is 0).
+    - A soft band of the surface colour sweeps across the shapes (transform only); under `prefers-reduced-motion` it is off and the skeleton is static.
   - `WidgetSpec` and `EvidenceColumn` are mirrored in `charts/widget-types.ts` until `@compass/contracts` exports them; the shapes are identical.
 - **Every kind has a pure builder** (`charts/builders/`): rows + columns + spec → an ECharts option, or a view model for the kinds that are HTML (kpi, kpi_row, sparkline_list, table). Builders never fetch and never invent a number; they format by the column's `kind` and `unit`.
   - Percent columns are read as 0–100, which is what the backend sends (`round(100.0 * …, 1)`). A column with `unit: 'ratio'` is read as a fraction.
@@ -274,7 +280,7 @@ Built from `docs/round2-contracts.md` §2–§3. It sits next to the Portfolio c
   - The arrow keys step through the marks; the tooltip follows and a live region reads the point.
   - "View as table" shows the same rows, formatted and sortable, with a sticky header and first column.
   - `prefers-reduced-motion` turns chart animation off.
-- **`/catalog`** shows every kind with sample rows shaped like Halcyon's (the page says they are samples). It previews the app theme, dark, light or both side by side, at both densities, and as skeletons. The preview themes are read from the stylesheet, so the page keeps no second copy of the palette.
+- **`/catalog`** shows every kind with sample rows shaped like Halcyon's (the page says they are samples). It previews the app theme, dark, light or both side by side, at both densities, and in each loading state (Skeleton, Title, Loaded); "Replay stream" plays the three in order. The preview themes are read from the stylesheet, so the page keeps no second copy of the palette.
   - It is not in the navigation; the shell's owner decides where the link goes.
 - **Checks:** unit tests for formatting, every builder and the component; axe (WCAG 2.2 AA plus best practice) on `/catalog` in nine states with no violations; no horizontal overflow at 390 px; no console errors.
 - **Limits:**
