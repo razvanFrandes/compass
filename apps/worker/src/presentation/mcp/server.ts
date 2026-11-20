@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import type { HotelData } from '../../application/hotel-data.ts';
 import { DATA_TOOLS, type DataTool } from '../tools/catalog.ts';
+import { runTool } from '../tools/run-tool.ts';
 
 /**
  * The Compass MCP server: the public door to the hotel data, for Claude Desktop, ChatGPT or any MCP client.
@@ -25,7 +26,7 @@ export function createCompassMcpServer(data: HotelData): McpServer {
       tool.name,
       { description: tool.description, inputSchema: tool.input, annotations: READ_ONLY },
       async (args: unknown) => {
-        const outcome = await tool.run(data, args as never);
+        const outcome = await runTool(tool, data, args);
         return outcome.ok
           ? { content: [{ type: 'text' as const, text: outcome.text }], structuredContent: outcome.structured }
           : { content: [{ type: 'text' as const, text: outcome.text }], isError: true };

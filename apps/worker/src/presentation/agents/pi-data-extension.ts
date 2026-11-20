@@ -2,6 +2,7 @@ import type { Extension, ToolRegistration } from '@earendil-works/pi-durable';
 import { z } from 'zod';
 import type { HotelData } from '../../application/hotel-data.ts';
 import { DATA_TOOLS, type DataTool } from '../tools/catalog.ts';
+import { runTool } from '../tools/run-tool.ts';
 
 /** Opens the data layer for one tool call. In a Worker it opens a Hyperdrive client and closes it after. */
 export type DataOpener = () => { data: HotelData; close(): Promise<void> };
@@ -29,7 +30,7 @@ function toPiTool(tool: DataTool, open: DataOpener): ToolRegistration {
       if (!parsed.success) throw new Error(`Invalid arguments: ${z.prettifyError(parsed.error)}`);
       const { data, close } = open();
       try {
-        const outcome = await tool.run(data, parsed.data);
+        const outcome = await runTool(tool, data, parsed.data);
         if (!outcome.ok) throw new Error(outcome.text);
         // `output` is what the model reads; `details` (rows + evidence) is for the UI and never reaches the model.
         return { output: [{ type: 'text', text: outcome.text }], details: outcome.structured };
