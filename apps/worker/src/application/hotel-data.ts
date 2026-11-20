@@ -1,4 +1,4 @@
-import type { DataResult, Evidence, MetricDefinition, MetricQuery, MetricRow } from '@compass/contracts';
+import type { DataResult, Evidence, MetricDefinition, MetricQuery, MetricQueryInput, MetricRow } from '@compass/contracts';
 import { METRICS, metricByKey } from '../domain/metrics.ts';
 import { err, ok, type Result } from '../domain/result.ts';
 import { guardReadOnlySql, type GuardReason } from '../domain/sql-guard.ts';
@@ -90,30 +90,41 @@ export class HotelData {
     return { rows: [...METRICS] };
   }
 
-  async getMetric(query: MetricQuery): Promise<Result<DataResult<MetricRow>, DataError>> {
+  async getMetric(input: MetricQueryInput): Promise<Result<DataResult<MetricRow>, DataError>> {
+    const query: MetricQuery = { ...input, by: input.by ?? 'hotel', grain: input.grain ?? 'month', compare: input.compare ?? 'none' };
     if (query.from > query.to) return err({ kind: 'invalid', message: '`from` must be on or before `to`.' });
     const def = metricByKey(query.metric);
     const expr = METRIC_SQL[query.metric];
+    const level = query.by;
+    if (COMP_SET_METRICS.has(query.metric) && level !== 'hotel') {
+      return err({ kind: 'invalid', message: `${def.label} compares local-currency rates with each hotel's own comp set, so it is per hotel only. Use by: "hotel".` });
+    }
+    const keyExpr = { hotel: 'd.hotel_code', region: 'h.region', brand: 'b.name', group: "'Halcyon group'" }[level];
     const join = COMP_SET_METRICS.has(query.metric)
       ? 'join hotel.comp_set_daily c on c.hotel_code = d.hotel_code and c.date = d.date'
       : '';
     // $1 from, $2 to, $3 hotels (null = all); SHIFT is 0 for the period itself and 364 for STLY (weekdays line up)
     const window = `
-      select to_char(${period(query.grain, 'd.date + SHIFT', '$1')}, 'YYYY-MM-DD') as period, d.hotel_code, ${expr}::float8 as value
-        from hotel.v_hotel_day d ${join}
+      select to_char(${period(query.grain, 'd.date + SHIFT', '$1')}, 'YYYY-MM-DD') as period, ${keyExpr} as key, ${expr}::float8 as value
+        from hotel.v_hotel_day d join hotel.hotels h on h.hotel_code = d.hotel_code join hotel.brands b on b.brand_code = h.brand_code ${join}
        where d.date between $1::date - SHIFT and $2::date - SHIFT
          and ($3::text[] is null or d.hotel_code = any($3::text[]))
        group by 1, 2`;
     const sql =
       query.compare === 'stly'
         ? `with cur as (${window.replaceAll('SHIFT', '0')}), ly as (${window.replaceAll('SHIFT', '364')})
-           select cur.period, cur.hotel_code, cur.value, ly.value as compare_value
-             from cur left join ly using (period, hotel_code) order by 1, 2`
+           select cur.period, cur.key, cur.value, ly.value as compare_value,
+                  round((cur.value - ly.value)::numeric, 2)::float8 as change,
+                  round((100.0 * (cur.value - ly.value) / nullif(ly.value, 0))::numeric, 1)::float8 as change_pct
+             from cur left join ly using (period, key) order by 1, 2`
         : `${window.replaceAll('SHIFT', '0')} order by 1, 2`;
     const params = [query.from, query.to, query.hotels?.length ? query.hotels : null];
     const notes = [
       'Stay dates on or after the business date are on the books, not actuals.',
-      ...(query.compare === 'stly' ? ['compare_value is the same period last year, shifted 364 days so weekdays line up.'] : []),
+      ...(level !== 'hotel' ? [`Rolled up by ${level} from sums over its hotels (money in EUR), not by averaging hotel ratios.`] : []),
+      ...(query.compare === 'stly'
+        ? ['compare_value is the same period last year, shifted 364 days so weekdays line up; change and change_pct are value vs compare_value.']
+        : []),
       ...(join ? ['The comp set benchmark covers actuals only (stay dates before the business date). For future nights use the rate position.'] : []),
     ];
     return this.#tryRun<MetricRow>(sql, params, {

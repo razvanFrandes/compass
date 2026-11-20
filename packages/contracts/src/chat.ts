@@ -8,6 +8,9 @@ import type { Evidence } from './evidence.ts';
  * previous one each time.
  */
 
+/** Quick: a fast answer from governed metrics (Haiku). Thinker: reasons across every source (Sonnet). Default thinker. */
+export type AnswerMode = 'quick' | 'thinker';
+
 export type ChatEntry =
   | { id: number; kind: 'user'; text: string; at: number }
   | {
@@ -59,7 +62,7 @@ export type ChatServerMessage =
 
 export type ChatClientMessage =
   /** Ask a question. `id` makes a retried send idempotent. Sent while busy, it is queued as a follow-up. */
-  | { type: 'ask'; text: string; id?: string }
+  | { type: 'ask'; text: string; id?: string; mode?: AnswerMode }
   /** Steer the running answer ("use last year instead"), joining it after the current round of tools. */
   | { type: 'steer'; text: string }
   /** Stop the running answer. */

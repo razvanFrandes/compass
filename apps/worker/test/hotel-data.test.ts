@@ -74,8 +74,33 @@ describe('getMetric', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.rows).toHaveLength(1);
-    expect(result.value.rows[0]).toMatchObject({ period: '2026-10-21', hotel_code: 'BER' });
+    expect(result.value.rows[0]).toMatchObject({ period: '2026-10-21', key: 'BER' });
     expect(result.value.rows[0]!.compare_value).toBeGreaterThan(0);
+  });
+
+  it('rolls a metric up to the whole group, from sums in EUR', async () => {
+    const result = await data.getMetric({ metric: 'revpar', by: 'group', from: '2026-10-01', to: '2026-10-31', grain: 'total', compare: 'stly' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const [oracle] = await db.query<{ revpar: number }>(
+      `select round(sum(room_revenue_eur) / sum(rooms_available), 2)::float8 as revpar
+         from hotel.v_hotel_day where date between '2026-10-01' and '2026-10-31'`,
+    );
+    expect(result.value.rows).toEqual([expect.objectContaining({ key: 'Halcyon group', value: oracle!.revpar })]);
+    expect(result.value.rows[0]!.compare_value).toBeGreaterThan(0);
+    const row = result.value.rows[0]!;
+    expect(row.change_pct).toBeCloseTo((100 * (row.value! - row.compare_value!)) / row.compare_value!, 0);
+  });
+
+  it('rolls a metric up by region', async () => {
+    const result = await data.getMetric({ metric: 'occupancy', by: 'region', from: '2026-10-01', to: '2026-10-31', grain: 'total', compare: 'none' });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.rows.map((r) => r.key).sort()).toEqual(['Asia', 'Europe', 'Middle East', 'North America', 'South America']);
+  });
+
+  it('keeps comp set indices per hotel, since they compare local-currency rates', async () => {
+    const result = await data.getMetric({ metric: 'ari', by: 'group', from: '2026-10-01', to: '2026-10-31', grain: 'total', compare: 'none' });
+    expect(result.ok).toBe(false);
   });
 
   it('rejects a period that ends before it starts', async () => {

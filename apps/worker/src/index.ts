@@ -73,11 +73,12 @@ export default {
       if (!(await env.ASK_RATE_LIMIT.limit({ key: client })).success) {
         return Response.json({ error: 'Too many questions. Wait a minute and try again.' }, { status: 429 });
       }
-      const body = (await request.json().catch(() => null)) as { conversation?: string; question?: string } | null;
+      const body = (await request.json().catch(() => null)) as { conversation?: string; question?: string; mode?: string } | null;
       const question = body?.question?.trim();
       if (!question || question.length > 2000) return Response.json({ error: 'Send { question } (max 2000 characters).' }, { status: 400 });
       const conversation = body?.conversation && /^[\w-]{1,64}$/.test(body.conversation) ? body.conversation : crypto.randomUUID();
-      const answer = await env.KASSANDRA.getByName(conversation).ask(question);
+      const mode = body?.mode === 'quick' ? 'quick' : 'thinker';
+      const answer = await env.KASSANDRA.getByName(conversation).ask(question, mode);
       return Response.json({ conversation, ...answer });
     }
 

@@ -44,12 +44,16 @@ wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=<id>
 ### Client → server (`ChatClientMessage`)
 
 ```json
-{ "type": "ask", "text": "Why is Lisbon pacing behind?", "id": "q-123" }
+{ "type": "ask", "text": "Why is Lisbon pacing behind?", "id": "q-123", "mode": "thinker" }
 { "type": "steer", "text": "Use the last 30 days instead" }
 { "type": "abort" }
 ```
 
 - **`ask`:** pass an `id` so a resend after a dropped connection is not asked twice. Sent while busy, it is queued as a follow-up.
+- **`mode`** (the Quick / Thinker selector in the composer):
+  - **`quick`:** Claude Haiku 5.5, only the governed-metric tools, at most 4 turns, three sentences. About 5–9 s and a few cents.
+  - **`thinker`** (default): Claude Sonnet 5.5, all 18 tools, cross-source diagnosis. About 8–20 s.
+  - The mode applies from the next question. A question sent while an answer is running keeps the current mode.
 - **Rate limit:** 6 questions per minute per client. Over the limit, the server sends an `error` message.
 
 ### Rendering a turn
@@ -68,10 +72,10 @@ Open a new socket with the same `conversation`. You get a fresh `snapshot`; merg
 
 ## Kassandra: one-shot HTTP (scripts, evals)
 
-`POST /api/kassandra/ask` with body `{ "conversation"?: string, "question": string }` returns:
+`POST /api/kassandra/ask` with body `{ "conversation"?: string, "question": string, "mode"?: "quick" | "thinker" }` returns:
 
 ```json
-{ "conversation": "…", "status": "done" | "unanswered", "text": "…", "reason": null, "durationMs": 7379 }
+{ "conversation": "…", "status": "done" | "unanswered", "text": "…", "reason": null, "durationMs": 7379, "mode": "thinker" }
 ```
 
 It waits for the whole answer, with no streaming. Use the WebSocket in the UI.

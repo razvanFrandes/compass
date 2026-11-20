@@ -1,8 +1,9 @@
 import type { ChatClientMessage, ChatServerMessage } from '@compass/contracts';
 import { DurableObject } from 'cloudflare:workers';
+import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context';
 import { createModels } from '@earendil-works/pi-ai/models';
-import { createRegistry, Harness } from '@earendil-works/pi-durable';
-import { PiHarness, type PiSession } from 'agents/harness/pi';
+import { createRegistry, Harness, type Extension } from '@earendil-works/pi-durable';
+import { PiHarness, ROOT_SESSION, type PiSession } from 'agents/harness/pi';
 import { Lifecycle } from 'agents/lifecycle';
 import { createAI } from 'agents/models/pi-ai';
 import { HotelData } from '../../application/hotel-data.ts';
@@ -10,16 +11,15 @@ import { openPostgres } from '../../infrastructure/postgres.ts';
 import type { Env } from '../../env.ts';
 import { projectEntries, projectLive } from './chat-projection.ts';
 import { KASSANDRA_SECTIONS } from './kassandra-prompt.ts';
+import { agentChangeFor, THINKER_MODEL, type AnswerMode } from './modes.ts';
 import { createDataExtension } from './pi-data-extension.ts';
-
-export const THINKER_MODEL = 'anthropic/claude-sonnet-5.5';
-export const QUICK_MODEL = 'anthropic/claude-haiku-5.5';
 
 export interface KassandraAnswer {
   status: 'done' | 'unanswered';
   text: string | null;
   reason: string | null;
   durationMs: number;
+  mode: AnswerMode;
 }
 
 /**
@@ -32,7 +32,11 @@ export class Kassandra extends DurableObject<Env> {
   ai = createAI({ binding: this.env.AI, gateway: { id: 'compass', byokAlias: 'compass', collectLog: true } });
 
   // One registry per object, never at module scope: Pi keeps each Harness subscribed to its registry.
-  registry = createKassandraRegistry(this.env);
+  data = createDataExtension(() => {
+    const db = openPostgres(this.env.HYPERDRIVE.connectionString);
+    return { data: new HotelData(db), close: () => db.close() };
+  });
+  registry = createKassandraRegistry(this.data);
 
   harness = new PiHarness({
     harness: ({ storage, context, onWake }) => {
@@ -128,30 +132,40 @@ export class Kassandra extends DurableObject<Env> {
       throw new Error('Too many questions. Wait a minute and try again.');
     }
     if (message.type === 'steer') await session.steer(text);
-    else await session.submit(text, message.id ? { operationId: message.id } : undefined);
+    else {
+      await this.#useMode(message.mode ?? 'thinker');
+      await session.submit(text, message.id ? { operationId: message.id } : undefined);
+    }
+  }
+
+  /**
+   * Switches the conversation's agent to a mode (model, offered tools, turn limit) before a question. While a run is
+   * going the change would reach it mid-answer, so a question sent then keeps the current mode.
+   */
+  async #useMode(mode: AnswerMode): Promise<void> {
+    if (await this.harness.session().busy()) return;
+    const conversation = await this.harness.conversation(ROOT_SESSION);
+    await conversation.configure(agentChangeFor(mode, this.data), BACKGROUND_CONTEXT);
   }
 
   /** Ask a question in this conversation and wait for the answer. */
-  async ask(question: string, operationId?: string): Promise<KassandraAnswer> {
+  async ask(question: string, mode: AnswerMode = 'thinker', operationId?: string): Promise<KassandraAnswer> {
     const started = Date.now();
+    await this.#useMode(mode);
     const result = await this.harness.prompt(question, operationId ? { operationId } : undefined);
     return {
       status: result.status,
       text: result.text ?? null,
       reason: result.reason ?? null,
       durationMs: Date.now() - started,
+      mode,
     };
   }
 }
 
-function createKassandraRegistry(env: Env) {
+function createKassandraRegistry(data: Extension) {
   const registry = createRegistry();
   registry.install({ name: 'kassandra', sections: KASSANDRA_SECTIONS });
-  registry.install(
-    createDataExtension(() => {
-      const db = openPostgres(env.HYPERDRIVE.connectionString);
-      return { data: new HotelData(db), close: () => db.close() };
-    }),
-  );
+  registry.install(data);
   return registry;
 }

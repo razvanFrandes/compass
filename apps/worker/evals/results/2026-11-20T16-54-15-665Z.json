@@ -1,0 +1,183 @@
+{
+  "base": "https://juyo.razvanfrandes.com",
+  "run": "2026-11-20T16-54-15-665Z",
+  "passed": 7,
+  "total": 7,
+  "results": [
+    {
+      "id": "S1",
+      "question": "Why is Lisbon pacing behind last year?",
+      "mustMention": [
+        [
+          "Lisbon"
+        ],
+        [
+          "comp set",
+          "competitor",
+          "market",
+          "median"
+        ],
+        [
+          "pickup",
+          "pace",
+          "behind",
+          "on the books"
+        ]
+      ],
+      "why": "Manual BAR override +22% above the comp set slows pickup; pace about -20% vs STLY.",
+      "pass": true,
+      "missing": [],
+      "status": "done",
+      "reason": null,
+      "durationMs": 9709,
+      "answer": "Lisbon is pacing behind last year because its rates are well above the market, and demand is going to the competitors. These are on-the-books figures, not actuals, and the data feeds are all current.\n\n- **Pace:** For the next 90 nights, Lisbon has 2,928 room nights on the books against 3,337 at the same point last year (−12.3%). Revenue on the books is 485,652 against 518,050 (local currency).\n- **Pickup:** Over the last 21 days Lisbon added rooms equal to 11.0% of capacity for the next 44 nights. That is the lowest in Europe. The other seven European hotels range from 15.2% (BCN) to 21.1% (VIE).\n- **Rate position:** Our best available rate is above the comp-set median on essentially every night shown, from 20 Nov to 18 Jan. Typical gaps are 25–40% (for example 220 vs 157 on 21 Nov). The gaps widen to 50–90% over Christmas and early January (200 vs 110 on 29 Dec, 200 vs 106 on 3 Jan). No comp is sold out on any of those nights, so there is no compression to justify the premium.\n\nI haven't checked channel, segment or web funnel data, so I can't say whether a lost account or a booking-engine problem also contributes. Price is the clearest cause.\n\n**Next move:** Review Lisbon's rate strategy in the Duetto RMS, starting with 20 Dec to 4 Jan, where the gap to the market is widest. Bring the rate closer to the comp median on low-demand nights, then watch pickup over the next 7 days."
+    },
+    {
+      "id": "S2",
+      "question": "Which hotel lost its biggest corporate account, and what did it cost?",
+      "mustMention": [
+        [
+          "New York",
+          "NYC"
+        ],
+        [
+          "Vantor"
+        ]
+      ],
+      "why": "Vantor Consulting left Arbor New York Midtown; corporate share 30% to 21%, OTA up.",
+      "pass": true,
+      "missing": [],
+      "status": "done",
+      "reason": null,
+      "durationMs": 10982,
+      "answer": "**New York (NYC) lost its biggest corporate account, Vantor Consulting. It cost about €1.33M in room revenue.**\n\n- **Window:** I compared the last 6 months (21 May to 19 Nov 2026) with the 6 months before. Both are actual stays.\n- **Room nights:** Vantor at NYC fell from 5,469 to 477, a drop of 4,992 room nights.\n- **Revenue:** it fell from €1,476,794 to €143,313, a drop of €1,333,481.\n- **Timing:** the last Vantor stay at NYC was on 15 July 2026, so the account stopped producing there four months ago. The 477 room nights in the recent window all fall before that date.\n- **Other hotels:** Vantor is still active at DXB2 (−€232k) and DOH (−€222k). Both are declines, not a loss.\n- **Bigger wholesale declines:** MIA SunPath is down €715k, DXB1 SunPath €677k and DXB1 Globetrail €595k. These are wholesalers, not corporate accounts, and they are still producing.\n\nThe data doesn't say why Vantor left NYC. I haven't checked whether other segments have backfilled the lost rooms, so the net cost to NYC could be lower than €1.33M.\n\n**Next move:** Ask the NYC sales lead whether Vantor left over rate, a contract or a competitor. Then check with get_mix how much of the gap other segments have filled. Also review the Vantor contracts at DXB2 and DOH, since both are slipping."
+    },
+    {
+      "id": "S3",
+      "question": "Why are food scores dropping in Bali?",
+      "mustMention": [
+        [
+          "Bali",
+          "DPS"
+        ],
+        [
+          "kitchen"
+        ],
+        [
+          "staff",
+          "hours",
+          "short"
+        ]
+      ],
+      "why": "Kitchen at 68% of required hours for 5 weeks; dinner covers per occupied room -40%; food score 8.6 to 6.0.",
+      "pass": true,
+      "missing": [],
+      "status": "done",
+      "reason": null,
+      "durationMs": 14213,
+      "answer": "**Bali's food score fell because the kitchen has been badly understaffed since October.** Lumen Bali Uluwatu (DPS) went from 8.67 in September to 6.90 in October and 6.42 in November so far (to the 20th). The data feeds are healthy, so this is a real drop. Other scores held: cleanliness, comfort and location are flat.\n\n**Drivers**\n- **Kitchen staffing:** Kitchen hours worked were 74% of what the workload required in October (3,447 of 4,655 hours), against 99.4% in September. November is 83.7%. F&B Service also fell to 89.1% in October and 94.2% in November.\n- **Dinner covers collapsed:** Restaurant dinner covers per occupied room fell from 0.78 in September to 0.52 in October. November is 0.58. Dinner revenue was €124.8k in September and €80.8k in October, a loss of about €44k in a month. In-room dining covers per occupied room also fell, from 0.054 to 0.031. Breakfast, beach and bar held up better.\n- **Spillover to staff and value scores:** The staff score fell from 8.52 to 7.88 and the value score from 7.79 to 7.58 between September and November. Guests are paying the same prices for a weaker food and service experience.\n\n**Limits:** The review quotes I found don't mention slow or poor food. A few say \"average for the price\", and many are still positive about room service. So the staffing link comes from the hours data, not from guest comments. I can't see why the hours are short (vacancies, leave or turnover).\n\n**Next move:** Ask the DPS GM and F&B director why kitchen hours are about 25% below requirement. Approve temporary cover, such as agency cooks or staff from sister hotels, to bring the kitchen back to at least 95% before the December peak. Then check whether the food score recovers in the next two weeks of reviews."
+    },
+    {
+      "id": "S4",
+      "question": "Amsterdam is getting more Booking.com bookings lately. Why?",
+      "mustMention": [
+        [
+          "Amsterdam",
+          "AMS"
+        ],
+        [
+          "mobile"
+        ],
+        [
+          "checkout",
+          "conversion"
+        ]
+      ],
+      "why": "A booking engine release broke mobile checkout; mobile conversion 1.8% to 0.8%; Booking.com share up.",
+      "pass": true,
+      "missing": [],
+      "status": "done",
+      "reason": null,
+      "durationMs": 14465,
+      "answer": "Amsterdam's Booking.com bookings are rising because its own website is losing mobile bookings. Mobile checkout appears to be broken, and guests are booking through the OTA instead.\n\n**Window:** the last 30 days (22 Oct–20 Nov 2026) against the 30 days before (22 Sep–21 Oct), on a booked basis.\n\n- **Booking.com:** 1,243 room nights booked, up from 1,065. Its share is 25.1%, up from 20.1%. ADR is about the same (€188.57 vs €187.03), so this is a volume shift and not a pricing effect.\n- **Own website:** 892 room nights, down from 1,273. Its share fell from 24.1% to 18.0%. The website lost about 380 room nights and Booking.com gained about 180.\n- **Mobile checkout:** checkout completion dropped from 98.3% to 42.6%. Mobile bookings fell from 410 to 144, and mobile booking revenue from €178.6k to €63.5k. Sessions only fell from 22.4k to 18.4k, and checkout starts from 417 to 338. Desktop is healthy (3.13% conversion, 100% completion).\n- **Data feeds:** every Amsterdam source synced normally today, so this is not a stale-data artefact.\n\n**Cost:** each room night that moves from direct to Booking.com carries OTA commission. I haven't pulled the commission figures for this period.\n\n**Next move:** have IT and the booking-engine vendor test the Amsterdam mobile checkout today, looking at payment, form and script errors. Start with any release made around 22 Oct. Once it's fixed, check that the website share recovers."
+    },
+    {
+      "id": "S5",
+      "question": "Why do guests at Barcelona complain lately?",
+      "mustMention": [
+        [
+          "Barcelona",
+          "BCN"
+        ],
+        [
+          "construction",
+          "renovation"
+        ],
+        [
+          "noise"
+        ]
+      ],
+      "why": "24 rooms out of order for renovation; construction noise in reviews.",
+      "pass": true,
+      "missing": [],
+      "status": "done",
+      "reason": null,
+      "durationMs": 10068,
+      "answer": "Guests at Lumen Barcelona Mar are complaining about construction noise. The reviews say it comes from the floor below and starts early every morning.\n\n- **Scores:** The comfort score fell from 8.36 in September to 7.50 in October. It was 7.64 in November up to the 20th. Overall dropped from 8.41 to 8.25 in October and recovered slightly to 8.36 in November. Staff, cleanliness, food, location and value are all steady, so comfort is the only category that moved.\n- **Reviews:** All 10 of the newest \"noise\" reviews (18–19 Nov) quote the same complaint. These guests still praise staff, cleanliness and location, so the noise is hurting scores but not the rest of the stay.\n- **Inventory:** Out-of-order rooms rose to about 24–30 a day in October and November. That is consistent with works on site, but the data doesn't say what the works are or when they end.\n\n**Next move:** Ask the GM for the construction schedule and which floors are affected. Until the works end, stop selling rooms near the work area, or offer those guests a rate reduction or a move to a quiet floor. That should protect comfort scores and value perception."
+    },
+    {
+      "id": "S6",
+      "question": "How is Dubai Business Bay priced for 15-19 December?",
+      "mustMention": [
+        [
+          "Business Bay",
+          "DXB2"
+        ],
+        [
+          "below",
+          "under",
+          "cheaper"
+        ],
+        [
+          "comp set",
+          "competitor",
+          "market",
+          "median"
+        ]
+      ],
+      "why": "Gulf Tech Week is missing from the pricing calendar: 0.76x the comp set while 83% full three weeks out.",
+      "pass": true,
+      "missing": [],
+      "status": "done",
+      "reason": null,
+      "durationMs": 9277,
+      "answer": "Tessera Dubai Business Bay (DXB2) is priced well below its comp set for 15–19 December. Its BAR is 18–29% under the comp median on the four nights that have a median. These are forward rates from the latest rate shop. The rates appear to be in AED, but the tool doesn't state the currency.\n\n| Night | Our BAR | Comp median | vs median | Comps sold out |\n|---|---|---|---|---|\n| 15 Dec | 665 | 938 | 0.71 | 0 |\n| 16 Dec | 790 | 1,069 | 0.74 | 3 |\n| 17 Dec | 750 | 912 | 0.82 | 2 |\n| 18 Dec | 675 | 869 | 0.78 | 1 |\n| 19 Dec | 650 | no median | n/a | 4 |\n\n- **16 and 17 Dec are the biggest gaps.** Comps are already selling out (3 and 2 of them), yet we sit 26% and 18% below the median. This looks like the clearest chance to raise rate.\n- **19 Dec is the strongest signal.** All 4 comps are sold out, so there is no median. Our BAR is 650, the lowest of the week.\n- **15 Dec has the widest gap, at 0.71.** No comps are sold out yet, so the pressure to raise is weaker than on the 16th and 17th.\n\nI haven't checked pace or pickup for these dates. If we're already filling, the discount is costing rate.\n\nNext move: check `get_pace` and `get_pickup` for DXB2. If they are healthy, raise BAR on 16, 17 and 19 Dec first, and move 15 and 18 Dec toward about 0.9 of the median."
+    },
+    {
+      "id": "S7",
+      "question": "Is anything wrong with the data in Berlin?",
+      "mustMention": [
+        [
+          "Berlin",
+          "BER"
+        ],
+        [
+          "POS"
+        ],
+        [
+          "stale",
+          "sync",
+          "behind",
+          "missing"
+        ]
+      ],
+      "why": "The POS feed is stale: no F&B rows for the last 3 days.",
+      "pass": true,
+      "missing": [],
+      "status": "done",
+      "reason": null,
+      "durationMs": 6901,
+      "answer": "Yes, one thing: Berlin's POS feed (Lightspeed) is stale. Its last sync was 2026-11-17 04:12, about three days before the business date of 2026-11-20.\n\nThe other six sources synced on 2026-11-20 between 05:11 and 05:47 and show OK. They are the PMS (Apaleo), RMS (Duetto), Finance (Fairmas), rate shopper, comp set benchmark and web analytics.\n\n- **What's affected:** F&B figures (covers and outlet revenue) from 17 Nov onward will be missing or incomplete. Any F&B drop for Berlin in that window is probably a data gap, not a business problem.\n- **What's fine:** Rooms metrics (occupancy, ADR, RevPAR), pace, rates and web funnel come from the healthy feeds, so you can trust them.\n\n**Next move:** Ask IT or the Lightspeed integration owner to restart the Berlin POS sync. Until it's back, leave 17–20 Nov F&B out of any Berlin reporting."
+    }
+  ]
+}

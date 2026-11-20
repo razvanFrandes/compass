@@ -75,11 +75,13 @@ export const DATA_TOOLS = [
   tool({
     name: 'get_metric',
     description:
-      'A governed hotel metric (occupancy, ADR, RevPAR, room revenue, rooms sold, MPI, ARI, RGI) per hotel and period, ' +
-      'optionally against the same time last year. Ratios are computed from sums; money is in EUR.',
+      'A governed hotel metric (occupancy, ADR, RevPAR, room revenue, rooms sold, MPI, ARI, RGI) per period, per hotel or ' +
+      'rolled up by region, brand or the whole group, optionally against the same time last year. Ratios are computed from ' +
+      'sums; money is in EUR. MPI, ARI and RGI are per hotel only.',
     input: z.object({
       metric: MetricKey,
       hotels,
+      by: z.enum(['hotel', 'region', 'brand', 'group']).default('hotel').describe('What one row is'),
       from: isoDate,
       to: isoDate,
       grain: Grain.default('month').describe('Bucket size of the period column'),
