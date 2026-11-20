@@ -3,7 +3,8 @@ import { METRICS, metricByKey } from '../domain/metrics.ts';
 import { err, ok, type Result } from '../domain/result.ts';
 import { guardReadOnlySql, type GuardReason } from '../domain/sql-guard.ts';
 import { detectBriefItems } from './brief-detectors.ts';
-import type { Db } from './ports.ts';
+import type { Db, Embedder } from './ports.ts';
+import { findReviews, type FindReviewsInput, type ReviewMatch } from './review-search.ts';
 
 export type DataError =
   | { kind: 'invalid'; message: string }
@@ -68,9 +69,12 @@ export class HotelData {
   #businessDate: Promise<string> | undefined;
 
   private readonly db: Db;
+  /** Embeds questions for semantic review search. Optional: without it, find_reviews reports that it is unavailable. */
+  private readonly embedder: Embedder | undefined;
 
-  constructor(db: Db) {
+  constructor(db: Db, embedder?: Embedder) {
     this.db = db;
+    this.embedder = embedder;
   }
 
   businessDate(): Promise<string> {
@@ -426,6 +430,12 @@ export class HotelData {
       [input.text, input.hotels?.length ? input.hotels : null, input.from ?? null, input.to ?? null, input.limit ?? 10],
       { sources: ['hotel.reviews'], notes: ['Exact phrase match, case-insensitive.'] },
     );
+  }
+
+  /** Review sentences closest in meaning to a question (semantic search; see review-search.ts). */
+  async findReviews(input: FindReviewsInput): Promise<Result<DataResult<ReviewMatch>, DataError>> {
+    if (!this.embedder) return err({ kind: 'invalid', message: 'Semantic review search is not available here. Use search_reviews with a phrase.' });
+    return findReviews(this.db, this.embedder, input, await this.businessDate());
   }
 
   /** Booking-engine funnel: sessions → searches → checkout starts → bookings, by device or traffic source. */

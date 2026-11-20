@@ -2,6 +2,7 @@ import { Decision } from '@compass/contracts';
 import { createMcpHandler } from 'agents/mcp/server';
 import { HotelData } from './application/hotel-data.ts';
 import { openPostgres } from './infrastructure/postgres.ts';
+import { WorkersAiEmbedder } from './infrastructure/workers-ai-embedder.ts';
 import { createCompassMcpServer } from './presentation/mcp/server.ts';
 
 import type { Env } from './env.ts';
@@ -27,7 +28,7 @@ async function withData(env: Env, ctx: ExecutionContext, run: (data: HotelData) 
   const db = openPostgres(env.HYPERDRIVE.connectionString);
   let response: Response;
   try {
-    response = await run(new HotelData(db));
+    response = await run(new HotelData(db, new WorkersAiEmbedder(env.AI)));
   } catch (error) {
     ctx.waitUntil(db.close());
     throw error;

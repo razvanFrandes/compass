@@ -11,7 +11,7 @@
   // Locally: CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE in .env (read-only role compass_ro).
   "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "0d5570d3cead4ad69805cd67233d92b3" }],
 
-  // Claude through AI Gateway "compass" (BYOK alias "compass"); Workers AI for embeddings later.
+  // Claude through AI Gateway "compass" (BYOK alias "compass"); Workers AI bge-m3 embeds find_reviews questions.
   "ai": { "binding": "AI" },
 
   // Kassandra: one Durable Object per conversation, running pi-durable through PiHarness.
