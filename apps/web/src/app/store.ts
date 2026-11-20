@@ -1,4 +1,4 @@
-import { Service, computed, inject, signal } from '@angular/core';
+import { Service, computed, effect, inject, signal } from '@angular/core';
 import { toast } from '@spartan-ng/brain/sonner';
 import { BUSINESS_DAY, Decision, MetricKey, NIGHTS, decisionNights, formatDay, formatEur, formatEurShort, utc } from './data';
 import type { ChartSpec } from './portfolio';
@@ -620,11 +620,19 @@ export interface NightDecision {
 const RATE_LATEST = { when: 'today 06:00', headline: 'Raise Dubai Business Bay to the comp-set median for 16–18 Dec', why: 'Gulf Tech Week · 0.78× the comp set · 3 competitors sold out' };
 const NEXT_RUN: Record<string, string> = { rate: 'next in 21 h 40 min', pace: 'next in 22 h 40 min', feeds: 'next in 40 min' };
 
-export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watcher';
+export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watcher' | 'builder';
+
+/** Views with an address of their own; the rest live at "/". */
+const BUILDER_PATH = '/workflows/new';
+const isBuilderUrl = (loc: Location) => loc.pathname.startsWith(BUILDER_PATH) || new URLSearchParams(loc.search).has('builder');
+function initialView(): View {
+  const loc = globalThis.location;
+  return loc && isBuilderUrl(loc) ? 'builder' : 'inbox';
+}
 
 @Service()
 export class CompassStore {
-  readonly view = signal<View>('inbox');
+  readonly view = signal<View>(initialView());
   readonly activeThreadId = signal<string | null>(null);
   readonly activeBoardId = signal('revenue');
   readonly depth = signal<'quick' | 'thinker'>('thinker');
@@ -726,8 +734,33 @@ export class CompassStore {
 
   /* Navigation */
   go(view: View) {
+    if (view === 'builder') return this.openBuilder();
     this.view.set(view);
   }
+
+  /** The workflow builder at /workflows/new. The address changes first: the builder reads its draft id from it. */
+  openBuilder() {
+    const loc = globalThis.location;
+    if (loc && !isBuilderUrl(loc)) globalThis.history?.pushState(null, '', BUILDER_PATH);
+    if (this.view() !== 'builder') this.beforeBuilder = this.view();
+    this.view.set('builder');
+  }
+
+  constructor() {
+    // Leaving the builder takes the address back to "/"; Back and Forward move between the two.
+    effect(() => {
+      const v = this.view();
+      const loc = globalThis.location;
+      if (v !== 'builder' && loc && isBuilderUrl(loc)) globalThis.history?.pushState(null, '', '/');
+    });
+    globalThis.addEventListener?.('popstate', () => {
+      const builder = isBuilderUrl(globalThis.location);
+      if (builder && this.view() !== 'builder') this.view.set('builder');
+      else if (!builder && this.view() === 'builder') this.view.set(this.beforeBuilder);
+    });
+  }
+  /** Where Back from the builder returns to. */
+  private beforeBuilder: View = 'inbox';
 
   openItem(id: string) {
     const item = this.items().find((i) => i.id === id);

@@ -1,4 +1,4 @@
-import { Component, DOCUMENT, computed, inject, signal } from '@angular/core';
+import { Component, DOCUMENT, computed, effect, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmToasterImports } from '@spartan-ng/helm/sonner';
@@ -11,6 +11,7 @@ import { ThreadView } from './thread';
 import { WatchersView } from './watchers';
 import { WatcherCreate } from './watcher-create';
 import { WatcherPage } from './watcher-page';
+import { WorkflowBuilder } from './builder/builder-page';
 import { GROUP } from './data';
 import * as icons from './icons';
 
@@ -20,10 +21,18 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WatcherCreate, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WatcherCreate, WorkflowBuilder, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
   providers: [provideIcons({ ...icons }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   template: `
+    @if (store.view() === 'builder') {
+      <!-- The workflow builder is a full-screen page with its own header and back link; its code loads on first visit -->
+      @defer (on immediate) {
+        <app-workflow-builder />
+      } @placeholder {
+        <p class="text-muted-foreground grid min-h-dvh place-items-center text-[14px]">Opening the workflow builder…</p>
+      }
+    } @else {
     <a href="#content" class="bg-foreground text-background sr-only z-50 rounded-md px-3 py-2 focus:not-sr-only focus:fixed focus:top-3 focus:left-3">Skip to content</a>
     <div class="lg:grid lg:h-dvh lg:grid-cols-[232px_minmax(0,1fr)] lg:overflow-hidden">
       <!-- Navigation recedes: dimmer surface, light icons, Fill only for the current place -->
@@ -136,6 +145,7 @@ import * as icons from './icons';
       </nav>
     }
 
+    }
     <app-watcher-create />
     <hlm-toaster [theme]="dark() ? 'dark' : 'light'" position="bottom-center" [offset]="'72px'" />
   `,
@@ -145,6 +155,13 @@ export class App {
   private readonly doc = inject(DOCUMENT);
   protected readonly group = GROUP;
   protected readonly dark = signal(this.doc.documentElement.classList.contains('dark'));
+  private readonly baseTitle = this.doc.title;
+
+  constructor() {
+    effect(() => {
+      this.doc.title = this.store.view() === 'builder' ? 'New workflow · Compass' : this.baseTitle;
+    });
+  }
 
   protected readonly nav = computed(() => [
     { view: 'inbox' as View, label: 'Inbox', icon: 'phosphorTrayLight', iconActive: 'phosphorTrayFill', count: this.store.unread() },

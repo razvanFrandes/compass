@@ -31,7 +31,7 @@ const ORDER: WatcherStatus[] = ['needs', 'failed', 'running', 'watching', 'pause
         <button hlmBtn class="shrink-0 max-sm:size-11 max-sm:px-0" aria-label="New watcher" [hlmDropdownMenuTrigger]="newMenu" align="end"><ng-icon name="phosphorPlusLight" /><span class="max-sm:hidden">New watcher</span><ng-icon name="phosphorCaretDownLight" class="opacity-70 max-sm:hidden" /></button>
         <ng-template #newMenu>
           <hlm-dropdown-menu class="w-60">
-            <button hlmDropdownMenuItem (triggered)="store.startCreate('describe')"><ng-icon name="phosphorSparkleFill" class="text-(--brand)" />Describe it to Kassandra</button>
+            <button hlmDropdownMenuItem (triggered)="store.openBuilder()"><ng-icon name="phosphorSparkleFill" class="text-(--brand)" />New workflow by chat</button>
             <button hlmDropdownMenuItem (triggered)="scrollToTemplates()"><ng-icon name="phosphorSquaresFourLight" />From a template</button>
             <button hlmDropdownMenuItem (triggered)="store.startCreate('manual')"><ng-icon name="phosphorSlidersHorizontalLight" />Set up manually</button>
           </hlm-dropdown-menu>
