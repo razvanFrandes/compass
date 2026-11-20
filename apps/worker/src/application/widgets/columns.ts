@@ -1,4 +1,5 @@
-import type { EvidenceColumn } from '@compass/contracts';
+import { EvidenceColumn } from '@compass/contracts';
+import { z } from 'zod';
 
 /**
  * Column metadata read from the rows themselves: the fallback for a tool result whose evidence names no columns
@@ -25,7 +26,6 @@ const LABELS: Record<string, string> = {
 };
 
 const COUNT_WORDS = /(^|_)(rooms?|nights|count|covers|sessions|searches|starts|bookings|mentions|requests|events|attendees|hours|reviews|months|days)(_|$)/;
-const MONEY_WORDS = /(^|_)(eur|revenue|cost|gop|adr|revpar|rate|commission)(_|$)/;
 
 function label(key: string): string {
   const known = LABELS[key];
@@ -47,7 +47,8 @@ function columnOf(key: string, sample: unknown): EvidenceColumn {
   if (key === 'hotel_code' || key === 'hotel_name' || key === 'hotel') return { ...base, kind: 'hotel' };
   if (typeof sample === 'number') {
     if (key.endsWith('_pct')) return { ...base, kind: 'percent' };
-    if (MONEY_WORDS.test(key)) return { ...base, kind: 'currency', unit: 'EUR' };
+    // Only a key that says EUR is money in EUR: rates and local-currency amounts stay plain numbers.
+    if (/(^|_)eur(_|$)/.test(key)) return { ...base, kind: 'currency', unit: 'EUR' };
     if (COUNT_WORDS.test(key)) return { ...base, kind: 'count' };
     return { ...base, kind: 'number' };
   }
@@ -67,4 +68,10 @@ export function inferColumns(rows: readonly Row[]): EvidenceColumn[] {
     }
   }
   return [...samples].map(([key, sample]) => columnOf(key, sample));
+}
+
+/** The columns of a tool result: the ones its evidence names (contracts §2), else read from the rows. */
+export function columnsFor(rows: readonly Row[], evidence: unknown): EvidenceColumn[] {
+  const named = z.array(EvidenceColumn).min(1).safeParse((evidence as { columns?: unknown } | null)?.columns);
+  return named.success ? named.data : inferColumns(rows);
 }

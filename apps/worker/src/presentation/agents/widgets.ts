@@ -1,8 +1,8 @@
-import { EvidenceColumn, WidgetSpec, type ChatEntry, type Evidence, type Widget } from '@compass/contracts';
+import { WidgetSpec, type ChatEntry, type Evidence, type Widget } from '@compass/contracts';
 import type { Context } from '@earendil-works/chord/context';
 import type { Extension, PromptSection, ToolExecutionApi, ToolRegistration } from '@earendil-works/pi-durable';
 import { z } from 'zod';
-import { inferColumns } from '../../application/widgets/columns.ts';
+import { columnsFor } from '../../application/widgets/columns.ts';
 import { fitWidget } from '../../application/widgets/fit.ts';
 
 /**
@@ -184,8 +184,7 @@ function createShowWidgetTool(): ToolRegistration {
         throw new Error(`No data tool result with rows has the id "${spec.sourceCallId}". Pass the "Result id" printed at the end of a data tool result. ${usable}`);
       }
 
-      const named = z.array(EvidenceColumn).min(1).safeParse((data.evidence as { columns?: unknown }).columns);
-      const columns = named.success ? named.data : inferColumns(data.rows);
+      const columns = columnsFor(data.rows, data.evidence);
       const fitted = fitWidget(spec, { rows: data.rows, columns });
       if (!fitted.ok) throw new Error(fitted.error);
 

@@ -143,6 +143,8 @@ describe('CORS', () => {
     const ok = preflight(new Request(`https://${HOST}/api/kassandra/ask`, { method: 'OPTIONS', headers: { Origin: 'http://localhost:4200' } }));
     expect(ok?.status).toBe(204);
     expect(ok?.headers.get('Access-Control-Allow-Methods')).toContain('PATCH');
+    // Boards and workflows are deleted with DELETE.
+    expect(ok?.headers.get('Access-Control-Allow-Methods')).toContain('DELETE');
     const bad = preflight(new Request(`https://${HOST}/api/kassandra/ask`, { method: 'OPTIONS', headers: { Origin: 'https://evil.example' } }));
     expect(bad?.status).toBe(403);
     expect(preflight(post('/api/kassandra/ask'))).toBeNull();

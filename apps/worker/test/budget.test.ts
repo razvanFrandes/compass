@@ -29,6 +29,17 @@ describe('the embedding budget', () => {
   });
 });
 
+describe('the board budget', () => {
+  it('allows 600 board changes a day by default, apart from the questions', () => {
+    expect(DEFAULT_DAILY_LIMITS.board_write).toBe(600);
+    expect(parseDailyLimits({ board_write: 5 }).board_write).toBe(5);
+    const { state, decision } = spend(emptyBudget(), 'board_write', { ...DEFAULT_DAILY_LIMITS, board_write: 1 }, new Date('2026-11-20T10:00:00Z'));
+    expect(decision).toMatchObject({ ok: true, kind: 'board_write', remaining: 0 });
+    expect(spend(state, 'board_write', { ...DEFAULT_DAILY_LIMITS, board_write: 1 }, new Date('2026-11-20T10:00:01Z')).decision.ok).toBe(false);
+    expect(spend(state, 'question', DEFAULT_DAILY_LIMITS, new Date('2026-11-20T10:00:01Z')).decision.ok).toBe(true);
+  });
+});
+
 describe('spend', () => {
   const limits = { ...DEFAULT_DAILY_LIMITS, question: 2 };
 
@@ -78,5 +89,12 @@ describe('budgetExceeded', () => {
     const body = (await response.json()) as { error: string; resetsAt: string };
     expect(body.error).toBe("The demo's daily budget of 300 questions is used up. It resets at 00:00 UTC.");
     expect(body.resetsAt).toBe('2026-11-21T00:00:00.000Z');
+  });
+
+  it('names board changes in plain words', async () => {
+    const { budgetMessage } = await import('../src/presentation/http/budget-response.ts');
+    expect(budgetMessage({ ok: false, kind: 'board_write', used: 600, limit: 600, remaining: 0, resetsAt: '' })).toBe(
+      "The demo's daily budget of 600 board changes is used up. It resets at 00:00 UTC.",
+    );
   });
 });

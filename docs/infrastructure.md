@@ -110,6 +110,8 @@ create index review_passages_embedding_hnsw on hotel.review_passages
 | Tunnel | compass-db | `730ca4b7-4cfb-4418-b89f-72dff11eb3fb` |
 | Rate limit | MCP_RATE_LIMIT | namespace 2001, 60 requests/min per client |
 | Rate limit | ASK_RATE_LIMIT | namespace 2002, 6 requests/min per client |
+| Rate limit | BOARD_RATE_LIMIT | namespace 2010, 60 board changes/min per client |
 | Durable Object | Budget (`BUDGET`, migration `v4`) | the public demo's daily budget, one object (`global`) |
+| Durable Object | Boards (`BOARDS`, migration `v6`) | the saved boards of the group, one object (`halcyon`); seeds the sample boards on first use |
 | Variable | `DAILY_LIMITS` | daily budget limits, see `docs/security.md` |
 | Secret (optional) | `ADMIN_KEY` | skips the daily budget with the `x-compass-admin-key` header |

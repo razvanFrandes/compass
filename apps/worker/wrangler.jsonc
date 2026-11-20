@@ -29,13 +29,15 @@
   // Briefs: the morning brief, one object for the group.
   // Budget: the public demo's daily budget (questions, workflow runs, decisions, brief refreshes), one object.
   // WorkflowBuilder: one object per workflow draft, the agent that builds it with the person.
+  // Boards: the saved boards (Canvas) of the group, one object; seeds the sample boards on first use.
   "durable_objects": {
     "bindings": [
       { "name": "KASSANDRA", "class_name": "Kassandra" },
       { "name": "BRIEFS", "class_name": "Briefs" },
       { "name": "WORKFLOWS", "class_name": "WorkflowAgents" },
       { "name": "BUDGET", "class_name": "Budget" },
-      { "name": "WORKFLOW_BUILDER", "class_name": "WorkflowBuilder" }
+      { "name": "WORKFLOW_BUILDER", "class_name": "WorkflowBuilder" },
+      { "name": "BOARDS", "class_name": "Boards" }
     ]
   },
   "migrations": [
@@ -43,14 +45,15 @@
     { "tag": "v2", "new_sqlite_classes": ["Briefs"] },
     { "tag": "v3", "new_sqlite_classes": ["WorkflowAgents"] },
     { "tag": "v4", "new_sqlite_classes": ["Budget"] },
-    { "tag": "v5", "new_sqlite_classes": ["WorkflowBuilder"] }
+    { "tag": "v5", "new_sqlite_classes": ["WorkflowBuilder"] },
+    { "tag": "v6", "new_sqlite_classes": ["Boards"] }
   ],
 
   // Daily limits for every visitor together, per UTC day (docs/security.md). A missing key keeps its default.
   // Optional secret ADMIN_KEY (wrangler secret put ADMIN_KEY): the x-compass-admin-key header then skips these limits.
   // APP_URL: the app's public origin, for the Explore link in workflow emails (APP_URL + /ask?q=).
   "vars": {
-    "DAILY_LIMITS": { "question": 300, "workflow_run": 60, "decision": 120, "brief_refresh": 24, "embedding": 2000 },
+    "DAILY_LIMITS": { "question": 300, "workflow_run": 60, "decision": 120, "brief_refresh": 24, "embedding": 2000, "board_write": 600 },
     "APP_URL": "https://juyo.razvanfrandes.com"
   },
 
@@ -62,8 +65,10 @@
   "triggers": { "crons": ["0 5 * * *"] },
 
   // Public MCP: 60 requests per minute per client. Kassandra questions: 6 per minute per client.
+  // Board changes (create, rename, reorder, add or remove a widget): 60 per minute per client.
   "ratelimits": [
     { "name": "MCP_RATE_LIMIT", "namespace_id": "2001", "simple": { "limit": 60, "period": 60 } },
-    { "name": "ASK_RATE_LIMIT", "namespace_id": "2002", "simple": { "limit": 6, "period": 60 } }
+    { "name": "ASK_RATE_LIMIT", "namespace_id": "2002", "simple": { "limit": 6, "period": 60 } },
+    { "name": "BOARD_RATE_LIMIT", "namespace_id": "2010", "simple": { "limit": 60, "period": 60 } }
   ]
 }
