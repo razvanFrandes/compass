@@ -1,7 +1,7 @@
 import type { WorkflowRun } from '@compass/contracts';
 import { describe, expect, it } from 'vitest';
 import { followEnds } from '../src/application/workflows/run-progress.ts';
-import { lazySettlement, STALE_RUN_MS } from '../src/application/workflows/run-settle.ts';
+import { lazySettlement, probeOfWait, STALE_RUN_MS } from '../src/application/workflows/run-settle.ts';
 
 const run: WorkflowRun = {
   id: 'run-1', workflowId: 'wf-1', sessionId: 's-1', trigger: 'manual', status: 'running',
@@ -39,6 +39,26 @@ describe('lazySettlement', () => {
       expect(lazySettlement({ ...run, status }, { live: false }, now)).toBeNull();
       expect(lazySettlement({ ...run, status }, { finished: { status: 'done', summary: null } }, now)).toBeNull();
     }
+  });
+});
+
+describe('probeOfWait', () => {
+  it('an ended operation is finished, with its text or its reason', () => {
+    expect(probeOfWait({ status: 'done', text: 'Emailed.' })).toEqual({ finished: { status: 'done', summary: 'Emailed.' } });
+    expect(probeOfWait({ status: 'unanswered', reason: 'aborted' })).toEqual({ finished: { status: 'failed', summary: 'aborted' } });
+    expect(probeOfWait({ status: 'unanswered' })).toEqual({ finished: { status: 'failed', summary: null } });
+  });
+
+  it('an operation Pi does not know yet is not finished: the run was stored, its prompt not yet submitted', () => {
+    const probe = probeOfWait({ status: 'unanswered', reason: 'not_found' });
+    expect(probe).toEqual({ live: false });
+    // So a second run() in that window leaves the young run alone (and answers 409), and only the 15 minutes fail it.
+    expect(lazySettlement(run, probe!, at('2026-11-20T06:00:01.000Z'))).toBeNull();
+    expect(lazySettlement(run, probe!, at('2026-11-20T06:15:00.001Z'))?.status).toBe('failed');
+  });
+
+  it('a wait that timed out says nothing: the caller asks whether the session is working', () => {
+    expect(probeOfWait(null)).toBeNull();
   });
 });
 

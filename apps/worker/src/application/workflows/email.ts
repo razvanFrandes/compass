@@ -1,4 +1,5 @@
 import { maskEmail, type Workflow, type WorkflowRun } from '@compass/contracts';
+import { nextScheduledRun } from './schedule.ts';
 
 /** A mail ready to go out. */
 export interface OutgoingEmail {
@@ -71,14 +72,27 @@ const hostOf = (value: string): string | null => {
 };
 
 /**
+ * Channel and review-source names that are written like a domain. The data has "Booking.com" (the channel BDC and the
+ * review source); the others are how a model may name the same kind of channel. Lower case.
+ */
+export const BRAND_NAMES: ReadonlySet<string> = new Set(['booking.com', 'expedia.com', 'hotels.com']);
+
+/** Whether the match is a word of its own: after a space or an opening mark, before a space or a closing mark. */
+const standsAlone = (whole: string, offset: number, length: number) =>
+  /(?:^|[\s(\["'“‘])$/u.test(whole.slice(0, offset)) && /^(?:$|[\s.,;:!?)\]"'’”])/u.test(whole.slice(offset + length));
+
+/**
  * Pure: `text` with every link and domain replaced by "[link removed]", except links to the app itself (the host of
  * `appUrl`). The mail goes from our address to an address a stranger typed, and its words come from a model that
  * read a stranger's goal: whatever it was talked into writing, the mail must not lead anywhere but the app.
- * Numbers ("182.50"), abbreviations ("e.g.") and sentences are left as they are.
+ * Numbers ("182.50"), abbreviations ("e.g.") and sentences are left as they are. So is a brand name (`BRAND_NAMES`),
+ * but only as a word of its own in any letter case: with a scheme, `www.`, a subdomain, a port, a path or an `@` before
+ * it, it is a link.
  */
 export function neutraliseLinks(text: string, appUrl: string): string {
   const own = hostOf(appUrl);
-  return text.replace(LINK, (match) => {
+  return text.replace(LINK, (match: string, offset: number, whole: string) => {
+    if (BRAND_NAMES.has(match.toLowerCase()) && standsAlone(whole, offset, match.length)) return match;
     if (!own || hostOf(match) !== own) return LINK_REMOVED;
     // The app's own link is kept only when nothing after the host is itself a link (…/go?to=https://elsewhere).
     const rest = match.slice(match.toLowerCase().indexOf(own) + own.length);
@@ -163,30 +177,14 @@ export function emailWorkflowBlocked(workflow: Workflow, now: Date): string | nu
   return null;
 }
 
-/** The hour (UTC) of the morning cron that regenerates the brief and runs the workflows: `triggers.crons` in wrangler.jsonc. */
-export const MORNING_HOUR_UTC = 5;
-
-/**
- * Pure: when the workflow would next run on its own after a run at `now`, or null for a manual one. A daily workflow
- * runs again in a day and a weekly one in 7 days; one that waits for a brief finding may run the next morning.
- */
-export function nextScheduledRun(workflow: Pick<Workflow, 'trigger'>, now: Date): Date | null {
-  const { trigger } = workflow;
-  if (trigger.kind === 'schedule') return new Date(now.getTime() + (trigger.every === 'week' ? 7 : 1) * DAY_MS);
-  if (trigger.kind === 'brief') {
-    const morning = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), MORNING_HOUR_UTC);
-    return new Date(morning > now.getTime() ? morning : morning + DAY_MS);
-  }
-  return null;
-}
-
 /**
  * Pure: whether a mail sent at `now` (not a test) is the workflow's last: with it the workflow reaches its 5 emails,
- * its 7 days are over, or they will be over before it would run again.
+ * its 7 days are over, or they will be over before it would run again (`nextScheduledRun`). `ranAt` is when the run
+ * that sends it started: a weekly workflow counts its week from there.
  */
-export function isLastEmail(workflow: Workflow, now: Date): boolean {
+export function isLastEmail(workflow: Workflow, now: Date, ranAt: string = now.toISOString()): boolean {
   if (emailWorkflowBlocked({ ...workflow, emailsSent: (workflow.emailsSent ?? 0) + 1 }, now) !== null) return true;
-  const next = nextScheduledRun(workflow, now);
+  const next = nextScheduledRun(workflow, now, ranAt);
   return next !== null && next.getTime() > Date.parse(workflow.createdAt) + EMAIL_WORKFLOW_LIMITS.days * DAY_MS;
 }
 

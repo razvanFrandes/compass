@@ -9,7 +9,8 @@ import { HotelData } from '../../application/hotel-data.ts';
 import { admitWorkflow, mayEnable } from '../../application/workflows/capacity.ts';
 import { createEmailExtension } from '../../application/workflows/email-tool.ts';
 import { emailWorkflowBlocked, publicRun, publicWorkflow, recipientChanged } from '../../application/workflows/email.ts';
-import { lazySettlement, type RunProbe } from '../../application/workflows/run-settle.ts';
+import { lazySettlement, probeOfWait } from '../../application/workflows/run-settle.ts';
+import { isDue, lastRealRunAt } from '../../application/workflows/schedule.ts';
 import { templateWorkflows, workflowInstructions } from '../../application/workflows/templates.ts';
 import { createWorkflowExtension, DecisionSignal } from '../../application/workflows/workflow-tools.ts';
 import type { Env } from '../../env.ts';
@@ -168,9 +169,13 @@ export class WorkflowAgents extends DurableObject<Env> {
     return { run: publicRun((await this.store.getRun(runId)) ?? run), entries };
   }
 
-  /** Runs the enabled workflows the morning brief calls for: brief findings for their hotels, and the daily ones. */
+  /**
+   * Runs the enabled workflows the morning brief calls for: brief findings for their hotels, and the scheduled ones
+   * that are due (`isDue`): a daily one every morning, a weekly one a week after its last run that was not a test.
+   */
   async runTriggered(brief: Brief): Promise<WorkflowRun[]> {
     const started: WorkflowRun[] = [];
+    const now = new Date();
     for (const workflow of await this.#workflows()) {
       if (!workflow.enabled) continue;
       const trigger = workflow.trigger;
@@ -182,6 +187,7 @@ export class WorkflowAgents extends DurableObject<Env> {
         if (!hits.length) continue;
         reason = `brief finding ${trigger.finding} for ${hits.map((h) => h.hotel_code).join(', ')}`;
       } else if (trigger.kind !== 'schedule') continue;
+      else if (!isDue(workflow, lastRealRunAt(await this.store.listRuns(workflow.id)), now)) continue;
       const run = await this.run(workflow.id, trigger.kind === 'brief' ? 'brief' : 'schedule', reason);
       if (!('error' in run)) started.push(run);
     }
@@ -238,13 +244,10 @@ export class WorkflowAgents extends DurableObject<Env> {
   async #settle(runId: string): Promise<void> {
     const run = await this.store.getRun(runId);
     if (!run || run.status === 'done' || run.status === 'failed') return;
-    const result = await this.harness.session(run.sessionId).wait(run.id, AbortSignal.timeout(14 * 60_000)).catch(() => null);
-    if (!result) return; // still waiting (e.g. for approval); the decision settles it later, or the next read does
-    await this.#record(runId, {
-      status: result.status === 'done' ? 'done' : 'failed',
-      endedAt: new Date().toISOString(),
-      summary: result.text ?? result.reason ?? null,
-    });
+    const probe = probeOfWait(await this.harness.session(run.sessionId).wait(run.id, AbortSignal.timeout(14 * 60_000)).catch(() => null));
+    // No ending: still waiting (e.g. for approval), or Pi has no such operation. The decision settles it later, or the next read does.
+    if (!probe || !('finished' in probe)) return;
+    await this.#record(runId, { ...probe.finished, endedAt: new Date().toISOString() });
   }
 
   /**
@@ -255,10 +258,10 @@ export class WorkflowAgents extends DurableObject<Env> {
   async #settleLazily(run: WorkflowRun): Promise<WorkflowRun> {
     if (run.status !== 'running') return run;
     const session = this.harness.session(run.sessionId);
-    const result = await session.wait(run.id, AbortSignal.timeout(PROBE_MS)).catch(() => null);
-    const probe: RunProbe = result
-      ? { finished: { status: result.status === 'done' ? 'done' : 'failed', summary: result.text ?? result.reason ?? null } }
-      : { live: await session.busy().catch(() => false) };
+    // A run stored but not yet submitted resolves as `not_found`: `probeOfWait` does not take that for an ending.
+    const probe = probeOfWait(await session.wait(run.id, AbortSignal.timeout(PROBE_MS)).catch(() => null)) ?? {
+      live: await session.busy().catch(() => false),
+    };
     const outcome = lazySettlement(run, probe, new Date());
     if (!outcome) return run;
     await this.#record(run.id, outcome);

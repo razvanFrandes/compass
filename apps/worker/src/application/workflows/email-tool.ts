@@ -78,8 +78,9 @@ export function createEmailExtension({ store, sender, quota, appUrl, now = () =>
         const allowed = await quota.take(to, client);
         if (!allowed.ok) return notSent(`${allowed.reason} No email sent.`);
 
-        // The last mail says so: with this send the workflow reaches its 5 emails, or its 7 days end before its next run.
-        const final = !test && isLastEmail(workflow, now());
+        // The last mail says so: with this send the workflow reaches its 5 emails, or its 7 days end before its next run
+        // (the next morning cron; for a weekly workflow the first one a week after this run).
+        const final = !test && isLastEmail(workflow, now(), run.startedAt);
         const mail = composeWorkflowEmail({
           workflow, test, wouldFire: args.would_fire, summary: args.summary, facts: args.facts,
           definition: args.definition, period: args.period, question: args.question, appUrl, final,

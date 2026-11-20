@@ -182,6 +182,29 @@ describe('neutraliseLinks', () => {
     expect(clean('razvanfrandes.com')).toBe('[link removed]');
   });
 
+  it('keeps the channel and review-source names that are written like a domain', () => {
+    for (const text of ['Booking.com share is 32%', 'booking.com and BOOKING.COM', 'Hotels.com, Expedia.com.', 'Source: Booking.com']) {
+      expect(clean(text)).toBe(text);
+    }
+  });
+
+  it('a brand name is kept only as a bare name: with a scheme, a path, a port or more labels it is a link', () => {
+    expect(clean('visit evil.com/login')).toBe('visit [link removed]');
+    expect(clean('https://x.io')).toBe('[link removed]');
+    expect(clean('https://booking.com')).toBe('[link removed]');
+    expect(clean('www.booking.com')).toBe('[link removed]');
+    expect(clean('Booking.com/login')).toBe('[link removed]');
+    expect(clean('booking.com:8080')).toBe('[link removed]');
+    expect(clean('booking.com?next=evil')).toBe('[link removed]');
+    expect(clean('secure.booking.com')).toBe('[link removed]');
+    expect(clean('booking.com.evil.io')).toBe('[link removed]');
+    expect(clean('evil-booking.com')).toBe('[link removed]');
+    expect(clean('pay@booking.com')).toBe('pay@[link removed]');
+    expect(clean('x_booking.com')).toBe('x_[link removed]');
+    expect(clean('booking.com@evil.io')).toBe('[link removed]@[link removed]');
+    expect(clean('(Booking.com) "Booking.com": 32%')).toBe('(Booking.com) "Booking.com": 32%');
+  });
+
   it('leaves numbers, percentages, abbreviations and hotel codes alone', () => {
     for (const text of ['Rooms: 1,240 vs 1,410 (12.5% down)', 'ADR 182.50 EUR', 'e.g. LIS1, i.e. Lisbon', 'RevPAR 96.4 at 9 a.m.', 'Pace is behind. Pickup is flat.']) {
       expect(clean(text)).toBe(text);
