@@ -27,6 +27,7 @@ const hotels = z
   .optional()
   .describe('Hotel codes, e.g. ["LIS", "AMS"]. Omit for the whole group. Use list_hotels for the codes.');
 const isoDate = z.iso.date().describe('ISO date, YYYY-MM-DD');
+const bucket = z.enum(['day', 'week', 'month', 'total']).describe('Bucket size; total gives one row for the whole period');
 
 /** Rows for the model as compact JSON (capped), plus the full rows and evidence as structured content. */
 export function success(result: DataResult<object>): ToolOutcome {
@@ -118,6 +119,98 @@ export const DATA_TOOLS = [
     description: 'Channel mix: room nights, gross revenue, commission and net revenue by booking channel, in EUR.',
     input: z.object({ hotels, from: isoDate, to: isoDate }),
     run: async (data, args) => success(await data.getChannelMix(args)),
+  }),
+  tool({
+    name: 'get_mix',
+    description:
+      'Business mix: room nights, share of room nights, revenue and ADR in EUR by segment (RET, ADV, COR corporate, GRP, WHL, PKG), ' +
+      'by channel or by channel type (direct, OTA, GDS, wholesale). Compare two periods to see a shift, e.g. corporate replaced by OTA.',
+    input: z.object({
+      hotels,
+      from: isoDate,
+      to: isoDate,
+      grain: bucket.default('month'),
+      by: z.enum(['segment', 'channel', 'channel_type']),
+      basis: z
+        .enum(['stay', 'booked'])
+        .default('stay')
+        .describe('stay: nights staying in the period; booked: nights of reservations made in the period (where new demand comes from)'),
+    }),
+    run: async (data, args) => success(await data.getMix(args)),
+  }),
+  tool({
+    name: 'get_account_production',
+    description:
+      'Room nights per company account (corporate clients, wholesalers) in the period vs the period of the same length just before, ' +
+      'with first and last stay dates. Sorted by biggest decline first. A lost account usually left months ago: use a long ' +
+      'window (e.g. the last 6 months vs the 6 before) to find it.',
+    input: z.object({
+      hotels,
+      from: isoDate,
+      to: isoDate,
+      limit: z.number().int().min(1).max(50).default(15),
+      sort: z.enum(['decline', 'volume']).default('decline'),
+    }),
+    run: async (data, args) => success(await data.getAccountProduction(args)),
+  }),
+  tool({
+    name: 'get_fnb',
+    description:
+      'Food & beverage: covers and revenue in EUR per outlet type and meal period, with covers per occupied room (capture of in-house demand).',
+    input: z.object({
+      hotels,
+      from: isoDate,
+      to: isoDate,
+      grain: bucket.default('week'),
+      mealPeriods: z.array(z.enum(['breakfast', 'lunch', 'dinner', 'all_day'])).optional(),
+    }),
+    run: async (data, args) => success(await data.getFnb(args)),
+  }),
+  tool({
+    name: 'get_labor',
+    description:
+      'Staffing per department: hours the workload required vs scheduled vs actually worked, staffing_pct, overtime and labour cost in EUR.',
+    input: z.object({
+      hotels,
+      department: z
+        .enum(['Front Office', 'Housekeeping', 'Kitchen', 'F&B Service', 'Maintenance', 'Sales & Marketing', 'Administration & General'])
+        .optional(),
+      from: isoDate,
+      to: isoDate,
+      grain: bucket.default('week'),
+    }),
+    run: async (data, args) => success(await data.getLabor(args)),
+  }),
+  tool({
+    name: 'get_review_scores',
+    description: 'Guest review scores (0–10): overall, staff, cleanliness, comfort, location, value and food, with the review count.',
+    input: z.object({ hotels, from: isoDate, to: isoDate, grain: bucket.default('month') }),
+    run: async (data, args) => success(await data.getReviewScores(args)),
+  }),
+  tool({
+    name: 'search_reviews',
+    description: 'Guest review quotes containing a phrase (case-insensitive), newest first. Use it to hear the guests behind a score change.',
+    input: z.object({
+      hotels,
+      text: z.string().min(2).max(100).describe('Phrase to find, e.g. "noise", "breakfast", "slow"'),
+      from: isoDate.optional(),
+      to: isoDate.optional(),
+      limit: z.number().int().min(1).max(30).default(10),
+    }),
+    run: async (data, args) => success(await data.searchReviews(args)),
+  }),
+  tool({
+    name: 'get_web_funnel',
+    description:
+      'Hotel website booking funnel by device or traffic source: sessions, searches, checkout starts, bookings, conversion and checkout completion.',
+    input: z.object({ hotels, from: isoDate, to: isoDate, grain: bucket.default('week'), by: z.enum(['device', 'source']) }),
+    run: async (data, args) => success(await data.getWebFunnel(args)),
+  }),
+  tool({
+    name: 'get_inventory',
+    description: 'Room inventory: physical rooms, rooms out of order (renovation, maintenance) and room nights available.',
+    input: z.object({ hotels, from: isoDate, to: isoDate, grain: bucket.default('week') }),
+    run: async (data, args) => success(await data.getInventory(args)),
   }),
   tool({
     name: 'get_data_health',

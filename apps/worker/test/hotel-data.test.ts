@@ -135,3 +135,66 @@ describe('runReadonlyQuery', () => {
     }
   });
 });
+
+describe('planted stories S2–S5', () => {
+  it('S2: New York corporate share of room nights falls by over a quarter, OTA share rises', async () => {
+    const before = await data.getMix({ hotels: ['NYC'], from: '2025-11-20', to: '2026-05-03', grain: 'total', by: 'segment' });
+    const after = await data.getMix({ hotels: ['NYC'], from: '2026-06-02', to: '2026-11-19', grain: 'total', by: 'segment' });
+    const share = (r: typeof before.rows, key: string) => r.find((x) => x.key === key)?.share_pct ?? 0;
+    expect(share(after.rows, 'COR')).toBeLessThan(0.75 * share(before.rows, 'COR'));
+
+    const otaBefore = await data.getMix({ hotels: ['NYC'], from: '2025-11-20', to: '2026-05-03', grain: 'total', by: 'channel_type' });
+    const otaAfter = await data.getMix({ hotels: ['NYC'], from: '2026-06-02', to: '2026-11-19', grain: 'total', by: 'channel_type' });
+    expect(share(otaAfter.rows, 'OTA')).toBeGreaterThan(share(otaBefore.rows, 'OTA') + 2);
+  });
+
+  it('S2: Vantor Consulting stops staying in New York', async () => {
+    const { rows } = await data.getAccountProduction({ from: '2026-05-23', to: '2026-11-19' });
+    expect(rows[0]!.hotel_code).toBe('NYC'); // across the whole group, the biggest decline comes first
+    const vantor = rows.find((r) => r.account === 'Vantor Consulting' && r.hotel_code === 'NYC')!;
+    expect(vantor.previous_room_nights).toBeGreaterThan(100);
+    expect(vantor.room_nights).toBeLessThan(0.2 * vantor.previous_room_nights);
+    expect(vantor.revenue_change_eur).toBeLessThan(-1_000_000);
+    expect(vantor.last_stay_date).toBe('2026-07-15'); // the account left; its last booked stays ran out in July
+  });
+
+  it('S4: Booking.com share of new bookings in Amsterdam rises (by booking date)', async () => {
+    const recent = await data.getMix({ hotels: ['AMS'], from: '2026-10-21', to: '2026-11-19', grain: 'total', by: 'channel', basis: 'booked' });
+    const before = await data.getMix({ hotels: ['AMS'], from: '2026-08-22', to: '2026-10-20', grain: 'total', by: 'channel', basis: 'booked' });
+    const bdc = (r: typeof recent.rows) => r.find((x) => x.key === 'BDC')!.share_pct;
+    expect(bdc(recent.rows)).toBeGreaterThan(bdc(before.rows) + 4);
+  });
+
+  it('S3: Bali kitchen ran under 75% of required hours during the shortage', async () => {
+    const { rows } = await data.getLabor({ hotels: ['DPS'], department: 'Kitchen', from: '2026-10-06', to: '2026-11-10', grain: 'total' });
+    expect(rows[0]!.staffing_pct).toBeLessThan(75);
+  });
+
+  it('S3: Bali dinner covers per occupied room drop, and the food score with them', async () => {
+    const window = { hotels: ['DPS'], grain: 'total' as const, mealPeriods: ['dinner', 'all_day'] };
+    const during = await data.getFnb({ ...window, from: '2026-10-06', to: '2026-11-10' });
+    const before = await data.getFnb({ ...window, from: '2026-07-23', to: '2026-10-05' });
+    const cpor = (r: typeof during.rows) => r.reduce((s, x) => s + x.covers, 0) / r[0]!.rooms_sold;
+    expect(cpor(during.rows)).toBeLessThan(0.75 * cpor(before.rows));
+
+    const reviewsDuring = await data.getReviewScores({ hotels: ['DPS'], from: '2026-10-16', to: '2026-11-19', grain: 'total' });
+    const reviewsBefore = await data.getReviewScores({ hotels: ['DPS'], from: '2026-06-01', to: '2026-09-30', grain: 'total' });
+    expect(reviewsDuring.rows[0]!.food).toBeLessThan(reviewsBefore.rows[0]!.food - 1.0);
+  });
+
+  it('S4: Amsterdam mobile conversion falls, desktop holds', async () => {
+    const last30 = await data.getWebFunnel({ hotels: ['AMS'], from: '2026-10-21', to: '2026-11-19', grain: 'total', by: 'device' });
+    const prior = await data.getWebFunnel({ hotels: ['AMS'], from: '2026-08-22', to: '2026-10-20', grain: 'total', by: 'device' });
+    const conv = (r: typeof last30.rows, d: string) => r.find((x) => x.key === d)!.conversion_pct;
+    expect(conv(last30.rows, 'mobile')).toBeLessThan(0.6 * conv(prior.rows, 'mobile'));
+    expect(Math.abs(conv(last30.rows, 'desktop') / conv(prior.rows, 'desktop') - 1)).toBeLessThan(0.25);
+  });
+
+  it('S5: Barcelona has 24+ rooms out of order, and guests mention construction noise', async () => {
+    const { rows } = await data.getInventory({ hotels: ['BCN'], from: '2026-09-21', to: '2026-12-20', grain: 'total' });
+    expect(rows[0]!.min_out_of_order).toBeGreaterThanOrEqual(24);
+    const quotes = await data.searchReviews({ hotels: ['BCN'], text: 'construction noise', limit: 10 });
+    expect(quotes.rows.length).toBeGreaterThanOrEqual(5);
+    expect(quotes.rows[0]!.negative_text.toLowerCase()).toContain('construction noise');
+  });
+});

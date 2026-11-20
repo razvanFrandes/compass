@@ -23,6 +23,14 @@ export interface Hotel {
 
 const MAX_ROWS = 200;
 
+/** Bucket size for time series; `total` gives one row for the whole period. */
+export type Bucket = 'day' | 'week' | 'month' | 'total';
+
+/** SQL for a period column. `grain` is a closed union, so interpolating it is safe. */
+function period(grain: Bucket, column: string, fromParam: string): string {
+  return grain === 'total' ? `${fromParam}::date` : `date_trunc('${grain}', ${column})::date`;
+}
+
 const SCHEMA_NOTES = `Helpers (the definitions live in SQL; prefer them to re-deriving metrics):
 - hotel.v_hotel_day: occupancy, ADR, RevPAR per hotel and day, local currency plus room_revenue_eur; is_actual = before the business date.
 - hotel.v_comp_set_index: MPI, ARI, RGI per hotel and day (actuals only).
@@ -58,7 +66,11 @@ const COMP_SET_METRICS = new Set(['mpi', 'ari', 'rgi']);
 export class HotelData {
   #businessDate: Promise<string> | undefined;
 
-  constructor(private readonly db: Db) {}
+  private readonly db: Db;
+
+  constructor(db: Db) {
+    this.db = db;
+  }
 
   businessDate(): Promise<string> {
     this.#businessDate ??= this.db
@@ -219,6 +231,238 @@ export class HotelData {
       sql,
       [input.hotels?.length ? input.hotels : null],
       { sources: ['hotel.data_sources'] },
+    );
+  }
+
+  /** Room nights and revenue by segment, channel or channel type, with each key's share of room nights. */
+  async getMix(input: {
+    hotels?: string[];
+    from: string;
+    to: string;
+    grain?: Bucket;
+    by: 'segment' | 'channel' | 'channel_type';
+    basis?: 'stay' | 'booked';
+  }) {
+    const grain = input.grain ?? 'month';
+    const booked = input.basis === 'booked';
+    const dateColumn = booked ? 'r.created_at::date' : 'n.stay_date';
+    const key = { segment: 'r.segment', channel: 'r.channel', channel_type: 'c.channel_type' }[input.by];
+    const sql = `
+      with x as (
+        select ${period(grain, dateColumn, '$1')} as period, n.hotel_code, ${key} as key,
+               count(*) as room_nights, sum(n.room_revenue) as revenue
+          from hotel.reservation_nights n
+          join hotel.reservations r using (reservation_id)
+          join hotel.channels c on c.channel = r.channel
+         where ${dateColumn} between $1::date and $2::date and ($3::text[] is null or n.hotel_code = any($3::text[]))
+         group by 1, 2, 3)
+      select to_char(x.period, 'YYYY-MM-DD') as period, x.hotel_code, x.key, x.room_nights::int,
+             round(100.0 * x.room_nights / sum(x.room_nights) over (partition by x.period, x.hotel_code), 1)::float8 as share_pct,
+             round(x.revenue * hotel.eur_rate(h.currency, x.period), 0)::float8 as revenue_eur,
+             round(x.revenue * hotel.eur_rate(h.currency, x.period) / x.room_nights, 2)::float8 as adr_eur
+        from x join hotel.hotels h using (hotel_code)
+       order by 1, 2, x.room_nights desc`;
+    return this.#run<{ period: string; hotel_code: string; key: string; room_nights: number; share_pct: number; revenue_eur: number; adr_eur: number }>(
+      sql,
+      [input.from, input.to, input.hotels?.length ? input.hotels : null],
+      {
+        sources: ['hotel.reservation_nights', 'hotel.reservations', 'hotel.channels'],
+        definitions: {
+          share_pct: `Share of the hotel's room nights in the period by ${input.by}.`,
+          segments: 'RET transient retail, ADV advance purchase, COR corporate negotiated, GRP group, WHL wholesale, PKG leisure package.',
+        },
+        period: { from: input.from, to: input.to },
+        notes: [
+          booked
+            ? 'Basis "booked": room nights of reservations made in the period (by booking date), whatever their stay dates. Shows where new demand comes from now.'
+            : 'Basis "stay": room nights staying in the period.',
+          'Cancelled and no-show reservations have no stay nights, so they are excluded. Revenue converted to EUR at the rate of the period start.',
+        ],
+      },
+    );
+  }
+
+  /** Room nights per company account in the period vs the period of the same length just before it. */
+  async getAccountProduction(input: { hotels?: string[]; from: string; to: string; limit?: number; sort?: 'decline' | 'volume' }) {
+    const sql = `
+      with bounds as (select $1::date as f, $2::date as t, $2::date - $1::date + 1 as len),
+      x as (
+        select n.hotel_code, a.name as account, a.account_type,
+               count(*) filter (where n.stay_date between b.f and b.t) as room_nights,
+               count(*) filter (where n.stay_date between b.f - b.len and b.f - 1) as previous_room_nights,
+               sum(n.room_revenue) filter (where n.stay_date between b.f and b.t) as revenue,
+               sum(n.room_revenue) filter (where n.stay_date between b.f - b.len and b.f - 1) as previous_revenue,
+               min(n.stay_date) as first_stay_date, max(n.stay_date) as last_stay_date
+          from bounds b, hotel.reservation_nights n
+          join hotel.reservations r using (reservation_id)
+          join hotel.accounts a using (account_id)
+         where n.stay_date between b.f - b.len and b.t and ($3::text[] is null or n.hotel_code = any($3::text[]))
+         group by 1, 2, 3)
+      select x.hotel_code, x.account, x.account_type, x.room_nights::int, x.previous_room_nights::int,
+             (x.room_nights - x.previous_room_nights)::int as change,
+             round(coalesce(x.revenue, 0) * hotel.eur_rate(h.currency, $2::date), 0)::float8 as revenue_eur,
+             round(coalesce(x.previous_revenue, 0) * hotel.eur_rate(h.currency, $2::date), 0)::float8 as previous_revenue_eur,
+             round((coalesce(x.revenue, 0) - coalesce(x.previous_revenue, 0)) * hotel.eur_rate(h.currency, $2::date), 0)::float8
+               as revenue_change_eur,
+             to_char(x.first_stay_date, 'YYYY-MM-DD') as first_stay_date, to_char(x.last_stay_date, 'YYYY-MM-DD') as last_stay_date
+        from x join hotel.hotels h using (hotel_code)
+       order by ${input.sort === 'volume' ? 'greatest(x.room_nights, x.previous_room_nights) desc' : '(x.room_nights - x.previous_room_nights) asc'}
+       limit $4::int`;
+    return this.#run<{ hotel_code: string; account: string; account_type: string; room_nights: number; previous_room_nights: number; change: number; revenue_eur: number; previous_revenue_eur: number; revenue_change_eur: number; first_stay_date: string; last_stay_date: string }>(
+      sql,
+      [input.from, input.to, input.hotels?.length ? input.hotels : null, input.limit ?? 15],
+      {
+        sources: ['hotel.reservation_nights', 'hotel.reservations', 'hotel.accounts'],
+        definitions: {
+          previous_room_nights: 'Room nights in the period of the same length immediately before `from` (equal windows).',
+          last_stay_date: 'The last night the account stayed, across both windows.',
+        },
+        period: { from: input.from, to: input.to },
+      },
+    );
+  }
+
+  /** Staffing: required vs scheduled vs worked hours per department. */
+  async getLabor(input: { hotels?: string[]; department?: string; from: string; to: string; grain?: Bucket }) {
+    const grain = input.grain ?? 'week';
+    const sql = `
+      select to_char(${period(grain, 'l.date', '$1')}, 'YYYY-MM-DD') as period, l.hotel_code, l.department,
+             round(sum(l.required_hours), 0)::float8 as required_hours, round(sum(l.scheduled_hours), 0)::float8 as scheduled_hours,
+             round(sum(l.actual_hours), 0)::float8 as actual_hours, round(sum(l.overtime_hours), 0)::float8 as overtime_hours,
+             round(100.0 * sum(l.actual_hours) / nullif(sum(l.required_hours), 0), 1)::float8 as staffing_pct,
+             round(sum(l.labor_cost * hotel.eur_rate(l.currency, l.date)), 0)::float8 as labor_cost_eur
+        from hotel.labor_daily l
+       where l.date between $1::date and $2::date
+         and ($3::text[] is null or l.hotel_code = any($3::text[])) and ($4::text is null or l.department = $4)
+       group by 1, 2, 3 order by 1, 2, 3`;
+    return this.#run<{ period: string; hotel_code: string; department: string; required_hours: number; actual_hours: number; staffing_pct: number }>(
+      sql,
+      [input.from, input.to, input.hotels?.length ? input.hotels : null, input.department ?? null],
+      {
+        sources: ['hotel.labor_daily'],
+        definitions: { staffing_pct: 'Hours actually worked ÷ hours the workload required, in %.' },
+        period: { from: input.from, to: input.to },
+        notes: ['Departments: Front Office, Housekeeping, Kitchen, F&B Service, Maintenance, Sales & Marketing, Administration & General.'],
+      },
+    );
+  }
+
+  /** F&B covers and revenue per outlet type and meal period, with covers per occupied room. */
+  async getFnb(input: { hotels?: string[]; from: string; to: string; grain?: Bucket; mealPeriods?: string[] }) {
+    const grain = input.grain ?? 'week';
+    const sql = `
+      with f as (
+        select ${period(grain, 'f.date', '$1')} as period, f.hotel_code, o.outlet_type, f.meal_period,
+               sum(f.covers) as covers, sum((f.food_revenue + f.beverage_revenue) * hotel.eur_rate(f.currency, f.date)) as revenue_eur
+          from hotel.fnb_daily f join hotel.outlets o using (outlet_id)
+         where f.date between $1::date and $2::date and ($3::text[] is null or f.hotel_code = any($3::text[]))
+           and ($4::text[] is null or f.meal_period = any($4::text[]))
+         group by 1, 2, 3, 4),
+      rooms as (
+        select ${period(grain, 'd.date', '$1')} as period, d.hotel_code, sum(d.rooms_sold) as rooms_sold
+          from hotel.v_hotel_day d
+         where d.date between $1::date and $2::date and ($3::text[] is null or d.hotel_code = any($3::text[]))
+         group by 1, 2)
+      select to_char(f.period, 'YYYY-MM-DD') as period, f.hotel_code, f.outlet_type, f.meal_period, f.covers::int,
+             round(f.revenue_eur, 0)::float8 as revenue_eur, rooms.rooms_sold::int,
+             round(f.covers::numeric / nullif(rooms.rooms_sold, 0), 3)::float8 as covers_per_occupied_room
+        from f join rooms using (period, hotel_code)
+       order by 1, 2, f.covers desc`;
+    return this.#run<{ period: string; hotel_code: string; outlet_type: string; meal_period: string; covers: number; revenue_eur: number; rooms_sold: number; covers_per_occupied_room: number }>(
+      sql,
+      [input.from, input.to, input.hotels?.length ? input.hotels : null, input.mealPeriods?.length ? input.mealPeriods : null],
+      {
+        sources: ['hotel.fnb_daily', 'hotel.outlets', 'hotel.v_hotel_day'],
+        definitions: { covers_per_occupied_room: 'Covers ÷ room nights sold in the same period: how much in-house demand the outlets capture.' },
+        period: { from: input.from, to: input.to },
+        notes: ['Meal periods: breakfast, lunch, dinner, all_day. A stale POS feed shows as missing days (check get_data_health).'],
+      },
+    );
+  }
+
+  /** Guest review scores (0–10) per period. */
+  async getReviewScores(input: { hotels?: string[]; from: string; to: string; grain?: Bucket }) {
+    const grain = input.grain ?? 'month';
+    const sql = `
+      select to_char(${period(grain, 'v.review_date', '$1')}, 'YYYY-MM-DD') as period, v.hotel_code, count(*)::int as reviews,
+             round(avg(v.overall_score), 2)::float8 as overall, round(avg(v.staff), 2)::float8 as staff,
+             round(avg(v.cleanliness), 2)::float8 as cleanliness, round(avg(v.comfort), 2)::float8 as comfort,
+             round(avg(v.location), 2)::float8 as location, round(avg(v.value), 2)::float8 as value,
+             round(avg(v.food), 2)::float8 as food
+        from hotel.reviews v
+       where v.review_date between $1::date and $2::date and ($3::text[] is null or v.hotel_code = any($3::text[]))
+       group by 1, 2 order by 1, 2`;
+    return this.#run<{ period: string; hotel_code: string; reviews: number; overall: number; food: number }>(
+      sql,
+      [input.from, input.to, input.hotels?.length ? input.hotels : null],
+      { sources: ['hotel.reviews'], definitions: { scores: 'Average guest scores on a 0–10 scale, by review date.' }, period: { from: input.from, to: input.to } },
+    );
+  }
+
+  /** Review quotes that mention a phrase, newest first. Keyword search; semantic search comes with embeddings. */
+  async searchReviews(input: { hotels?: string[]; text: string; from?: string; to?: string; limit?: number }) {
+    const sql = `
+      select v.hotel_code, to_char(v.review_date, 'YYYY-MM-DD') as review_date, v.source, v.overall_score::float8,
+             v.positive_text, v.negative_text, v.topics
+        from hotel.reviews v
+       where (v.negative_text ilike '%' || $1 || '%' or v.positive_text ilike '%' || $1 || '%')
+         and ($2::text[] is null or v.hotel_code = any($2::text[]))
+         and ($3::date is null or v.review_date >= $3::date) and ($4::date is null or v.review_date <= $4::date)
+       order by v.review_date desc limit $5::int`;
+    return this.#run<{ hotel_code: string; review_date: string; source: string; overall_score: number; positive_text: string; negative_text: string; topics: string }>(
+      sql,
+      [input.text, input.hotels?.length ? input.hotels : null, input.from ?? null, input.to ?? null, input.limit ?? 10],
+      { sources: ['hotel.reviews'], notes: ['Exact phrase match, case-insensitive.'] },
+    );
+  }
+
+  /** Booking-engine funnel: sessions → searches → checkout starts → bookings, by device or traffic source. */
+  async getWebFunnel(input: { hotels?: string[]; from: string; to: string; grain?: Bucket; by: 'device' | 'source' }) {
+    const grain = input.grain ?? 'week';
+    const key = input.by === 'device' ? 'w.device' : 'w.source';
+    const sql = `
+      select to_char(${period(grain, 'w.date', '$1')}, 'YYYY-MM-DD') as period, w.hotel_code, ${key} as key,
+             sum(w.sessions)::int as sessions, sum(w.searches)::int as searches, sum(w.checkout_starts)::int as checkout_starts,
+             sum(w.bookings)::int as bookings,
+             round(100.0 * sum(w.bookings) / nullif(sum(w.sessions), 0), 2)::float8 as conversion_pct,
+             round(100.0 * sum(w.bookings) / nullif(sum(w.checkout_starts), 0), 1)::float8 as checkout_completion_pct,
+             round(sum(w.booking_revenue * hotel.eur_rate(w.currency, w.date)), 0)::float8 as booking_revenue_eur
+        from hotel.web_daily w
+       where w.date between $1::date and $2::date and ($3::text[] is null or w.hotel_code = any($3::text[]))
+       group by 1, 2, 3 order by 1, 2, sessions desc`;
+    return this.#run<{ period: string; hotel_code: string; key: string; sessions: number; bookings: number; conversion_pct: number; checkout_completion_pct: number }>(
+      sql,
+      [input.from, input.to, input.hotels?.length ? input.hotels : null],
+      {
+        sources: ['hotel.web_daily'],
+        definitions: {
+          conversion_pct: 'Bookings ÷ sessions on the hotel website, in %.',
+          checkout_completion_pct: 'Bookings ÷ checkout starts, in %: a drop points at a broken checkout.',
+        },
+        period: { from: input.from, to: input.to },
+      },
+    );
+  }
+
+  /** Physical rooms, rooms out of order and rooms available. */
+  async getInventory(input: { hotels?: string[]; from: string; to: string; grain?: Bucket }) {
+    const grain = input.grain ?? 'week';
+    const sql = `
+      select to_char(${period(grain, 'i.date', '$1')}, 'YYYY-MM-DD') as period, i.hotel_code,
+             max(i.physical_rooms)::int as physical_rooms, min(i.out_of_order)::int as min_out_of_order,
+             max(i.out_of_order)::int as max_out_of_order, round(avg(i.out_of_order), 1)::float8 as avg_out_of_order,
+             sum(i.rooms_available)::int as room_nights_available
+        from hotel.room_inventory_daily i
+       where i.date between $1::date and $2::date and ($3::text[] is null or i.hotel_code = any($3::text[]))
+       group by 1, 2 order by 1, 2`;
+    return this.#run<{ period: string; hotel_code: string; physical_rooms: number; min_out_of_order: number; max_out_of_order: number; avg_out_of_order: number }>(
+      sql,
+      [input.from, input.to, input.hotels?.length ? input.hotels : null],
+      {
+        sources: ['hotel.room_inventory_daily'],
+        definitions: { out_of_order: 'Rooms taken out of sale (renovation, maintenance); they are excluded from rooms available.' },
+        period: { from: input.from, to: input.to },
+      },
     );
   }
 
