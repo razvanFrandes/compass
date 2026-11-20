@@ -21,7 +21,8 @@ VM (HostHatch, CloudPanel site user razvanfrandes-compass-db, no root)
   - `compass_ro`, which the Worker uses:
     - `SELECT` on schema `hotel` only;
     - every transaction is read-only;
-    - `statement_timeout = 5s`.
+    - `statement_timeout = 5s`;
+    - recommended, not yet applied: `temp_file_limit`, `work_mem` and a connection limit (see `docs/security.md`).
 - **Memory:** `shared_buffers = 512MB`, `max_connections = 40`. The VM also hosts other sites.
 - **Restarts:** the site user's crontab has `@reboot` entries for Postgres and cloudflared, plus a 5-minute watchdog for each.
 - **Data:** loaded from `compass-datagen/out/full` with `db/load.sh` (Halcyon: 20 hotels, 1.2M reservations, business date 2026-11-20). To reload, rsync `db/` and `out/full/` to `~/compass-datagen` on the VM and run `db/load.sh` with `DATABASE_URL` pointing at `compass_admin`. Then re-run the grants for `compass_ro`.
@@ -44,3 +45,7 @@ VM (HostHatch, CloudPanel site user razvanfrandes-compass-db, no root)
 | Workers VPC service | compass-db | `01a1f9c3-d18c-7002-9c9c-b6bc8b102c98` |
 | Tunnel | compass-db | `730ca4b7-4cfb-4418-b89f-72dff11eb3fb` |
 | Rate limit | MCP_RATE_LIMIT | namespace 2001, 60 requests/min per client |
+| Rate limit | ASK_RATE_LIMIT | namespace 2002, 6 requests/min per client |
+| Durable Object | Budget (`BUDGET`, migration `v4`) | the public demo's daily budget, one object (`global`) |
+| Variable | `DAILY_LIMITS` | daily budget limits, see `docs/security.md` |
+| Secret (optional) | `ADMIN_KEY` | skips the daily budget with the `x-compass-admin-key` header |
