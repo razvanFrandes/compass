@@ -8,10 +8,11 @@ export const TOOL_FAILURE = 'The data source failed to answer. Try again in a mo
  * the tool wrote them, so the model can fix its SQL. An unexpected exception, such as a lost database connection,
  * may carry hosts or connection details: it goes to the logs, and the caller sees a generic failure. So does the
  * `cause` of a failure the tool caught itself: it is logged here and never returned.
+ * `scope` is the conversation's hotel scope (codes), for the Pi agents; the public MCP server has none.
  */
-export async function runTool(tool: DataTool, data: HotelData, args: unknown): Promise<ToolOutcome> {
+export async function runTool(tool: DataTool, data: HotelData, args: unknown, scope: readonly string[] = []): Promise<ToolOutcome> {
   try {
-    const outcome = await tool.run(data, args as never);
+    const outcome = await tool.run(data, args as never, scope);
     if (outcome.ok || !('cause' in outcome)) return outcome;
     console.error(`tool ${tool.name} failed`, outcome.cause);
     return { ok: false, text: outcome.text };

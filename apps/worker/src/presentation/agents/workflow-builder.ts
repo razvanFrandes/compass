@@ -3,6 +3,7 @@ import {
   type BuilderClientMessage,
   type BuilderServerMessage,
   type ChatEntry,
+  type Workflow,
   type WorkflowDraft,
   type WorkflowGraph,
   type WorkflowRun,
@@ -15,9 +16,9 @@ import { PiHarness, ROOT_SESSION } from 'agents/harness/pi';
 import { Lifecycle } from 'agents/lifecycle';
 import { createAI } from 'agents/models/pi-ai';
 import { HotelData } from '../../application/hotel-data.ts';
-import { clientPatch, editEntry, EditLimiter, mergeChanged, savePlan } from '../../application/workflows/builder-edits.ts';
+import { clientPatch, editEntry, EditLimiter, loadedEntry, mergeChanged, savePlan, unmaskPatch } from '../../application/workflows/builder-edits.ts';
 import { createBuilderExtension, type DraftHost } from '../../application/workflows/builder-tools.ts';
-import { applyDraftPatch, draftIssues } from '../../application/workflows/draft.ts';
+import { applyDraftPatch, clientDraft, draftIssues, draftOfWorkflow } from '../../application/workflows/draft.ts';
 import { followEnds, runProgress } from '../../application/workflows/run-progress.ts';
 import type { Env } from '../../env.ts';
 import { openPostgres } from '../../infrastructure/postgres.ts';
@@ -25,6 +26,9 @@ import { WorkersAiEmbedder } from '../../infrastructure/workers-ai-embedder.ts';
 import { BUDGET_NAME } from '../budget.ts';
 import { budgetMessage } from '../http/budget-response.ts';
 import { PublicError } from '../http/errors.ts';
+import { scopeFor } from '../hotels.ts';
+import type { ScopeHotel } from '../../domain/scope.ts';
+import { builderScopeInstructions } from './scope-prompt.ts';
 import { DATA_TOOLS } from '../tools/catalog.ts';
 import { BUILDER_SECTIONS } from './builder-prompt.ts';
 import { serveChatSocket } from './chat-socket.ts';
@@ -50,8 +54,13 @@ type Send = (message: BuilderServerMessage) => void;
  *
  * The draft holds the recipient's address in full: `WorkflowAgents` only ever returns it masked, so this object is
  * what remembers it between the conversation and the save. Storage keys: `draft`, `workflowId`, `saved` (the draft
- * as last saved, to tell what a later save has to change) and `edited` (the nodes edited by hand since the agent
- * was last told).
+ * as last saved, to tell what a later save has to change), `edited` (the nodes edited by hand since the agent
+ * was last told), `scope` (the hotel scope of the last question) and `loaded`.
+ *
+ * "Edit" on a saved workflow opens the socket with `&workflow=<id>`: a draft that is still empty then takes the
+ * workflow's spec, real address included, and is bound to it, so a save updates that workflow. Whoever opens it knows
+ * the workflow's id (they are listed), not its recipient: `loaded` keeps the address that came from the workflow, and
+ * the sockets see it masked until the person types another one (`clientDraft`).
  */
 export class WorkflowBuilder extends DurableObject<Env> {
   ai = createAI({ binding: this.env.AI, gateway: { id: 'compass', byokAlias: 'compass', collectLog: true } });
@@ -73,11 +82,15 @@ export class WorkflowBuilder extends DurableObject<Env> {
   };
 
   // One registry per object, never at module scope: Pi keeps each Harness subscribed to its registry.
+  // The data tools read the hotel scope of the last question (`scope` in storage), as Kassandra's do.
   registry = createBuilderRegistry(
-    createDataExtension(() => {
-      const db = openPostgres(this.env.HYPERDRIVE.connectionString);
-      return { data: new HotelData(db, new WorkersAiEmbedder(this.env.AI)), close: () => db.close() };
-    }),
+    createDataExtension(
+      () => {
+        const db = openPostgres(this.env.HYPERDRIVE.connectionString);
+        return { data: new HotelData(db, new WorkersAiEmbedder(this.env.AI)), close: () => db.close() };
+      },
+      async () => (await this.ctx.storage.get<string[]>('scope')) ?? [],
+    ),
     this.host,
   );
 
@@ -106,7 +119,9 @@ export class WorkflowBuilder extends DurableObject<Env> {
   /** The builder WebSocket: Kassandra's chat protocol, plus `draft` and `run` messages. */
   override async fetch(request: Request): Promise<Response> {
     if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected a WebSocket', { status: 426 });
-    const draftId = new URL(request.url).searchParams.get('draft') ?? '';
+    const params = new URL(request.url).searchParams;
+    const draftId = params.get('draft') ?? '';
+    const workflowId = params.get('workflow');
     const client = request.headers.get('cf-connecting-ip') ?? 'local';
     const { 0: browser, 1: server } = new WebSocketPair();
     server.accept();
@@ -119,7 +134,9 @@ export class WorkflowBuilder extends DurableObject<Env> {
         onOpen: async (send) => {
           opened = send;
           this.#sockets.add(send);
+          const refused = workflowId ? await this.#load(workflowId) : null;
           send(await this.#draftMessage(await this.#draft(), []));
+          if (refused) send({ type: 'error', message: refused });
         },
       }).finally(() => {
         if (opened) this.#sockets.delete(opened);
@@ -158,8 +175,39 @@ export class WorkflowBuilder extends DurableObject<Env> {
     return next;
   }
 
+  /** The address that came with a workflow opened for editing, or null for a draft built here. */
+  async #loaded(): Promise<string | null> {
+    return (await this.ctx.storage.get<string>('loaded')) ?? null;
+  }
+
+  /**
+   * Opens a saved workflow in this draft, once: a draft that already holds something, or is already saved as a
+   * workflow, is left as it is (a reload of the page reconnects with the same URL). Returns why it could not, for
+   * the person, or null. The agent is told what is on the canvas with one transcript entry; no run starts.
+   */
+  #load(workflowId: string): Promise<string | null> {
+    return this.#inTurn(async () => {
+      if ((await this.#workflowId()) !== null || Object.keys(await this.#draft()).length > 0) return null;
+      const workflow = await this.env.WORKFLOWS.getByName('halcyon').loadForBuilder(workflowId);
+      if ('error' in workflow) return workflow.status === 404 ? 'That workflow no longer exists.' : workflow.error;
+      const draft = draftOfWorkflow(workflow as Workflow);
+      await this.ctx.storage.put({ draft, workflowId, saved: draft, ...(draft.delivery ? { loaded: draft.delivery.to } : {}) });
+      const conversation = await this.harness.conversation(ROOT_SESSION);
+      await conversation.submit({ type: 'write', entry: loadedEntry(draft, Date.now()) }, BACKGROUND_CONTEXT);
+      return null;
+    });
+  }
+
+  /** The draft as the sockets see it: an address that came from a saved workflow is masked. */
   async #draftMessage(draft: WorkflowDraft, changed: string[]): Promise<BuilderServerMessage> {
-    return { type: 'draft', draft, graph: specToGraph(draft), changed, workflowId: await this.#workflowId(), issues: draftIssues(draft) };
+    return {
+      type: 'draft',
+      draft: clientDraft(draft, await this.#loaded()),
+      graph: specToGraph(draft),
+      changed,
+      workflowId: await this.#workflowId(),
+      issues: draftIssues(draft),
+    };
   }
 
   #broadcast(message: BuilderServerMessage): void {
@@ -196,16 +244,40 @@ export class WorkflowBuilder extends DurableObject<Env> {
         if (!(await this.env.ASK_RATE_LIMIT.limit({ key: client })).success) {
           throw new PublicError('Too many questions. Wait a minute and try again.');
         }
+        // A scope that is not valid is refused before the question takes from the budget.
+        let scope: ScopeHotel[] | null = null;
+        if (message.type === 'ask') {
+          const resolved = await scopeFor(this.env, message.scope);
+          if (!resolved.ok) throw new PublicError(resolved.error.message);
+          scope = resolved.value;
+        }
         const budget = await this.env.BUDGET.getByName(BUDGET_NAME).take('question');
         if (!budget.ok) throw new PublicError(budgetMessage(budget));
         await this.#noteEdits();
         if (message.type === 'steer') await session.steer(text);
-        else await session.submit(text, message.id ? { operationId: message.id } : undefined);
+        else {
+          if (scope) await this.#useScope(scope);
+          await session.submit(text, message.id ? { operationId: message.id } : undefined);
+        }
         return;
       }
       default:
         throw new PublicError('Unknown message type. Send ask, steer, abort, edit, save or test.');
     }
+  }
+
+  /**
+   * The hotel scope the question came with (the sidebar's switcher): the data tools read only those hotels, and the
+   * agent is told that a new workflow watches them unless the person says otherwise. As in Kassandra, a question
+   * sent while a run is going keeps the scope of that run. Nothing is written when the scope is the one in force.
+   */
+  async #useScope(scope: readonly ScopeHotel[]): Promise<void> {
+    const codes = scope.map((hotel) => hotel.code);
+    const current = (await this.ctx.storage.get<string[]>('scope')) ?? [];
+    if (codes.join() === current.join() || (await this.harness.session().busy())) return;
+    await this.ctx.storage.put('scope', codes);
+    const conversation = await this.harness.conversation(ROOT_SESSION);
+    await conversation.configure({ instructions: builderScopeInstructions(scope) }, BACKGROUND_CONTEXT);
   }
 
   /**
@@ -215,8 +287,10 @@ export class WorkflowBuilder extends DurableObject<Env> {
    */
   async #edit(rawPatch: unknown, client: string): Promise<void> {
     if (!this.#editLimit.allow(client, Date.now())) throw new PublicError('Too many edits. Wait a minute and try again.');
-    const patch = clientPatch(rawPatch);
-    if (!patch) throw new PublicError('Send { "type": "edit", "patch": { … } } with the fields to change.');
+    const sent = clientPatch(rawPatch);
+    if (!sent) throw new PublicError('Send { "type": "edit", "patch": { … } } with the fields to change.');
+    // A client that sends back the masked address of a workflow it opened means the address it was saved with.
+    const patch = unmaskPatch(sent, await this.#loaded());
     const applied = await this.#apply(patch);
     if ('error' in applied) throw new PublicError(applied.error);
     if (!applied.changed.length) return;

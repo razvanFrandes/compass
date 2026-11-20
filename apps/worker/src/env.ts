@@ -11,6 +11,8 @@ export interface Env {
   HYPERDRIVE: Hyperdrive;
   MCP_RATE_LIMIT: RateLimit;
   ASK_RATE_LIMIT: RateLimit;
+  /** POST /api/voice/token: 10 temporary keys per minute per client. */
+  VOICE_RATE_LIMIT: RateLimit;
   KASSANDRA: DurableObjectNamespace<Kassandra>;
   BRIEFS: DurableObjectNamespace<Briefs>;
   WORKFLOWS: DurableObjectNamespace<WorkflowAgents>;
@@ -24,4 +26,9 @@ export interface Env {
   DAILY_LIMITS?: unknown;
   /** Optional secret: requests with `x-compass-admin-key: <ADMIN_KEY>` skip the daily budget. */
   ADMIN_KEY?: string;
+  /**
+   * Secret: the Soniox project key (`wrangler secret put SONIOX_API_KEY`). Used only to mint temporary keys for voice
+   * input; never returned or logged. Without it, POST /api/voice/token answers 503 and the app falls back to Web Speech.
+   */
+  SONIOX_API_KEY?: string;
 }

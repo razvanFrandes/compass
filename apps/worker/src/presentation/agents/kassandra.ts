@@ -18,6 +18,9 @@ import { createDraftWorkflowExtension } from '../../application/workflows/draft-
 import { BUDGET_NAME } from '../budget.ts';
 import { budgetMessage } from '../http/budget-response.ts';
 import { PublicError } from '../http/errors.ts';
+import { scopeFor } from '../hotels.ts';
+import type { ScopeHotel } from '../../domain/scope.ts';
+import { scopeInstructions } from './scope-prompt.ts';
 
 export interface KassandraAnswer {
   status: 'done' | 'unanswered';
@@ -37,10 +40,15 @@ export class Kassandra extends DurableObject<Env> {
   ai = createAI({ binding: this.env.AI, gateway: { id: 'compass', byokAlias: 'compass', collectLog: true } });
 
   // One registry per object, never at module scope: Pi keeps each Harness subscribed to its registry.
-  data = createDataExtension(() => {
-    const db = openPostgres(this.env.HYPERDRIVE.connectionString);
-    return { data: new HotelData(db, new WorkersAiEmbedder(this.env.AI)), close: () => db.close() };
-  });
+  // The hotel scope of the conversation is kept in storage (`scope`: hotel codes), so a run that resumes after an
+  // eviction reads the same hotels. Every tool call reads it.
+  data = createDataExtension(
+    () => {
+      const db = openPostgres(this.env.HYPERDRIVE.connectionString);
+      return { data: new HotelData(db, new WorkersAiEmbedder(this.env.AI)), close: () => db.close() };
+    },
+    async () => (await this.ctx.storage.get<string[]>('scope')) ?? [],
+  );
   registry = createKassandraRegistry(this.data);
 
   harness = new PiHarness({
@@ -103,29 +111,39 @@ export class Kassandra extends DurableObject<Env> {
     if (!(await this.env.ASK_RATE_LIMIT.limit({ key: client })).success) {
       throw new PublicError('Too many questions. Wait a minute and try again.');
     }
+    // A scope that is not valid is refused before the question takes from the budget.
+    let scope: ScopeHotel[] = [];
+    if (message.type === 'ask') {
+      const resolved = await scopeFor(this.env, message.scope);
+      if (!resolved.ok) throw new PublicError(resolved.error.message);
+      scope = resolved.value;
+    }
     const budget = await this.env.BUDGET.getByName(BUDGET_NAME).take('question');
     if (!budget.ok) throw new PublicError(budgetMessage(budget));
     if (message.type === 'steer') await session.steer(text);
     else {
-      await this.#useMode(message.mode ?? 'thinker');
+      await this.#useMode(message.mode ?? 'thinker', scope);
       await session.submit(text, message.id ? { operationId: message.id } : undefined);
     }
   }
 
   /**
-   * Switches the conversation's agent to a mode (model, offered tools, turn limit) before a question. While a run is
-   * going the change would reach it mid-answer, so a question sent then keeps the current mode.
+   * Switches the conversation's agent to a mode (model, offered tools, turn limit) and a hotel scope before a
+   * question. While a run is going the change would reach it mid-answer, so a question sent then keeps the current
+   * mode and scope. The scope is in two places that change together: the codes the tools read from storage, and
+   * the instructions that name the hotels.
    */
-  async #useMode(mode: AnswerMode): Promise<void> {
+  async #useMode(mode: AnswerMode, scope: readonly ScopeHotel[]): Promise<void> {
     if (await this.harness.session().busy()) return;
+    await this.ctx.storage.put('scope', scope.map((hotel) => hotel.code));
     const conversation = await this.harness.conversation(ROOT_SESSION);
-    await conversation.configure(agentChangeFor(mode, this.data), BACKGROUND_CONTEXT);
+    await conversation.configure(agentChangeFor(mode, this.data, scopeInstructions(scope)), BACKGROUND_CONTEXT);
   }
 
-  /** Ask a question in this conversation and wait for the answer. */
-  async ask(question: string, mode: AnswerMode = 'thinker', operationId?: string): Promise<KassandraAnswer> {
+  /** Ask a question in this conversation and wait for the answer. `scope` is already checked (`scopeFor`). */
+  async ask(question: string, mode: AnswerMode = 'thinker', operationId?: string, scope: readonly ScopeHotel[] = []): Promise<KassandraAnswer> {
     const started = Date.now();
-    await this.#useMode(mode);
+    await this.#useMode(mode, scope);
     const result = await this.harness.prompt(question, operationId ? { operationId } : undefined);
     return {
       status: result.status,

@@ -18,7 +18,7 @@ export function preflight(request: Request): Response | null {
     status: 204,
     headers: {
       ...headers,
-      'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
       'Access-Control-Max-Age': '600',
     },

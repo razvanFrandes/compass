@@ -2,6 +2,7 @@ import type { Proposal, Workflow, WorkflowRun } from '@compass/contracts';
 import { describe, expect, it } from 'vitest';
 import { admitWorkflow, mayEnable, MAX_STORED_WORKFLOWS, MAX_WORKFLOWS } from '../src/application/workflows/capacity.ts';
 import { DurableWorkflowStore } from '../src/infrastructure/do-workflow-store.ts';
+import { FakeStorage } from './fixtures/fake-storage.ts';
 
 const FULL = 'The demo runs at most 30 active workflows. Turn one off and try again.';
 
@@ -56,25 +57,6 @@ describe('mayEnable', () => {
     expect(mayEnable(stored, 'wf-3')).toEqual({ ok: true });
   });
 });
-
-/** The calls DurableWorkflowStore makes on a Durable Object's storage, over a Map. */
-class FakeStorage {
-  readonly data = new Map<string, unknown>();
-  async get(key: string) {
-    return this.data.get(key);
-  }
-  async put(key: string | Record<string, unknown>, value?: unknown) {
-    if (typeof key === 'string') this.data.set(key, value);
-    else for (const [k, v] of Object.entries(key)) this.data.set(k, v);
-  }
-  async delete(keys: string | string[]) {
-    for (const key of [keys].flat()) this.data.delete(key);
-    return 0;
-  }
-  async list({ prefix = '' }: { prefix?: string } = {}) {
-    return new Map([...this.data].filter(([key]) => key.startsWith(prefix)).sort(([a], [b]) => a.localeCompare(b)));
-  }
-}
 
 describe('DurableWorkflowStore.deleteWorkflow', () => {
   it('deletes the workflow with its runs, their email marks and its proposals, and nothing else', async () => {

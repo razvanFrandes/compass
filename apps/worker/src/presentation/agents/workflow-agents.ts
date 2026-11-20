@@ -9,6 +9,8 @@ import { HotelData } from '../../application/hotel-data.ts';
 import { admitWorkflow, mayEnable } from '../../application/workflows/capacity.ts';
 import { createEmailExtension } from '../../application/workflows/email-tool.ts';
 import { emailWorkflowBlocked, publicRun, publicWorkflow, recipientChanged } from '../../application/workflows/email.ts';
+import { duplicateOf, removeWorkflow, type WorkflowError } from '../../application/workflows/lifecycle.ts';
+import { briefHits, briefReason, seedRuns } from '../../application/workflows/seed.ts';
 import { lazySettlement, probeOfWait } from '../../application/workflows/run-settle.ts';
 import { isDue, lastRealRunAt } from '../../application/workflows/schedule.ts';
 import { templateWorkflows, workflowInstructions } from '../../application/workflows/templates.ts';
@@ -19,15 +21,21 @@ import { DurableEmailQuota } from '../../infrastructure/do-email-quota.ts';
 import { DurableWorkflowStore } from '../../infrastructure/do-workflow-store.ts';
 import { openPostgres } from '../../infrastructure/postgres.ts';
 import { WorkersAiEmbedder } from '../../infrastructure/workers-ai-embedder.ts';
+import { BUDGET_NAME } from '../budget.ts';
 import { projectEntries } from './chat-projection.ts';
 import { KASSANDRA_SECTIONS } from './kassandra-prompt.ts';
 import { THINKER_MODEL } from './modes.ts';
 import { createDataExtension } from './pi-data-extension.ts';
 
-export type WorkflowError = { error: string; status: number };
+export type { WorkflowError };
 
 /** How long a read waits to learn whether a run's Pi operation has already ended. */
 const PROBE_MS = 250;
+/** How often a seeding that could not finish (the budget was spent, the brief could not be read) is tried again. */
+const SEED_RETRY_MS = 10 * 60_000;
+/** Storage flags: the templates were created once; the first runs of the brief-triggered workflows were started once. */
+const TEMPLATES_SEEDED = 'templates';
+const FIRST_RUNS_SEEDED = 'first-brief-runs';
 
 /**
  * The workflow agents of the group, in one Durable Object. Each run is its own durable Pi session: it checks the data,
@@ -57,20 +65,61 @@ export class WorkflowAgents extends DurableObject<Env> {
 
   lifecycle = Lifecycle.install(this).use(this.harness);
 
+  /** A seeding of first runs in progress, and when one was last tried. In memory: the flag in storage is what lasts. */
+  #seeding: Promise<void> | undefined;
+  #seedTriedAt = 0;
+
   // ---------------------------------------------------------------- workflows
 
   async list(): Promise<Workflow[]> {
-    return (await this.#workflows()).map(publicWorkflow);
+    const workflows = (await this.#workflows()).map(publicWorkflow);
+    this.#seedFirstRuns();
+    return workflows;
   }
 
-  /** The workflows as stored, with the real recipients. Seeds the templates on first use. */
+  /**
+   * The workflows as stored, with the real recipients. Creates the templates on first use, once: a person who later
+   * deletes them all keeps an empty list.
+   */
   async #workflows(): Promise<Workflow[]> {
     let workflows = await this.store.listWorkflows();
-    if (!workflows.length) {
-      workflows = templateWorkflows(new Date().toISOString());
-      for (const wf of workflows) await this.store.putWorkflow(wf);
+    if (!(await this.store.flag(TEMPLATES_SEEDED))) {
+      if (!workflows.length) {
+        workflows = templateWorkflows(new Date().toISOString());
+        for (const wf of workflows) await this.store.putWorkflow(wf);
+      }
+      await this.store.setFlag(TEMPLATES_SEEDED);
     }
     return workflows.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Starts, in the background, the first run of each brief-triggered workflow that never ran and has a finding in
+   * today's brief (seed.ts), so the Inbox opens with a real proposal. Called when the workflows or the proposals are
+   * read. It happens once; each run takes from the daily budget of workflow runs, and when that is spent the rest
+   * waits for a later visit.
+   */
+  #seedFirstRuns(): void {
+    const now = Date.now();
+    if (this.#seeding || now - this.#seedTriedAt < SEED_RETRY_MS) return;
+    this.#seedTriedAt = now;
+    this.#seeding = seedRuns({
+      done: () => this.store.flag(FIRST_RUNS_SEEDED),
+      markDone: () => this.store.setFlag(FIRST_RUNS_SEEDED),
+      workflows: () => this.#workflows(),
+      hasRun: async (id) => (await this.store.listRuns(id)).length > 0,
+      brief: () => this.env.BRIEFS.getByName('halcyon').latest(),
+      takeBudget: async () => (await this.env.BUDGET.getByName(BUDGET_NAME).take('workflow_run')).ok,
+      run: async (id, reason) => !('error' in (await this.run(id, 'brief', reason))),
+    })
+      .then((outcome) => {
+        if (outcome.status !== 'already') console.log('first brief runs', outcome.status, outcome.started.join(', '));
+      })
+      .catch((error: unknown) => console.error('first brief runs failed', error))
+      .finally(() => {
+        this.#seeding = undefined;
+      });
+    this.ctx.waitUntil(this.#seeding);
   }
 
   async get(id: string): Promise<{ workflow: Workflow; runs: WorkflowRun[]; proposals: Proposal[] } | WorkflowError> {
@@ -110,6 +159,35 @@ export class WorkflowAgents extends DurableObject<Env> {
     const workflow: Workflow = { ...current, ...parsed.data };
     await this.store.putWorkflow(workflow);
     return publicWorkflow(workflow);
+  }
+
+  /** "Duplicate": the same workflow as a new one, turned off, for the person to change and turn on. */
+  async duplicate(id: string): Promise<Workflow | WorkflowError> {
+    const source = await this.store.getWorkflow(id);
+    if (!source) return { error: 'No such workflow.', status: 404 };
+    // A copy is off, so it never meets the cap of enabled workflows; at 100 stored, the oldest that is off makes room.
+    const admitted = admitWorkflow(await this.#workflows(), false);
+    if (!admitted.ok) return { error: admitted.error, status: 409 };
+    for (const evicted of admitted.evict) if (evicted !== id) await this.store.deleteWorkflow(evicted);
+    const copy = duplicateOf(source, `wf-${crypto.randomUUID().slice(0, 8)}`, new Date().toISOString());
+    await this.store.putWorkflow(copy);
+    return publicWorkflow(copy);
+  }
+
+  /** "Delete": the workflow goes; its runs, proposals and audit entries stay, marked with its name (lifecycle.ts). */
+  async remove(id: string): Promise<{ deleted: string } | WorkflowError> {
+    // A run stored as running may have ended while nobody waited for it: settle it before judging.
+    for (const stored of await this.store.listRuns(id)) await this.#settleLazily(stored);
+    const removed = await removeWorkflow(this.store, id);
+    return removed.ok ? { deleted: removed.value.name } : removed.error;
+  }
+
+  /**
+   * The workflow as stored, with its real recipient, for the builder to load into a draft. For the WorkflowBuilder
+   * object only: never route it to HTTP. The builder shows the address masked (`clientDraft`).
+   */
+  async loadForBuilder(id: string): Promise<Workflow | WorkflowError> {
+    return (await this.store.getWorkflow(id)) ?? { error: 'No such workflow.', status: 404 };
   }
 
   // ---------------------------------------------------------------- runs
@@ -181,11 +259,9 @@ export class WorkflowAgents extends DurableObject<Env> {
       const trigger = workflow.trigger;
       let reason = '';
       if (trigger.kind === 'brief') {
-        const hits = brief.items.filter(
-          (i) => i.kind === trigger.finding && (workflow.hotels.includes('ALL') || workflow.hotels.includes(i.hotel_code)),
-        );
+        const hits = briefHits(workflow, brief);
         if (!hits.length) continue;
-        reason = `brief finding ${trigger.finding} for ${hits.map((h) => h.hotel_code).join(', ')}`;
+        reason = briefReason(workflow, hits);
       } else if (trigger.kind !== 'schedule') continue;
       else if (!isDue(workflow, lastRealRunAt(await this.store.listRuns(workflow.id)), now)) continue;
       const run = await this.run(workflow.id, trigger.kind === 'brief' ? 'brief' : 'schedule', reason);
@@ -197,6 +273,9 @@ export class WorkflowAgents extends DurableObject<Env> {
   // ---------------------------------------------------------------- proposals
 
   async proposals(status?: Proposal['status']): Promise<Proposal[]> {
+    // The Inbox reads this first: make sure the templates exist and their first runs have started.
+    await this.#workflows();
+    this.#seedFirstRuns();
     return (await this.store.listProposals()).filter((p) => !status || p.status === status);
   }
 
@@ -228,6 +307,7 @@ export class WorkflowAgents extends DurableObject<Env> {
       by,
       outcome: 'undone',
       receipt: `RMS task to revert: ${proposal.title} (${proposal.change.after} → ${proposal.change.before}, ${proposal.change.scope}).`,
+      ...(proposal.deletedWorkflowName ? { deletedWorkflowName: proposal.deletedWorkflowName } : {}),
     };
     await this.store.appendAudit(entry);
     await this.store.updateProposal({ ...proposal, status: 'undone' });

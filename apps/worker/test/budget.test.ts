@@ -22,6 +22,16 @@ describe('parseDailyLimits', () => {
   });
 });
 
+describe('the voice budget', () => {
+  it('caps the temporary speech-to-text keys of a day, and can be changed or switched off like the others', () => {
+    expect(DEFAULT_DAILY_LIMITS.voice).toBe(300);
+    expect(parseDailyLimits({ voice: 5 }).voice).toBe(5);
+    const spent = spend({ day: '2026-11-21', used: { voice: 5 } }, 'voice', parseDailyLimits({ voice: 5 }), new Date('2026-11-21T10:00:00Z'));
+    expect(spent.decision).toMatchObject({ ok: false, kind: 'voice', limit: 5, remaining: 0 });
+    expect(spend(emptyBudget(), 'voice', parseDailyLimits({ voice: 0 }), new Date('2026-11-21T10:00:00Z')).decision.ok).toBe(false);
+  });
+});
+
 describe('the embedding budget', () => {
   it('allows 2000 semantic searches a day by default and can be configured', () => {
     expect(DEFAULT_DAILY_LIMITS.embedding).toBe(2000);

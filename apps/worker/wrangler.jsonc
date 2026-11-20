@@ -48,9 +48,10 @@
 
   // Daily limits for every visitor together, per UTC day (docs/security.md). A missing key keeps its default.
   // Optional secret ADMIN_KEY (wrangler secret put ADMIN_KEY): the x-compass-admin-key header then skips these limits.
+  // Secret SONIOX_API_KEY: the Soniox project key behind POST /api/voice/token (temporary keys for voice input).
   // APP_URL: the app's public origin, for the Explore link in workflow emails (APP_URL + /ask?q=).
   "vars": {
-    "DAILY_LIMITS": { "question": 300, "workflow_run": 60, "decision": 120, "brief_refresh": 24, "embedding": 2000 },
+    "DAILY_LIMITS": { "question": 300, "workflow_run": 60, "decision": 120, "brief_refresh": 24, "embedding": 2000, "voice": 300 },
     "APP_URL": "https://juyo.razvanfrandes.com"
   },
 
@@ -62,8 +63,10 @@
   "triggers": { "crons": ["0 5 * * *"] },
 
   // Public MCP: 60 requests per minute per client. Kassandra questions: 6 per minute per client.
+  // Voice: 10 temporary speech-to-text keys per minute per client.
   "ratelimits": [
     { "name": "MCP_RATE_LIMIT", "namespace_id": "2001", "simple": { "limit": 60, "period": 60 } },
-    { "name": "ASK_RATE_LIMIT", "namespace_id": "2002", "simple": { "limit": 6, "period": 60 } }
+    { "name": "ASK_RATE_LIMIT", "namespace_id": "2002", "simple": { "limit": 6, "period": 60 } },
+    { "name": "VOICE_RATE_LIMIT", "namespace_id": "2003", "simple": { "limit": 10, "period": 60 } }
   ]
 }

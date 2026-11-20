@@ -2,18 +2,22 @@ import { Decision } from '@compass/contracts';
 import { createMcpHandler } from 'agents/mcp/server';
 import { budgetedEmbedder } from './application/budgeted-embedder.ts';
 import { HotelData } from './application/hotel-data.ts';
+import { issueVoiceToken, VOICE_UNAVAILABLE } from './application/voice.ts';
 import type { Embedder } from './application/ports.ts';
 import type { BudgetKind } from './domain/budget.ts';
 import { openPostgres } from './infrastructure/postgres.ts';
+import { sonioxMinter } from './infrastructure/soniox.ts';
 import { WorkersAiEmbedder } from './infrastructure/workers-ai-embedder.ts';
 import { BUDGET_NAME } from './presentation/budget.ts';
 import { hasAdminKey } from './presentation/http/admin.ts';
 import { MAX_MCP_BYTES, readJson, withBodyLimit } from './presentation/http/body.ts';
 import { budgetExceeded } from './presentation/http/budget-response.ts';
+import { groupHotels, HOTELS_UNAVAILABLE, scopeFor } from './presentation/hotels.ts';
 import { preflight, withCors, withoutCors } from './presentation/http/cors.ts';
 import { internalError } from './presentation/http/errors.ts';
 import { isAllowedOrigin, PUBLIC_HOST, rejectCrossSite } from './presentation/http/origin.ts';
-import { isDraftId, routeOf } from './presentation/http/routes.ts';
+import { isDraftId, isWorkflowId, routeOf } from './presentation/http/routes.ts';
+import { voiceTokenResponse } from './presentation/http/voice.ts';
 import { createCompassMcpServer } from './presentation/mcp/server.ts';
 
 import type { Env } from './env.ts';
@@ -150,6 +154,9 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     if (origin && !isAllowedOrigin(origin)) return new Response('Origin not allowed', { status: 403 });
     const draft = url.searchParams.get('draft') ?? '';
     if (!isDraftId(draft)) return new Response('Pass ?draft=<id> (16–64 letters, digits, - or _)', { status: 400 });
+    // &workflow=<id> opens a saved workflow in a new draft ("Edit"). The object loads it; here only its form is checked.
+    const workflow = url.searchParams.get('workflow');
+    if (workflow !== null && !isWorkflowId(workflow)) return new Response('Pass &workflow=<id> (letters, digits, - or _)', { status: 400 });
     return env.WORKFLOW_BUILDER.getByName(draft).fetch(request);
   }
 
@@ -159,15 +166,29 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     if (limited) return limited;
     const parsed = await readJson(request);
     if (!parsed.ok) return error(parsed.error.status, parsed.error.error);
-    const body = parsed.value as { conversation?: unknown; question?: unknown; mode?: unknown } | null;
+    const body = parsed.value as { conversation?: unknown; question?: unknown; mode?: unknown; scope?: unknown } | null;
     const question = typeof body?.question === 'string' ? body.question.trim() : '';
     if (!question || question.length > 2000) return error(400, 'Send { question } (max 2000 characters).');
+    // The hotel scope, checked against the group's hotels before the question takes from the budget.
+    const scope = await scopeFor(env, body?.scope);
+    if (!scope.ok) return error(scope.error.status, scope.error.message);
     const spent = await overBudget(env, request, 'question');
     if (spent) return spent;
     const conversation = typeof body?.conversation === 'string' && /^[\w-]{1,64}$/.test(body.conversation) ? body.conversation : crypto.randomUUID();
     const mode = body?.mode === 'quick' ? 'quick' : 'thinker';
-    const answer = await env.KASSANDRA.getByName(conversation).ask(question, mode);
-    return Response.json({ conversation, ...answer });
+    const answer = await env.KASSANDRA.getByName(conversation).ask(question, mode, undefined, scope.value);
+    return Response.json({ conversation, ...answer, scope: scope.value.map((hotel) => hotel.code) });
+  }
+
+  if (url.pathname === '/api/hotels' && request.method === 'GET') {
+    // The hotel directory, for the scope switcher and the hotel pickers. Reference data: kept in memory for ten
+    // minutes, and a browser may keep it for five.
+    const hotels = await groupHotels(env);
+    if (!hotels.ok) {
+      console.error('hotel list failed', 'cause' in hotels.error ? hotels.error.cause : hotels.error.kind);
+      return error(503, HOTELS_UNAVAILABLE);
+    }
+    return Response.json(hotels.value, { headers: { 'Cache-Control': 'public, max-age=300' } });
   }
 
   if (url.pathname === '/api/brief' && request.method === 'GET') {
@@ -183,6 +204,18 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     return Response.json(await env.BRIEFS.getByName('halcyon').regenerate());
   }
 
+  if (url.pathname === '/api/voice/token' && request.method === 'POST') {
+    // A temporary speech-to-text key for one dictation. Each one lets a browser stream up to three minutes of audio
+    // on the owner's account, so keys are limited per client and counted against a daily budget of their own.
+    const limited = await rateLimited(env.VOICE_RATE_LIMIT, request, 'Too many voice requests. Wait a minute and try again.');
+    if (limited) return limited;
+    // Without the secret nothing is spent: the app falls back to the browser's own speech recognition.
+    if (!env.SONIOX_API_KEY?.trim()) return Response.json({ error: VOICE_UNAVAILABLE }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    const spent = await overBudget(env, request, 'voice');
+    if (spent) return spent;
+    return voiceTokenResponse(await issueVoiceToken({ apiKey: env.SONIOX_API_KEY, mint: sonioxMinter() }));
+  }
+
   if (url.pathname === '/api/budget' && request.method === 'GET') {
     return Response.json(await env.BUDGET.getByName(BUDGET_NAME).status());
   }
@@ -196,7 +229,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   return error(404, 'Not found');
 }
 
-/** Workflows (Act): list, create, edit, run; proposals inbox, decisions, undo; audit log; run logs. */
+/** Workflows (Act): list, create, edit, duplicate, delete, run; proposals inbox, decisions, undo; audit log; run logs. */
 async function workflowRoutes(request: Request, url: URL, env: Env): Promise<Response> {
   const agents = env.WORKFLOWS.getByName('halcyon');
   const parts = url.pathname.split('/').filter(Boolean); // ['api', 'workflows', id?, action?]
@@ -230,6 +263,11 @@ async function workflowRoutes(request: Request, url: URL, env: Env): Promise<Res
       const b = await body();
       return b.ok ? json(await agents.update(id, b.value as never)) : b.response;
     }
+    if (id && !action && method === 'DELETE') {
+      const removed = await agents.remove(id);
+      return 'error' in removed ? json(removed) : new Response(null, { status: 204 });
+    }
+    if (id && action === 'duplicate' && method === 'POST') return json(await agents.duplicate(id));
     if (id && action === 'run' && method === 'POST') {
       const refused = (await limited()) ?? (await overBudget(env, request, 'workflow_run'));
       if (refused) return refused;

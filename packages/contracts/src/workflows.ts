@@ -101,6 +101,8 @@ export interface WorkflowRun {
   test?: boolean;
   /** Who started it (the client address), for rate limits. */
   client?: string;
+  /** Set when its workflow was deleted: the name it had, since `workflowId` no longer resolves. */
+  deletedWorkflowName?: string;
 }
 
 /** superseded: the agent replaced it with an amended proposal (e.g. to meet an approver's condition). */
@@ -124,6 +126,8 @@ export interface Proposal {
   decidedBy: string | null;
   decidedAt: string | null;
   note: string | null;
+  /** Set when its workflow was deleted: the name it had, since `workflowId` no longer resolves. */
+  deletedWorkflowName?: string;
 }
 
 export interface AuditEntry {
@@ -137,6 +141,8 @@ export interface AuditEntry {
   outcome: 'sent_to_rms' | 'suggested' | 'undone' | 'emailed';
   /** The task handed to the RMS / revenue manager (mocked: nothing is written to source systems). */
   receipt: string;
+  /** Set when its workflow was deleted: the name it had, since `workflowId` no longer resolves. */
+  deletedWorkflowName?: string;
 }
 
 /** What a person sends to decide on a proposal. */
