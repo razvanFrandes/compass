@@ -180,7 +180,7 @@ const NIGHTS = [
             <app-lab-probe read="height" label="xs"><button hlmBtn variant="secondary" size="xs">Filter</button></app-lab-probe>
             <app-lab-probe read="height" label="sm"><button hlmBtn variant="secondary" size="sm">Export</button></app-lab-probe>
             <app-lab-probe read="height" label="default"><button hlmBtn>Review 3 nights</button></app-lab-probe>
-            <app-lab-probe read="height" label="lg"><button hlmBtn size="lg">New workflow</button></app-lab-probe>
+            <app-lab-probe read="height" label="lg"><button hlmBtn size="lg">New agent</button></app-lab-probe>
             <app-lab-probe read="height" label="filter"><span class="filter-btn">Stay dates <span class="font-medium">Next 30 nights</span></span></app-lab-probe>
             <app-lab-probe read="height" label="field"><span class="field-input inline-flex w-28 items-center">Lisbon</span></app-lab-probe>
           </div>
@@ -256,7 +256,7 @@ const NIGHTS = [
 
           <p class="mt-5 mb-2 text-[12.5px] font-medium">Fields and selection</p>
           <div class="flex flex-wrap items-end gap-3">
-            <label class="flex flex-col gap-1"><span class="field-label">Workflow name</span><input class="field-input w-44" value="Lisbon pace alert" /></label>
+            <label class="flex flex-col gap-1"><span class="field-label">Agent name</span><input class="field-input w-44" value="Lisbon pace alert" /></label>
             <label class="flex flex-col gap-1"><span class="field-label">Runs</span>
               <select class="field-select w-40"><option>Every morning</option><option>Every hour</option></select>
             </label>
@@ -279,7 +279,7 @@ const NIGHTS = [
             <span class="stake-chip stake-chip--decision">3 need your decision</span>
             <span class="money-chip">−€115k</span>
             <span class="status-chip">Done</span>
-            <span class="status-chip status-chip--needs">Needs you</span>
+            <span class="status-chip status-chip--needs">Needs your decision</span>
             <span class="status-chip status-chip--failed">Failed</span>
             <span class="scope-chip">All 20 hotels</span>
             <span class="schedule-chip">06:00 daily</span>
@@ -302,8 +302,8 @@ const NIGHTS = [
               <button hlmBtn variant="secondary" size="sm" class="mt-3">Explore</button>
             </article>
             <article class="decision-card p-4">
-              <h3 class="text-[15px] font-semibold">Raise Dubai Business Bay to the comp-set median for 16–18 Dec</h3>
-              <p class="mt-1.5 text-[13.5px]">Gulf Tech Week, 0.78× the comp set, 3 competitors sold out.</p>
+              <h3 class="text-[15px] font-semibold">Raise Dubai Business Bay to the comp set median for 16–18 Dec</h3>
+              <p class="mt-1.5 text-[13.5px]">Gulf Tech Week: BAR is 22% under the comp set median and 3 comp set hotels are sold out.</p>
               <button type="button" class="decision-btn mt-3 inline-flex h-8 items-center px-3 text-[13px] font-medium">Review 3 nights</button>
             </article>
           </div>
@@ -339,8 +339,8 @@ const NIGHTS = [
               <div>
                 <p>Lisbon Chiado is <strong>€5,865 behind</strong> last year for Wed 17 Dec. Two things explain most of it:</p>
                 <ul>
-                  <li>Corporate pickup stopped after 12 Nov, when two comp-set hotels cut their rates.</li>
-                  <li>Your BAR is 9% above the comp-set median for that night.</li>
+                  <li>Corporate pickup stopped after 12 Nov, when two comp set hotels cut their rates.</li>
+                  <li>Your BAR is 9% above the comp set median for that night.</li>
                 </ul>
                 <div class="md-table">
                   <table>
@@ -348,10 +348,10 @@ const NIGHTS = [
                     <tbody><tr><td>Corporate</td><td>€31,200</td><td>€38,940</td></tr><tr><td>Leisure</td><td>€64,810</td><td>€62,935</td></tr></tbody>
                   </table>
                 </div>
-                <p>The figures come from <code>otb_by_segment</code>, snapshot of 20 Nov 07:00.</p>
+                <p>Figures are on the books as of <code>20 Nov, 07:00</code>.</p>
               </div>
             </div>
-            <div><span class="evidence-chip">How this was computed</span></div>
+            <div><span class="evidence-chip">Behind the numbers</span></div>
           </div>
         </ng-template>
         <app-lab-compare [content]="componentSpec" />

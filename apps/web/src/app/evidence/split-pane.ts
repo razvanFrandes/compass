@@ -189,7 +189,7 @@ export class SplitPane {
   readonly single = input(false);
   /** The divider's accessible name. */
   readonly label = input('Resize the panels');
-  /** What each side holds, for the divider's value text and the rail button: "conversation", "how this was computed". */
+  /** What each side holds, for the divider's value text and the rail button: "conversation", "behind the numbers". */
   readonly startLabel = input('first panel');
   readonly endLabel = input('second panel');
   /** The second pane is folded away to a rail. Two-way: `[(collapsed)]`. */

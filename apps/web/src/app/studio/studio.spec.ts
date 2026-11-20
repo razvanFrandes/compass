@@ -1,5 +1,5 @@
 import type { AuditEntry, Proposal, Workflow, WorkflowRun } from '@compass/contracts';
-import { firstSentences, formatWhen, isRaise, latestFinding, nextCron, nextRunAt, nextRunText, runOutcome, runStrip, stripSummary, studioStatus } from './studio';
+import { firstSentences, formatWhen, isRaise, latestFinding, nextCron, nextRunAt, nextRunText, runOutcome, runStartText, runStrip, stripSummary, studioStatus } from './studio';
 
 const run = (over: Partial<WorkflowRun> = {}): WorkflowRun => ({
   id: 'run-1',
@@ -72,8 +72,8 @@ describe('the run strip', () => {
 
   it('reads in words', () => {
     expect(stripSummary(runStrip([], [], []))).toBe('No runs yet.');
-    expect(stripSummary(runStrip(runs, [proposal({ runId: 'r2' })], []))).toBe('Last 3 runs: 1 found something, 1 found nothing, 1 couldn’t run.');
-    expect(stripSummary(runStrip([runs[1]!], [], []))).toBe('Last run: 1 found nothing.');
+    expect(stripSummary(runStrip(runs, [proposal({ runId: 'r2' })], []))).toBe('Last 3 runs: 1 found something, 1 had nothing to flag, 1 couldn’t run.');
+    expect(stripSummary(runStrip([runs[1]!], [], []))).toBe('Last run: 1 had nothing to flag.');
   });
 });
 
@@ -85,7 +85,7 @@ describe('the status of a workflow', () => {
     expect(studioStatus(wf({ runId: 'run-1', at: '', status: 'failed' }), [], [], [])).toMatchObject({ tone: 'failed' });
     expect(studioStatus(wf({ runId: 'run-1', at: '', status: 'done' }), [run()], [], [])).toEqual({ tone: 'quiet', text: 'Nothing to flag' });
     expect(studioStatus(wf({ runId: 'run-1', at: '', status: 'done' }), [run()], [proposal()], [])).toEqual({ tone: 'finding', text: 'Found something' });
-    expect(studioStatus(wf({ runId: 'run-1', at: '', status: 'done' }), [run({ test: true })], [], [mail('2026-11-20T05:00:25.000Z')])).toEqual({ tone: 'quiet', text: 'Test ran' });
+    expect(studioStatus(wf({ runId: 'run-1', at: '', status: 'done' }), [run({ test: true })], [], [mail('2026-11-20T05:00:25.000Z')])).toEqual({ tone: 'quiet', text: 'Test run' });
     // A decision that waits wins over a newer quiet run.
     expect(studioStatus(wf({ runId: 'run-2', at: '', status: 'done' }), [run({ id: 'run-2' })], [proposal({ status: 'pending' })], [])).toEqual({ tone: 'needs', text: 'Needs your decision' });
   });
@@ -157,7 +157,7 @@ describe('the next run', () => {
     expect(formatWhen(Date.parse('2026-11-20T22:00:00Z'), now, 'UTC')).toBe('today, 22:00');
     expect(formatWhen(Date.parse('2026-11-27T05:00:00Z'), now, 'UTC')).toBe('Fri 27 Nov, 05:00');
     expect(nextRunText(daily, [], now, 'UTC')).toBe('Next run tomorrow, 05:00');
-    expect(nextRunText({ ...daily, trigger: { kind: 'brief', finding: 'pace_behind' } }, [], now, 'UTC')).toBe('Reads the next brief tomorrow, 05:00');
+    expect(nextRunText({ ...daily, trigger: { kind: 'brief', finding: 'pace_behind' } }, [], now, 'UTC')).toBe('Next run tomorrow, 05:00 · after the brief');
     expect(nextRunText({ ...daily, trigger: { kind: 'manual' } }, [], now)).toBe('Runs when you start it');
     expect(nextRunText({ ...daily, enabled: false }, [], now)).toBe('Paused · no run scheduled');
   });
@@ -169,5 +169,15 @@ describe('autonomy', () => {
     expect(isRaise('approve', 'auto_low_risk')).toBe(true);
     expect(isRaise('auto_low_risk', 'approve')).toBe(false);
     expect(isRaise('approve', 'approve')).toBe(false);
+  });
+});
+
+describe('runStartText', () => {
+  it('shows what started a run in plain words, and leaves a typed question alone', () => {
+    expect(runStartText('Run the workflow now (trigger: manual, test from builder, test run).')).toBe('Started by hand · test run');
+    expect(runStartText('Run the workflow now (trigger: brief, brief finding pace_behind for LIS).')).toBe('Started after the morning brief');
+    expect(runStartText('Run the workflow now (trigger: schedule).')).toBe('Started on schedule');
+    expect(runStartText('Why did Lisbon fall behind?')).toBe('Why did Lisbon fall behind?');
+    expect(runStartText(null)).toBeNull();
   });
 });

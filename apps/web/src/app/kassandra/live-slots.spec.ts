@@ -75,7 +75,7 @@ describe('evidenceSlots: data tool calls → the evidence cards they are becomin
     const running = turn({ running: true });
     expect(evidenceSlots(running, [call('c1', 'get_pace', 'pending')])).toEqual([{ callId: 'c1', phase: 'chosen', title: null, detail: '' }]);
     const described = turn({ running: true, steps: [step({ callId: 'c1', status: 'running', args: { hotels: ['LIS'], from: '2026-12-01', to: '2026-12-31' } })] });
-    expect(evidenceSlots(described, [call('c1', 'get_pace')])).toEqual([{ callId: 'c1', phase: 'described', title: 'Pace vs last year', detail: 'LIS · 1 Dec · 31 Dec' }]);
+    expect(evidenceSlots(described, [call('c1', 'get_pace')])).toEqual([{ callId: 'c1', phase: 'described', title: 'Pace vs last year', detail: 'Lisbon Chiado · 1 Dec · 31 Dec' }]);
     const ready = turn({ running: true, steps: [step({ callId: 'c1', rows: [{}], evidence: evidence() })] });
     expect(phases(evidenceSlots(ready, [call('c1', 'get_pace', 'done')]))).toEqual(['c1:ready']);
   });

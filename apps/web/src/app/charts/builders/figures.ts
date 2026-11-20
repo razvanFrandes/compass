@@ -133,6 +133,6 @@ export function buildTable(c: Ctx): Built {
   // A table shows what the spec names; with no keys named, every visible column.
   const keys = specKeys(c.spec);
   const table = tableModel(c, keys.length > 1 ? keys : undefined);
-  if (!c.rows.length) return { ...empty(c, 'No rows for this period.'), table };
+  if (!c.rows.length) return { ...empty(c, 'No data for this period.'), table };
   return { render: 'table', kind: 'table', table, legend: [], summary: summary(c, `Table with ${table.rows.length} rows and ${table.columns.length} columns: ${table.columns.map((x) => x.label).join(', ')}.`) };
 }

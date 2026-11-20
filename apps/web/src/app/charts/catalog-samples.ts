@@ -473,7 +473,7 @@ export const SPECIMENS: SpecimenGroup[] = [
   {
     id: 'fallbacks',
     title: 'Fallbacks and states',
-    blurb: 'A widget never fails silently: it says what it changed and why, an empty result is a sentence, and the skeleton keeps the exact box of the finished chart.',
+    blurb: 'A chart never fails silently: it says what it changed and why, an empty result is a sentence, and the skeleton keeps the exact box of the finished chart.',
     items: [
       {
         id: 'donut-fallback',

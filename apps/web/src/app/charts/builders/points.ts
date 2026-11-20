@@ -27,7 +27,7 @@ export function buildScatter(c: Ctx): Built {
   const pts = c.rows
     .map((r) => ({ name: nameKey && nameCol ? label(cell(r, nameKey), nameCol) : '', x: numberAt(r, xKey), y: numberAt(r, yKey) }))
     .filter((p): p is { name: string; x: number; y: number } => p.x !== null && p.y !== null);
-  if (!pts.length) return empty(c, 'No data to plot for this period.');
+  if (!pts.length) return empty(c, 'No data for this period.');
   const xs = pts.map((p) => p.x);
   const ys = pts.map((p) => p.y);
   const xIndex = isIndex(xCol, xs);

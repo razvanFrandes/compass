@@ -75,7 +75,7 @@ describe.skipIf(!enabled)('find_reviews on the production database', () => {
     const rows = outcome.structured['rows'] as ReviewMatch[];
     expect(rows[0]?.quote).toMatch(/breakfast/i);
     expect(rows.every((r) => r.sentiment === 'praise')).toBe(true);
-    expect(outcome.text).toMatch(/Coverage: (\d+) of \1 distinct sentences/);
+    expect(outcome.text).toMatch(/Searched (\d+) of \1 distinct sentences/);
   });
 
   it('returns nothing for a topic no guest wrote about, and says so', async () => {

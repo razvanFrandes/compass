@@ -179,12 +179,12 @@ export function shapeFindReviews(rows: readonly FindReviewsRow[], context: { mod
   const scope = first ?? { scope_reviews: 0, scope_passages: 0, embedded_passages: 0, embedded_from: null, embedded_to: null };
   const coverage =
     scope.scope_passages === 0
-      ? `No reviews in scope for ${context.period.from} to ${context.period.to}.`
-      : `Coverage: ${scope.embedded_passages} of ${scope.scope_passages} distinct sentences from ${scope.scope_reviews} reviews in scope are embedded` +
+      ? `No reviews for these hotels between ${context.period.from} and ${context.period.to}.`
+      : `Searched ${scope.embedded_passages} of ${scope.scope_passages} distinct sentences from ${scope.scope_reviews} reviews` +
         (scope.embedded_from ? ` (reviews dated ${scope.embedded_from} to ${scope.embedded_to}).` : '.');
   const notes = [
-    `Semantic search with ${context.model}: review sentences ranked by cosine similarity to "${context.question}", at least ${MIN_SIMILARITY}.`,
-    'One row per distinct review sentence; mentions counts the reviews in scope that contain it; hotel_code, review_date, source, overall_score and review_text are from its latest review.',
+    `Review sentences closest in meaning to "${context.question}", closest first (similarity of ${MIN_SIMILARITY} or more, measured with ${context.model}).`,
+    'Each sentence appears once, with the number of reviews that say it. The hotel, date, review site, score and full text are from the latest of those reviews.',
     coverage,
     ...(matches.length === 0 && scope.scope_passages > 0 ? ['No sentence is close enough in meaning. Try other words, a wider period or search_reviews for an exact phrase.'] : []),
   ];
@@ -222,9 +222,9 @@ export async function findReviews(
   const evidence: Evidence = {
     sources: ['hotel.reviews', 'hotel.review_passages'],
     definitions: {
-      similarity: `Cosine similarity between the question and the passage, both embedded with ${embedder.model} (1 = same meaning).`,
-      mentions: 'Reviews in the hotel(s) and period whose positive_text (praise) or negative_text (complaint) contains this sentence.',
-      share_pct: 'mentions as a share of all reviews in scope.',
+      similarity: `How close the sentence is in meaning to the question, from 0 to 1 (1 = same meaning). Measured with ${embedder.model}.`,
+      mentions: 'Reviews for these hotels and dates whose praise or complaint contains this sentence.',
+      share_pct: 'Reviews saying it, as a share of all reviews for these hotels and dates.',
     },
     period: query.period,
     sql: query.sql.replace(/\s+/g, ' ').trim(),

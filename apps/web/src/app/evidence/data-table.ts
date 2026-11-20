@@ -60,7 +60,7 @@ interface Cell {
 
 /**
  * Rows a person can read, never a dump of the result. It starts with the rows the answer quotes (the rest behind
- * "Show all N rows") and the columns worth the space (the rest behind "More columns"): the one that tells the rows
+ * "Show all N rows") and the columns worth the space (the rest behind "Show N more columns"): the one that tells the rows
  * apart, the ones the answer quotes, then as many as fit, six at most. Human headers, hotel names instead of
  * codes, and every number of a column written the same way, right-aligned in tabular figures. Hairlines between
  * rows and nothing else. A few quoted rows with more columns than fit are turned on their side (rows across,
@@ -403,13 +403,13 @@ interface Cell {
           }
           @if (moreCount()) {
             <button type="button" class="dt-link ml-auto" [attr.aria-expanded]="showMore()" (click)="showMore.set(!showMore())">
-              {{ showMore() ? 'Fewer columns' : 'More columns (' + moreCount() + ')' }}
+              {{ showMore() ? 'Show fewer columns' : moreText() }}
             </button>
           }
         </div>
       }
     } @else {
-      <p class="text-muted-foreground text-[12.5px]">No rows came back for this step.</p>
+      <p class="text-muted-foreground text-[12.5px]">Nothing came back for this. Try a wider period or more hotels.</p>
     }
   `,
 })
@@ -457,6 +457,7 @@ export class DataTable {
   });
   protected readonly shown = computed(() => (this.showMore() ? [...this.plan().shown, ...this.plan().more] : this.plan().shown));
   protected readonly moreCount = computed(() => this.plan().more.length);
+  protected readonly moreText = computed(() => `Show ${this.moreCount()} more ${this.moreCount() === 1 ? 'column' : 'columns'}`);
   /** What every row says alike, said once above the table instead of in a column of its own. */
   protected readonly shared = computed(() => {
     const row = this.rows()[0];

@@ -124,7 +124,7 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
       <ng-template #toggleTip>{{ toggleLabel() }}<kbd class="rail-kbd">[</kbd></ng-template>
     </div>
 
-    <!-- The scope: which hotels the brief, Kassandra and new workflows work on (src/app/scope) -->
+    <!-- The scope: which hotels the brief, Kassandra and new agents work on (src/app/scope) -->
     <app-scope-switcher variant="sidebar" [compact]="collapsed()" [group]="group.name" />
 
     <ul class="flex flex-col gap-px text-[14px]">
@@ -194,7 +194,7 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
           <ng-icon name="phosphorInfoLight" class="rail-icon" aria-hidden="true" />
         </button>
       }
-      <p id="rail-note" class="rail-note text-[12px]/relaxed" [attr.popover]="collapsed() ? 'auto' : null">Halcyon Hospitality is a fictional group with generated data. Business date Fri 20 Nov 2026.</p>
+      <p id="rail-note" class="rail-note text-[12px]/relaxed" [attr.popover]="collapsed() ? 'auto' : null">Halcyon Hospitality is a fictional group. All figures are generated, as of Fri 20 Nov 2026.</p>
     </div>
   `,
 })

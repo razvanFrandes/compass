@@ -17,11 +17,13 @@ import { ProposalCard } from './proposal-card';
 import { BoardsService } from './boards/boards.service';
 import type { Board, BoardWidget } from './boards/types';
 import { WidgetChart } from './charts/widget-chart';
+import { formatDate, formatPeriod } from './evidence/format';
+import { sourceLabel } from './evidence/labels';
 import * as icons from './icons';
 
 /** Boards that come with the product, computed in the browser from the Halcyon extract (they have filters). */
 export const BUILT_IN = [
-  { id: PORTFOLIO_BOARD, name: 'Portfolio', description: 'All 20 hotels: position against budget, pace, pickup, forecast, mix, comp-set index and P&L' },
+  { id: PORTFOLIO_BOARD, name: 'Portfolio', description: 'All 20 hotels against budget and last year: pace, pickup, forecast, mix, comp set and P&L' },
   { id: DUBAI_BOARD, name: 'Dubai Business Bay', description: 'Pace and rates for one hotel, and the decisions waiting on it' },
 ] as const;
 export const isBuiltIn = (id: string) => BUILT_IN.some((b) => b.id === id);
@@ -75,7 +77,7 @@ export class PerformanceWidget {
       const ly = metricTotal(this.nights(), key, true);
       const delta = m.deltaUnit === 'pt' ? ty - ly : ((ty - ly) / ly) * 100;
       const flat = Math.abs(delta) < 0.05;
-      return { key, label: m.label, value: m.format(ty), arrow: flat ? '' : delta > 0 ? '▲' : '▼', deltaText: `${flat ? '±' : delta > 0 ? '+' : '−'}${Math.abs(delta).toFixed(1)}${m.deltaUnit === 'pt' ? ' pp' : '%'}` };
+      return { key, label: m.label, value: m.format(ty), arrow: flat ? '' : delta > 0 ? '▲' : '▼', deltaText: `${flat ? '±' : delta > 0 ? '+' : '−'}${Math.abs(delta).toFixed(1)}${m.deltaUnit === 'pt' ? ' pts' : '%'}` };
     }),
   );
   protected rangeKey(e: KeyboardEvent) {
@@ -87,7 +89,7 @@ export class PerformanceWidget {
   }
 }
 
-/** A saved widget: the chart, its title and scope, and its own menu (move, remove, how it was computed). */
+/** A saved widget: the chart, its title and scope, and its own menu (move, remove, behind the numbers). */
 @Component({
   selector: 'app-saved-widget',
   imports: [NgIcon, WidgetChart, HlmButtonImports, HlmDropdownMenuImports],
@@ -109,16 +111,16 @@ export class PerformanceWidget {
         <juyo-widget-chart [spec]="w.spec" [rows]="w.rows" [columns]="w.columns" [header]="false" />
       </div>
       @if (how()) {
-        <section class="border-border mt-4 border-t pt-3 text-[12.5px]" aria-label="How this was computed">
+        <section class="border-border mt-4 border-t pt-3 text-[12.5px]" aria-label="Behind the numbers">
           <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
             @if (w.evidence.period) {
               <dt class="text-muted-foreground">Period</dt>
-              <dd>{{ w.evidence.period.from }} → {{ w.evidence.period.to }}</dd>
+              <dd>{{ period(w.evidence.period) }}</dd>
             }
             <dt class="text-muted-foreground">Data as of</dt>
-            <dd>{{ w.evidence.businessDate }}</dd>
+            <dd>{{ day(w.evidence.businessDate) }}</dd>
             <dt class="text-muted-foreground">Sources</dt>
-            <dd>{{ w.evidence.sources.join(', ') }}</dd>
+            <dd>{{ sources() }}</dd>
             @for (d of defs(); track d[0]) {
               <dt class="text-muted-foreground">{{ d[0] }}</dt>
               <dd>{{ d[1] }}</dd>
@@ -128,7 +130,7 @@ export class PerformanceWidget {
             <p class="text-muted-foreground mt-2">{{ n }}</p>
           }
           <details class="mt-2">
-            <summary class="text-muted-foreground hover:text-foreground cursor-pointer">SQL</summary>
+            <summary class="text-muted-foreground hover:text-foreground cursor-pointer">Show the query</summary>
             <pre class="latest-panel mt-2 max-h-56 overflow-auto rounded-[8px] p-3 font-mono text-[11.5px]/relaxed whitespace-pre">{{ w.evidence.sql }}</pre>
           </details>
         </section>
@@ -137,7 +139,7 @@ export class PerformanceWidget {
     </article>
     <ng-template #menu>
       <hlm-dropdown-menu class="w-56">
-        <button hlmDropdownMenuItem (triggered)="how.set(!how())"><ng-icon name="phosphorDatabaseLight" />{{ how() ? 'Hide how this was computed' : 'How this was computed' }}</button>
+        <button hlmDropdownMenuItem (triggered)="how.set(!how())"><ng-icon name="phosphorDatabaseLight" />{{ how() ? 'Close Behind the numbers' : 'Behind the numbers' }}</button>
         <hlm-dropdown-menu-separator />
         <button hlmDropdownMenuItem [disabled]="first()" (triggered)="move(-1)"><ng-icon name="phosphorArrowUpLight" />Move up</button>
         <button hlmDropdownMenuItem [disabled]="last()" (triggered)="move(1)"><ng-icon name="phosphorArrowDownLight" />Move down</button>
@@ -153,6 +155,10 @@ export class SavedWidget {
   private readonly boards = inject(BoardsService);
   protected readonly how = signal(false);
   protected readonly defs = computed(() => Object.entries(this.widget().evidence.definitions ?? {}));
+  /** Sources by the name a hotelier knows, never the table. */
+  protected readonly sources = computed(() => [...new Set(this.widget().evidence.sources.map((s) => sourceLabel(s)))].join(', '));
+  protected readonly period = formatPeriod;
+  protected readonly day = (iso: string) => formatDate(iso);
   protected readonly added = computed(() => ago(this.widget().addedAt));
   private readonly index = computed(() => this.board().widgets.findIndex((w) => w.id === this.widget().id));
   protected readonly first = computed(() => this.index() <= 0);
@@ -271,7 +277,7 @@ export class SavedWidget {
               </div>
             } @else {
               <p class="text-muted-foreground text-[14px]">
-                Nothing waiting. Event pricing watch proposes a rate when the morning brief finds this hotel underpriced, and the decision shows here and in Agent Studio.
+                No decisions waiting. When the morning brief finds this hotel priced under its comp set, an agent proposes a rate and the decision appears here and in Agent Studio.
                 <button type="button" class="text-foreground underline underline-offset-2" (click)="store.go('watchers')">Open Agent Studio</button>
               </p>
             }
@@ -292,25 +298,25 @@ export class SavedWidget {
                 } @else {
                   <h1 class="text-[24px] font-[560] tracking-[-0.02em]">{{ b.name }}</h1>
                 }
-                <p class="text-muted-foreground text-[14px]">{{ b.description || 'Charts from your conversations' }} · {{ b.widgets.length }} {{ b.widgets.length === 1 ? 'chart' : 'charts' }} · updated {{ updated(b) }}{{ boards.mode() === 'local' ? ' · saved in this browser' : '' }}</p>
+                <p class="text-muted-foreground text-[14px]">{{ b.description || 'Charts from Kassandra’s answers' }} · {{ b.widgets.length }} {{ b.widgets.length === 1 ? 'chart' : 'charts' }} · updated {{ updated(b) }}{{ boards.mode() === 'local' ? ' · saved in this browser' : '' }}</p>
               </div>
               <button hlmBtn variant="outline" size="sm" [hlmDropdownMenuTrigger]="boardMenu" align="end" aria-label="Board actions"><ng-icon name="phosphorDotsThreeBold" />Board</button>
             </header>
-            <kassandra-describe-view [boardId]="b.id" [boardName]="b.name" placeholder="Describe a view, e.g. “channel profitability after commission for Lisbon”" />
+            <kassandra-describe-view [boardId]="b.id" [boardName]="b.name" placeholder="Describe what this board should show, e.g. “channel profitability after commission for Lisbon”" />
             <div class="grid gap-4 lg:grid-cols-2">
               @for (w of b.widgets; track w.id) {
                 <app-saved-widget [class]="wideWidget(w) ? 'lg:col-span-2' : ''" [widgetRef]="w" [boardRef]="b" />
               } @empty {
                 <div class="text-muted-foreground border-border col-span-full rounded-xl border border-dashed p-8 text-center text-[14px]">
-                  This board is empty. Describe a view above, or use “Add to …” on any chart.
-                  <button type="button" class="text-foreground mt-1 block w-full underline underline-offset-2" (click)="store.openBoard(portfolioBoard)">Open the Portfolio board to add catalogue charts</button>
+                  No charts on this board yet. Describe what you want to see above and Kassandra builds it, or choose “Add to board” on any chart in an answer.
+                  <button type="button" class="text-foreground mt-1 block w-full underline underline-offset-2" (click)="store.openBoard(portfolioBoard)">Or add charts from the Portfolio board</button>
                 </div>
               }
             </div>
           } @else if (boards.loaded() && !loading()) {
             <section class="py-10 text-center">
-              <h1 class="text-[22px] font-semibold">Board not found</h1>
-              <p class="text-muted-foreground mt-2 text-[14px]">It may have been deleted, or the link is wrong.</p>
+              <h1 class="text-[22px] font-semibold">This board doesn’t exist</h1>
+              <p class="text-muted-foreground mt-2 text-[14px]">It may have been deleted, or the link may be old or mistyped.</p>
               <button hlmBtn class="mt-4" (click)="store.go('boards')">See all boards</button>
             </section>
           } @else {
@@ -331,7 +337,7 @@ export class SavedWidget {
 
     <dialog #delDlg class="confirm-dialog" aria-labelledby="del-title" (close)="onDeleteClosed()">
       <h2 id="del-title" class="text-[16px] font-semibold">Delete “{{ board()?.name }}”?</h2>
-      <p class="text-muted-foreground mt-2 text-[14px]">Its {{ board()?.widgets?.length ?? 0 }} charts go with it. This can’t be undone.</p>
+      <p class="text-muted-foreground mt-2 text-[14px]">{{ board()?.widgets?.length === 1 ? 'Its chart goes' : 'Its ' + (board()?.widgets?.length ?? 0) + ' charts go' }} with it. This can’t be undone.</p>
       <form method="dialog" class="mt-5 flex justify-end gap-2">
         <button hlmBtn variant="ghost" value="cancel">Cancel</button>
         <button hlmBtn variant="destructive" value="delete">Delete board</button>
@@ -430,7 +436,7 @@ export class BoardView {
     if (!b) return;
     const r = await this.boards.duplicate(b.id);
     if (r.ok) {
-      toast(`Made “${r.value.name}”`, { duration: 6000 });
+      toast(`Duplicated as “${r.value.name}”`, { duration: 6000 });
       this.store.openBoard(r.value.id);
     }
   }
@@ -471,13 +477,13 @@ function orderLike(listed: Board, full: Board): BoardWidget[] {
       <header class="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 class="text-[26px] font-semibold tracking-[-0.02em]">Boards</h1>
-          <p class="text-muted-foreground text-[15px]">Dashboards you keep: the built-in ones, and boards made from charts you add.</p>
+          <p class="text-muted-foreground text-[15px]">The numbers you check every day, kept in one place. Kassandra builds a board from a description, or you add charts from an answer.</p>
         </div>
         <button hlmBtn (click)="openNew()"><ng-icon name="phosphorPlusLight" />New board</button>
       </header>
 
       @if (boards.error(); as e) {
-        <p role="alert" class="border-border rounded-[10px] border border-dashed p-3 text-[13.5px]">Saved boards didn’t load: {{ e }} <button hlmBtn variant="ghost" size="sm" (click)="boards.load()">Retry</button></p>
+        <p role="alert" class="border-border rounded-[10px] border border-dashed p-3 text-[13.5px]">Couldn’t load your saved boards. {{ e }} <button hlmBtn variant="ghost" size="sm" (click)="boards.load()">Try again</button></p>
       }
 
       <ul class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Boards">
@@ -514,7 +520,7 @@ function orderLike(listed: Board, full: Board): BoardWidget[] {
             <button type="button" class="clickable-card group flex h-full min-h-[200px] w-full flex-col text-left" (click)="store.openBoard(b.id)">
               <span class="p-4 pb-3 pr-12">
                 <span class="block truncate text-[16px] font-semibold tracking-[-0.01em]">{{ b.name }}</span>
-                <span class="text-muted-foreground line-clamp-2 min-h-[2.75em] text-[13.5px]/snug">{{ b.description || 'Charts from your conversations' }}</span>
+                <span class="text-muted-foreground line-clamp-2 min-h-[2.75em] text-[13.5px]/snug">{{ b.description || 'Charts from Kassandra’s answers' }}</span>
               </span>
               <span class="flex flex-wrap gap-1.5 px-4">
                 @for (t of titles(b); track $index) {
@@ -535,12 +541,12 @@ function orderLike(listed: Board, full: Board): BoardWidget[] {
           <button type="button" class="border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 flex h-full min-h-[200px] w-full flex-col items-center justify-center gap-2 rounded-[12px] border border-dashed transition-colors" (click)="openNew()">
             <span class="bg-secondary grid size-10 place-items-center rounded-full"><ng-icon name="phosphorPlusLight" class="text-[18px]" /></span>
             <span class="text-[14px] font-medium">New board</span>
-            <span class="text-[12.5px]">then use “Add to …” on any chart</span>
+            <span class="text-[12.5px]">Describe it to Kassandra, or add charts from an answer</span>
           </button>
         </li>
       </ul>
       @if (boards.mode() === 'local') {
-        <p class="text-muted-foreground text-[12.5px]">Saved boards are kept in this browser for now.</p>
+        <p class="text-muted-foreground text-[12.5px]">Your boards are saved in this browser only.</p>
       }
     </div>
 
@@ -594,8 +600,8 @@ export class BoardsList {
     const d = ty - ly;
     const sign = (x: number) => (Math.abs(x) < 0.05 ? '±' : x > 0 ? '▲ +' : '▼ −');
     return [
-      { ...BUILT_IN[0], label: 'Occupancy · next 30 nights, all hotels', value: occ.value, delta: occ.delta === null ? '' : `${sign(occ.delta)}${Math.abs(occ.delta).toFixed(1)} pp vs STLY`, paths: paths(occ.spark, occ.sparkCmp ?? []), count: 9 },
-      { ...BUILT_IN[1], label: 'Occupancy · next 45 nights', value: METRICS.occupancy.format(ty), delta: `${sign(d)}${Math.abs(d).toFixed(1)} pp vs LY`, paths: paths(metricSeries(dxb, 'occupancy'), metricSeries(dxb, 'occupancy', true)), count: 2 },
+      { ...BUILT_IN[0], label: 'Occupancy · next 30 nights, all hotels', value: occ.value, delta: occ.delta === null ? '' : `${sign(occ.delta)}${Math.abs(occ.delta).toFixed(1)} pts vs last year`, paths: paths(occ.spark, occ.sparkCmp ?? []), count: 9 },
+      { ...BUILT_IN[1], label: 'Occupancy · next 45 nights', value: METRICS.occupancy.format(ty), delta: `${sign(d)}${Math.abs(d).toFixed(1)} pts vs last year`, paths: paths(metricSeries(dxb, 'occupancy'), metricSeries(dxb, 'occupancy', true)), count: 2 },
     ];
   });
 
@@ -615,7 +621,7 @@ export class BoardsList {
   }
   protected async duplicate(b: Board) {
     const r = await this.boards.duplicate(b.id);
-    if (r.ok) toast(`Made “${r.value.name}”`, { duration: 6000, action: { label: 'Open', onClick: () => this.store.openBoard(r.value.id) } });
+    if (r.ok) toast(`Duplicated as “${r.value.name}”`, { duration: 6000, action: { label: 'Open', onClick: () => this.store.openBoard(r.value.id) } });
   }
   protected askDelete(b: Board) {
     this.deleting.set(b);

@@ -14,8 +14,8 @@ export function scopeInstructions(scope: readonly ScopeHotel[]): string | null {
     `You are answering for: ${names(scope)}. ` +
     'The person works on these hotels only, and every data tool is limited to them: a call without hotels reads exactly ' +
     'these, and a call for another hotel is refused. Do not report on, rank against or compare with other hotels of the ' +
-    'group. If the person asks about a hotel outside this scope, say it is outside the hotels selected and that the scope ' +
-    'can be changed in the sidebar. In run_readonly_query, return hotel_code and filter on these codes.'
+    'group. If the person asks about a hotel outside this scope, say that hotel is not among the hotels selected and that ' +
+    'they can change hotels in the sidebar. In run_readonly_query, return hotel_code and filter on these codes.'
   );
 }
 

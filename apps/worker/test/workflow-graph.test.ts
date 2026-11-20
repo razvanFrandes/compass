@@ -47,18 +47,18 @@ describe('specToGraph', () => {
 
   it('shows the recipient masked on the action node', () => {
     const action = specToGraph({ action: { type: 'email' }, delivery: { channel: 'email', to: 'silviu@gmail.com' } }).nodes.find((n) => n.id === 'action');
-    expect(action?.label).toBe('Email si****@gmail.com');
+    expect(action?.label).toBe('Send an email to si****@gmail.com');
     expect(JSON.stringify(action)).not.toContain('silviu');
   });
 
   it('labels the trigger, the scope and the goal', () => {
     const label = (draft: WorkflowDraft, id: string) => specToGraph(draft).nodes.find((n) => n.id === id)?.label;
     expect(label({ trigger: { kind: 'schedule', every: 'day' } }, 'trigger')).toBe('Every morning, after the brief');
-    expect(label({ trigger: { kind: 'brief', finding: 'pace_behind' } }, 'trigger')).toBe('When the brief finds pace behind');
-    expect(label({ trigger: { kind: 'manual' } }, 'trigger')).toBe('Run by hand');
+    expect(label({ trigger: { kind: 'brief', finding: 'pace_behind' } }, 'trigger')).toBe('When the brief finds a hotel behind last year’s pace');
+    expect(label({ trigger: { kind: 'manual' } }, 'trigger')).toBe('Only when you run it');
     expect(label({ hotels: ['ALL'] }, 'scope')).toBe('All 20 hotels');
     expect(label({ hotels: ['LIS1', 'DXB2'] }, 'scope')).toBe('LIS1, DXB2');
-    expect(label({ goal: 'Email me if pace falls 10% behind STLY.' }, 'analyze')).toBe('Kassandra explains why');
+    expect(label({ goal: 'Email me if pace falls 10% behind STLY.' }, 'analyze')).toBe('Kassandra looks for this');
   });
 
   it('a value that is not valid yet is a draft node', () => {

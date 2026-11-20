@@ -58,7 +58,7 @@ export class Thread {
 
 A `ChatTurn` is `{ key, question, pending, steps, answer, streamingText, running, failure, workedMs, model, usage, events }`.
 
-- `steps`: one per tool call, `{ callId, name, args, status, narration, error?, rows?, evidence?, draft?, sent? }`. `status` is `done` or `error` once the result is in; before that it is the live status (`pending`, `running`, …). `rows` and `evidence` feed the widgets and "How this was computed". `narration` is what the agent said before that round of calls: show it as a step, never as the answer.
+- `steps`: one per tool call, `{ callId, name, args, status, narration, error?, rows?, evidence?, draft?, sent? }`. `status` is `done` or `error` once the result is in; before that it is the live status (`pending`, `running`, …). `rows` and `evidence` feed the widgets and "Behind the numbers". `narration` is what the agent said before that round of calls: show it as a step, never as the answer.
 - `answer` is the final Markdown, or null. While `running`, render `streamingText` in its place.
 - `draft` on a `draft_workflow` step is a `WorkflowSpec`: show the editable card, and **Save** calls `WorkflowsApi.create(draft)`.
 - A turn with `question: null` (key `head`) holds entries from before the first question in view; the server sends the newest 50 entries only.

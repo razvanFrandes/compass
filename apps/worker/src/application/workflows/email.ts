@@ -43,9 +43,9 @@ export interface WorkflowEmailInput {
   final?: boolean;
 }
 
-export const LAST_EMAIL = 'This was the last email from this workflow: it has reached its limit of 7 days or 5 emails and is now paused.';
+export const LAST_EMAIL = 'This is the last email from this agent. It has reached the demo limit of 7 days or 5 emails and is now paused.';
 
-export const FOOTER = 'Compass demo · fictional data · you got this because someone entered your address in a Compass workflow.';
+export const FOOTER = 'Compass demo · fictional data · You received this because someone entered your address in a Compass agent.';
 
 const escapeHtml = (value: string) =>
   value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -119,8 +119,8 @@ export function composeWorkflowEmail(raw: WorkflowEmailInput): Omit<OutgoingEmai
     question: clean(raw.question),
   };
   const name = clean(oneLine(input.workflow.name)).slice(0, MAX_NAME_CHARS).trim();
-  const subject = `${input.test ? 'Test · ' : ''}Compass alert · ${name}`;
-  const note = input.test ? `Test run · ${input.wouldFire ? 'Would fire today' : 'Would not fire today'}` : null;
+  const subject = `${input.test ? 'Test run · ' : ''}${name} · Compass`;
+  const note = input.test ? `Test run · ${input.wouldFire ? 'It would email you today' : 'It would not email you today'}` : null;
   const link = `${input.appUrl.replace(/\/+$/, '')}/ask?q=${encodeURIComponent(input.question)}`;
 
   const text = [
@@ -130,7 +130,7 @@ export function composeWorkflowEmail(raw: WorkflowEmailInput): Omit<OutgoingEmai
     ...(input.facts.length ? [input.facts.map((fact) => `- ${fact}`).join('\n')] : []),
     `Definition: ${input.definition}\nPeriod: ${input.period}`,
     ...(input.final ? [LAST_EMAIL] : []),
-    `Explore in Kassandra: ${link}`,
+    `Ask Kassandra about this: ${link}`,
     `--\n${FOOTER}`,
   ].join('\n\n');
 
@@ -149,7 +149,7 @@ export function composeWorkflowEmail(raw: WorkflowEmailInput): Omit<OutgoingEmai
     `<p style="margin:0 0 4px;${MUTED}">${escapeHtml(input.definition)}</p>`,
     `<p style="margin:0 0 24px;${MUTED}">Period: ${escapeHtml(input.period)}</p>`,
     input.final ? `<p style="margin:0 0 24px;font-size:14px;line-height:1.5;font-weight:600;color:#92400e">${escapeHtml(LAST_EMAIL)}</p>` : '',
-    `<p style="margin:0"><a href="${escapeHtml(link)}" style="display:inline-block;padding:10px 18px;background:#111827;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px">Explore in Kassandra</a></p>`,
+    `<p style="margin:0"><a href="${escapeHtml(link)}" style="display:inline-block;padding:10px 18px;background:#111827;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px">Ask Kassandra about this</a></p>`,
     '</div>',
     `<p style="max-width:560px;margin:16px auto 0;text-align:center;${MUTED}">${escapeHtml(FOOTER)}</p>`,
     '</body></html>',
@@ -169,10 +169,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export function emailWorkflowBlocked(workflow: Workflow, now: Date): string | null {
   if (workflow.action.type !== 'email') return null;
   if ((workflow.emailsSent ?? 0) >= EMAIL_WORKFLOW_LIMITS.emails) {
-    return `This workflow has sent its ${EMAIL_WORKFLOW_LIMITS.emails} emails and is now off. Create a new workflow to keep getting them.`;
+    return `This agent has sent its ${EMAIL_WORKFLOW_LIMITS.emails} emails and is now paused. Create a new agent to keep getting them.`;
   }
   if (now.getTime() > Date.parse(workflow.createdAt) + EMAIL_WORKFLOW_LIMITS.days * DAY_MS) {
-    return `Email workflows stop after ${EMAIL_WORKFLOW_LIMITS.days} days and this one is now off. Create a new workflow to keep getting them.`;
+    return `In this demo an agent that sends email stops after ${EMAIL_WORKFLOW_LIMITS.days} days, and this one is now paused. Create a new agent to keep getting them.`;
   }
   return null;
 }

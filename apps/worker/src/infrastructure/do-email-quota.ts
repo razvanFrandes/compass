@@ -64,13 +64,13 @@ export class DurableEmailQuota implements EmailQuota {
     const everyone = typeof sentToday === 'number' ? sentToday : 0;
 
     if (toRecipient.filter(inLastHour).length >= EMAIL_LIMITS.perRecipientPerHour) {
-      return { ok: false, reason: `This address already got ${EMAIL_LIMITS.perRecipientPerHour} emails in the last hour. Try again later.` };
+      return { ok: false, reason: `This address has had its ${EMAIL_LIMITS.perRecipientPerHour} emails for this hour. Try again later.` };
     }
     if (toRecipient.filter(today).length >= EMAIL_LIMITS.perRecipientPerDay) {
-      return { ok: false, reason: `This address already got ${EMAIL_LIMITS.perRecipientPerDay} emails today. Try again tomorrow.` };
+      return { ok: false, reason: `This address has had its ${EMAIL_LIMITS.perRecipientPerDay} emails for today. Try again tomorrow.` };
     }
     if (clientKey !== null && fromClient.length >= EMAIL_LIMITS.perClientPerHour) {
-      return { ok: false, reason: `You have sent ${EMAIL_LIMITS.perClientPerHour} emails in the last hour. Try again later.` };
+      return { ok: false, reason: `You have sent your ${EMAIL_LIMITS.perClientPerHour} emails for this hour. Try again later.` };
     }
     if (everyone >= EMAIL_LIMITS.perDay) {
       return { ok: false, reason: `The demo has sent its ${EMAIL_LIMITS.perDay} emails for today. Try again tomorrow.` };

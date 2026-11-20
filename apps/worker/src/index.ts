@@ -264,7 +264,7 @@ async function workflowRoutes(request: Request, url: URL, env: Env): Promise<Res
     if (!value || typeof value !== 'object' || Array.isArray(value)) return { ok: false, response: error(400, 'Send a JSON object.') };
     return { ok: true, value: value as Record<string, unknown> };
   };
-  const limited = () => rateLimited(env.ASK_RATE_LIMIT, request, 'Too many runs. Wait a minute.');
+  const limited = () => rateLimited(env.ASK_RATE_LIMIT, request, 'Too many runs. Wait a minute and try again.');
 
   if (parts[1] === 'workflows') {
     const [, , id, action] = parts;

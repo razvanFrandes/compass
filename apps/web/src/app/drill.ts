@@ -43,7 +43,7 @@ export function drillContent(d: Drill, s: FilterState): DrillResult {
           subtitle: d.label,
           points: occ.spark.slice(0, 31).map((v, i) => ({ label: fmtDay(Date.parse(`${DATES[r.from + i]}T00:00:00Z`)), value: Math.round(v) })),
           unit: '%',
-          source: 'v_hotel_day · pace_vs_stly()',
+          source: 'Daily hotel performance · pace vs last year',
         }
       : {
           id: `a-drill-${d.value}`,
@@ -51,16 +51,16 @@ export function drillContent(d: Drill, s: FilterState): DrillResult {
           title: `${d.label} by hotel · ${r.label}`,
           subtitle: 'Room revenue, net of commission',
           rows: byHotel(scope, d).slice(0, 8),
-          source: 'reservations · channels',
+          source: 'Reservations · channels',
         };
   return {
     question,
     scope,
     content: {
       steps: [
-        { title: 'Read the dashboard filters', detail: scopeChips(scope).join(' · ') },
-        { title: `Narrowed to ${d.label}`, detail: `drill: ${d.dimension} = ${d.value}` },
-        { title: 'Ran the same chart specs', detail: parts.map((p) => p.view).join(', ') },
+        { title: 'Read the board’s filters', detail: scopeChips(scope).join(' · ') },
+        { title: `Narrowed to ${d.label}`, detail: `${d.dimension}: ${d.label}` },
+        { title: 'Used the same figures as the charts', detail: parts.map((p) => p.view).join(', ') },
       ],
       answer: answer.length ? answer : [{ t: `No data for ${d.label} with these filters.` }],
       sources: d.dimension === 'hotel' ? ['v_hotel_day', 'pace_vs_stly()', 'forecasts', 'comp_set_daily'] : ['reservations', 'channels'],
@@ -102,13 +102,13 @@ function nightDrill(d: Drill, s: FilterState): DrillResult {
     extraChip: `night of ${label}`,
     content: {
       steps: [
-        { title: 'Read the dashboard filters', detail: scopeChips(s).join(' · ') },
-        { title: `Narrowed to one night`, detail: `drill: night = ${d.value}` },
+        { title: 'Read the board’s filters', detail: scopeChips(s).join(' · ') },
+        { title: `Narrowed to one night`, detail: label },
       ],
       answer: [
         { t: `On ${label} the selected hotels are ` },
         { t: `${occ.toFixed(1)}% on the books`, b: true },
-        { t: `, ${(occ - stly >= 0 ? '+' : '−') + Math.abs(occ - stly).toFixed(1)} pp vs same time last year, and the forecast lands at ` },
+        { t: `, ${(occ - stly >= 0 ? '+' : '−') + Math.abs(occ - stly).toFixed(1)} pts vs same time last year, and the forecast lands at ` },
         { t: `${p50.toFixed(0)}%`, b: true },
         { t: `. ${top ? `${top.name} is forecast fullest (${top.p50.toFixed(0)}%).` : ''}` },
       ],
@@ -119,11 +119,11 @@ function nightDrill(d: Drill, s: FilterState): DrillResult {
         title: `Forecast occupancy · ${label}`,
         subtitle: `${rows.length} hotels`,
         rows: rows.slice(0, 10).map((x) => ({ label: x.name, value: Math.round(x.p50), note: `${x.occ.toFixed(0)}% on the books`, display: `${x.p50.toFixed(0)}%` })),
-        source: 'forecasts',
+        source: 'Forecasts',
       },
       definitions: [
         ['On the books', 'reservations made before today and not cancelled'],
-        ['Forecast', 'RMS forecast P50 made 20 Nov'],
+        ['Forecast', 'the RMS forecast made 20 Nov, middle estimate'],
       ],
       sql: PF_SQL.nights,
       followUps: [`Which hotels could still sell out on ${label}?`],

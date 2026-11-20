@@ -76,7 +76,7 @@ describe('every widget kind', () => {
   it('shows an unknown kind as a table with a note, never a blank', () => {
     const b = build(spec('hexbin' as WidgetKind, { x: 'hotel', y: ['revpar'] }), HOTELS, HOTEL_COLS);
     expect(b.render).toBe('table');
-    expect(b.note).toContain('hexbin');
+    expect(b.note).toBe('This kind of chart isn’t available yet, so the numbers are shown as a table.');
     expect(b.table.rows).toHaveLength(3);
   });
 
@@ -216,7 +216,7 @@ describe('bars', () => {
     const rows = Array.from({ length: 40 }, (_, i) => ({ hotel: `Hotel ${i + 1}`, revpar: 100 + i }));
     const b = build(spec('bar', { x: 'hotel', y: ['revpar'] }), rows, HOTEL_COLS, { compact: true });
     expect((axis(b, 'yAxis')['data'] as string[]).length).toBeLessThan(40);
-    expect(b.note).toMatch(/^Showing the first \d+ of 40 rows/);
+    expect(b.note).toMatch(/^Showing the first \d+ of 40\. /);
     expect(b.table.rows).toHaveLength(40);
   });
 
@@ -368,7 +368,7 @@ describe('pie and donut', () => {
   });
 
   it.each([
-    [8, '8 parts are too many for a donut (it reads for 2 to 7), so this is shown as bars.'],
+    [8, '8 parts are too many for a donut (it works for 2 to 7), so this is shown as bars.'],
     [1, 'A donut needs at least 2 parts, so this is shown as bars.'],
   ])('falls back to bars for %i parts, with a note', (n, note) => {
     const b = build(spec('donut', { group: 'channel', y: ['revenue'] }), parts(n), cols);
@@ -382,7 +382,7 @@ describe('pie and donut', () => {
     expect(build(spec('pie', { group: 'channel', y: ['revenue'] }), parts(7), cols).kind).toBe('pie');
     const negative = build(spec('pie', { group: 'channel', y: ['revenue'] }), [...parts(3), { channel: 'Refunds', revenue: -5 }], cols);
     expect(negative.kind).toBe('bar');
-    expect(negative.note).toBe("A pie can't show negative parts, so this is shown as bars.");
+    expect(negative.note).toBe('A pie can’t show negative parts, so this is shown as bars.');
   });
 });
 

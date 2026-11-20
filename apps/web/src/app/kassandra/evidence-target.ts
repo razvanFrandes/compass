@@ -3,13 +3,13 @@ import type { ChatStep, ChatTurn } from '../api';
 import { stepsWithLive } from './live-slots';
 
 /*
-  What "How this was computed" explains. A chart is drawn from a tool result that may be older than the answer it
+  What "Behind the numbers" explains. A chart is drawn from a tool result that may be older than the answer it
   sits in ("Show this as a chart" draws what the previous answer read), so a turn's evidence is more than its own
   data calls: it is also the results its charts draw from, wherever they were read. This file maps a click to that
   evidence. It is pure, so the mapping is tested without a socket.
 */
 
-/** "How this was computed" was asked for one tool result of one turn; `widgetCallId` when it was asked on a chart. */
+/** "Behind the numbers" was asked for one tool result of one turn; `widgetCallId` when it was asked on a chart. */
 export interface EvidenceSelection {
   turnKey: string;
   /** The tool result to open: a step's own call, or the call a chart draws from. */
@@ -75,7 +75,7 @@ export function statedText(turn: ChatTurn): string | null {
 }
 
 /**
- * Where a click on "How this was computed" leads: the turn it was in, the card of the tool result it is about, and
+ * Where a click on "Behind the numbers" leads: the turn it was in, the card of the tool result it is about, and
  * for a chart its title and the columns it draws (so the table keeps them on screen).
  */
 export function evidenceTarget(turns: readonly ChatTurn[], selection: EvidenceSelection | null): EvidenceTarget {

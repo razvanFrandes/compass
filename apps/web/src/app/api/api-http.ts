@@ -15,11 +15,11 @@ export interface ApiError {
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError };
 
 const FALLBACK: Record<number, string> = {
-  0: 'Could not reach the server. Check your connection and try again.',
-  403: 'This request is not allowed from here.',
-  404: 'Not found.',
-  413: 'That is too large to send.',
-  429: 'The limit for today is reached. Try again later.',
+  0: 'Couldn’t reach Juyo. Check your connection and try again.',
+  403: 'That isn’t allowed from this page. Reload and try again.',
+  404: 'That no longer exists. Reload to see the latest.',
+  413: 'That’s too long to send. Shorten it and try again.',
+  429: 'Today’s limit is reached. Try again tomorrow.',
 };
 
 function field(body: unknown, key: string): string | undefined {
@@ -31,7 +31,7 @@ function field(body: unknown, key: string): string | undefined {
 /** Any thrown value (an `HttpErrorResponse`, a resource's `error()`) as an `ApiError`. */
 export function toApiError(cause: unknown): ApiError {
   if (cause instanceof HttpErrorResponse) {
-    const message = field(cause.error, 'error') ?? FALLBACK[cause.status] ?? 'Something went wrong. Try again.';
+    const message = field(cause.error, 'error') ?? FALLBACK[cause.status] ?? 'Something went wrong on our side. Try again in a moment.';
     const resetsAt = field(cause.error, 'resetsAt');
     return { status: cause.status, message, ...(resetsAt ? { resetsAt } : {}) };
   }

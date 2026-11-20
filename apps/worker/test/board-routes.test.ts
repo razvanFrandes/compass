@@ -108,7 +108,7 @@ describe('boards API', () => {
     for (let i = 0; i < 24; i++) expect((await send('POST', `/api/boards/${board.id}/widgets`, WIDGET)).status).toBe(201);
     const full = await send('POST', `/api/boards/${board.id}/widgets`, WIDGET);
     expect(full.status).toBe(409);
-    expect(await full.json()).toEqual({ error: 'A board holds at most 24 widgets. Remove one and try again.' });
+    expect(await full.json()).toEqual({ error: 'A board holds up to 24 charts. Remove one, then try again.' });
   });
 
   it('answers 404 for paths and methods it does not have, and for ids that could not be ids', async () => {

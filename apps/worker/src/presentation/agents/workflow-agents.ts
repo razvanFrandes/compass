@@ -124,7 +124,7 @@ export class WorkflowAgents extends DurableObject<Env> {
 
   async get(id: string): Promise<{ workflow: Workflow; runs: WorkflowRun[]; proposals: Proposal[] } | WorkflowError> {
     const workflow = await this.store.getWorkflow(id);
-    if (!workflow) return { error: 'No such workflow.', status: 404 };
+    if (!workflow) return { error: 'That agent no longer exists.', status: 404 };
     const proposals = (await this.store.listProposals()).filter((p) => p.workflowId === id);
     return { workflow: publicWorkflow(workflow), runs: (await this.store.listRuns(id)).map(publicRun), proposals };
   }
@@ -143,11 +143,11 @@ export class WorkflowAgents extends DurableObject<Env> {
 
   async update(id: string, patch: Partial<WorkflowSpecInput>): Promise<Workflow | WorkflowError> {
     const current = await this.store.getWorkflow(id);
-    if (!current) return { error: 'No such workflow.', status: 404 };
+    if (!current) return { error: 'That agent no longer exists.', status: 404 };
     // The recipient is fixed at creation: anyone can call this API, so a PATCH must not redirect a workflow's mail.
     const { delivery, ...rest } = patch;
     if (delivery !== undefined && recipientChanged(current, delivery)) {
-      return { error: "The recipient can't be changed. Create a new workflow.", status: 400 };
+      return { error: "The email address can't be changed. Create a new agent to send to another address.", status: 400 };
     }
     const parsed = WorkflowSpec.safeParse({ ...current, ...rest });
     if (!parsed.success) return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '), status: 400 };
@@ -164,7 +164,7 @@ export class WorkflowAgents extends DurableObject<Env> {
   /** "Duplicate": the same workflow as a new one, turned off, for the person to change and turn on. */
   async duplicate(id: string): Promise<Workflow | WorkflowError> {
     const source = await this.store.getWorkflow(id);
-    if (!source) return { error: 'No such workflow.', status: 404 };
+    if (!source) return { error: 'That agent no longer exists.', status: 404 };
     // A copy is off, so it never meets the cap of enabled workflows; at 100 stored, the oldest that is off makes room.
     const admitted = admitWorkflow(await this.#workflows(), false);
     if (!admitted.ok) return { error: admitted.error, status: 409 };
@@ -187,7 +187,7 @@ export class WorkflowAgents extends DurableObject<Env> {
    * object only: never route it to HTTP. The builder shows the address masked (`clientDraft`).
    */
   async loadForBuilder(id: string): Promise<Workflow | WorkflowError> {
-    return (await this.store.getWorkflow(id)) ?? { error: 'No such workflow.', status: 404 };
+    return (await this.store.getWorkflow(id)) ?? { error: 'That agent no longer exists.', status: 404 };
   }
 
   // ---------------------------------------------------------------- runs
@@ -204,7 +204,7 @@ export class WorkflowAgents extends DurableObject<Env> {
     opts: { test?: boolean; client?: string } = {},
   ): Promise<WorkflowRun | WorkflowError> {
     const workflow = await this.store.getWorkflow(id);
-    if (!workflow) return { error: 'No such workflow.', status: 404 };
+    if (!workflow) return { error: 'That agent no longer exists.', status: 404 };
     const test = opts.test === true;
     // An email workflow ends after 7 days or 5 emails. A test still runs: it is held by the hourly and daily limits.
     const blocked = test ? null : emailWorkflowBlocked(workflow, new Date());
@@ -216,7 +216,7 @@ export class WorkflowAgents extends DurableObject<Env> {
     const runs: WorkflowRun[] = [];
     for (const stored of await this.store.listRuns(id)) runs.push(await this.#settleLazily(stored));
     const active = runs.find((r) => r.status === 'running' || r.status === 'waiting_approval');
-    if (active) return { error: `This workflow already has a run in progress (${active.id}).`, status: 409 };
+    if (active) return { error: 'This agent is already running. Wait for the run to finish, then try again.', status: 409 };
 
     const session = await this.harness.sessions.create({ agent: { instructions: workflowInstructions(workflow, test) } });
     const run: WorkflowRun = {
@@ -241,7 +241,7 @@ export class WorkflowAgents extends DurableObject<Env> {
   /** The run's log: its transcript, projected like the chat. */
   async runLog(runId: string): Promise<{ run: WorkflowRun; entries: ChatEntry[] } | WorkflowError> {
     const stored = await this.store.getRun(runId);
-    if (!stored) return { error: 'No such run.', status: 404 };
+    if (!stored) return { error: 'That run no longer exists.', status: 404 };
     const run = await this.#settleLazily(stored);
     const entries = projectEntries(await this.harness.session(run.sessionId).messages());
     return { run: publicRun((await this.store.getRun(runId)) ?? run), entries };
@@ -282,12 +282,12 @@ export class WorkflowAgents extends DurableObject<Env> {
   /** A person approves or denies: a durable signal to the parked propose_action call, which then continues. */
   async decide(proposalId: string, decision: Decision): Promise<Proposal | WorkflowError> {
     const proposal = await this.store.getProposal(proposalId);
-    if (!proposal) return { error: 'No such proposal.', status: 404 };
-    if (proposal.status !== 'pending') return { error: `This proposal is already ${proposal.status}.`, status: 409 };
+    if (!proposal) return { error: 'That decision no longer exists.', status: 404 };
+    if (proposal.status !== 'pending') return { error: 'This decision has already been made. Reload to see the latest.', status: 409 };
     const taskId = await this.store.taskForProposal(proposalId);
-    if (taskId === undefined) return { error: 'The proposal has no waiting run.', status: 409 };
+    if (taskId === undefined) return { error: 'The run behind this decision has ended, so it can no longer be decided.', status: 409 };
     const result = await this.harness.signal(taskId, DecisionSignal, 'decision', decision);
-    if (result !== 'delivered' && result !== 'duplicate') return { error: `The run could not take the decision (${result}).`, status: 409 };
+    if (result !== 'delivered' && result !== 'duplicate') return { error: `Your decision didn't reach the agent (${result}). Try again.`, status: 409 };
     this.ctx.waitUntil(this.#settle(proposal.runId));
     return { ...proposal, status: decision.approved ? 'approved' : 'denied', decidedBy: decision.by, note: decision.note || null };
   }
@@ -295,8 +295,8 @@ export class WorkflowAgents extends DurableObject<Env> {
   /** Undo an applied action: a compensating RMS task, audited. */
   async undo(proposalId: string, by: string): Promise<AuditEntry | WorkflowError> {
     const proposal = await this.store.getProposal(proposalId);
-    if (!proposal) return { error: 'No such proposal.', status: 404 };
-    if (proposal.status !== 'applied') return { error: `Only applied proposals can be undone (this one is ${proposal.status}).`, status: 409 };
+    if (!proposal) return { error: 'That decision no longer exists.', status: 404 };
+    if (proposal.status !== 'applied') return { error: 'Only an action that was carried out can be undone.', status: 409 };
     const entry: AuditEntry = {
       id: `audit-${crypto.randomUUID().slice(0, 8)}`,
       at: new Date().toISOString(),

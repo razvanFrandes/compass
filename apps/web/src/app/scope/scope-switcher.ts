@@ -123,7 +123,7 @@ const POP_WIDTH = 416;
         <app-hotel-picker class="min-h-0 flex-1 px-4" label="Search hotels" [hotels]="scope.catalog()" [value]="scope.hotels()" (valueChange)="scope.set($event)" />
       }
       <div class="border-border/70 mt-1 flex shrink-0 items-center justify-between gap-3 border-t px-4 py-2.5">
-        <p class="text-muted-foreground min-w-0 text-[12.5px]/snug">Kassandra, the brief and new workflows follow this choice.</p>
+        <p class="text-muted-foreground min-w-0 text-[12.5px]/snug">Kassandra, the morning brief and new agents follow this choice.</p>
         <button #done hlmBtn type="button" size="sm" (click)="close()">Done</button>
       </div>
     </dialog>

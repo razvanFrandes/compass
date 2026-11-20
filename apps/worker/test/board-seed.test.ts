@@ -58,7 +58,7 @@ describe('sample boards', () => {
     const boards = new BoardService(new MemoryBoardStore());
     await boards.seed(built.value);
     const list = await boards.list();
-    expect(list.map((b) => b.name)).toEqual(['Portfolio overview', 'Dubai Business Bay', 'Amsterdam web']);
+    expect(list.map((b) => b.name)).toEqual(['Portfolio overview', 'Dubai Business Bay', 'Amsterdam website']);
     expect(await boards.get('portfolio')).toEqual({ ok: true, value: built.value[0] });
   });
 });

@@ -1,15 +1,17 @@
 import type { ChatEntry, ChatLive } from '@compass/contracts';
+import { HALCYON_HOTELS, shortName } from '../scope/hotels';
+import { FINDING_LABEL } from '../studio/studio';
 
 /**
  * The builder's transcript as a conversation: what the person said, what the agent did (its tool calls, folded
- * into one line such as "Set trigger · Set hotels · Added check"), and its short replies.
+ * into one line such as "Set when it runs · Chose hotels · Added data"), and its short replies.
  */
 
 export type StepStatus = 'running' | 'done' | 'error';
 
 export interface BuilderStep {
   callId: string;
-  /** What the call did, in two or three words: "Set trigger". */
+  /** What the call did, in a few words: "Set when it runs". */
   label: string;
   /** The value it set, when the arguments say so: "Every morning". */
   detail: string;
@@ -28,32 +30,32 @@ export type ConversationItem =
 /** The same short names as `CHECK_LABELS` in @compass/contracts, kept here so the chat does not bundle zod. */
 export const DATA_TOOL_LABELS: Record<string, string> = {
   get_pace: 'Pace vs last year',
-  get_pickup: 'Pickup in the last days',
+  get_pickup: 'Recent pickup',
   get_rate_position: 'Rate vs the comp set',
   get_channel_mix: 'Channel mix',
   get_mix: 'Business mix',
-  get_metric: 'A metric',
+  get_metric: 'A metric over time',
   get_forecast: 'Forecast',
   get_pnl: 'Profit and loss',
   get_data_health: 'Data freshness',
-  get_web_funnel: 'Website funnel',
+  get_web_funnel: 'Website booking funnel',
   get_account_production: 'Account production',
   get_review_scores: 'Review scores',
   find_reviews: 'What guests say',
-  get_brief: 'The morning brief',
+  get_brief: 'Morning brief',
 };
 
 const ACTION_NAMES: Record<string, string> = {
-  adjust_bar: 'Adjust BAR',
+  adjust_bar: 'Change the rate',
   close_channel: 'Close a channel',
   open_channel: 'Open a channel',
-  contact_account: 'Contact an account',
+  contact_account: 'Contact the account',
   create_task: 'Create a task',
   notify: 'Notify the team',
-  email: 'Email',
+  email: 'Send an email',
 };
 
-const NODE_NAMES: Record<string, string> = { trigger: 'trigger', scope: 'hotels', check: 'checks', analyze: 'goal', approval: 'approval', action: 'action' };
+const NODE_NAMES: Record<string, string> = { trigger: 'when it runs', scope: 'the hotels', check: 'the data', analyze: 'what to watch for', approval: 'the approval', action: 'the action' };
 
 const FAILURES: Record<string, string> = {
   aborted: 'Stopped.',
@@ -74,13 +76,22 @@ export function maskAddress(address: string): string {
 
 function triggerDetail(args: Record<string, unknown>): string {
   if (args['kind'] === 'schedule') return args['every'] === 'week' ? 'Every week' : 'Every morning';
-  if (args['kind'] === 'brief') return `On ${text(args['finding']).replaceAll('_', ' ') || 'a brief finding'}`;
-  if (args['kind'] === 'manual') return 'By hand';
+  if (args['kind'] === 'brief') {
+    const finding = text(args['finding']);
+    return `When the brief finds ${FINDING_LABEL[finding] ?? (finding.replaceAll('_', ' ') || 'something')}`;
+  }
+  if (args['kind'] === 'manual') return 'Only when you run it';
   return '';
 }
 
+/** "LIS" → "Lisbon Chiado"; a code the group does not have stays as it is. */
+function hotelName(code: string): string {
+  const hotel = HALCYON_HOTELS.find((candidate) => candidate.code === code);
+  return hotel ? shortName(hotel) : code;
+}
+
 function hotelsDetail(args: Record<string, unknown>): string {
-  const hotels = Array.isArray(args['hotels']) ? args['hotels'].filter((code): code is string => typeof code === 'string') : [];
+  const hotels = (Array.isArray(args['hotels']) ? args['hotels'].filter((code): code is string => typeof code === 'string') : []).map(hotelName);
   if (hotels.includes('ALL')) return 'All hotels';
   return hotels.length > 4 ? `${hotels.slice(0, 4).join(', ')} +${hotels.length - 4}` : hotels.join(', ');
 }
@@ -89,19 +100,19 @@ function hotelsDetail(args: Record<string, unknown>): string {
 export function stepLabel(name: string, args: Record<string, unknown> = {}): { label: string; detail: string } {
   switch (name) {
     case 'set_trigger':
-      return { label: 'Set trigger', detail: triggerDetail(args) };
+      return { label: 'Set when it runs', detail: triggerDetail(args) };
     case 'set_hotels':
-      return { label: 'Set hotels', detail: hotelsDetail(args) };
+      return { label: 'Chose hotels', detail: hotelsDetail(args) };
     case 'add_check':
-      return { label: 'Added check', detail: DATA_TOOL_LABELS[text(args['tool'])] ?? text(args['tool']) };
+      return { label: 'Added data', detail: DATA_TOOL_LABELS[text(args['tool'])] ?? text(args['tool']) };
     case 'remove_check':
-      return { label: 'Removed check', detail: DATA_TOOL_LABELS[text(args['tool'])] ?? text(args['tool']) };
+      return { label: 'Removed data', detail: DATA_TOOL_LABELS[text(args['tool'])] ?? text(args['tool']) };
     case 'set_goal':
-      return { label: 'Wrote goal', detail: text(args['name']) };
+      return { label: 'Wrote what to watch for', detail: text(args['name']) };
     case 'set_action':
-      return { label: 'Set action', detail: ACTION_NAMES[text(args['type'])] ?? text(args['type']) };
+      return { label: 'Set the action', detail: ACTION_NAMES[text(args['type'])] ?? text(args['type']) };
     case 'set_email':
-      return { label: 'Set email', detail: args['to'] ? maskAddress(text(args['to'])) : '' };
+      return { label: 'Set the email address', detail: args['to'] ? maskAddress(text(args['to'])) : '' };
     case 'list_hotels':
       return { label: 'Looked up hotels', detail: '' };
     case 'list_metrics':
@@ -113,7 +124,7 @@ export function stepLabel(name: string, args: Record<string, unknown> = {}): { l
   }
 }
 
-/** "Set trigger · Set hotels · Added check": the folded line of a turn's steps. */
+/** "Set when it runs · Chose hotels · Added data": the folded line of a turn's steps. */
 export function stepsSummary(steps: readonly BuilderStep[]): string {
   return steps.map((step) => step.label).join(' · ');
 }
@@ -121,7 +132,7 @@ export function stepsSummary(steps: readonly BuilderStep[]): string {
 function editNote(data: unknown): string {
   const changed = data && typeof data === 'object' && Array.isArray((data as { changed?: unknown }).changed) ? ((data as { changed: unknown[] }).changed as unknown[]) : [];
   const names = [...new Set(changed.filter((id): id is string => typeof id === 'string').map((id) => NODE_NAMES[id.split(':')[0]!] ?? id))];
-  return names.length ? `You edited the ${joinWords(names)} on the canvas` : 'You edited the agent on the canvas';
+  return names.length ? `You changed ${joinWords(names)} by hand` : 'You changed the agent by hand';
 }
 
 function joinWords(words: readonly string[]): string {
@@ -163,7 +174,7 @@ export function toConversation(entries: readonly ChatEntry[], live: ChatLive): C
             callId: call.callId,
             ...stepLabel(call.name, call.args),
             status: result ? (result.isError ? 'error' : 'done') : live.running ? 'running' : 'done',
-            ...(result?.isError && result.error ? { error: result.error } : {}),
+            ...(result?.isError && result.error ? { error: issueText(result.error) } : {}),
           });
         }
       }
@@ -203,18 +214,18 @@ export function toConversation(entries: readonly ChatEntry[], live: ChatLive): C
 
 const ISSUE_FIELDS: Record<string, string> = {
   name: 'Name',
-  trigger: 'Trigger',
+  trigger: 'When it runs',
   hotels: 'Hotels',
-  checks: 'Checks',
-  goal: 'Goal',
+  checks: 'Data',
+  goal: 'What to watch for',
   action: 'Action',
   delivery: 'Email address',
   approver: 'Approver',
-  autonomy: 'Autonomy',
+  autonomy: 'How far it may go',
   workflow: 'Agent',
 };
 
-/** `delivery.to: Invalid email` → `Email address: Invalid email`. */
+/** `delivery.to: Invalid email` → `Email address: not a valid address`; `goal: Too small…` → `What to watch for: too short`. */
 export function issueText(issue: string): string {
   const colon = issue.indexOf(':');
   if (colon < 1) return issue;
@@ -222,5 +233,9 @@ export function issueText(issue: string): string {
   const message = issue.slice(colon + 1).trim();
   const name = ISSUE_FIELDS[field];
   if (!name) return issue;
-  return /^(invalid input|required)/i.test(message) ? `${name}: not set yet` : `${name}: ${message}`;
+  if (/^(invalid input|required)/i.test(message)) return `${name}: not set`;
+  if (/^invalid email/i.test(message)) return `${name}: not a valid address`;
+  if (/^too small/i.test(message)) return `${name}: too short`;
+  if (/^too big/i.test(message)) return `${name}: too long`;
+  return `${name}: ${message}`;
 }

@@ -46,12 +46,12 @@ describe('EvidenceLayout', () => {
 
   it('keeps a labelled button on the rail when the panel is folded away, and open() brings it back', () => {
     const { fixture, el } = render({ question: 'Why?' });
-    el.querySelector<HTMLButtonElement>('button[aria-label="Hide how this was computed"]')!.click();
+    el.querySelector<HTMLButtonElement>('button[aria-label="Close Behind the numbers"]')!.click();
     fixture.detectChanges();
     expect(el.querySelector('aside')).toBeNull();
     const rail = el.querySelector<HTMLButtonElement>('.sp-rail button')!;
-    expect(rail.getAttribute('aria-label')).toBe('Show how this was computed');
-    expect(rail.textContent!.trim()).toBe('how this was computed');
+    expect(rail.getAttribute('aria-label')).toBe('Show behind the numbers');
+    expect(rail.textContent!.trim()).toBe('behind the numbers');
     fixture.componentInstance.open('p1');
     fixture.detectChanges();
     expect(el.querySelector('aside')).not.toBeNull();

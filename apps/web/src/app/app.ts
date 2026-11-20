@@ -104,7 +104,7 @@ import * as icons from './icons';
             @defer (on immediate) {
               <app-theme-lab />
             } @placeholder {
-              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading…</p>
+              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading the theme lab…</p>
             }
           }
           @case ('watcher') {
@@ -112,7 +112,7 @@ import * as icons from './icons';
             @defer (on immediate) {
               <app-watcher-page />
             } @placeholder {
-              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading…</p>
+              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading the agent…</p>
             }
           }
           @case ('catalog') {
@@ -120,7 +120,7 @@ import * as icons from './icons';
             @defer (on immediate) {
               <app-catalog />
             } @placeholder {
-              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading…</p>
+              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading the chart catalogue…</p>
             }
           }
         }
@@ -204,7 +204,7 @@ export function pageTitle(view: View, thread: string, board: string): string {
     case 'builder':
       return 'New agent · Agent Studio · Juyo';
     case 'notfound':
-      return 'Not found · Juyo';
+      return 'Page not found · Juyo';
     case 'orb-lab':
       return 'Kassandra orb · Juyo';
     case 'catalog':

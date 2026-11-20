@@ -12,8 +12,8 @@ import { canSend, initialComposer, step, transcript, type ComposerContext, type 
 import { VoiceInput } from './voice/voice-input';
 
 const MODES: { id: AnswerMode; label: string; hint: string }[] = [
-  { id: 'quick', label: 'Quick', hint: 'A fast answer from governed metrics' },
-  { id: 'thinker', label: 'Thinker', hint: 'Reasons across every source; slower' },
+  { id: 'quick', label: 'Quick', hint: 'A fast answer from one trusted source' },
+  { id: 'thinker', label: 'Thinker', hint: 'Works across several sources; takes longer' },
 ];
 const BANDS = 8;
 let nextId = 0;
@@ -100,7 +100,7 @@ let nextId = 0;
     @if (showScope() || showMode()) {
       <div class="mt-2 flex min-h-7 flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
         @if (showScope()) {
-          <ul class="flex min-w-0 flex-wrap items-center gap-1.5" aria-label="This question is asked for">
+          <ul class="flex min-w-0 flex-wrap items-center gap-1.5" aria-label="Hotels this question covers">
             @for (chip of chips(); track chip) {
               <li class="scope-chip max-w-[16rem] truncate">{{ chip }}</li>
             }
@@ -190,7 +190,7 @@ export class KassandraComposer {
   protected readonly modeHint = computed(() => MODES.find((m) => m.id === this.mode())!.hint);
   /** What a screen reader hears when voice starts and stops. */
   protected readonly announcement = signal('');
-  protected readonly voiceHint = computed(() => (this.state().voice === 'listening' ? 'Tap send when you’re done' : ''));
+  protected readonly voiceHint = computed(() => (this.state().voice === 'listening' ? 'Send when you’re done' : ''));
   protected readonly orbState = computed<OrbState>(() => {
     const voice = this.state().voice;
     if (voice === 'starting' || voice === 'listening') return 'listening';
@@ -200,7 +200,7 @@ export class KassandraComposer {
     const { voice, engine } = this.state();
     if (voice === 'starting') return 'Allow the microphone to talk to Kassandra';
     if (voice === 'sending') return 'Sending…';
-    return engine === 'demo' ? 'No microphone here · demo transcript' : 'Listening…';
+    return engine === 'demo' ? 'No microphone found · this is a sample question' : 'Listening…';
   });
   private readonly globalScope = inject(ScopeService);
   protected readonly chips = computed(() => this.scope() ?? [this.globalScope.label()]);

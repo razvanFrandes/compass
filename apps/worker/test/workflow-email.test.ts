@@ -25,7 +25,7 @@ const input: WorkflowEmailInput = {
 
 describe('composeWorkflowEmail', () => {
   it('the last mail says the workflow is now paused', () => {
-    const LAST = 'This was the last email from this workflow: it has reached its limit of 7 days or 5 emails and is now paused.';
+    const LAST = 'This is the last email from this agent. It has reached the demo limit of 7 days or 5 emails and is now paused.';
     const last = composeWorkflowEmail({ ...input, final: true });
     expect(last.text).toContain(LAST);
     expect(last.html).toContain(LAST);
@@ -36,19 +36,19 @@ describe('composeWorkflowEmail', () => {
   });
 
   it('the subject has a fixed form, and says Test on a test run', () => {
-    expect(composeWorkflowEmail({ ...input, test: true }).subject).toBe('Test · Compass alert · Lisbon pace watch');
-    expect(composeWorkflowEmail({ ...input, test: false }).subject).toBe('Compass alert · Lisbon pace watch');
+    expect(composeWorkflowEmail({ ...input, test: true }).subject).toBe('Test run · Lisbon pace watch · Compass');
+    expect(composeWorkflowEmail({ ...input, test: false }).subject).toBe('Lisbon pace watch · Compass');
   });
 
   it('keeps line breaks out of the subject', () => {
     const subject = composeWorkflowEmail({ ...input, workflow: { ...workflow, name: 'Pace\r\nBcc: someone' } }).subject;
-    expect(subject).toBe('Compass alert · Pace Bcc: someone');
+    expect(subject).toBe('Pace Bcc: someone · Compass');
   });
 
   it('cuts the name to 60 characters, in the subject and in the bodies', () => {
     const name = `${'Lisbon pace watch '.repeat(4)}END`; // 75 characters
     const e = composeWorkflowEmail({ ...input, workflow: { ...workflow, name } });
-    expect(e.subject).toBe(`Compass alert · ${name.slice(0, 60).trim()}`);
+    expect(e.subject).toBe(`${name.slice(0, 60).trim()} · Compass`);
     expect(e.subject).not.toContain('END');
     expect(e.text).not.toContain('END');
     expect(e.html).not.toContain('END');
@@ -81,7 +81,7 @@ describe('composeWorkflowEmail', () => {
       expect(body).toContain('ADR: 182.50 EUR vs 176 EUR');
       expect(body).toContain('Lisbon is 12% behind.');
     }
-    expect(e.subject).toBe('Compass alert · Claim prize at [link removed]');
+    expect(e.subject).toBe('Claim prize at [link removed] · Compass');
     expect(decodeURIComponent(e.text.match(/ask\?q=(\S+)/)![1]!)).toBe('Why is pace behind? Ask at [link removed]');
     // The app's own link is still there.
     expect(e.text).toContain('https://juyo.razvanfrandes.com/ask?q=');
@@ -90,15 +90,15 @@ describe('composeWorkflowEmail', () => {
 
   it('a test that would not fire says so', () => {
     const e = composeWorkflowEmail({ ...input, test: true, wouldFire: false });
-    expect(e.text).toContain('Would not fire today');
-    expect(e.html).toContain('Would not fire today');
+    expect(e.text).toContain('It would not email you today');
+    expect(e.html).toContain('It would not email you today');
   });
 
   it('a test that would fire says so, and a real run has no test note', () => {
-    expect(composeWorkflowEmail({ ...input, test: true, wouldFire: true }).text).toContain('Would fire today');
+    expect(composeWorkflowEmail({ ...input, test: true, wouldFire: true }).text).toContain('It would email you today');
     const real = composeWorkflowEmail(input);
-    expect(real.text).not.toContain('fire today');
-    expect(real.html).not.toContain('fire today');
+    expect(real.text).not.toContain('email you today');
+    expect(real.html).not.toContain('email you today');
   });
 
   it('carries the summary, facts, definition and period in text and html', () => {
@@ -144,7 +144,7 @@ describe('composeWorkflowEmail', () => {
 
   it('carries the footer, in text and html', () => {
     const e = composeWorkflowEmail(input);
-    expect(FOOTER).toBe('Compass demo · fictional data · you got this because someone entered your address in a Compass workflow.');
+    expect(FOOTER).toBe('Compass demo · fictional data · You received this because someone entered your address in a Compass agent.');
     expect(e.text).toContain(FOOTER);
     expect(e.html).toContain(FOOTER);
   });
@@ -299,7 +299,7 @@ describe('DurableEmailQuota', () => {
     }
     const refused = await quota.take('a@example.com', 'ip-9'); // 03:00 UTC
     expect(refused.ok).toBe(false);
-    expect(refused.ok ? '' : refused.reason).toBe('This address already got 6 emails today. Try again tomorrow.');
+    expect(refused.ok ? '' : refused.reason).toBe('This address has had its 6 emails for today. Try again tomorrow.');
     expect(await quota.take('b@example.com', 'ip-9')).toEqual({ ok: true });
     advance(20 * HOUR + 59 * MINUTE); // 23:59 UTC, same day
     expect((await quota.take('a@example.com', 'ip-9')).ok).toBe(false);
@@ -400,7 +400,7 @@ describe('CloudflareEmailSender', () => {
     const cause = Object.assign(new Error('destination address not verified: silviu@example.com'), { code: 'E_DELIVERY_FAILED' });
     const binding = { send: async () => { throw cause; } } as unknown as SendEmail;
     const result = await new CloudflareEmailSender(binding).send(email);
-    expect(result).toEqual({ error: 'The email could not be sent.' });
+    expect(result).toEqual({ error: 'The email could not be sent. Try again in a few minutes.' });
     expect(log).toHaveBeenCalledWith('email send failed', 'E_DELIVERY_FAILED', cause);
     log.mockRestore();
   });

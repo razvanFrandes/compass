@@ -105,11 +105,11 @@ describe('HTTP clients', () => {
       http.expectOne('/api/workflows').error(new ProgressEvent('error'));
       const failed = await offline;
       expect(failed).toMatchObject({ ok: false, error: { status: 0 } });
-      expect(failed.ok === false && failed.error.message).toContain('Could not reach the server');
+      expect(failed.ok === false && failed.error.message).toContain('Couldn’t reach Juyo');
 
       const broken = api.list();
       http.expectOne('/api/workflows').flush('<html>', { status: 502, statusText: 'Bad Gateway' });
-      expect(await broken).toEqual({ ok: false, error: { status: 502, message: 'Something went wrong. Try again.' } });
+      expect(await broken).toEqual({ ok: false, error: { status: 502, message: 'Something went wrong on our side. Try again in a moment.' } });
     });
 
     it('gives resources that stay idle without an id and load with one', async () => {

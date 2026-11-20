@@ -102,7 +102,7 @@ describe('Sidebar', () => {
 
     expect(nav.querySelector('kassandra-thread-list')).toBeNull();
     const threads = nav.querySelector<HTMLButtonElement>('app-rail-threads button')!;
-    expect(threads.getAttribute('aria-label')).toBe('Threads');
+    expect(threads.getAttribute('aria-label')).toBe('Conversations');
     expect(threads.getAttribute('aria-haspopup')).toBe('menu');
 
     // The theme switch is three icons; the label stays for the radio group.

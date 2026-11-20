@@ -16,5 +16,5 @@ import { EvidencePanel as JuyoEvidencePanel } from './evidence';
 export class EvidencePanel {
   readonly allSteps = input.required<ChatStep[]>();
   readonly focus = input<string | null>(null);
-  readonly empty = input('Numbers in the answer will show where they came from here.');
+  readonly empty = input('Each number in the answer shows its source, period and definition here.');
 }

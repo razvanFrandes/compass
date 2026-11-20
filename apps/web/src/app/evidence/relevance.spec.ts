@@ -65,7 +65,7 @@ describe('lookupSummary', () => {
   it('says what Kassandra looked up, in a sentence', () => {
     expect(lookupSummary([hotels])).toBe('Kassandra also looked up the hotel list');
     expect(lookupSummary([hotels, health])).toBe('Kassandra also looked up the hotel list and checked data freshness');
-    expect(lookupSummary([hotels, call('m', 'list_metrics'), call('s', 'get_schema'), brief])).toBe('Kassandra also looked up the hotel list, the metric definitions and the data model and read the morning brief');
+    expect(lookupSummary([hotels, call('m', 'list_metrics'), call('s', 'get_schema'), brief])).toBe('Kassandra also looked up the hotel list, the metric definitions and the available data and read the morning brief');
   });
 
   it('names a lookup once, and one it does not know by its title', () => {
@@ -115,7 +115,7 @@ describe('planColumns', () => {
     { hotel_code: 'LIS', name: 'Arbor Lisbon Chiado', brand: 'Arbor', city: 'Lisbon', country: 'PT', region: 'Europe', currency: 'EUR', rooms: 150, meeting_space_sqm: 220 },
   ];
 
-  it('leaves the code beside a name, the country and the currency for "More columns"', () => {
+  it('leaves the code beside a name, the country and the currency for "Show N more columns"', () => {
     const plan = planColumns(hotelColumns, hotelRows);
     expect(keys(plan.shown)).toEqual(['name', 'brand', 'city', 'region', 'rooms', 'meeting_space_sqm']);
     expect(keys(plan.more)).toEqual(['hotel_code', 'country', 'currency']);
@@ -163,7 +163,7 @@ describe('planColumns', () => {
     expect(plan.shared).toEqual([]);
   });
 
-  it('leaves an empty column and ids for "More columns", ids last', () => {
+  it('leaves an empty column and ids for "Show N more columns", ids last', () => {
     const columns: EvidenceColumn[] = [{ key: 'id', label: 'ID', kind: 'id' }, text('title', 'Finding'), { key: 'impact_eur', label: 'Impact', kind: 'currency', unit: 'EUR' }, text('note', 'Note')];
     const rows: EvidenceRow[] = [
       { id: 'a', title: 'Stale feed', impact_eur: null, note: 'x' },

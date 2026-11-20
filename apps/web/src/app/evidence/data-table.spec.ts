@@ -82,20 +82,20 @@ describe('DataTable', () => {
     expect(text('tbody tr:nth-child(2) td')).toEqual(['5.0%', '€201.00', '0.90']);
   });
 
-  it('keeps internal columns behind "More columns", last', () => {
+  it('keeps internal columns behind "Show N more columns", last', () => {
     const { text, click, button } = render(pace);
-    expect(button('More columns (1)').getAttribute('aria-expanded')).toBe('false');
-    click('More columns (1)');
+    expect(button('Show 1 more column').getAttribute('aria-expanded')).toBe('false');
+    click('Show 1 more column');
     expect(text('thead th')).toEqual(['Hotel', 'Rooms on the books', 'Pace vs last year', 'Revenue on the books', 'ID']);
     expect(text('tbody tr:nth-child(1) > *').at(-1)).toBe('p:LIS');
-    expect(button('Fewer columns').getAttribute('aria-expanded')).toBe('true');
+    expect(button('Show fewer columns').getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('shows six columns at most, the rest behind "More columns"', () => {
+  it('shows six columns at most, the rest behind "Show N more columns"', () => {
     const wide = [1, 2].map((n) => ({ hotel_code: n === 1 ? 'LIS' : 'BER', a_eur: n, b_eur: n, c_eur: n, d_eur: n, e_eur: n, f_eur: n, g_eur: n }));
     const { text, click } = render(wide);
     expect(text('thead th')).toHaveLength(6);
-    click('More columns (2)');
+    click('Show 2 more columns');
     expect(text('thead th')).toHaveLength(8);
   });
 
@@ -259,6 +259,6 @@ describe('DataTable', () => {
   it('says so when there are no rows', () => {
     const { el } = render([]);
     expect(el.querySelector('table')).toBeNull();
-    expect(el.textContent).toContain('No rows came back');
+    expect(el.textContent).toContain('Nothing came back for this');
   });
 });

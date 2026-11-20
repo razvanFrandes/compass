@@ -27,8 +27,8 @@ export const QUICK_TOOLS = [
 ] as const;
 
 const QUICK_INSTRUCTIONS =
-  'Quick mode: answer in at most three sentences from one or two governed metrics. If the question needs a deeper ' +
-  'diagnosis across sources, give the headline number and say that Thinker mode can explain why.';
+  'Quick mode: answer in at most three sentences from one or two standard metrics. If the question needs a deeper ' +
+  'diagnosis across sources, give the headline number and say that Thinker can explain why.';
 
 /** `scope` is the hotel scope as instructions (scope-prompt.ts), or null for the whole group. */
 export function agentChangeFor(mode: AnswerMode, data: Extension, scope: string | null = null): AgentChange {

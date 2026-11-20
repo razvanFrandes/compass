@@ -118,9 +118,9 @@ describe('EvidencePanel', () => {
     expect(el.querySelector('h3')!.textContent).toBe('Numbers in this answer');
     const figures = Array.from(el.querySelectorAll('.ev-figure')).map(words);
     expect(figures).toEqual([
-      '−12.3% Pace vs last year Arbor Lisbon Chiado Show the row in Pace vs last year',
-      '2,928 Rooms on the books Arbor Lisbon Chiado Show the row in Pace vs last year',
-      '3,337 Same time last year Arbor Lisbon Chiado Show the row in Pace vs last year',
+      '−12.3% Pace vs last year Arbor Lisbon Chiado Show this figure in Pace vs last year',
+      '2,928 Rooms on the books Arbor Lisbon Chiado Show this figure in Pace vs last year',
+      '3,337 Same time last year Arbor Lisbon Chiado Show this figure in Pace vs last year',
     ]);
   });
 
@@ -156,7 +156,7 @@ describe('EvidencePanel', () => {
       const { el } = render([hotels, production, health], { answer: VANTOR });
       const sources = Array.from(el.querySelectorAll('.ev-figure .sr-only')).map((node) => node.textContent);
       expect(sources).toHaveLength(6);
-      expect(new Set(sources)).toEqual(new Set(['Show the row in Account production']));
+      expect(new Set(sources)).toEqual(new Set(['Show this figure in Account production']));
     });
 
     it('starts the table with the rows the answer quotes and the columns it quotes', () => {
@@ -310,12 +310,12 @@ describe('EvidencePanel', () => {
     const items = Array.from(el.querySelectorAll('ol > li')).map(words);
     expect(items).toHaveLength(3);
     expect(items[1]).toBe('Forecast Reading the data…');
-    expect(items[2]).toBe('Profit and loss This step failed, so nothing from it is in the answer.');
+    expect(items[2]).toBe('Profit and loss Couldn’t read this, so the answer doesn’t use it. Ask again to retry.');
   });
 
   it('says where evidence will appear when there is none', () => {
     const { el } = render([]);
-    expect(el.textContent).toContain('Numbers in the answer will show where they came from here.');
+    expect(el.textContent).toContain('Each number in the answer shows its source, period and definition here.');
   });
 
   it('never shows that for an answer that used tools: it says the answer read no data', () => {

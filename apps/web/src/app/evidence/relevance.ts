@@ -75,7 +75,7 @@ export function arrangeCalls<T extends Call>(calls: readonly T[], backs: Readonl
 const LOOKUP_PHRASES: Record<string, { verb: string; what: string }> = {
   list_hotels: { verb: 'looked up', what: 'the hotel list' },
   list_metrics: { verb: 'looked up', what: 'the metric definitions' },
-  get_schema: { verb: 'looked up', what: 'the data model' },
+  get_schema: { verb: 'looked up', what: 'the available data' },
   get_data_health: { verb: 'checked', what: 'data freshness' },
   get_brief: { verb: 'read', what: 'the morning brief' },
 };
@@ -120,13 +120,13 @@ export function backingCells(figures: readonly CellRef[], callId: string): { row
 
 /* ───────── Columns ───────── */
 
-/** A table reads well up to about this many columns; the rest wait behind "More columns". */
+/** A table reads well up to about this many columns; the rest wait behind "Show N more columns". */
 export const MAX_COLUMNS = 6;
 
 export interface ColumnPlan {
   /** The columns on screen, the one that names the row first. */
   shown: EvidenceColumn[];
-  /** The rest, behind "More columns": what did not fit, then what says little, then ids. */
+  /** The rest, behind "Show N more columns": what did not fit, then what says little, then ids. */
   more: EvidenceColumn[];
   /** Columns left out because every row says the same in them (one hotel, one segment): said once, beside the table. */
   shared: EvidenceColumn[];
@@ -142,7 +142,7 @@ const blank = (value: unknown) => value === null || value === undefined || value
 /**
  * Which columns of a result to show. The column that tells the rows apart leads. Then the ones named in `prefer`
  * (the cells an answer quotes, the columns a chart draws): those are never dropped. Then the others in the
- * server's order, up to `max` in all. Left for "More columns": a code beside its name, the currency and country
+ * server's order, up to `max` in all. Left for "Show N more columns": a code beside its name, the currency and country
  * of a hotel, a column that is empty or says the same on every row, and ids.
  */
 export function planColumns(columns: readonly EvidenceColumn[], rows: readonly EvidenceRow[], options: { prefer?: readonly string[]; max?: number } = {}): ColumnPlan {

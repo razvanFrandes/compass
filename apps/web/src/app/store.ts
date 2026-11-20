@@ -124,7 +124,7 @@ export function briefTitle(r: BriefRow): string {
     case 'staffing_gap':
       return `${h}: the kitchen worked ${Math.round(Number(fact(r, 'staffing_pct')))}% of the hours it needed`;
     case 'underpriced_demand':
-      return `${h} is priced under the market for Gulf Tech Week`;
+      return `${h} is priced under its comp set for Gulf Tech Week`;
     case 'pace_behind':
       return `${h} is ${Math.abs(Number(fact(r, 'pace_pct')))}% behind last year for the next 45 nights`;
     case 'gop_miss':
@@ -189,16 +189,16 @@ function topicFor(r: BriefRow): TopicContent {
       return {
         ...base,
         steps: [
-          { title: 'Read rate positions', detail: 'v_rate_position · 20 hotels × 45 nights' },
-          { title: 'Checked rooms on the books', detail: 'otb_as_of() · as of 20 Nov' },
+          { title: 'Read rate positions', detail: '20 hotels × 45 nights' },
+          { title: 'Checked rooms on the books', detail: 'as of 20 Nov' },
           { title: 'Matched city events', detail: 'Gulf Tech Week · 15–19 Dec' },
-          { title: 'Applied the rule', detail: 'under 0.85× the median while busy' },
+          { title: 'Applied the rule', detail: 'more than 15% under the comp set median on busy nights' },
         ],
         answer: [
           { t: `${r.hotel_name} sells Gulf Tech Week (` },
           { t: `${first} – ${last}`, b: true },
           { t: ') at ' },
-          { t: `${fact(r, 'avg_bar_vs_comp')}× the comp-set median`, b: true, tone: 'neg' },
+          { t: `${Math.round((1 - Number(fact(r, 'avg_bar_vs_comp'))) * 100)}% under the comp set median`, b: true, tone: 'neg' },
           { t: `. It is already ${Math.round(peak.occ)}% full on ${first}, and ${fact(r, 'most_comps_sold_out_on_one_night')} competitors are sold out. At today’s rates the rooms already booked leave about ` },
           { t: impact, b: true },
           { t: ` on the table; the ${DECISION_UNSOLD} rooms still unsold can be repriced.` },
@@ -213,7 +213,7 @@ function topicFor(r: BriefRow): TopicContent {
           to: from + 15,
           marks: DECISION_DATES.map((d) => NIGHTS.forward.findIndex((n) => n.date === d) - from),
           markLabel: 'Gulf Tech Week',
-          source: 'pace_vs_stly() · 15 nights',
+          source: 'Pace vs last year · 15 nights',
         },
         proposal: {
           title: `Raise BAR for ${first} – ${last}`,
@@ -221,24 +221,24 @@ function topicFor(r: BriefRow): TopicContent {
           to: peak.target!,
           verb: 'Raise',
           impact: DECISION_UPSIDE,
-          reaches: 'Revenue manager · RMS task',
-          why: `Each night goes to its comp-set median: ${DECISIONS.map((d) => `${formatDay(d.night.date)} ${formatEur(d.target!)}`).join(', ')}. Juyo only reads your data; the revenue manager applies the rates in the RMS.`,
+          reaches: 'The revenue manager, as a task',
+          why: `Each night goes to its comp set median: ${DECISIONS.map((d) => `${formatDay(d.night.date)} ${formatEur(d.target!)}`).join(', ')}. Juyo only reads your data; the revenue manager applies the rates in the RMS.`,
         },
         definitions: [
           ['BAR', 'best available rate for the base room; AED converted at 0.25'],
-          ['Comp-set median', 'median of the competitors’ shopped rates for the night; sold-out competitors have no rate'],
+          ['Comp set median', 'the middle rate of the comp set for the night; sold-out hotels have no rate'],
           OTB_DEF,
         ],
-        followUps: ['What does Dubai Marina charge those nights?', 'How did last year’s event nights pick up?', 'Which other nights are under the market?'],
+        followUps: ['What does Dubai Marina charge those nights?', 'How did last year’s event nights pick up?', 'Which other nights are priced under the comp set?'],
       };
     }
     case 'account_loss':
       return {
         ...base,
         steps: [
-          { title: 'Read accounts and stays', detail: 'reservations · reservation_nights' },
+          { title: 'Read accounts and stays', detail: 'reservations, night by night' },
           { title: 'Compared every account', detail: 'last 6 months vs the 6 before' },
-          { title: 'Priced the gap', detail: 'room revenue, EUR' },
+          { title: 'Priced the gap', detail: 'room revenue, in euros' },
         ],
         answer: [
           { t: `${fact(r, 'account')}, the biggest corporate account at ${r.hotel_name}, stayed ` },
@@ -256,16 +256,16 @@ function topicFor(r: BriefRow): TopicContent {
           subtitle: h,
           points: (NYC_ACCOUNT as readonly { month: string; nights: number }[]).map((m) => ({ label: monthShort(m.month), value: m.nights })),
           unit: '',
-          source: 'reservation_nights · accounts',
+          source: 'Reservations · accounts',
         },
         definitions: [['Room nights', 'nights stayed; cancelled bookings excluded'], ['Impact', r.impact_basis]],
-        followUps: ['Who filled the rooms Vantor used to take?', 'Which other accounts are shrinking?', 'Set up a watcher for corporate accounts'],
+        followUps: ['Who filled the rooms Vantor used to take?', 'Which other accounts are shrinking?', 'Set up an agent for corporate accounts'],
       };
     case 'rooms_out_of_order':
       return {
         ...base,
         steps: [
-          { title: 'Read room inventory', detail: 'room_inventory_daily · next 30 days' },
+          { title: 'Read room inventory', detail: 'next 30 days' },
           { title: 'Priced the rooms', detail: 'last 30 days occupancy × ADR' },
         ],
         answer: [
@@ -284,7 +284,7 @@ function topicFor(r: BriefRow): TopicContent {
           subtitle: h,
           points: (BCN_OUT_OF_ORDER as readonly { week: string; rooms_out: number }[]).map((w) => ({ label: formatDay(utc(w.week)), value: w.rooms_out, hi: utc(w.week) >= BUSINESS_DAY })),
           unit: '',
-          source: 'room_inventory_daily · 18 weeks',
+          source: 'Room inventory · 18 weeks',
         },
         definitions: [['Out of order', 'rooms that cannot be sold that night'], ['Impact', r.impact_basis]],
         followUps: ['When does the renovation finish?', 'What are guests saying about noise?', 'Which nights would have sold out?'],
@@ -293,7 +293,7 @@ function topicFor(r: BriefRow): TopicContent {
       return {
         ...base,
         steps: [
-          { title: 'Read web analytics', detail: 'web_daily · sessions and bookings by device' },
+          { title: 'Read website analytics', detail: 'sessions and bookings by device' },
           { title: 'Compared conversion', detail: 'last 30 days vs the 60 before' },
           { title: 'Priced lost bookings', detail: 'earlier rate × average booking value' },
         ],
@@ -313,17 +313,17 @@ function topicFor(r: BriefRow): TopicContent {
           subtitle: `${h} website`,
           points: (AMS_CONVERSION as readonly { week: string; mobile: number }[]).map((w) => ({ label: formatDay(utc(w.week)), value: w.mobile, hi: utc(w.week) >= utc('2026-10-19') })),
           unit: '%',
-          source: 'web_daily · 13 weeks',
+          source: 'Website analytics · 13 weeks',
         },
         definitions: [['Conversion', 'bookings ÷ sessions on the hotel website'], ['Impact', r.impact_basis]],
-        followUps: ['What changed on the website around 19 Oct?', 'What did the shift to Booking.com cost in commission?', 'Set up a watcher for web conversion'],
+        followUps: ['What changed on the website around 19 Oct?', 'What did the shift to Booking.com cost in commission?', 'Set up an agent for website conversion'],
       };
     case 'staffing_gap':
       return {
         ...base,
         steps: [
-          { title: 'Read labour', detail: 'labor_daily · required vs worked hours' },
-          { title: 'Read F&B', detail: 'fnb_daily · last 60 days' },
+          { title: 'Read staffing', detail: 'hours needed vs hours worked' },
+          { title: 'Read F&B sales', detail: 'last 60 days' },
         ],
         answer: [
           { t: `The kitchen at ${r.hotel_name} worked ` },
@@ -339,7 +339,7 @@ function topicFor(r: BriefRow): TopicContent {
           subtitle: h,
           points: (DPS_KITCHEN as readonly { week: string; pct: number }[]).map((w) => ({ label: formatDay(utc(w.week)), value: w.pct, hi: w.pct < 90 })),
           unit: '%',
-          source: 'labor_daily · 17 weeks',
+          source: 'Labour schedules · 17 weeks',
         },
         definitions: [['Staffing', 'hours worked ÷ hours the workload needed'], ['Impact', r.impact_basis]],
         followUps: ['What did guests say about the food?', 'How did covers per occupied room change?', 'Which other kitchens are short-staffed?'],
@@ -353,9 +353,9 @@ function topicFor(r: BriefRow): TopicContent {
       return {
         ...base,
         steps: [
-          { title: 'Ran the pace check', detail: 'pace_vs_stly() · 20 hotels × 45 nights' },
+          { title: 'Compared pace with last year', detail: '20 hotels × 45 nights' },
           { title: 'Flagged hotels', detail: 'more than 10% behind last year' },
-          { title: 'Read the rate position', detail: 'v_rate_position · Lisbon' },
+          { title: 'Read the rate position', detail: 'Lisbon Chiado' },
         ],
         answer: [
           { t: `${r.hotel_name} has ` },
@@ -364,7 +364,7 @@ function topicFor(r: BriefRow): TopicContent {
           { t: n0(ly), b: true },
           { t: ' at the same point last year: ' },
           { t: `${Math.abs(Number(fact(r, 'pace_pct')))}% behind`, b: true, tone: 'neg' },
-          { t: `, about ${impact} of room revenue. Its BAR averages ${ratio.toFixed(2)}× the comp-set median over those nights.` },
+          { t: `, about ${impact} of room revenue. Its BAR averages ${Math.round(Math.abs(ratio - 1) * 100)}% ${ratio >= 1 ? 'above' : 'under'} the comp set median over those nights.` },
         ],
         artifact: {
           id: 'a-lis',
@@ -375,7 +375,7 @@ function topicFor(r: BriefRow): TopicContent {
             { label: 'This year', value: ty, display: n0(ty), note: '', hi: true },
             { label: 'Last year', value: ly, display: n0(ly), note: '' },
           ],
-          source: 'pace_vs_stly()',
+          source: 'Pace vs last year',
         },
         definitions: [OTB_DEF, STLY_DEF, ['Impact', r.impact_basis]],
         followUps: ['Who changed Lisbon’s rates?', 'Which nights are furthest behind?', 'What would matching the comp set do?'],
@@ -387,8 +387,8 @@ function topicFor(r: BriefRow): TopicContent {
       return {
         ...base,
         steps: [
-          { title: 'Read the P&L', detail: 'pnl_monthly · last closed month' },
-          { title: 'Compared with budget', detail: 'GOP and total revenue, EUR' },
+          { title: 'Read the P&L', detail: 'last closed month' },
+          { title: 'Compared with budget', detail: 'GOP and total revenue, in euros' },
         ],
         answer: [
           { t: `${r.hotel_name} missed its ${monthLong(String(fact(r, 'month')))} GOP budget by ` },
@@ -404,7 +404,7 @@ function topicFor(r: BriefRow): TopicContent {
           subtitle: `${h} · highlighted: under budget`,
           points: months.map((m) => ({ label: monthShort(m.month), value: m.gop, hi: m.gop < m.gop_budget })),
           unit: '',
-          source: 'pnl_monthly · 12 months',
+          source: 'Monthly P&L · 12 months',
         },
         definitions: [['GOP', 'gross operating profit: revenue minus departmental and undistributed expenses (USALI)'], ['Impact', r.impact_basis]],
         followUps: ['Which P&L lines drove the miss?', 'How does November look against budget?', 'Which other hotels are under budget?'],
@@ -416,7 +416,7 @@ function topicFor(r: BriefRow): TopicContent {
       return {
         ...base,
         steps: [
-          { title: 'Read data sources', detail: 'data_sources · 140 feeds' },
+          { title: 'Read the data feeds', detail: '140 feeds' },
           { title: 'Flagged stale feeds', detail: '1 of 140 not syncing' },
         ],
         answer: [
@@ -432,7 +432,7 @@ function topicFor(r: BriefRow): TopicContent {
           title: 'Hours since each feed last synced',
           subtitle: h,
           rows: feeds.map((x) => ({ label: x.system, value: hoursSince(x.last_sync), display: `${hoursSince(x.last_sync)} h`, note: '', hi: x.status !== 'ok' })),
-          source: 'data_sources',
+          source: 'Data feed status',
         },
         definitions: [['Stale', 'the source has not synced on its schedule'], ['Impact', r.impact_basis]],
         followUps: ['What does the missing POS data affect?', 'Show Berlin’s F&B for the last 14 days', 'Which other feeds failed this month?'],
@@ -442,12 +442,12 @@ function topicFor(r: BriefRow): TopicContent {
       // A detector this prototype doesn't know yet (the backend keeps adding them): show its own facts.
       return {
         ...base,
-        steps: [{ title: 'Ran the detector', detail: base.sources.join(' · ') }],
+        steps: [{ title: 'Checked the data', detail: '' }],
         answer: [{ t: `${briefTitle(r)}. ` }, { t: r.impact_eur === null ? '' : `Impact ${briefMoney(r)}: ${r.impact_basis}.` }],
         artifact: {
           id: `a-${r.id}`,
           kind: 'bars',
-          title: 'What the detector found',
+          title: 'What the check found',
           subtitle: h,
           rows: Object.entries(r.facts)
             .filter(([, v]) => typeof v === 'number')
@@ -473,13 +473,13 @@ export function topicScope(topic: Topic): AnswerScope | undefined {
 export function scopeForRow(r: BriefRow): AnswerScope {
   const h = shortHotel(r.hotel_name);
   const own: Record<string, [string, string, RangeKey, CompareKey, string?]> = {
-    pace_behind: ['stays 21 Nov 2026 – 4 Jan 2027 (next 45 nights)', 'vs same time last year', 'next30', 'stly', 'The answer covers 45 nights; the closest preset is next 30 nights'],
-    underpriced_demand: [r.kind === 'underpriced_demand' ? `stays ${isoDay(String(fact(r, 'first_night')))} – ${isoDay(String(fact(r, 'last_night')))}` : '', 'vs comp-set median', 'next30', 'stly', 'The comp-set comparison isn’t a dashboard filter; the dashboard shows these nights within the next 30'],
-    account_loss: ['stays in the last 6 months', 'vs the 6 months before', 'last30', 'ly_dow', 'Six-month windows aren’t presets; the dashboard shows the last 30 nights'],
+    pace_behind: ['stays 21 Nov 2026 – 4 Jan 2027 (next 45 nights)', 'vs same time last year', 'next30', 'stly', 'The answer covers 45 nights; the board’s closest period is the next 30 nights'],
+    underpriced_demand: [r.kind === 'underpriced_demand' ? `stays ${isoDay(String(fact(r, 'first_night')))} – ${isoDay(String(fact(r, 'last_night')))}` : '', 'vs comp set median', 'next30', 'stly', 'The board can’t compare with the comp set; it shows these nights within the next 30'],
+    account_loss: ['stays in the last 6 months', 'vs the 6 months before', 'last30', 'ly_dow', 'The board has no six-month period; it shows the last 30 nights'],
     gop_miss: ['October 2026', 'vs budget', 'last_month', 'budget'],
     rooms_out_of_order: ['stays in the next 30 nights', 'out-of-order rooms', 'next30', 'stly'],
-    web_conversion_drop: ['last 30 days vs the 60 before', 'mobile web', 'last30', 'ly_dow', 'Web sessions aren’t on the dashboard; it shows the same hotel and days'],
-    staffing_gap: ['last 30 days', 'kitchen hours vs required', 'last30', 'ly_dow', 'Labour isn’t on the dashboard; it shows the same hotel and days'],
+    web_conversion_drop: ['last 30 days vs the 60 before', 'mobile web', 'last30', 'ly_dow', 'Website sessions aren’t on the board; it shows the same hotel and days'],
+    staffing_gap: ['last 30 days', 'kitchen hours vs required', 'last30', 'ly_dow', 'Staffing isn’t on the board; it shows the same hotel and days'],
     data_stale: ['POS feed, last 7 days', 'last sync 17 Nov', 'last7', 'ly_dow'],
   };
   const o = own[r.kind];
@@ -672,7 +672,7 @@ export interface NightDecision {
   reason?: string;
 }
 
-const RATE_LATEST = { when: 'today 06:00', headline: 'Raise Dubai Business Bay to the comp-set median for 16–18 Dec', why: 'Gulf Tech Week · 0.78× the comp set · 3 competitors sold out' };
+const RATE_LATEST = { when: 'today 06:00', headline: 'Raise Dubai Business Bay to the comp set median for 16–18 Dec', why: 'Gulf Tech Week · 22% under the comp set median · 3 comp set hotels sold out' };
 const NEXT_RUN: Record<string, string> = { rate: 'next in 21 h 40 min', pace: 'next in 22 h 40 min', feeds: 'next in 40 min' };
 
 /**
@@ -737,7 +737,7 @@ export class CompassStore {
       id: 'rate',
       name: 'Rate vs comp set',
       glyph: 'phosphorBinocularsLight',
-      sentence: [{ t: 'Checks every hotel’s next ' }, { t: '45 nights', b: true }, { t: ' and recommends a rate when BAR sits under ' }, { t: '0.85× the comp set', b: true }, { t: ' on busy nights.' }],
+      sentence: [{ t: 'Checks every hotel’s next ' }, { t: '45 nights', b: true }, { t: ' and recommends a rate when BAR is more than ' }, { t: '15% under the comp set median', b: true }, { t: ' on busy nights.' }],
       latest: RATE_LATEST,
       runs: ['none', 'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none', 'pending'],
       span: '14 days',
@@ -781,8 +781,8 @@ export class CompassStore {
   readonly activity = signal<Activity[]>([
     { day: 'Today', time: '08:00', text: 'Data feeds checked 140 feeds · Berlin POS still stale', watcher: 'feeds' },
     { day: 'Today', time: '07:00', text: 'Pace vs last year flagged Lisbon Chiado · 17.4% behind', watcher: 'pace' },
-    { day: 'Today', time: '06:00', text: 'Rate vs comp set recommended the comp-set median for Dubai Business Bay, 16–18 Dec', watcher: 'rate', action: 'review' },
-    { day: 'Yesterday', time: '18:40', text: 'You set Pace vs last year to Alerts only', watcher: 'pace', by: 'you' },
+    { day: 'Today', time: '06:00', text: 'Rate vs comp set recommended the comp set median for Dubai Business Bay, 16–18 Dec', watcher: 'rate', action: 'review' },
+    { day: 'Yesterday', time: '18:40', text: 'You set Pace vs last year to Suggest', watcher: 'pace', by: 'you' },
     { day: 'Yesterday', time: '06:00', text: 'Rate vs comp set checked 20 hotels · nothing to recommend', watcher: 'rate' },
   ]);
 
@@ -863,7 +863,7 @@ export class CompassStore {
       chips: [...scopeChips(r.scope), ...(r.extraChip ? [r.extraChip] : [])],
       patch,
       said: d.dimension === 'hotel' ? { hotels: `clicked ${d.label}` } : d.dimension === 'channel' ? { channel: `clicked ${d.label}` } : d.dimension === 'segment' ? { segment: `clicked ${d.label}` } : {},
-      note: patch ? undefined : 'A single night isn’t a dashboard preset',
+      note: patch ? undefined : 'The Portfolio board shows periods, not single nights',
     };
     this.threads.update((ts) => [{ id, title: r.question, turns: [], scope }, ...ts]);
     this.activeThreadId.set(id);
@@ -1097,7 +1097,7 @@ export class CompassStore {
   setAutonomy(id: string, level: 1 | 2) {
     const before = this.watchers().find((x) => x.id === id)!;
     this.watchers.update((ws) => ws.map((w) => (w.id === id ? { ...w, autonomy: level } : w)));
-    const names = { 1: 'Alerts only', 2: 'Recommends · you decide' };
+    const names = { 1: 'Suggest', 2: 'Ask first' };
     this.activity.update((a) => [{ day: 'Today', time: '08:20', text: `You set ${before.name} to ${names[level]}`, watcher: id, by: 'you' }, ...a]);
     if (level < before.autonomy) {
       toast(`${before.name}: ${names[level]}`, { duration: 10000, action: { label: 'Undo', onClick: () => this.watchers.update((ws) => ws.map((w) => (w.id === id ? { ...w, autonomy: before.autonomy } : w))) } });
@@ -1111,11 +1111,11 @@ export class CompassStore {
       if (!w) return;
       // One plausible result per watcher; a new watcher's first run finds nothing yet.
       const results: Record<string, { outcome: RunOutcome; headline: string; why: string; ask: string }> = {
-        rate: { outcome: 'none', headline: 'Nothing new to recommend', why: 'Checked 20 hotels × 45 nights against their comp sets', ask: 'Which nights are priced under the market?' },
+        rate: { outcome: 'none', headline: 'Nothing new to recommend', why: 'Checked 20 hotels × 45 nights against their comp sets', ask: 'Which nights are priced under the comp set?' },
         pace: { outcome: 'finding', headline: 'Lisbon Chiado is still 17.4% behind', why: '2,231 rooms on the books vs 2,700 last year', ask: 'Why is Arbor Lisbon Chiado pacing behind last year for the next 45 nights?' },
         feeds: { outcome: 'finding', headline: 'Berlin Mitte’s POS feed is still stale', why: 'Last synced Tue 17 Nov 04:12', ask: 'Is anything wrong with the data at Tessera Berlin Mitte? What does the stale POS feed affect?' },
       };
-      const r = results[id] ?? { outcome: 'none' as RunOutcome, headline: 'Nothing to flag yet', why: 'First run, started by you', ask: `What does the ${w.name} watcher check?` };
+      const r = results[id] ?? { outcome: 'none' as RunOutcome, headline: 'Nothing to flag yet', why: 'First run, started by you', ask: `What does the ${w.name} agent check?` };
       const latest = { when: 'just now', headline: r.headline, why: r.why };
       this.watchers.update((ws) =>
         ws.map((x) =>

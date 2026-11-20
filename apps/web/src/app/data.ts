@@ -172,7 +172,7 @@ export function decisionNights(): Decision[] {
         target,
         targetLocal,
         action: `Raise BAR to ${eur0.format(target)}`,
-        reason: `${ratio.toFixed(2)}× the comp set${n.compsSoldOut ? ` · ${n.compsSoldOut} sold out` : ''}`,
+        reason: `${Math.round((1 - ratio) * 100)}% under the comp set median${n.compsSoldOut ? ` · ${n.compsSoldOut} comp set hotels sold out` : ''}`,
         impact: (targetLocal - n.barLocal) * (n.avail - n.roomsSold) * HOTEL.fx,
         lead,
       };

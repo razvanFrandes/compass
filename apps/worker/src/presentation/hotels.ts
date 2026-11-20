@@ -6,7 +6,7 @@ import { resolveScope, type ScopeHotel } from '../domain/scope.ts';
 import type { Env } from '../env.ts';
 import { openPostgres } from '../infrastructure/postgres.ts';
 
-export const HOTELS_UNAVAILABLE = 'The hotel list could not be read. Try again in a moment.';
+export const HOTELS_UNAVAILABLE = 'Couldn’t load the hotels. Try again in a moment.';
 
 /**
  * One directory per isolate: it holds the hotel list (public reference data) for ten minutes, never a connection.

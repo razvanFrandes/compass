@@ -57,7 +57,7 @@ export class WorkflowActions {
     const result = await this.api.duplicate(workflow.id);
     this.mark(workflow.id, null);
     if (!result.ok) {
-      this.notices.show(`${workflow.name} wasn’t duplicated`, { description: result.error.message, duration: 8000 });
+      this.notices.show(`Couldn’t duplicate ${workflow.name}`, { description: result.error.message, duration: 8000 });
       return null;
     }
     const copy = result.value;
@@ -71,11 +71,11 @@ export class WorkflowActions {
   }
 
   async setEnabled(workflow: Workflow, enabled: boolean): Promise<boolean> {
-    this.mark(workflow.id, enabled ? 'Turning on…' : 'Pausing…');
+    this.mark(workflow.id, enabled ? 'Resuming…' : 'Pausing…');
     const result = await this.api.patch(workflow.id, { enabled });
     this.mark(workflow.id, null);
-    if (!result.ok) this.notices.show(`${workflow.name} wasn’t changed`, { description: result.error.message, duration: 8000 });
-    else this.notices.show(enabled ? `${workflow.name} is on` : `${workflow.name} is paused`, { description: enabled ? 'It runs again on its schedule.' : 'It keeps its history and won’t run until you resume it.' });
+    if (!result.ok) this.notices.show(`Couldn’t ${enabled ? 'resume' : 'pause'} ${workflow.name}`, { description: result.error.message, duration: 8000 });
+    else this.notices.show(enabled ? `${workflow.name} resumed` : `${workflow.name} paused`, { description: enabled ? 'It runs again on its schedule.' : 'It keeps its history and won’t run until you resume it.' });
     this.bump();
     return result.ok;
   }
@@ -84,7 +84,7 @@ export class WorkflowActions {
   async remove(workflow: Workflow): Promise<boolean> {
     const ok = await this.confirm.ask({
       title: `Delete “${workflow.name}”?`,
-      body: 'It stops running and leaves Agent Studio. Its past runs, proposals and audit entries stay in the audit log, under its name.',
+      body: 'It stops running and leaves Agent Studio. Its past runs and decisions stay in the audit log, under its name.',
       confirm: 'Delete agent',
       tone: 'destructive',
     });
@@ -93,7 +93,7 @@ export class WorkflowActions {
     const result = await this.api.remove(workflow.id);
     this.mark(workflow.id, null);
     if (!result.ok) {
-      this.notices.show(`${workflow.name} wasn’t deleted`, { description: result.error.message, duration: 8000 });
+      this.notices.show(`Couldn’t delete ${workflow.name}`, { description: result.error.message, duration: 8000 });
       return false;
     }
     this.notices.show(`Deleted “${workflow.name}”`, { description: 'Its history stays in the audit log.' });
@@ -109,7 +109,7 @@ export class WorkflowActions {
       const ok = await this.confirm.ask({
         title: to === 'approve' ? `Let “${workflow.name}” act after you approve?` : `Let “${workflow.name}” act alone on low-risk actions?`,
         body: `${AUTONOMY_MEANS[to]} You can lower this again at any time.`,
-        confirm: to === 'approve' ? 'Allow, with my approval' : 'Let it act alone',
+        confirm: to === 'approve' ? 'Let it act after I approve' : 'Let it act alone',
       });
       if (!ok) return false;
       return this.applyAutonomy(workflow, to);
@@ -122,8 +122,8 @@ export class WorkflowActions {
     this.mark(workflow.id, 'Saving…');
     const result = await this.api.patch(workflow.id, { autonomy });
     this.mark(workflow.id, null);
-    if (!result.ok) this.notices.show(`${workflow.name} wasn’t changed`, { description: result.error.message, duration: 8000 });
-    else this.notices.show(`${workflow.name}: ${AUTONOMY_LONG[autonomy].toLowerCase()}`, { description: AUTONOMY_MEANS[autonomy], duration: action ? 10000 : 6000, action });
+    if (!result.ok) this.notices.show(`Couldn’t change ${workflow.name}`, { description: result.error.message, duration: 8000 });
+    else this.notices.show(`${workflow.name} now ${AUTONOMY_LONG[autonomy].toLowerCase()}`, { description: AUTONOMY_MEANS[autonomy], duration: action ? 10000 : 6000, action });
     this.bump();
     return result.ok;
   }

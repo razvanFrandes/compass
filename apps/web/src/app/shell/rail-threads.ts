@@ -24,8 +24,8 @@ import { RAIL_TIP_GAP } from './sidebar-state';
         type="button"
         class="rail-item rounded-md"
         [class.rail-item--current]="inThread()"
-        aria-label="Threads"
-        hlmTooltip="Threads"
+        aria-label="Conversations"
+        hlmTooltip="Conversations"
         position="right"
         [sideOffset]="gap"
         [tooltipDisabled]="open()"
@@ -40,7 +40,7 @@ import { RAIL_TIP_GAP } from './sidebar-state';
     }
     <ng-template #menu>
       <hlm-dropdown-menu class="w-72" [style.margin-left.px]="gap">
-        <hlm-dropdown-menu-label>Threads</hlm-dropdown-menu-label>
+        <hlm-dropdown-menu-label>Conversations</hlm-dropdown-menu-label>
         @for (t of threads(); track t.id) {
           <button hlmDropdownMenuItem class="gap-3 text-[13px]" [class.font-medium]="isCurrent(t.id)" [attr.aria-current]="isCurrent(t.id) ? 'page' : null" [title]="t.title" (triggered)="live.openConversation(t.id)">
             <span class="min-w-0 flex-1 truncate text-left">{{ t.title }}</span>&ngsp;<span class="text-muted-foreground shrink-0 text-[11.5px] font-normal tabular-nums">{{ t.ago }}</span>

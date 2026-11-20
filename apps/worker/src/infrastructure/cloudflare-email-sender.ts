@@ -18,7 +18,7 @@ export class CloudflareEmailSender implements EmailSender {
     } catch (error) {
       // The cause (an E_* code and a message that may hold the address) is for the logs only.
       console.error('email send failed', (error as { code?: unknown } | null)?.code, error);
-      return { error: 'The email could not be sent.' };
+      return { error: 'The email could not be sent. Try again in a few minutes.' };
     }
   }
 }
