@@ -1,0 +1,7 @@
+{
+  // Dev-only config for scripts/embed-reviews.ts: just the Workers AI binding, reached through
+  // wrangler's platform proxy with the local OAuth login. Never deployed; it has no routes and no main.
+  "name": "compass-embed-loader",
+  "compatibility_date": "2026-11-20",
+  "ai": { "binding": "AI", "remote": true }
+}
