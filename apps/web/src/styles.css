@@ -806,3 +806,6 @@ textarea.field-input { height: auto; line-height: 1.5; }
 .k-skel-stroke { stroke: var(--muted); animation: skeleton-wave 1.8s ease-in-out infinite; }
 @keyframes k-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 @media (prefers-reduced-motion: reduce) { .k-skel, .k-skel-stroke { animation: none; background-image: none; } }
+
+/* Menu items: words start on the left, and every item reads as clickable. */
+hlm-dropdown-menu [role^='menuitem'] { cursor: pointer; text-align: left; }

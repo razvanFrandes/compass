@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorCaretDownLight, phosphorCheckLight, phosphorPlusLight, phosphorSquaresFourLight } from '@ng-icons/phosphor-icons/light';
 import { toast } from '@spartan-ng/brain/sonner';
@@ -60,9 +60,23 @@ export function boardNameFor(title: string): string {
           }
         }
         <hlm-dropdown-menu-separator />
-        <button hlmDropdownMenuItem (triggered)="addToNew()"><ng-icon name="phosphorPlusLight" aria-hidden="true" />New board</button>
+        <button hlmDropdownMenuItem (triggered)="askNew()"><ng-icon name="phosphorPlusLight" aria-hidden="true" />New board…</button>
       </hlm-dropdown-menu>
     </ng-template>
+
+    <!-- "New board…": name it first (suggested from the chart's title), then the chart goes onto it -->
+    <dialog #newDlg class="confirm-dialog" [attr.aria-labelledby]="uid + '-new'" (click)="$event.target === newDlg && newDlg.close()">
+      <form class="flex flex-col gap-3" (submit)="$event.preventDefault(); createAndAdd()">
+        <h2 [id]="uid + '-new'" class="text-[16px] font-semibold">Create board</h2>
+        <p class="text-muted-foreground -mt-1 text-[13px]">“{{ widget().title }}” goes on it.</p>
+        <label class="flex flex-col gap-1 text-[13px]">Name<input #newName class="field-input" required maxlength="80" autocomplete="off" /></label>
+        <label class="flex flex-col gap-1 text-[13px]">Description <span class="text-muted-foreground">(optional)</span><input #newDesc class="field-input" maxlength="200" autocomplete="off" /></label>
+        <div class="mt-2 flex justify-end gap-2">
+          <button hlmBtn variant="ghost" type="button" (click)="newDlg.close()">Cancel</button>
+          <button hlmBtn type="submit" [disabled]="saving()">{{ saving() ? 'Creating…' : 'Create and add' }}</button>
+        </div>
+      </form>
+    </dialog>
   `,
 })
 export class KassandraBoardPicker {
@@ -86,14 +100,34 @@ export class KassandraBoardPicker {
     void this.api.load();
   }
 
-  protected async addToNew() {
+  private static next = 0;
+  protected readonly uid = `k-board-${KassandraBoardPicker.next++}`;
+  private readonly newDlg = viewChild.required<ElementRef<HTMLDialogElement>>('newDlg');
+  private readonly newName = viewChild.required<ElementRef<HTMLInputElement>>('newName');
+  private readonly newDesc = viewChild.required<ElementRef<HTMLInputElement>>('newDesc');
+
+  /** "New board…": a dialog to name the board, with a name suggested from the chart's title. */
+  protected askNew() {
+    this.newName().nativeElement.value = this.api.freshName(boardNameFor(this.widget().title));
+    this.newDesc().nativeElement.value = '';
+    // After the menu has closed and given the focus back, the dialog takes it.
+    setTimeout(() => {
+      this.newDlg().nativeElement.showModal();
+      this.newName().nativeElement.select();
+    }, 0);
+  }
+
+  protected async createAndAdd() {
+    const name = this.newName().nativeElement.value.trim();
+    if (!name || this.saving()) return;
     this.saving.set(true);
-    // A failure is said by the service, in the server's words.
-    const created = await this.api.create({ name: this.api.freshName(boardNameFor(this.widget().title)), description: 'Charts from Kassandra’s answers' });
+    // A failure is said by the service, in the server's words; the dialog stays open to try again.
+    const created = await this.api.create({ name, description: this.newDesc().nativeElement.value.trim() });
     if (!created.ok) {
       this.saving.set(false);
       return;
     }
+    this.newDlg().nativeElement.close();
     await this.add(created.value.id, created.value.name);
   }
 
