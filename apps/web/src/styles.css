@@ -746,7 +746,7 @@ textarea.field-input { height: auto; line-height: 1.5; }
 /* Solid row colours (the foreground mixed into the rail), so the fade behind the actions ends on the same colour. */
 .k-recent { --k-row: var(--rail, var(--background)); --k-row-hover: color-mix(in srgb, var(--foreground) 4.5%, var(--rail, var(--background))); --k-row-current: color-mix(in srgb, var(--foreground) 7.5%, var(--rail, var(--background))); }
 .k-recent-head { display: flex; min-height: 28px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px 0 11px; }
-.k-recent-new { cursor: pointer;
+.k-recent-new {
   cursor: pointer;
   display: grid; width: 26px; height: 26px; flex-shrink: 0; place-items: center; border-radius: 6px; color: var(--muted-foreground); outline: none;
   transition: background-color 150ms ease, color 150ms ease;
@@ -757,8 +757,6 @@ textarea.field-input { height: auto; line-height: 1.5; }
 @media (hover: hover) { .k-thread:hover { --k-row: var(--k-row-hover); color: var(--foreground); } }
 .k-thread--current { --k-row: var(--k-row-current); color: var(--foreground); }
 @media (hover: hover) { .k-thread--current:hover { --k-row: var(--k-row-current); } }
-/* The current conversation also carries a short bar of the brand colour at its left edge: it reads without colour too (the fill). */
-.k-thread--current::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 2px; border-radius: 2px; background: var(--brand, var(--primary)); }
 .k-thread-open { cursor: pointer; display: flex; min-width: 0; flex: 1; align-items: flex-start; gap: 10px; padding: 7px 10px 7px 11px; border-radius: 8px; text-align: left; outline: none; }
 /* Rename and Delete need ~56px: the text makes room for them instead of running under them. */
 .k-thread:hover .k-thread-open, .k-thread:focus-within .k-thread-open { padding-right: 62px; }
