@@ -252,6 +252,11 @@
 /* The Prompts and effort menus: questions wrap, the list scrolls when it is long. */
 .ask-menu { max-height: min(70dvh, 520px); }
 .ask-menu .ask-prompt { align-items: flex-start; gap: 10px; text-align: left; padding-block: 6px; font-size: 13px; line-height: 1.4; white-space: normal; }
+/* Every choice in the composer's menus (Prompts, Effort) and every button in its toolbar reads as clickable. */
+.ask-tool, .ask-menu [role^='menuitem'] { cursor: pointer; }
+.ask-menu .ask-prompt, .ask-menu .ask-prompt-more { border-radius: 8px; }
+.ask-menu .ask-prompt:hover, .ask-menu .ask-prompt:focus-visible, .ask-menu .ask-prompt[data-highlighted],
+.ask-menu .ask-prompt-more:hover, .ask-menu .ask-prompt-more:focus-visible { background: rgb(from var(--foreground) r g b / 0.08); color: var(--foreground); }
 .ask-menu .ask-effort-item { align-items: center; gap: 10px; text-align: left; justify-content: flex-start; cursor: pointer; border-radius: 8px; }
 .ask-menu .ask-effort-item[aria-checked='true'] { background: rgb(from var(--foreground) r g b / 0.07); }
 .ask-menu .ask-effort-item:hover, .ask-menu .ask-effort-item:focus-visible, .ask-menu .ask-effort-item[data-highlighted] { background: rgb(from var(--foreground) r g b / 0.1); }
