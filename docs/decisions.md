@@ -639,3 +639,21 @@ Reviewers should see the system, the thinking and the craft from inside the site
 - **The data generator's repository is public**, so `DATAGEN_REPO.public` is true and the page no longer says the link needs access.
 - **The docs call the product Compass.** Juyo is the company it was built for and whose product it interprets. Docs page titles end "· Compass" (`DOCS_BRAND`), and no docs page shows the Juyo logo.
 - **Open:** the agent card could become a component of its own, so the docs and Agent Studio share it.
+
+## Round 3 integration (21 Nov 2026)
+
+Seven branches merged into `r3/int2` in this order: visual-answers, chart-switch-preview, concept-dark, density, brand-compass, mobile-nav, docs-hub. What the merge decided where two of them met:
+
+- **One theme switcher, one density switch, three places.** `<app-theme-switcher>` (Theme × Mode) and `<app-density-switch>` sit in the sidebar's footer, in the collapsed rail (the theme as one button with a menu, the density as two icons) and in the phone's menu sheet (`shell/appearance-controls.ts` now only wraps the two and gives the segments 44 px). `/docs/design-system` uses the same two. The three-way switch of mobile-nav and of the first sidebar is gone; so is the placeholder logo.
+- **Dark with no choice** is concept-dark's rule (`DEFAULT_MODE`, the inline script, one CSP hash). mobile-nav's test of the script (`web-default-theme.test.ts`) now holds the two-choice script to the same promise.
+- **The fit rules live in `@compass/contracts`**, with visual-answers' changes carried over: a treemap with `x` inside `group`, and 400 rows per widget (`widget-limits.ts`).
+- **An answer's chart has the whole life:** skeleton, preview from the tool's rows, Kassandra's chart in the same card, "View as" under it, in a card padded by the density tokens. The preview's subtitle names hotels, as the copy rules ask.
+- **Text written beside a chart is the answer.** Asked to answer visually, Quick mode writes its sentences in the message that calls `show_widget` and then stops with an empty one; `groupTurns` showed that text as the chart step's narration and the turn had no answer. When a run ends with nothing after a message that only draws charts, its text is the answer.
+- **Docs are reachable three ways:** the floating button, "Docs" at the foot of the sidebar and of the rail, and "Docs" under More in the phone menu. The button avoids a composer and a toast; with the tab bar gone it has nothing else to avoid.
+- **The docs pages say what is now true:** two themes in two modes (four panes and strips where there were three), 25 data tools, Thinker's 12 turns, no tab bar.
+- **Density tokens reach the new parts:** the "Try asking" gallery, the "View as" row and its placeholder, the docs hub's gutters, sections and cards.
+- **Open:**
+  - "View as" still never proposes a funnel whose stages are columns, although the chart now draws one (`charts/kinds.ts` was written before that builder).
+  - The preview of a result with a local-currency column reads "local currency 220k" for the few seconds it shows.
+  - On a wide Thread the Docs button floats over the bottom right corner of Behind the numbers; the panel scrolls under it.
+  - zod's probe for `eval` is reported by the CSP on every load (it is caught, and was there before this round).
