@@ -125,8 +125,8 @@ export function nodePatch(node: Pick<WorkflowNode, 'id' | 'kind'>, draft: Workfl
   styles: `
     .wb-input {
       width: 100%;
-      min-height: 36px;
-      padding: 7px 10px;
+      min-height: var(--control-h);
+      padding: calc((var(--control-h) - 22px) / 2) 10px;
       border-radius: var(--radius-control, 8px);
       border: 1px solid var(--input);
       background: var(--field);
@@ -137,7 +137,7 @@ export function nodePatch(node: Pick<WorkflowNode, 'id' | 'kind'>, draft: Workfl
       transition: border-color 150ms ease, box-shadow 150ms ease;
     }
     @media (pointer: coarse) {
-      .wb-input { min-height: 44px; font-size: 16px; }
+      .wb-input { font-size: 16px; }
     }
     .wb-input::placeholder { color: var(--muted-foreground); }
     .wb-input:focus-visible { border-color: var(--focus-brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-brand) 28%, transparent); }
@@ -147,7 +147,7 @@ export function nodePatch(node: Pick<WorkflowNode, 'id' | 'kind'>, draft: Workfl
       display: flex;
       align-items: center;
       gap: 10px;
-      min-height: 40px;
+      min-height: var(--control-h-lg);
       padding: 8px 10px;
       border-radius: var(--radius-control, 8px);
       border: 1px solid var(--input);
@@ -167,7 +167,7 @@ export function nodePatch(node: Pick<WorkflowNode, 'id' | 'kind'>, draft: Workfl
     }
   `,
   template: `
-    <form class="flex flex-col gap-3 px-3.5 pt-1 pb-3.5" novalidate (submit)="$event.preventDefault(); submit()">
+    <form class="flex flex-col gap-stack px-(--wb-editor-pad,0.875rem) pt-1 pb-(--wb-editor-pad,0.875rem)" novalidate (submit)="$event.preventDefault(); submit()">
       @switch (node().kind) {
         @case ('trigger') {
           <fieldset class="flex flex-col gap-1.5">

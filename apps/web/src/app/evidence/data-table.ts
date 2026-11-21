@@ -71,12 +71,12 @@ interface Cell {
   selector: 'juyo-data-table',
   imports: [NgIcon],
   providers: [provideIcons({ phosphorArrowDownLight, phosphorArrowUpLight, phosphorArrowsDownUpLight })],
-  host: { class: 'block min-w-0' },
+  host: { class: 'block min-w-0', '[attr.data-density]': 'density()' },
   styles: `
     /* The rows reach a little past the text on both sides, so a tinted row has air and the text still lines up with the card's. */
     .dt-frame {
       position: relative;
-      margin-inline: calc(var(--dt-gutter, 10px) * -1);
+      margin-inline: calc(var(--dt-gutter, var(--cell-pad-x)) * -1);
       border-radius: var(--radius-control, 8px);
       overflow: hidden;
       background: var(--dt-bg, var(--card));
@@ -97,9 +97,10 @@ interface Cell {
       font-size: 12.5px;
       line-height: 18px;
     }
+    /* A row is --row-h tall: 32 px here, because the table is a compact region by default. */
     th,
     td {
-      padding: 7px 10px;
+      padding: calc((var(--row-h) - 18px) / 2) var(--cell-pad-x);
       text-align: left;
       white-space: nowrap;
       border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
@@ -189,7 +190,7 @@ interface Cell {
       width: max-content;
       align-items: flex-end;
       gap: 3px;
-      padding: 6px 10px;
+      padding: 6px var(--cell-pad-x);
       font: inherit;
       color: inherit;
       text-align: left;
@@ -238,7 +239,7 @@ interface Cell {
     }
     /* On its side: the names of the rows across the top, the columns down the left. Words wrap, so it always fits. */
     .dt-turned thead th {
-      padding: 6px 10px;
+      padding: 6px var(--cell-pad-x);
       white-space: normal;
       text-wrap: balance;
     }
@@ -285,10 +286,6 @@ interface Cell {
     @media (pointer: coarse) {
       .dt-sort {
         min-height: 40px;
-      }
-      th,
-      td {
-        padding-block: 9px;
       }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -414,6 +411,8 @@ interface Cell {
   `,
 })
 export class DataTable {
+  /** A table is a compact region by default (32 px rows, 12 px cells); `comfortable` gives 40 px rows. */
+  readonly density = input<'compact' | 'comfortable'>('compact');
   /** The rows of one result. */
   readonly rows = input.required<readonly EvidenceRow[]>();
   /** The server's column metadata. Without it, labels and kinds are read from the keys and values. */

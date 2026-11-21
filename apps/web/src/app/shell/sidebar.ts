@@ -9,6 +9,7 @@ import { JuyoLogo } from '../juyo-logo';
 import { KassandraThreadList } from '../kassandra/kassandra-thread-list';
 import { ScopeSwitcher } from '../scope/scope-switcher';
 import { CompassStore } from '../store';
+import { DensitySwitch } from '../theme/density-switch';
 import { ThemeSwitcher } from '../theme/theme-switcher';
 import { isActiveNav, type NavItem } from './nav';
 import { RailThreads } from './rail-threads';
@@ -28,13 +29,13 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
  */
 @Component({
   selector: 'nav[appSidebar]',
-  imports: [NgIcon, JuyoLogo, ScopeSwitcher, KassandraThreadList, RailThreads, ThemeSwitcher, HlmTooltipImports],
+  imports: [NgIcon, JuyoLogo, ScopeSwitcher, KassandraThreadList, RailThreads, ThemeSwitcher, DensitySwitch, HlmTooltipImports],
   providers: [provideIcons({ ...icons, phosphorCompassLight, phosphorInfoLight, phosphorSidebarSimpleLight, phosphorSwatchesFill })],
   encapsulation: ViewEncapsulation.None,
   host: {
     id: 'main-nav',
     'aria-label': 'Main',
-    class: 'rail bg-(--rail) border-border/70 hidden min-h-0 flex-col gap-5 overflow-hidden border-r px-3 py-4 lg:flex',
+    class: 'rail bg-(--rail) border-border/70 hidden min-h-0 flex-col gap-card-pad overflow-hidden border-r px-3 py-4 lg:flex',
     '[attr.data-collapsed]': 'collapsed() ? "" : null',
     '(document:keydown)': 'onKey($event)',
   },
@@ -55,7 +56,7 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
 
     /* An item is as wide as the sidebar: 40 px in the rail, where its 18 px icon is centred and the label is cut off. */
     .rail-item {
-      position: relative; display: flex; width: 100%; align-items: center; gap: 10px; overflow: hidden; padding: 6px 8px 6px 11px;
+      position: relative; display: flex; width: 100%; align-items: center; gap: 10px; overflow: hidden; min-height: var(--control-h-sm); padding: 4px 8px 4px 11px;
       color: var(--muted-foreground); text-align: left; white-space: nowrap; outline: none; transition: background-color 150ms ease, color 150ms ease;
     }
     .rail-item--active { background: var(--rail-active); color: var(--foreground); font-weight: 500; }
@@ -80,6 +81,8 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
     .rail-theme { padding: 0 8px 6px; }
     .rail[data-collapsed] .rail-theme { padding: 0 0 6px; justify-content: center; }
     .rail[data-collapsed] .rail-theme > button { width: 100%; }
+    .rail-density { padding: 0 8px 6px; }
+    .rail[data-collapsed] .rail-density { padding: 0 0 6px; }
 
     /* The note about the demo data: a paragraph in the panel, a popover beside the rail. */
     .rail-note { padding: 12px 8px 0; color: var(--muted-foreground); }
@@ -163,6 +166,8 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
       } @else {
         <app-theme-switcher class="rail-theme" />
       }
+      <!-- Comfortable or Compact (src/app/theme/density-switch.ts): beside the theme, and separate from it -->
+      <app-density-switch class="rail-density" [collapsed]="collapsed()" [tipGap]="tipGap + 2" />
       @for (n of foot; track n.view) {
         <button
           type="button"

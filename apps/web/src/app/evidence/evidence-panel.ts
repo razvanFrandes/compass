@@ -66,7 +66,8 @@ function bringToTop(card: HTMLElement): void {
   selector: 'juyo-evidence-panel',
   imports: [NgIcon, NgTemplateOutlet, DataTable],
   providers: [provideIcons({ phosphorCaretDownLight, phosphorCaretRightLight, phosphorWarningCircleLight })],
-  host: { class: '@container block min-w-0' },
+  // A compact region wherever it is shown: its tables and figures are scanned and compared (docs/research/layout).
+  host: { class: '@container block min-w-0', 'data-density': 'compact' },
   styles: `
     .ev-card {
       border-radius: var(--radius-container, 14px);
@@ -84,8 +85,8 @@ function bringToTop(card: HTMLElement): void {
       display: flex;
       width: 100%;
       align-items: center;
-      gap: 12px;
-      padding: 12px 14px 12px 16px;
+      gap: var(--space-stack);
+      padding: calc(var(--space-card-pad) - 4px) calc(var(--space-card-pad) - 4px) calc(var(--space-card-pad) - 4px) var(--space-card-pad);
       border-radius: var(--radius-container, 14px);
       text-align: left;
       outline: none;
@@ -132,7 +133,7 @@ function bringToTop(card: HTMLElement): void {
       min-height: 100%;
       flex-direction: column;
       gap: 1px;
-      padding: 11px 14px 12px;
+      padding: calc(var(--space-card-pad) - 4px) var(--space-card-pad);
       border-radius: var(--radius-container, 12px);
       border: 1px solid var(--border);
       background: var(--card);
@@ -194,8 +195,8 @@ function bringToTop(card: HTMLElement): void {
           </button>
         </div>
         @if (open) {
-          <div class="flex flex-col gap-3.5 px-4 pb-4" [id]="uid + '-body-' + c.callId">
-            <p class="text-muted-foreground border-border/70 border-t pt-3 text-[12.5px]/[18px]">{{ c.asOf }}</p>
+          <div class="flex flex-col gap-stack px-card-pad pb-card-pad" [id]="uid + '-body-' + c.callId">
+            <p class="text-muted-foreground text-[12.5px]/[18px]">{{ c.asOf }}</p>
 
             <juyo-data-table
               [rows]="c.rows"
@@ -275,9 +276,9 @@ function bringToTop(card: HTMLElement): void {
       <p class="text-muted-foreground text-[13px]">{{ entries().length ? 'This answer read no data, so there is nothing to trace.' : empty() }}</p>
     } @else {
       @if (figures().length) {
-        <section class="mb-6" [attr.aria-labelledby]="uid + '-figures'">
+        <section class="mb-section" [attr.aria-labelledby]="uid + '-figures'">
           <h3 class="card-eyebrow" [id]="uid + '-figures'">{{ quoted() ? 'Numbers in this answer' : 'Key figures' }}</h3>
-          <ul class="mt-2.5 grid grid-cols-1 gap-2 @[20rem]:grid-cols-2">
+          <ul class="mt-stack grid grid-cols-1 gap-card-gap @[20rem]:grid-cols-2">
             @for (f of figures(); track f.callId + f.rowIndex + f.key) {
               <li class="min-w-0">
                 <button type="button" class="ev-figure" (click)="showFigure(f)">
@@ -298,12 +299,12 @@ function bringToTop(card: HTMLElement): void {
       <section [attr.aria-labelledby]="uid + '-data'">
         <h3 class="card-eyebrow" [id]="uid + '-data'">Data behind this answer</h3>
         @if (arranged().answer.length || waiting().length || failed().length) {
-          <ol class="mt-2.5 flex flex-col gap-2.5">
+          <ol class="mt-stack flex flex-col gap-card-gap">
             @for (c of arranged().answer; track c.callId) {
               <ng-container [ngTemplateOutlet]="card" [ngTemplateOutletContext]="{ $implicit: c, level: 4 }" />
             }
             @for (w of waiting(); track w.callId) {
-              <li class="ev-card flex items-center gap-3 px-4 py-3" role="status">
+              <li class="ev-card flex items-center gap-3 px-card-pad py-3" role="status">
                 <span class="min-w-0 flex-1">
                   <span class="block truncate text-[14px]/5 font-medium">{{ w.title }}</span>
                   <span class="text-muted-foreground block text-[12.5px]/[18px]">Reading the data…</span>
@@ -312,7 +313,7 @@ function bringToTop(card: HTMLElement): void {
               </li>
             }
             @for (x of failed(); track x.callId) {
-              <li class="ev-card flex items-center gap-3 px-4 py-3">
+              <li class="ev-card flex items-center gap-3 px-card-pad py-3">
                 <span class="min-w-0 flex-1">
                   <span class="block truncate text-[14px]/5 font-medium">{{ x.title }}</span>
                   <span class="text-muted-foreground block text-[12.5px]/[18px]">Couldn’t read this, so the answer doesn’t use it. Ask again to retry.</span>
@@ -323,7 +324,7 @@ function bringToTop(card: HTMLElement): void {
           </ol>
         }
         @if (arranged().lookups.length) {
-          <div class="ev-lookups mt-2.5" data-lookups>
+          <div class="ev-lookups mt-card-gap" data-lookups>
             <h4>
               <button type="button" class="ev-head" [attr.aria-expanded]="lookupsOpen()" [attr.aria-controls]="uid + '-lookups'" (click)="lookupsOpen.set(!lookupsOpen())">
                 <span class="min-w-0 flex-1">

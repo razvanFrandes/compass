@@ -45,7 +45,7 @@ const LOADING: Record<SlotPhase, WidgetLoading> = { chosen: 'skeleton', describe
   `,
   template: `
     @let s = slot();
-    <figure class="insight-card gen-in p-4" [attr.aria-busy]="phase() === 'ready' ? null : 'true'">
+    <figure class="insight-card gen-in p-card-pad" [attr.aria-busy]="phase() === 'ready' ? null : 'true'">
       <figcaption class="flex min-h-[42px] items-start gap-3">
         <div class="min-w-0 flex-1">
           @if (s.title) {
@@ -65,8 +65,8 @@ const LOADING: Record<SlotPhase, WidgetLoading> = { chosen: 'skeleton', describe
           <p class="k-preview" title="Drawn from the data as it arrived. Kassandra may still choose another chart.">Preview<span class="sr-only">: drawn from the data as it arrived. Kassandra may still choose another chart.</span></p>
         }
       </figcaption>
-      <juyo-widget-chart class="mt-3 block" [spec]="s.spec" [rows]="s.widget?.rows ?? null" [columns]="s.widget?.columns ?? null" [loading]="loading()" [header]="false" [compact]="true" [switcher]="true" [viewKey]="viewKey()" />
-      <div class="mt-3 flex min-h-8 flex-wrap items-center justify-between gap-2">
+      <juyo-widget-chart class="mt-stack block" [spec]="s.spec" [rows]="s.widget?.rows ?? null" [columns]="s.widget?.columns ?? null" [loading]="loading()" [header]="false" [compact]="true" [switcher]="true" [viewKey]="viewKey()" />
+      <div class="mt-stack flex min-h-8 flex-wrap items-center justify-between gap-2">
         @if (phase() === 'ready' && shown(); as w) {
           @if (showEvidence()) {
             <button type="button" class="k-link text-muted-foreground hover:text-foreground text-[12.5px] underline underline-offset-2" (click)="evidence.emit(w.sourceCallId)">Behind the numbers</button>

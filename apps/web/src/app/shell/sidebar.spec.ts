@@ -78,6 +78,8 @@ describe('Sidebar', () => {
     expect(nav.querySelector('.sw-side')?.hasAttribute('data-compact')).toBe(false);
     // Theme (two radios) and Mode (three), from the theme switcher's rows.
     expect([...nav.querySelectorAll('app-theme-switcher [role=radio]')].map((radio) => radio.textContent?.trim())).toEqual(['Default', 'Concept', 'Light', 'Dark', 'System']);
+    // The density switch sits under the theme, and is its own group.
+    expect([...nav.querySelectorAll('app-density-switch [role=radio]')].map((radio) => radio.textContent?.trim())).toEqual(['Comfortable', 'Compact']);
     expect(nav.querySelector('#rail-note')?.hasAttribute('popover')).toBe(false);
     expect(nav.querySelector('[popovertarget]')).toBeNull();
   });
@@ -107,7 +109,11 @@ describe('Sidebar', () => {
     expect(threads.getAttribute('aria-haspopup')).toBe('menu');
 
     // Theme and mode are one button with a menu (the theme switcher's "menu" shape); the two rows are for the panel.
-    expect(nav.querySelectorAll('[role=radio]').length).toBe(0);
+    expect(nav.querySelectorAll('app-theme-switcher [role=radio]').length).toBe(0);
+    // The density switch is two icons, named.
+    const densities = [...nav.querySelectorAll('app-density-switch [role=radio]')];
+    expect(densities.map((radio) => radio.getAttribute('aria-label'))).toEqual(['Comfortable', 'Compact']);
+    expect(densities.every((radio) => radio.querySelector('ng-icon') !== null)).toBe(true);
     const themeButton = nav.querySelector<HTMLButtonElement>('app-theme-switcher button')!;
     expect(themeButton.getAttribute('aria-label')).toMatch(/^Theme: .+\. Change theme or mode$/);
     expect(themeButton.querySelector('ng-icon')).not.toBeNull();

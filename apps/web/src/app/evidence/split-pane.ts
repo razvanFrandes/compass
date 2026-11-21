@@ -182,6 +182,8 @@ export class SplitPane {
   readonly storageKey = input<string | null>(null);
   /** The divider's default position: the first pane's share of the width, in percent. */
   readonly defaultPosition = input(56);
+  /** The second pane's default width in px. When set, it wins over `defaultPosition` once the width is known. */
+  readonly defaultEnd = input<number | null>(null);
   /** The least width of each pane, in px. */
   readonly minStart = input(380);
   readonly minEnd = input(320);
@@ -207,8 +209,14 @@ export class SplitPane {
   private restored = false;
 
   private readonly range = computed(() => splitRange(this.width(), { minStart: this.minStart(), minEnd: this.minEnd() }));
+  /** Where the divider sits until the person moves it: the second pane at its default width, else the default share. */
+  private readonly fallback = computed(() => {
+    const end = this.defaultEnd();
+    const width = this.width();
+    return end && width > 0 ? 100 - (end / width) * 100 : this.defaultPosition();
+  });
   /** The divider's position, always within what the container allows right now. */
-  readonly position = computed(() => clampPosition(this.chosen() ?? this.defaultPosition(), this.range()));
+  readonly position = computed(() => clampPosition(this.chosen() ?? this.fallback(), this.range()));
   protected readonly valueNow = computed(() => Math.round(this.position()));
   protected readonly valueMin = computed(() => Math.round(this.range().min));
   protected readonly valueMax = computed(() => Math.round(this.range().max));

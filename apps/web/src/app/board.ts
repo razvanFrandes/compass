@@ -6,7 +6,8 @@ import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { ChartCard } from './chart-card';
 import { FilterBar } from './filter-bar';
 import { DEFAULTS, Filters, parseFilterRequest } from './filters';
-import { PORTFOLIO_SPECS, isWide, kpis } from './portfolio';
+import { PORTFOLIO_SPECS, kpis, type ChartSpec } from './portfolio';
+import type { ChartSize } from './theme/density';
 import { KassandraComposer } from './kassandra/kassandra-composer';
 import { KassandraDescribeView } from './kassandra/kassandra-describe-view';
 import { MetricChart } from './metric-chart';
@@ -41,7 +42,7 @@ export const isBuiltIn = (id: string) => BUILT_IN.some((b) => b.id === id);
       </div>
     </div>
 
-    <div class="mt-4 grid grid-cols-2 gap-y-2 sm:grid-cols-4" role="group" aria-label="Metric">
+    <div class="mt-card-pad grid grid-cols-2 gap-y-2 sm:grid-cols-4" role="group" aria-label="Metric">
       @for (k of kpis(); track k.key) {
         <button type="button" [attr.aria-pressed]="metric() === k.key" (click)="metric.set(k.key)" class="flex flex-col items-start gap-1 border-t pt-3 pb-1 text-left sm:pr-4" [class]="metric() === k.key ? 'border-foreground' : 'border-border/70'">
           <span class="text-[12.5px]" [class]="metric() === k.key ? 'text-foreground font-medium' : 'text-muted-foreground'">{{ k.label }}</span>
@@ -51,7 +52,7 @@ export const isBuiltIn = (id: string) => BUILT_IN.some((b) => b.id === id);
       }
     </div>
 
-    <div class="-mx-1 mt-4 sm:-mx-2">
+    <div class="-mx-1 mt-card-pad sm:-mx-2">
       <app-metric-chart [values]="series().ty" [compare]="series().ly" [dates]="dates()" [format]="meta().format" [tickFormat]="metric() === 'occupancy' ? pct : undefined" [capAt]="metric() === 'occupancy' ? 100 : null" [marks]="[]" [height]="chartHeight" [zeroBased]="metric() === 'occupancy'" [ariaLabel]="meta().label + ', this year versus same time last year'" />
     </div>
     <div class="text-muted-foreground mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[12px]">
@@ -97,7 +98,7 @@ export class PerformanceWidget {
   host: { class: 'block min-w-0' },
   template: `
     @let w = widget();
-    <article class="insight-card flex h-full flex-col p-5" [attr.aria-labelledby]="'w-' + w.id">
+    <article class="insight-card flex h-full flex-col p-card-pad" [attr.aria-labelledby]="'w-' + w.id">
       <header class="flex items-start gap-3">
         <div class="min-w-0 flex-1">
           <h2 [id]="'w-' + w.id" class="text-[15.5px]/snug font-semibold tracking-[-0.005em]">{{ w.spec.title }}</h2>
@@ -107,11 +108,11 @@ export class PerformanceWidget {
         </div>
         <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground" [attr.aria-label]="'More for ' + w.spec.title" [hlmDropdownMenuTrigger]="menu" align="end"><ng-icon name="phosphorDotsThreeBold" class="text-[18px]" /></button>
       </header>
-      <div class="mt-4 min-h-0 flex-1">
+      <div class="mt-stack min-h-0 flex-1">
         <juyo-widget-chart [spec]="w.spec" [rows]="w.rows" [columns]="w.columns" [header]="false" [switcher]="true" [viewKey]="'board:' + w.id" />
       </div>
       @if (how()) {
-        <section class="border-border mt-4 border-t pt-3 text-[12.5px]" aria-label="Behind the numbers">
+        <section class="mt-card-pad text-[12.5px]" aria-label="Behind the numbers">
           <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
             @if (w.evidence.period) {
               <dt class="text-muted-foreground">Period</dt>
@@ -135,7 +136,7 @@ export class PerformanceWidget {
           </details>
         </section>
       }
-      <p class="text-muted-foreground mt-3 text-[12px]">Added {{ added() }}{{ w.question ? ' · from “' + w.question + '”' : '' }}</p>
+      <p class="text-muted-foreground mt-stack text-[12px]">Added {{ added() }}{{ w.question ? ' · from “' + w.question + '”' : '' }}</p>
     </article>
     <ng-template #menu>
       <hlm-dropdown-menu class="w-56">
@@ -195,8 +196,9 @@ export class SavedWidget {
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
-    <div class="mx-auto flex max-w-[1120px] flex-col gap-6 px-[max(16px,env(safe-area-inset-left,0px))] pt-6 pb-28 sm:px-8 lg:pt-8">
-      <nav aria-label="Breadcrumb" class="flex items-center gap-1.5 text-[14px]">
+    <!-- A board is full width on a 12-column grid: sections apart by --space-section, cards by --space-card-gap -->
+    <div class="page page--wide gap-section flex flex-col pt-stack pb-28 lg:pb-section-lg">
+      <nav aria-label="Breadcrumb" class="-mb-[calc(var(--space-section)-var(--space-stack))] flex h-14 items-center gap-1.5 text-[14px]">
         <button hlmBtn variant="ghost" size="sm" class="text-muted-foreground -ml-2" (click)="store.go('boards')"><ng-icon name="phosphorArrowLeftLight" />Boards</button>
         <span class="text-muted-foreground">/</span>
         <span class="truncate">{{ title() }}</span>
@@ -204,14 +206,16 @@ export class SavedWidget {
 
       @switch (kind()) {
         @case ('portfolio') {
-          <header class="flex flex-col gap-4">
+          <header class="gap-card-gap flex flex-col">
             <div>
               <h1 class="text-[24px] font-[560] tracking-[-0.02em]">Portfolio</h1>
-              <p class="text-muted-foreground text-[14px]">{{ portfolioSubtitle() }} · data as of Fri 20 Nov, 07:00</p>
+              <p class="text-muted-foreground mt-1 text-[14px]">{{ portfolioSubtitle() }} · data as of Fri 20 Nov, 07:00</p>
             </div>
-            <kassandra-composer label="Ask Kassandra or filter" placeholder="Ask or filter, e.g. “Dubai hotels, next 90 nights vs budget”" [(mode)]="live.mode" (submitted)="onAsk($event)" />
+            <kassandra-composer class="max-w-content" label="Ask Kassandra or filter" placeholder="Ask or filter, e.g. “Dubai hotels, next 90 nights vs budget”" [(mode)]="live.mode" (submitted)="onAsk($event)" />
           </header>
-          <div class="border-border/60 sticky top-0 z-20 -mx-2 border-b bg-(--background)/92 px-2 py-2 backdrop-blur">
+          <!-- The filters and the key figures are one group: the board's first row. The filter bar is a compact region. -->
+          <div class="gap-stack flex flex-col">
+          <div data-density="compact" class="sticky top-0 z-20 -mx-2 bg-(--background)/92 px-2 py-2 backdrop-blur">
             <app-filter-bar />
           </div>
           @if (filters.receipt(); as rc) {
@@ -236,27 +240,34 @@ export class SavedWidget {
               </div>
             </section>
           }
-          <ul class="grid grid-cols-2 gap-3 md:grid-cols-4" aria-label="Key figures">
+          <!-- KPI rail: at most four tiles on a row, 200 px at least. Label, the figure with its sparkline, then what it is compared with. -->
+          <ul class="kpi-row" aria-label="Key figures">
             @for (k of kpis(); track k.metric) {
-              <li class="insight-card flex min-w-0 flex-col p-4">
-                <p class="text-muted-foreground text-[12px]">{{ k.label }}</p>
-                <p class="mt-1 text-[22px]/tight font-semibold tracking-[-0.02em] tabular-nums">{{ k.value }}</p>
-                @if (k.spark.length > 1) {
-                  <svg viewBox="0 0 64 22" preserveAspectRatio="none" class="mt-1.5 h-[22px] w-full max-w-[160px]" aria-hidden="true">
-                    @if (k.sparkCmp) {
-                      <polyline [attr.points]="spark(k.spark, k.sparkCmp)[1]" fill="none" stroke="var(--series-cmp)" stroke-width="1.25" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" />
-                    }
-                    <polyline [attr.points]="spark(k.spark, k.sparkCmp)[0]" fill="none" stroke="var(--series)" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
-                  </svg>
-                }
-                <p class="mt-1 text-[12px] tabular-nums">{{ deltaLine(k) }}</p>
-                <p class="text-muted-foreground text-[12px] tabular-nums">{{ k.base }}</p>
+              <li class="insight-card gap-stack flex min-w-0 flex-col p-card-pad">
+                <p class="text-muted-foreground text-[12px]/4 font-medium">{{ k.label }}</p>
+                <div class="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+                  <p class="text-kpi font-semibold tracking-[-0.02em] tabular-nums">{{ k.value }}</p>
+                  @if (k.spark.length > 1) {
+                    <svg viewBox="0 0 64 22" preserveAspectRatio="none" class="mb-2 h-(--spark-h) w-(--spark-w) shrink-0" aria-hidden="true">
+                      @if (k.sparkCmp) {
+                        <polyline [attr.points]="spark(k.spark, k.sparkCmp)[1]" fill="none" stroke="var(--series-cmp)" stroke-width="1.25" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" />
+                      }
+                      <polyline [attr.points]="spark(k.spark, k.sparkCmp)[0]" fill="none" stroke="var(--series)" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+                    </svg>
+                  }
+                </div>
+                <div class="text-[12px]/4 tabular-nums">
+                  <p>{{ deltaLine(k) }}</p>
+                  <p class="text-muted-foreground mt-0.5">{{ k.base }}</p>
+                </div>
               </li>
             }
           </ul>
-          <div class="grid gap-4 lg:grid-cols-2">
+          </div>
+          <!-- Twelve columns: the board's hero and its table take a row; the rest sit two to a row, three on a wide screen -->
+          <div class="grid-12">
             @for (spec of specs; track spec.id) {
-              <app-chart-card [spec]="spec" [class]="wide(spec) ? 'lg:col-span-2' : ''" />
+              <app-chart-card [spec]="spec" [size]="chartSize(spec)" [class]="wide(spec) ? 'col-span-12' : 'col-span-12 lg:col-span-6 min-[1600px]:col-span-4'" />
             }
           </div>
         }
@@ -264,13 +275,13 @@ export class SavedWidget {
         @case ('dubai') {
           <header>
             <h1 class="text-[24px] font-[560] tracking-[-0.02em]">Dubai Business Bay</h1>
-            <p class="text-muted-foreground text-[14px]">Tessera Dubai Business Bay · pace and rates · data as of Fri 20 Nov, 07:00</p>
+            <p class="text-muted-foreground mt-1 text-[14px]">Tessera Dubai Business Bay · pace and rates · data as of Fri 20 Nov, 07:00</p>
           </header>
-          <section class="bg-card ring-foreground/8 min-w-0 rounded-xl p-4 ring-1 sm:p-5"><app-performance-widget /></section>
+          <section class="surface min-w-0"><app-performance-widget /></section>
           <section aria-labelledby="dxb-dec">
-            <h2 id="dxb-dec" class="mb-3 text-[15px] font-semibold">Decisions for this hotel</h2>
+            <h2 id="dxb-dec" class="section-title mb-stack">Decisions for this hotel</h2>
             @if (dubaiProposals().length) {
-              <div class="grid gap-4 md:grid-cols-2">
+              <div class="gap-card-gap grid md:grid-cols-2">
                 @for (p of dubaiProposals(); track p.id) {
                   <app-proposal-card [proposal]="p" />
                 }
@@ -286,7 +297,7 @@ export class SavedWidget {
 
         @case ('saved') {
           @if (board(); as b) {
-            <header class="flex flex-wrap items-start justify-between gap-3">
+            <header class="gap-stack flex flex-wrap items-start justify-between">
               <div class="min-w-0 flex-1">
                 @if (renaming()) {
                   <form class="flex flex-wrap items-center gap-2" (submit)="$event.preventDefault(); saveName()">
@@ -298,16 +309,16 @@ export class SavedWidget {
                 } @else {
                   <h1 class="text-[24px] font-[560] tracking-[-0.02em]">{{ b.name }}</h1>
                 }
-                <p class="text-muted-foreground text-[14px]">{{ b.description || 'Charts from Kassandra’s answers' }} · {{ b.widgets.length }} {{ b.widgets.length === 1 ? 'chart' : 'charts' }} · updated {{ updated(b) }}{{ boards.mode() === 'local' ? ' · saved in this browser' : '' }}</p>
+                <p class="text-muted-foreground mt-1 text-[14px]">{{ b.description || 'Charts from Kassandra’s answers' }} · {{ b.widgets.length }} {{ b.widgets.length === 1 ? 'chart' : 'charts' }} · updated {{ updated(b) }}{{ boards.mode() === 'local' ? ' · saved in this browser' : '' }}</p>
               </div>
               <button hlmBtn variant="outline" size="sm" [hlmDropdownMenuTrigger]="boardMenu" align="end" aria-label="Board actions"><ng-icon name="phosphorDotsThreeBold" />Board</button>
             </header>
             <kassandra-describe-view [boardId]="b.id" [boardName]="b.name" placeholder="Describe what this board should show, e.g. “channel profitability after commission for Lisbon”" />
-            <div class="grid gap-4 lg:grid-cols-2">
+            <div class="grid-12">
               @for (w of b.widgets; track w.id) {
-                <app-saved-widget [class]="wideWidget(w) ? 'lg:col-span-2' : ''" [widgetRef]="w" [boardRef]="b" />
+                <app-saved-widget [class]="span(w)" [widgetRef]="w" [boardRef]="b" />
               } @empty {
-                <div class="text-muted-foreground border-border col-span-full rounded-xl border border-dashed p-8 text-center text-[14px]">
+                <div class="text-muted-foreground border-border col-span-full rounded-xl border border-dashed p-card-pad py-section text-center text-[14px]">
                   No charts on this board yet. Describe what you want to see above and Kassandra builds it, or choose “Add to board” on any chart in an answer.
                   <button type="button" class="text-foreground mt-1 block w-full underline underline-offset-2" (click)="store.openBoard(portfolioBoard)">Or add charts from the Portfolio board</button>
                 </div>
@@ -351,7 +362,13 @@ export class BoardView {
   protected readonly filters = inject(Filters);
   protected readonly boards = inject(BoardsService);
   protected readonly portfolioBoard = PORTFOLIO_BOARD;
-  protected readonly wide = isWide;
+  /** The board's hero, its waterfall and its table take a whole row of the 12 columns; the rest share a row. */
+  protected readonly wide = (spec: ChartSpec) => spec.kind === 'position' || spec.kind === 'bridge' || spec.kind === 'table';
+  /** Height presets, never free heights: 180 px among others, 320 px when featured; a bar per row keeps its own. */
+  protected chartSize(spec: ChartSpec): ChartSize | 'auto' {
+    if (spec.kind === 'pace' || spec.kind === 'pickup' || spec.kind === 'fan') return 'overview';
+    return spec.kind === 'bridge' || spec.kind === 'quadrant' ? 'hero' : 'auto';
+  }
   protected readonly specs = PORTFOLIO_SPECS;
   protected readonly kind = computed<'portfolio' | 'dubai' | 'saved'>(() => {
     const id = this.store.activeBoardId();
@@ -415,6 +432,12 @@ export class BoardView {
     const pts = (xs: number[]) => xs.map((x, i) => `${((i / Math.max(1, xs.length - 1)) * 62 + 1).toFixed(1)},${(20 - ((x - lo) / span) * 18).toFixed(1)}`).join(' ');
     return [pts(a), b ? pts(b) : ''];
   }
+  /** Columns of the 12 a chart takes: a wide chart the row, a single figure a quarter (four to a row at most), the rest a half, or a third on a wide screen. */
+  protected span(w: BoardWidget) {
+    if (this.wideWidget(w)) return 'col-span-12';
+    if (w.spec.kind === 'kpi') return 'col-span-12 sm:col-span-6 xl:col-span-3';
+    return 'col-span-12 lg:col-span-6 min-[1600px]:col-span-4';
+  }
   protected wideWidget(w: BoardWidget) {
     return ['line', 'area', 'stacked_bar', 'table', 'waterfall', 'heatmap', 'calendar_heatmap'].includes(w.spec.kind) || w.rows.length > 10;
   }
@@ -473,11 +496,11 @@ function orderLike(listed: Board, full: Board): BoardWidget[] {
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
-    <div class="mx-auto flex max-w-[1120px] flex-col gap-6 px-[max(16px,env(safe-area-inset-left,0px))] pt-6 pb-28 sm:px-8 lg:pt-8">
-      <header class="flex flex-wrap items-end justify-between gap-4">
+    <div class="page gap-section flex flex-col pt-section pb-28 lg:pb-section-lg">
+      <header class="gap-card-gap flex flex-wrap items-end justify-between">
         <div>
           <h1 class="text-[26px] font-semibold tracking-[-0.02em]">Boards</h1>
-          <p class="text-muted-foreground text-[15px]">The numbers you check every day, kept in one place. Kassandra builds a board from a description, or you add charts from an answer.</p>
+          <p class="text-muted-foreground max-w-measure mt-1 text-[15px]">The numbers you check every day, kept in one place. Kassandra builds a board from a description, or you add charts from an answer.</p>
         </div>
         <button hlmBtn (click)="openNew()"><ng-icon name="phosphorPlusLight" />New board</button>
       </header>
@@ -486,18 +509,18 @@ function orderLike(listed: Board, full: Board): BoardWidget[] {
         <p role="alert" class="border-border rounded-[10px] border border-dashed p-3 text-[13.5px]">Couldn’t load your saved boards. {{ e }} <button hlmBtn variant="ghost" size="sm" (click)="boards.load()">Try again</button></p>
       }
 
-      <ul class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Boards">
+      <ul class="chart-row" aria-label="Boards">
         @for (c of builtIns(); track c.id) {
           <li class="min-w-0">
             <button type="button" class="clickable-card group flex h-full w-full flex-col text-left" (click)="store.openBoard(c.id)">
-              <span class="flex items-start gap-3 p-4 pb-3">
+              <span class="flex items-start gap-3 p-card-pad pb-stack">
                 <span class="min-w-0 flex-1">
                   <span class="block truncate text-[16px] font-semibold tracking-[-0.01em]">{{ c.name }}</span>
                   <span class="text-muted-foreground line-clamp-2 min-h-[2.75em] text-[13.5px]/snug">{{ c.description }}</span>
                 </span>
                 <span class="scope-chip shrink-0">Built in</span>
               </span>
-              <span class="flex items-end justify-between gap-3 px-4">
+              <span class="flex items-end justify-between gap-3 px-card-pad">
                 <span>
                   <span class="text-muted-foreground block text-[12.5px]">{{ c.label }}</span>
                   <span class="block text-[24px]/tight font-semibold tracking-[-0.02em] tabular-nums">{{ c.value }}</span>
@@ -508,7 +531,7 @@ function orderLike(listed: Board, full: Board): BoardWidget[] {
                 <path [attr.d]="c.paths.ly" fill="none" class="stroke-(--series-cmp)" stroke-width="1.25" stroke-dasharray="3 3" vector-effect="non-scaling-stroke" />
                 <path [attr.d]="c.paths.line" fill="none" class="stroke-(--series)" stroke-width="1.75" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
               </svg>
-              <span class="border-border text-muted-foreground mt-auto flex items-center justify-between gap-2 border-t px-4 py-3 text-[12.5px] tabular-nums">
+              <span class="text-muted-foreground mt-auto flex items-center justify-between gap-2 px-card-pad pt-stack pb-card-pad text-[12.5px] tabular-nums">
                 <span>Data as of 20 Nov, 07:00</span>
                 <span>{{ c.count }} charts</span>
               </span>
@@ -518,23 +541,23 @@ function orderLike(listed: Board, full: Board): BoardWidget[] {
         @for (b of boards.boards(); track b.id) {
           <li class="relative min-w-0">
             <button type="button" class="clickable-card group flex h-full min-h-[200px] w-full flex-col text-left" (click)="store.openBoard(b.id)">
-              <span class="p-4 pb-3 pr-12">
+              <span class="p-card-pad pb-stack pr-12">
                 <span class="block truncate text-[16px] font-semibold tracking-[-0.01em]">{{ b.name }}</span>
                 <span class="text-muted-foreground line-clamp-2 min-h-[2.75em] text-[13.5px]/snug">{{ b.description || 'Charts from Kassandra’s answers' }}</span>
               </span>
-              <span class="flex flex-wrap gap-1.5 px-4">
+              <span class="flex flex-wrap gap-1.5 px-card-pad">
                 @for (t of titles(b); track $index) {
                   <span class="scope-chip max-w-full truncate">{{ t }}</span>
                 } @empty {
                   <span class="text-muted-foreground text-[13px]">No charts yet</span>
                 }
               </span>
-              <span class="border-border text-muted-foreground mt-auto flex items-center justify-between gap-2 border-t px-4 py-3 text-[12.5px] tabular-nums">
+              <span class="text-muted-foreground mt-auto flex items-center justify-between gap-2 px-card-pad pt-stack pb-card-pad text-[12.5px] tabular-nums">
                 <span>Updated {{ ago(b.updatedAt) }}</span>
                 <span>{{ b.widgets.length }} {{ b.widgets.length === 1 ? 'chart' : 'charts' }}</span>
               </span>
             </button>
-            <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground absolute top-3 right-3" [attr.aria-label]="'Actions for ' + b.name" [hlmDropdownMenuTrigger]="cardMenu" [hlmDropdownMenuTriggerData]="{ $implicit: b }" align="end"><ng-icon name="phosphorDotsThreeBold" class="text-[18px]" /></button>
+            <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground absolute top-[calc(var(--space-card-pad)-6px)] right-[calc(var(--space-card-pad)-8px)]" [attr.aria-label]="'Actions for ' + b.name" [hlmDropdownMenuTrigger]="cardMenu" [hlmDropdownMenuTriggerData]="{ $implicit: b }" align="end"><ng-icon name="phosphorDotsThreeBold" class="text-[18px]" /></button>
           </li>
         }
         <li class="min-w-0">

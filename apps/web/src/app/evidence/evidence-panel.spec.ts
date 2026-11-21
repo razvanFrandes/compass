@@ -113,6 +113,11 @@ function render(entries: EvidenceEntry[], inputs: Record<string, unknown> = {}) 
 }
 
 describe('EvidencePanel', () => {
+  it('is a compact region wherever it is shown', () => {
+    const { el } = render([pace]);
+    expect(el.getAttribute('data-density')).toBe('compact');
+  });
+
   it('leads with the numbers the answer quotes', () => {
     const { el } = render([pace, brief], { answer: 'Lisbon is 12.3% behind: 2,928 room nights against 3,337 last year.' });
     expect(el.querySelector('h3')!.textContent).toBe('Numbers in this answer');

@@ -3,6 +3,7 @@ import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { LabCharts } from './lab-charts';
 import { LabContrast, LabPalette } from './lab-colour';
+import { LabDensity } from './lab-density';
 import { LAB_VIEWS, LabCompare, LabProbe, LabState } from './lab-kit';
 import { LabTokenTable } from './lab-token-table';
 import { LabType } from './lab-type';
@@ -12,7 +13,8 @@ const SECTIONS = [
   { id: 'direction', label: 'Direction' },
   { id: 'colour', label: 'Colour' },
   { id: 'type', label: 'Type' },
-  { id: 'shape', label: 'Density and shape' },
+  { id: 'density', label: 'Density' },
+  { id: 'shape', label: 'Shape' },
   { id: 'elevation', label: 'Elevation' },
   { id: 'motion', label: 'Motion' },
   { id: 'components', label: 'Components' },
@@ -57,7 +59,7 @@ const NIGHTS = [
  */
 @Component({
   selector: 'app-theme-lab',
-  imports: [NgIcon, HlmButtonImports, LabCompare, LabProbe, LabPalette, LabContrast, LabType, LabTokenTable, LabCharts],
+  imports: [NgIcon, HlmButtonImports, LabCompare, LabProbe, LabPalette, LabContrast, LabType, LabTokenTable, LabCharts, LabDensity],
   providers: [LabState],
   host: { class: 'block' },
   styles: `
@@ -67,13 +69,13 @@ const NIGHTS = [
     .lab-bar { height: 6px; border-radius: 1px; background: var(--foreground); }
   `,
   template: `
-    <div class="mx-auto max-w-[1320px] px-4 pt-8 pb-28 sm:px-8">
+    <div class="page pt-section pb-28 lg:pb-section-lg">
       <header class="max-w-[72ch]">
         <h1 class="text-[26px] font-semibold tracking-[-0.02em]">Theme lab</h1>
         <p class="text-muted-foreground mt-2 text-[14px]">Compass has two themes, Default and Juyo concept, and each has a light and a dark mode: four combinations that share one set of token names. This page puts the four side by side. Every value on it is read from the pane it sits in as it renders, so the tables cannot drift from the CSS.</p>
       </header>
 
-      <div class="bg-background border-border sticky top-0 z-20 -mx-4 mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2 sm:-mx-8 sm:px-8">
+      <div class="bg-background border-border sticky top-0 z-20 -mx-page-x mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-page-x py-2">
         <nav aria-label="Sections of this page" class="flex flex-wrap gap-0.5">
           @for (s of sections; track s.id) {
             <button hlmBtn variant="ghost" size="sm" (click)="jump(s.id)">{{ s.label }}</button>
@@ -174,9 +176,15 @@ const NIGHTS = [
         <app-lab-compare [content]="figureSpec" />
       </section>
 
+      <section class="lab-section" aria-labelledby="density">
+        <h2 id="density" tabindex="-1" class="lab-h2 text-[20px] font-semibold tracking-[-0.01em]">Density</h2>
+        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">Density is its own setting, next to the theme: Comfortable or Compact. It changes heights, padding and gaps, and never a font size or a colour. Comfortable is the default. Compact is the person’s choice for the whole app, and the standing choice for regions that are scanned and compared: tables, filter bars and the Behind the numbers panel. Dialogs, menus and popovers stay comfortable, and touch keeps 44px targets at both densities.</p>
+        <app-lab-density />
+      </section>
+
       <section class="lab-section" aria-labelledby="shape">
-        <h2 id="shape" tabindex="-1" class="lab-h2 text-[20px] font-semibold tracking-[-0.01em]">Density and shape</h2>
-        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">Spacing stays on the 4px unit in every theme. The concept theme is denser where it counts, in control heights and table rows, and keeps 44px targets on touch. Radius follows the size of the thing: 2px for marks, 4px for controls, 6px for containers, 10px for dialogs. Measured values are under each sample.</p>
+        <h2 id="shape" tabindex="-1" class="lab-h2 text-[20px] font-semibold tracking-[-0.01em]">Shape</h2>
+        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">Control heights come from the density, so they are the same in every theme. Radius follows the size of the thing: the concept theme keeps marks at 2px and dialogs at 10px, where the default themes round more.</p>
         <ng-template #shapeSpec>
           <p class="mb-2 text-[12.5px] font-medium">Control heights</p>
           <div class="flex flex-wrap items-start gap-4">

@@ -24,15 +24,28 @@ import * as icons from './icons';
   One workflow, live (GET /api/workflows/:id): what it watches and does, its autonomy, its runs with the full
   log of each (the same turns as a chat: steps, answer, evidence) and its proposals, with Approve / Deny / Undo.
   Polls while a run is going.
+  Layout (docs/research/layout): a route of its own with a breadcrumb, a primary column of two thirds (what it
+  watches for, decisions, runs and the log of the chosen run) and a secondary one of one third (how it works,
+  ask about it). It is edited in the builder.
 */
 @Component({
   selector: 'app-watcher-page',
   imports: [NgIcon, HlmButtonImports, KassandraComposer, KassandraConversation, EvidencePanel, ProposalCard, WorkflowMenu, ConfirmDialog],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
+  styles: `
+    /* A run in the list: a row, not a card. The chosen one carries a tint and a mark on its edge. */
+    .wp-run { display: block; width: 100%; padding: var(--space-stack) var(--space-card-pad); text-align: left; font-size: 13px; line-height: 18px; outline: none; transition: background-color 130ms ease; }
+    .wp-run[aria-pressed='true'] { background: var(--overlay-hover); box-shadow: inset 2px 0 0 var(--focus-brand); }
+    @media (hover: hover) { .wp-run:hover { background: var(--overlay-hover); } }
+    .wp-run:focus-visible { box-shadow: inset 0 0 0 2px var(--ring); }
+    @media (prefers-reduced-motion: reduce) { .wp-run { transition: none; } }
+  `,
   template: `
-    <div class="mx-auto flex max-w-[1080px] flex-col gap-7 px-[max(16px,env(safe-area-inset-left,0px))] pt-5 pb-28 sm:px-8 lg:pt-8 lg:pb-16">
-      <nav aria-label="Breadcrumb" class="flex items-center gap-1.5 text-[14px]">
+    <!-- A page of its own: the breadcrumb, then a primary column (what it watches for, its decisions, its runs)
+         of two thirds and a secondary one (how it works, ask about it) of one third. -->
+    <div class="page gap-section flex flex-col pt-stack pb-28 lg:pb-section-lg">
+      <nav aria-label="Breadcrumb" class="-mb-[calc(var(--space-section)-var(--space-stack))] flex h-14 items-center gap-1.5 text-[14px]">
         <button hlmBtn variant="ghost" size="sm" class="text-muted-foreground -ml-2" (click)="store.go('watchers')"><ng-icon name="phosphorArrowLeftLight" aria-hidden="true" />Agent Studio</button>
         <span class="text-muted-foreground">/</span>
         <span class="truncate">{{ wf()?.name ?? '…' }}</span>
@@ -43,8 +56,8 @@ import * as icons from './icons';
       }
 
       @if (wf(); as w) {
-        <header class="flex flex-wrap items-start justify-between gap-4">
-          <div class="min-w-0 max-w-[62ch]">
+        <header class="gap-card-gap flex flex-wrap items-start justify-between">
+          <div class="max-w-measure min-w-0">
             <h1 class="text-[24px] font-semibold tracking-[-0.02em]">{{ w.name }}</h1>
             @if (w.description) {
               <p class="text-muted-foreground mt-1 text-[14px]">{{ w.description }}</p>
@@ -59,98 +72,124 @@ import * as icons from './icons';
           </div>
         </header>
 
-        <section class="insight-card grid gap-x-8 gap-y-3 p-5 text-[13.5px] sm:grid-cols-2" aria-label="What it does">
-          <div><p class="text-muted-foreground text-[12px]">When</p><p>{{ trigger(w) }}</p></div>
-          <div><p class="text-muted-foreground text-[12px]">Hotels</p><p>{{ hotels(w.hotels) }}</p>@if (hotelNames(w.hotels); as names) {<p class="text-muted-foreground text-[12.5px]">{{ names }}</p>}</div>
-          <div class="sm:col-span-2"><p class="text-muted-foreground text-[12px]">What it watches for</p><p>{{ w.goal }}</p></div>
-          <div>
-            <p class="text-muted-foreground text-[12px]">Action</p>
-            <p>{{ action(w) }}{{ w.delivery ? ' to ' + mask(w.delivery.to) : '' }}</p>
-            @if (w.action.guidance) {
-              <p class="text-muted-foreground text-[12.5px]">{{ w.action.guidance }}</p>
-            }
-          </div>
-          <div>
-            <p class="text-muted-foreground text-[12px]" id="aut-label">How far it may go</p>
-            @if (w.action.type === 'email') {
-              <!-- Email is low risk: it needs no approval (contracts: approvalNode) -->
-              <p>Sends an email · no approval needed</p>
-            } @else {
-              <div class="op-toggle mt-1" role="radiogroup" aria-labelledby="aut-label">
-                @for (a of autonomies; track a) {
-                  <button type="button" role="radio" [attr.aria-checked]="w.autonomy === a" [attr.tabindex]="w.autonomy === a ? 0 : -1" [disabled]="!!busy()" (click)="actions.setAutonomy(w, a)" (keydown)="autonomyKey($event, w)">{{ autonomyShort(a) }}</button>
-                }
-              </div>
-              <p class="text-muted-foreground mt-1 text-[12.5px]">{{ autonomy(w) }}. Approver: the {{ w.approver === 'gm' ? 'general manager' : 'revenue manager' }}.</p>
-            }
-          </div>
-          @if (w.checks.length) {
-            <div class="sm:col-span-2"><p class="text-muted-foreground text-[12px]">Data it reads first</p><p>{{ checks(w) }}</p></div>
-          }
-        </section>
+        <div class="gap-section grid grid-cols-12 items-start">
+          <div class="gap-section col-span-12 flex min-w-0 flex-col lg:col-span-8">
+            <!-- The hero: what the agent was told to watch for -->
+            <section class="surface" aria-labelledby="wp-goal">
+              <h2 id="wp-goal" class="text-muted-foreground text-[12px]/4 font-medium">What it watches for</h2>
+              <p class="max-w-measure mt-stack text-[16px]/relaxed">{{ w.goal }}</p>
+              <p class="text-muted-foreground mt-stack text-[13px]">{{ trigger(w) }} · {{ hotels(w.hotels) }}</p>
+            </section>
 
-        <!-- "Ask about this": the question opens a thread with this workflow as its subject, and is sent at once -->
-        <section aria-labelledby="wp-ask">
-          <h2 id="wp-ask" class="mb-3 text-[15px] font-semibold">Ask about this agent</h2>
-          <kassandra-composer label="Ask Kassandra about this agent" placeholder="Ask about this agent, e.g. “What did it find this week?”" [scope]="[w.name, hotels(w.hotels)]" [(mode)]="live.mode" (submitted)="ask(w, $event)" />
-        </section>
-
-        @if (proposals().length) {
-          <section aria-labelledby="wp-prop">
-            <h2 id="wp-prop" class="mb-3 text-[15px] font-semibold">Decisions</h2>
-            <div class="grid gap-4 md:grid-cols-2">
-              @for (p of proposals(); track p.id) {
-                <app-proposal-card [proposal]="p" />
-              }
-            </div>
-          </section>
-        }
-
-        <section aria-labelledby="wp-runs" class="grid gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-          <div>
-            <h2 id="wp-runs" class="mb-3 text-[15px] font-semibold">Runs</h2>
-            <ul class="flex flex-col gap-2" aria-label="Runs">
-              @for (r of runs(); track r.id) {
-                <li>
-                  <button type="button" class="w-full rounded-[10px] border p-3 text-left text-[13px] transition-colors" [attr.aria-pressed]="r.id === runId()" [class]="r.id === runId() ? 'border-(--focus-brand) bg-(--overlay-hover)' : 'border-border hover:bg-(--overlay-hover)'" (click)="pickRun(r.id)">
-                    <span class="flex items-center justify-between gap-2">
-                      <span [class]="r.status === 'failed' ? 'text-(--negative) font-medium' : r.status === 'waiting_approval' ? 'text-(--decision) font-medium' : 'font-medium'">{{ status(r.status) }}{{ r.test ? ' · test run' : '' }}</span>
-                      <span class="text-muted-foreground text-[12px]">{{ ago(r.startedAt) }} · {{ startedBy(r.trigger) }}</span>
-                    </span>
-                    @if (r.summary) {
-                      <span class="text-muted-foreground md-inline mt-1 line-clamp-3" [innerHTML]="summary(r.summary)"></span>
-                    }
-                  </button>
-                </li>
-              } @empty {
-                <li class="text-muted-foreground text-[13.5px]">No runs yet. Choose “Run now” to start one.</li>
-              }
-            </ul>
-          </div>
-          <div class="min-w-0">
-            <h2 class="mb-3 text-[15px] font-semibold">Run log</h2>
-            @if (runId()) {
-              @if (log.isLoading() && !log.hasValue()) {
-                <p class="text-muted-foreground text-[13.5px]" role="status">Loading the run log…</p>
-              }
-              <div class="insight-card px-4 pb-4">
-                <kassandra-conversation [turns]="turns()" (evidenceSelected)="evidenceFor.set($event.callId)">
-                  @if (!log.isLoading()) {
-                    <p class="text-muted-foreground pt-4 text-[13.5px]">Nothing was recorded for this run.</p>
+            @if (proposals().length) {
+              <section aria-labelledby="wp-prop">
+                <h2 id="wp-prop" class="section-title mb-stack">Decisions</h2>
+                <div class="gap-card-gap grid">
+                  @for (p of proposals(); track p.id) {
+                    <app-proposal-card [proposal]="p" />
                   }
-                </kassandra-conversation>
-              </div>
-              @if (evidenceFor()) {
-                <div class="mt-4">
-                  <h3 class="mb-2 text-[13.5px] font-semibold">Behind the numbers</h3>
-                  <app-evidence-panel [allSteps]="allSteps()" [focus]="evidenceFor()" />
                 </div>
-              }
-            } @else {
-              <p class="text-muted-foreground text-[13.5px]">Select a run to see what the agent checked and why.</p>
+              </section>
             }
+
+            <section aria-labelledby="wp-runs">
+              <h2 id="wp-runs" class="section-title mb-stack">Runs</h2>
+              @if (runs().length) {
+                <ul class="surface surface--flush overflow-hidden" aria-label="Runs">
+                  @for (r of shownRuns(); track r.id) {
+                    <li class="border-border border-b last:border-b-0">
+                      <button type="button" class="wp-run" [attr.aria-pressed]="r.id === runId()" (click)="pickRun(r.id)">
+                        <span class="flex items-baseline justify-between gap-3">
+                          <span [class]="r.status === 'failed' ? 'text-(--negative) font-medium' : r.status === 'waiting_approval' ? 'text-(--decision) font-medium' : 'font-medium'">{{ status(r.status) }}{{ r.test ? ' · test run' : '' }}</span>
+                          <span class="text-muted-foreground shrink-0 text-[12px]">{{ ago(r.startedAt) }} · {{ startedBy(r.trigger) }}</span>
+                        </span>
+                        @if (r.summary) {
+                          <span class="text-muted-foreground md-inline mt-0.5 line-clamp-2" [innerHTML]="summary(r.summary)"></span>
+                        }
+                      </button>
+                    </li>
+                  }
+                </ul>
+                @if (runs().length > runsCap) {
+                  <button hlmBtn variant="ghost" size="sm" class="mt-stack" [attr.aria-expanded]="allRuns()" (click)="allRuns.set(!allRuns())">{{ allRuns() ? 'Show fewer' : 'Show all ' + runs().length + ' runs' }}</button>
+                }
+              } @else {
+                <p class="text-muted-foreground text-[13.5px]">No runs yet. Choose “Run now” to start one.</p>
+              }
+            </section>
+
+            <section aria-labelledby="wp-log" class="min-w-0">
+              <h2 id="wp-log" class="section-title mb-stack">Run log</h2>
+              @if (runId()) {
+                @if (log.isLoading() && !log.hasValue()) {
+                  <p class="text-muted-foreground text-[13.5px]" role="status">Loading the run log…</p>
+                }
+                <div class="surface pt-0">
+                  <kassandra-conversation [turns]="turns()" (evidenceSelected)="evidenceFor.set($event.callId)">
+                    @if (!log.isLoading()) {
+                      <p class="text-muted-foreground pt-card-pad text-[13.5px]">Nothing was recorded for this run.</p>
+                    }
+                  </kassandra-conversation>
+                </div>
+                @if (evidenceFor()) {
+                  <div class="mt-card-gap">
+                    <h3 class="mb-stack text-[13.5px] font-semibold">Behind the numbers</h3>
+                    <app-evidence-panel [allSteps]="allSteps()" [focus]="evidenceFor()" />
+                  </div>
+                }
+              } @else {
+                <p class="text-muted-foreground text-[13.5px]">Select a run to see what the agent checked and why.</p>
+              }
+            </section>
           </div>
-        </section>
+
+          <aside class="gap-section col-span-12 flex min-w-0 flex-col lg:sticky lg:top-(--space-section) lg:col-span-4" aria-label="About this agent">
+            <section class="surface" aria-labelledby="wp-how">
+              <h2 id="wp-how" class="section-title">How it works</h2>
+              <dl class="gap-stack mt-stack flex flex-col text-[13.5px]">
+                <div><dt class="text-muted-foreground text-[12px]">When</dt><dd>{{ trigger(w) }}</dd></div>
+                <div>
+                  <dt class="text-muted-foreground text-[12px]">Hotels</dt>
+                  <dd>{{ hotels(w.hotels) }}@if (hotelNames(w.hotels); as names) {<span class="text-muted-foreground block text-[12.5px]">{{ names }}</span>}</dd>
+                </div>
+                <div>
+                  <dt class="text-muted-foreground text-[12px]">Action</dt>
+                  <dd>
+                    {{ action(w) }}{{ w.delivery ? ' to ' + mask(w.delivery.to) : '' }}
+                    @if (w.action.guidance) {
+                      <span class="text-muted-foreground block text-[12.5px]">{{ w.action.guidance }}</span>
+                    }
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-muted-foreground text-[12px]" id="aut-label">How far it may go</dt>
+                  <dd>
+                    @if (w.action.type === 'email') {
+                      <!-- Email is low risk: it needs no approval (contracts: approvalNode) -->
+                      Sends an email · no approval needed
+                    } @else {
+                      <span class="op-toggle mt-1" role="radiogroup" aria-labelledby="aut-label">
+                        @for (a of autonomies; track a) {
+                          <button type="button" role="radio" [attr.aria-checked]="w.autonomy === a" [attr.tabindex]="w.autonomy === a ? 0 : -1" [disabled]="!!busy()" (click)="actions.setAutonomy(w, a)" (keydown)="autonomyKey($event, w)">{{ autonomyShort(a) }}</button>
+                        }
+                      </span>
+                      <span class="text-muted-foreground mt-1 block text-[12.5px]">{{ autonomy(w) }}. Approver: the {{ w.approver === 'gm' ? 'general manager' : 'revenue manager' }}.</span>
+                    }
+                  </dd>
+                </div>
+                @if (w.checks.length) {
+                  <div><dt class="text-muted-foreground text-[12px]">Data it reads first</dt><dd>{{ checks(w) }}</dd></div>
+                }
+              </dl>
+            </section>
+
+            <!-- "Ask about this": the question opens a thread with this workflow as its subject, and is sent at once -->
+            <section aria-labelledby="wp-ask">
+              <h2 id="wp-ask" class="section-title mb-stack">Ask about this agent</h2>
+              <kassandra-composer label="Ask Kassandra about this agent" placeholder="Ask, e.g. “What did it find this week?”" [scope]="[w.name, hotels(w.hotels)]" [(mode)]="live.mode" (submitted)="ask(w, $event)" />
+            </section>
+          </aside>
+        </div>
       } @else if (!error()) {
         <p class="text-muted-foreground text-[14px]" role="status">Loading the agent…</p>
       }
@@ -169,6 +208,15 @@ export class WatcherPage {
   protected readonly runs = computed(() => (this.detail.hasValue() ? (this.detail.value()?.runs ?? []) : []).slice().sort((a, b) => b.startedAt.localeCompare(a.startedAt)));
   protected readonly proposals = computed(() => (this.detail.hasValue() ? (this.detail.value()?.proposals ?? []) : []).slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
   protected readonly runId = computed(() => this.picked() ?? this.runs()[0]?.id ?? null);
+  /** The list starts with the five latest runs (and always the one that is open); the rest sit behind "Show all". */
+  protected readonly runsCap = 5;
+  protected readonly allRuns = signal(false);
+  protected readonly shownRuns = computed(() => {
+    const runs = this.runs();
+    if (this.allRuns() || runs.length <= this.runsCap) return runs;
+    const open = this.runId();
+    return runs.filter((run, index) => index < this.runsCap || run.id === open);
+  });
   protected readonly log = this.live.workflowsApi.runLogResource(() => this.runId() ?? undefined);
   /** A run opens with an instruction to the agent; the log shows it as what started the run. */
   protected readonly turns = computed(() => groupTurns(this.log.hasValue() ? (this.log.value()?.entries ?? []) : []).map((turn) => ({ ...turn, question: runStartText(turn.question) })));

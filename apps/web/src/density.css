@@ -1,0 +1,201 @@
+/*
+  Density and layout tokens. Research: docs/research/layout/layout-and-density.md; the names and how to use
+  them: docs/research/layout/tokens.md.
+
+  Density is its own axis, next to the theme: `data-density="comfortable" | "compact"` on <html> for the
+  person's preference, or on any region that is denser (or roomier) than the page around it (a table, a filter
+  bar, the "Behind the numbers" panel). It changes heights, padding and gaps. It never changes a font size.
+
+  A theme only sets colour, type and shape; it does not touch these tokens. src/app/theme/density.ts is the
+  catalogue the tests and the theme lab read, and must list the same names and values.
+*/
+
+/* ───────── Comfortable: the default, and what an overlay always gets ───────── */
+:root,
+[data-density='comfortable'],
+:is(dialog, [role='dialog'], [role='menu'], [role='listbox'], [popover], [data-overlay], .cdk-overlay-container) {
+  --space-page-x: 1.5rem; /* 24  page gutter */
+  --space-section: 2rem; /* 32  between the sections of a page */
+  --space-section-lg: 3rem; /* 48  around a page's hero (the brief's summary and KPI rail) */
+  --space-card-gap: 1rem; /* 16  between cards in a grid */
+  --space-card-pad: 1.5rem; /* 24  inside a card */
+  --space-stack: 0.75rem; /* 12  a title to its content; rows of a stack */
+  --space-inline: 0.5rem; /* 8   items on one line */
+  --row-h: 2.5rem; /* 40  table and list rows */
+  --control-h-xs: 1.75rem; /* 28 */
+  --control-h-sm: 2rem; /* 32 */
+  --control-h: 2.25rem; /* 36  buttons, fields, selects */
+  --control-h-lg: 2.5rem; /* 40 */
+  --cell-pad-x: 1rem; /* 16  table cells */
+  --leading-body: 1.25rem; /* 14/20 */
+}
+
+/* ───────── Compact: the person's choice, or a dense region ───────── */
+[data-density='compact'] {
+  --space-page-x: 1rem; /* 16 */
+  --space-section: 1.5rem; /* 24 */
+  --space-section-lg: 2rem; /* 32 */
+  --space-card-gap: 0.5rem; /* 8 */
+  --space-card-pad: 1rem; /* 16 */
+  --space-stack: 0.5rem; /* 8 */
+  --space-inline: 0.25rem; /* 4 */
+  --row-h: 2rem; /* 32 */
+  --control-h-xs: 1.5rem; /* 24 */
+  --control-h-sm: 1.75rem; /* 28 */
+  --control-h: 2rem; /* 32 */
+  --control-h-lg: 2.25rem; /* 36 */
+  --cell-pad-x: 0.75rem; /* 12 */
+  --leading-body: 1.125rem; /* 14/18 */
+}
+
+/* Phones: a 16 px gutter and card padding in both densities (the research's phone layout). */
+@media (max-width: 599.98px) {
+  :root,
+  [data-density] {
+    --space-page-x: 1rem;
+    --space-card-pad: 1rem;
+    --space-section-lg: 2rem;
+  }
+}
+
+/* Touch: 44 px targets whatever the density (Primer, WCAG 2.5.8). */
+@media (pointer: coarse) {
+  :root,
+  [data-density],
+  :is(dialog, [role='dialog'], [role='menu'], [role='listbox'], [popover], [data-overlay], .cdk-overlay-container) {
+    --row-h: 2.75rem;
+    --control-h-xs: 2.75rem;
+    --control-h-sm: 2.75rem;
+    --control-h: 2.75rem;
+    --control-h-lg: 3rem;
+  }
+}
+
+/* The concept theme reads the same heights under its own names (src/themes/juyo-concept/tokens.css). A custom
+   property is resolved where it is declared, so the aliases are declared again on every region and overlay. */
+[data-density],
+:is(dialog, [role='dialog'], [role='menu'], [role='listbox'], [popover], [data-overlay], .cdk-overlay-container) {
+  --control-height-xs: var(--control-h-xs);
+  --control-height-sm: var(--control-h-sm);
+  --control-height-md: var(--control-h);
+  --control-height-lg: var(--control-h-lg);
+  --row-height: var(--row-h);
+  --row-height-two-line: calc(var(--row-h) + 1rem);
+  --cell-padding-x: var(--cell-pad-x);
+}
+
+/* ───────── Constants: the same in both densities ───────── */
+:root {
+  --chart-h: 180px; /* a chart in an overview */
+  --chart-h-hero: 320px; /* the featured chart of a page */
+  --spark-w: 80px;
+  --spark-h: 24px;
+  --content-max: 1280px; /* reading pages; boards and the builder are full width */
+  --measure: 68ch; /* a line of prose */
+  --tile-min: 200px; /* the least width of a KPI tile or a chart */
+  --pane-evidence: 400px; /* "Behind the numbers" beside a conversation */
+}
+
+/* Type roles of the layout research. Sizes are fixed: density never changes them. */
+@theme static {
+  --text-label: 0.75rem;
+  --text-label--line-height: 1rem;
+  --text-body: 0.875rem;
+  --text-body--line-height: var(--leading-body);
+  --text-card-title: 1rem;
+  --text-card-title--line-height: 1.5rem;
+  --text-section: 1.25rem;
+  --text-section--line-height: 1.75rem;
+  --text-kpi: 2rem;
+  --text-kpi--line-height: 2.5rem;
+  --text-kpi-sm: 1.5rem;
+  --text-kpi-sm--line-height: 2rem;
+}
+
+/* ───────── Tailwind utilities: px-page-x, gap-section, gap-card-gap, p-card-pad, gap-stack, h-row, h-control … ───────── */
+@theme inline {
+  --spacing-page-x: var(--space-page-x);
+  --spacing-section: var(--space-section);
+  --spacing-section-lg: var(--space-section-lg);
+  --spacing-card-gap: var(--space-card-gap);
+  --spacing-card-pad: var(--space-card-pad);
+  --spacing-stack: var(--space-stack);
+  --spacing-inline: var(--space-inline);
+  --spacing-row: var(--row-h);
+  --spacing-control-xs: var(--control-h-xs);
+  --spacing-control-sm: var(--control-h-sm);
+  --spacing-control: var(--control-h);
+  --spacing-control-lg: var(--control-h-lg);
+  --spacing-cell-x: var(--cell-pad-x);
+  --spacing-chart: var(--chart-h);
+  --spacing-chart-hero: var(--chart-h-hero);
+  --spacing-tile: var(--tile-min);
+  --spacing-evidence: var(--pane-evidence);
+  --container-content: var(--content-max);
+  --container-measure: var(--measure);
+}
+
+/* Figures line up in columns. */
+.num {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ───────── Layout primitives built on the tokens ───────── */
+@layer components {
+  /* A page: the gutter, and a ceiling on reading pages. Boards and the builder use `page--wide`. */
+  .page {
+    width: 100%;
+    max-width: calc(var(--content-max) + 2 * var(--space-page-x));
+    margin-inline: auto;
+    padding-inline: var(--space-page-x);
+  }
+  .page--wide {
+    max-width: none;
+  }
+  /* The ladder: sections are furthest apart, then cards, then the rows inside a card. */
+  .page-sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-section);
+  }
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-stack);
+  }
+  /* Twelve columns; a child spans with Tailwind's col-span-*. */
+  .grid-12 {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: var(--space-card-gap);
+  }
+  /* KPI tiles: as many as fit at 200 px or more, never more than four on a row. */
+  .kpi-row {
+    display: grid;
+    gap: var(--space-card-gap);
+    grid-template-columns: repeat(auto-fit, minmax(max(var(--tile-min), (100% - 3 * var(--space-card-gap)) / 4), 1fr));
+  }
+  /* Charts: as many as fit at 200 px or more, never more than three on a row. */
+  .chart-row {
+    display: grid;
+    gap: var(--space-card-gap);
+    grid-template-columns: repeat(auto-fit, minmax(max(var(--tile-min), (100% - 2 * var(--space-card-gap)) / 3), 1fr));
+  }
+  /* A flat card: a tone and a hairline, no shadow. Shadows are for things that float. */
+  .surface {
+    border: 1px solid var(--card-border, var(--border));
+    border-radius: var(--card-radius, 12px);
+    background: var(--card);
+    padding: var(--space-card-pad);
+  }
+  .surface--flush {
+    padding: 0;
+  }
+  /* The title of a section: the only thing between two sections besides space. */
+  .section-title {
+    font-size: 1rem;
+    line-height: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+}

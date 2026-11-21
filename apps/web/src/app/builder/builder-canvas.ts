@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, DOCUMENT, computed, inject, input, output, signal } from '@angular/core';
+import { Component, DOCUMENT, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
 import type { WorkflowDraft, WorkflowGraph, WorkflowNode, WorkflowNodeKind } from '@compass/contracts';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorCheckCircleFill, phosphorWarningFill, phosphorXCircleFill } from '@ng-icons/phosphor-icons/fill';
@@ -11,6 +11,7 @@ import {
   phosphorEnvelopeSimpleLight,
   phosphorPencilSimpleLight,
   phosphorUserCheckLight,
+  phosphorXLight,
 } from '@ng-icons/phosphor-icons/light';
 import { WorkflowNodeEditor } from './builder-node-editor';
 import type { BuilderRun } from './builder-socket';
@@ -39,6 +40,9 @@ export function isEditable(node: WorkflowNode): boolean {
   return node.kind !== 'approval';
 }
 
+/** From this width the step settings are an inspector beside the canvas (docs/research/layout: 320–360 px, on the right). */
+const INSPECTOR = '(min-width: 1280px)';
+
 const KIND_NAMES: Record<WorkflowNodeKind, string> = { trigger: 'When', scope: 'Hotels', check: 'Data', analyze: 'Watch for', approval: 'Approval', action: 'Action' };
 const KIND_ICONS: Record<WorkflowNodeKind, string> = {
   trigger: 'phosphorClockLight',
@@ -59,6 +63,9 @@ export interface CanvasResult {
  * The workflow as a chain of nodes on a dotted canvas: trigger → hotels → checks → analyze → [approval] → action.
  * It is an ordered list, top to bottom, so it reads the same on a phone, with a keyboard and with a screen reader.
  * Placeholders are dashed; a node the agent just changed flashes once; a test run lights the nodes in order.
+ *
+ * The canvas has no maximum width. On a wide screen the settings of the selected step open in an inspector on the
+ * right (comfortable density: it is a form); on a narrower one they open inside the step itself.
  */
 @Component({
   selector: 'app-workflow-canvas',
@@ -75,9 +82,10 @@ export interface CanvasResult {
       phosphorUserCheckLight,
       phosphorWarningFill,
       phosphorXCircleFill,
+      phosphorXLight,
     }),
   ],
-  host: { class: 'wb-canvas relative flex flex-col' },
+  host: { class: 'wb-canvas relative flex flex-col lg:flex-row' },
   styles: `
     :host {
       --wb-dot: rgb(255 255 255 / 0.1);
@@ -114,7 +122,7 @@ export interface CanvasResult {
       border-radius: var(--radius-container, 14px);
       border: 1px solid var(--field-border);
       background: var(--card);
-      box-shadow: var(--elevation-raised, 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 10px 24px -18px rgb(0 0 0 / 0.7));
+      /* Flat: a step is a card on the canvas, set apart by its tone and a hairline. */
       transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
     }
     .wb-node[data-kind='scope'] { --k: var(--series); }
@@ -148,7 +156,7 @@ export interface CanvasResult {
     .wb-item:first-child .wb-node::before, .wb-item:last-child .wb-node::after { display: none; }
     .wb-node[data-run='done']::before, .wb-node[data-run='done']::after, .wb-node[data-run='active']::before { border-color: var(--brand); background: var(--brand); }
 
-    .wb-body { display: flex; width: 100%; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 13px; text-align: left; outline: none; }
+    .wb-body { display: flex; width: 100%; align-items: flex-start; gap: var(--space-stack); padding: var(--space-stack) calc(var(--space-card-pad) - 8px); border-radius: 13px; text-align: left; outline: none; }
     button.wb-body { cursor: pointer; transition: background-color 130ms ease; }
     @media (hover: hover) { button.wb-body:not([aria-disabled='true']):hover { background: var(--overlay-hover); } }
     button.wb-body:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring); }
@@ -184,6 +192,22 @@ export interface CanvasResult {
       0% { opacity: 1; box-shadow: 0 0 0 0 rgb(169 126 230 / 0.55), 0 0 28px -4px rgb(169 126 230 / 0.5); }
       100% { opacity: 0; box-shadow: 0 0 0 10px rgb(169 126 230 / 0), 0 0 28px -4px rgb(169 126 230 / 0); }
     }
+
+    /* The inspector: the form of the selected step, beside the canvas. A form is always comfortable. */
+    .wb-inspector {
+      --wb-editor-pad: var(--space-card-pad);
+      display: flex;
+      flex: none;
+      flex-direction: column;
+      width: 344px;
+      min-height: 0;
+      overflow-y: auto;
+      border-left: 1px solid var(--border);
+      background: var(--card);
+    }
+    .wb-close { display: grid; flex: none; width: var(--control-h-sm); height: var(--control-h-sm); place-items: center; border-radius: var(--radius-control, 8px); color: var(--muted-foreground); outline: none; }
+    @media (hover: hover) { .wb-close:hover { background: var(--overlay-hover); color: var(--foreground); } }
+    .wb-close:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
 
     .wb-result {
       display: flex;
@@ -251,9 +275,10 @@ export interface CanvasResult {
       }
     </ng-template>
 
-    <div class="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-4 pt-6 pb-10 sm:px-6 lg:pt-10 lg:pb-16">
+    <div class="flex min-w-0 flex-1 flex-col lg:min-h-0 lg:overflow-y-auto">
+    <div class="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-page-x pt-section pb-section-lg">
       @if (blank()) {
-        <div class="gen-in mb-6 text-center">
+        <div class="gen-in mb-section text-center">
           <h2 class="text-[15px] font-medium">Your agent takes shape here</h2>
           <p class="text-muted-foreground mx-auto mt-1 max-w-[34ch] text-[13.5px]/relaxed">Describe it in the chat and watch each step fill in, or select a step to set it by hand.</p>
         </div>
@@ -296,7 +321,7 @@ export interface CanvasResult {
                   <ng-container *ngTemplateOutlet="body; context: { $implicit: node }" />
                 </div>
               }
-              @if (openId() === node.id) {
+              @if (openId() === node.id && !wide()) {
                 <app-workflow-node-editor [id]="editorId(i)" [node]="node" [draft]="draft()" (patch)="edit.emit($event)" (closed)="close(i)" />
               }
             </div>
@@ -322,6 +347,30 @@ export interface CanvasResult {
         </div>
       </div>
     }
+    </div>
+
+    @if (wide()) {
+      <aside class="wb-inspector" data-density="comfortable" aria-label="Step settings">
+        @if (openNode(); as open) {
+          <header class="gap-stack flex items-start px-card-pad pt-card-pad pb-stack">
+            <div class="min-w-0 flex-1">
+              <p class="wb-eyebrow">{{ nameOf(open.node.kind) }}</p>
+              <h2 class="mt-0.5 text-[15px]/5 font-semibold [overflow-wrap:anywhere]">{{ open.node.label }}</h2>
+            </div>
+            <button type="button" class="wb-close" aria-label="Close the step settings" (click)="close(open.index)"><ng-icon name="phosphorXLight" class="text-[16px]" aria-hidden="true" /></button>
+          </header>
+          @for (id of [open.node.id]; track id) {
+            <app-workflow-node-editor [id]="editorId(open.index)" [node]="open.node" [draft]="draft()" (patch)="edit.emit($event)" (closed)="close(open.index)" />
+          }
+        } @else {
+          <div class="gap-stack flex flex-1 flex-col items-center justify-center p-card-pad text-center">
+            <ng-icon name="phosphorPencilSimpleLight" class="text-muted-foreground text-[20px]" aria-hidden="true" />
+            <h2 class="text-[14px] font-medium">Select a step</h2>
+            <p class="text-muted-foreground max-w-[28ch] text-[13px]/relaxed">Its settings open here. You can also ask Kassandra for the change.</p>
+          </div>
+        }
+      </aside>
+    }
   `,
 })
 export class WorkflowCanvas {
@@ -341,6 +390,22 @@ export class WorkflowCanvas {
   private readonly doc = inject(DOCUMENT);
   protected readonly lockId = `${this.uid}-lock`;
   protected readonly openId = signal<string | null>(null);
+  /** Wide enough for the inspector beside the canvas; below it, a step's settings open inside the step. */
+  protected readonly wide = signal(false);
+  /** The step whose settings are open, and its place in the chain. */
+  protected readonly openNode = computed(() => {
+    const index = this.graph().nodes.findIndex((node) => node.id === this.openId());
+    return index < 0 ? null : { node: this.graph().nodes[index]!, index };
+  });
+
+  constructor() {
+    const query = this.doc.defaultView?.matchMedia?.(INSPECTOR);
+    if (!query) return;
+    this.wide.set(query.matches);
+    const onChange = (event: MediaQueryListEvent) => this.wide.set(event.matches);
+    query.addEventListener('change', onChange);
+    inject(DestroyRef).onDestroy(() => query.removeEventListener('change', onChange));
+  }
 
   protected readonly locked = computed(() => this.lockReason() !== '');
   protected readonly blank = computed(() => this.graph().nodes.every((node) => node.state === 'empty'));

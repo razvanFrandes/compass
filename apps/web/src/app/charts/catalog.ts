@@ -159,12 +159,12 @@ const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
   `,
   template: `
     <div class="bg-background text-foreground min-h-full" [class]="themeClass(canvas())" [attr.data-theme]="themeAttr(canvas())" [style]="themeReset(canvas())">
-      <div class="mx-auto flex flex-col gap-10 px-[max(16px,env(safe-area-inset-left,0px))] pt-5 pb-28 sm:px-8 lg:pt-8 lg:pb-16" [class]="both() ? 'max-w-[1640px]' : 'max-w-[1240px]'">
-        <header class="flex flex-col gap-5">
+      <div class="page gap-section-lg flex flex-col pt-section pb-28 lg:pb-section-lg" [class.page--wide]="both()">
+        <header class="gap-card-gap flex flex-col">
           <div>
             <p class="text-muted-foreground text-[12px] font-medium tracking-[0.06em] uppercase">Design system</p>
             <h1 class="mt-1 text-[26px] font-semibold tracking-[-0.02em]">Chart catalogue</h1>
-            <p class="text-muted-foreground mt-2 max-w-[68ch] text-[14px]/relaxed">
+            <p class="text-muted-foreground max-w-measure mt-2 text-[14px]/relaxed">
               Every chart Kassandra can put in an answer or on a board: {{ kinds }} kinds, drawn by one component from one set of colour tokens. Kassandra chooses the kind and the columns; the component formats the values, draws the chart. “View as” under each one lists the other kinds its numbers can be shown as, the table among them. The numbers on this page are samples shaped like Halcyon’s data.
             </p>
           </div>
@@ -204,17 +204,17 @@ const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
         @for (g of groups; track g.id) {
           <section [attr.aria-labelledby]="'cat-' + g.id" [id]="'sec-' + g.id" class="scroll-mt-6">
             <h2 [id]="'cat-' + g.id" class="text-[17px] font-semibold tracking-[-0.01em]" tabindex="-1">{{ g.title }}</h2>
-            <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[13.5px]/relaxed">{{ g.blurb }}</p>
-            <div class="grid gap-4" [class]="both() ? '' : 'lg:grid-cols-2'">
+            <p class="text-muted-foreground max-w-measure mt-1 mb-card-gap text-[13.5px]/relaxed">{{ g.blurb }}</p>
+            <div class="gap-card-gap grid" [class]="both() ? '' : 'lg:grid-cols-2'">
               @for (sp of g.items; track sp.id) {
-                <div class="grid min-w-0 gap-4" [class]="both() ? 'lg:grid-cols-2' : sp.wide ? 'lg:col-span-2' : ''">
+                <div class="gap-card-gap grid min-w-0" [class]="both() ? 'lg:grid-cols-2' : sp.wide ? 'lg:col-span-2' : ''">
                   @for (scope of scopes(); track scope) {
                     <div class="cat-scope" [class]="themeClass(scope)" [attr.data-theme]="themeAttr(scope)" [style]="themeReset(scope)">
                       <article class="cat-card" [attr.aria-label]="sp.spec.kind + (both() ? ', ' + themeName(scope) + ' theme' : '')">
                         <p class="cat-kind mb-3"><ng-icon [name]="icons[sp.spec.kind]" aria-hidden="true" /><b>{{ sp.spec.kind }}</b> · {{ mapping(sp) }}</p>
                         <juyo-widget-chart [spec]="sp.spec" [rows]="sp.rows" [columns]="sp.columns" [compact]="compact()" [loading]="loading()" [switcher]="true" />
                         @if (sp.shows) {
-                          <p class="text-muted-foreground border-border mt-4 border-t pt-3 text-[12.5px]/relaxed">{{ sp.shows }}</p>
+                          <p class="text-muted-foreground mt-card-gap text-[12.5px]/relaxed">{{ sp.shows }}</p>
                         }
                         @if (question(sp); as q) {
                           <!-- The question that makes Kassandra answer with this kind; a click asks it in a new thread -->

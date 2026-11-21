@@ -98,7 +98,7 @@ let nextId = 0;
     }
 
     @if (showScope() || showMode()) {
-      <div class="mt-2 flex min-h-7 flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+      <div class="mt-inline flex min-h-7 flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
         @if (showScope()) {
           <ul class="flex min-w-0 flex-wrap items-center gap-1.5" aria-label="Hotels this question covers">
             @for (chip of chips(); track chip) {

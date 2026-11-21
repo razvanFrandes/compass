@@ -7,7 +7,8 @@ import { injectBrnButtonConfig } from './hlm-button.token';
 
 /*
   Button anatomy follows Meta's Astryx (github.com/facebook/astryx, Button.tsx + tokens.stylex.ts):
-  heights 28/32/36 (+40 here for prominent actions), 8px element radius (not pills), medium-weight label,
+  heights 28/32/36 (+40 here for prominent actions) from the density tokens (--control-h-*: 24/28/32/36 when
+  compact), 8px element radius (not pills), medium-weight label,
   hover and press painted as a translucent overlay (5% / 10%) so every fill reacts the same way,
   a 0.98 press scale for fine pointers only (none on touch or under reduced motion), 175ms standard ease.
 */
@@ -31,14 +32,14 @@ export const buttonVariants = cva(
         link: 'h-auto! px-0! text-(--brand) underline-offset-4 after:hidden hover:underline',
       },
       size: {
-        xs: 'h-7 px-2.5 text-[13px] gap-1.5',
-        sm: 'h-8 px-3 text-[13px] gap-1.5',
-        default: 'h-9 px-3.5 text-[14px]',
-        lg: 'h-10 px-4 text-[15px]',
-        icon: 'size-9',
-        'icon-xs': "size-7 [&_ng-icon:not([class*='text-'])]:text-[14px]",
-        'icon-sm': 'size-8',
-        'icon-lg': "size-10 [&_ng-icon:not([class*='text-'])]:text-[18px]",
+        xs: 'h-(--control-h-xs) px-2.5 text-[13px] gap-1.5',
+        sm: 'h-(--control-h-sm) px-3 text-[13px] gap-1.5',
+        default: 'h-(--control-h) px-3.5 text-[14px]',
+        lg: 'h-(--control-h-lg) px-4 text-[15px]',
+        icon: 'size-(--control-h)',
+        'icon-xs': "size-(--control-h-xs) [&_ng-icon:not([class*='text-'])]:text-[14px]",
+        'icon-sm': 'size-(--control-h-sm)',
+        'icon-lg': "size-(--control-h-lg) [&_ng-icon:not([class*='text-'])]:text-[18px]",
       },
     },
     defaultVariants: {

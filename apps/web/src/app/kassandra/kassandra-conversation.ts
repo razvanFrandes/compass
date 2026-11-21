@@ -53,7 +53,7 @@ const AUTONOMY: Record<string, string> = { suggest: 'only suggests', approve: 'a
   selector: 'kassandra-turn',
   imports: [NgIcon, HlmButtonImports, Markdown, KassandraWidget],
   providers: [provideIcons({ phosphorArrowUpRightLight, phosphorCaretDownLight, phosphorCheckLight, phosphorCircleNotchLight, phosphorStopFill })],
-  host: { class: 'flex flex-col gap-3 pt-5' },
+  host: { class: 'flex flex-col gap-stack pt-section first:pt-card-pad' },
   template: `
     @let t = turn();
     @if (t.question) {
@@ -115,7 +115,7 @@ const AUTONOMY: Record<string, string> = { suggest: 'only suggests', approve: 'a
     }
 
     @for (d of drafts(); track d.callId) {
-      <article class="insight-card p-4">
+      <article class="insight-card p-card-pad">
         <p class="card-eyebrow text-muted-foreground">Agent draft</p>
         <h3 class="mt-1 text-[15px] font-semibold">{{ d.draft.name }}</h3>
         <p class="text-muted-foreground mt-1 text-[13px]">{{ d.draft.goal }}</p>
