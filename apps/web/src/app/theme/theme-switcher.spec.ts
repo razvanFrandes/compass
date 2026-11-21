@@ -31,8 +31,9 @@ describe('ThemeSwitcher', () => {
     const { radios, checked } = await render();
     expect(radios('Theme').map((r) => r.textContent?.trim())).toEqual(['Default', 'Concept']);
     expect(radios('Mode').map((r) => r.getAttribute('aria-label'))).toEqual(['Light', 'Dark', 'System: follows your device']);
+    // A visitor who has chosen nothing is in the default theme, in the dark mode.
     expect(checked('Theme')?.textContent?.trim()).toBe('Default');
-    expect(checked('Mode')?.getAttribute('aria-label')).toBe('System: follows your device');
+    expect(checked('Mode')?.getAttribute('aria-label')).toBe('Dark');
   });
 
   it('changes the theme without touching the mode, and the mode without touching the theme', async () => {
@@ -40,23 +41,28 @@ describe('ThemeSwitcher', () => {
     radios('Theme')[1].click();
     await fixture.whenStable();
     expect(theme.id()).toBe('juyo-concept');
-    expect(theme.mode()).toBe('system');
+    expect(theme.mode()).toBe('dark');
     expect(checked('Theme')?.textContent?.trim()).toBe('Concept');
 
-    radios('Mode')[1].click();
+    radios('Mode')[0].click();
     await fixture.whenStable();
     expect(theme.id()).toBe('juyo-concept');
-    expect(theme.mode()).toBe('dark');
-    expect(checked('Mode')?.getAttribute('aria-label')).toBe('Dark');
+    expect(theme.mode()).toBe('light');
+    expect(checked('Mode')?.getAttribute('aria-label')).toBe('Light');
     expect(root.getAttribute('data-theme')).toBe('juyo-concept');
-    expect(root.classList.contains('dark')).toBe(true);
+    expect(root.classList.contains('light')).toBe(true);
   });
 
   it('is one tab stop per group, and the arrow keys move and choose', async () => {
     const { fixture, group, radios, theme } = await render();
-    expect(radios('Mode').map((r) => r.getAttribute('tabindex'))).toEqual(['-1', '-1', '0']);
+    expect(radios('Mode').map((r) => r.getAttribute('tabindex'))).toEqual(['-1', '0', '-1']);
 
-    radios('Mode')[2].focus();
+    radios('Mode')[1].focus();
+    radios('Mode')[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await fixture.whenStable();
+    expect(theme.mode()).toBe('system');
+    expect(document.activeElement).toBe(radios('Mode')[2]);
+
     radios('Mode')[2].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     await fixture.whenStable();
     // Past the last option the group wraps to the first.
@@ -74,12 +80,12 @@ describe('ThemeSwitcher', () => {
     const { fixture, el, theme } = await render('menu');
     const button = el.querySelector('button');
     expect(el.querySelectorAll('[role="radiogroup"]').length).toBe(0);
-    expect(button?.getAttribute('aria-label')).toBe('Theme: Default, system (dark). Change theme or mode');
+    expect(button?.getAttribute('aria-label')).toBe('Theme: Default, dark. Change theme or mode');
     expect(button?.getAttribute('aria-haspopup')).toBe('menu');
 
     theme.set('juyo-concept');
-    theme.setMode('light');
+    theme.setMode('system');
     await fixture.whenStable();
-    expect(button?.getAttribute('aria-label')).toBe('Theme: Concept, light. Change theme or mode');
+    expect(button?.getAttribute('aria-label')).toBe('Theme: Concept, system (dark). Change theme or mode');
   });
 });

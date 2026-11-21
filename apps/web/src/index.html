@@ -25,7 +25,8 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Geist+Mono:wght@400;500&family=Archivo:wdth,wght@75..125,400..700&family=Chivo+Mono:wght@400;500&display=swap">
   <script>
     // Theme and mode, before the first paint. This browser remembers two choices: "compass.theme" (default or
-    // juyo-concept) and "compass.mode" (light, dark or system; system follows the OS and is the default).
+    // juyo-concept) and "compass.mode" (light, dark or system). With no choice the mode is dark, whatever the OS
+    // prefers; system follows the OS, and only when it is chosen.
     // Until the mode was a choice of its own, "compass.theme" alone held light, dark or juyo-concept, which was
     // a light theme: those still read as what the person had. An attribute already on <html> wins.
     // The class is the mode in effect; Spartan, Tailwind's dark: and the themes' CSS read it.
@@ -38,7 +39,7 @@
         theme = theme || localStorage.getItem('compass.theme');
         mode = mode || localStorage.getItem('compass.mode');
       } catch (e) {}
-      if (mode !== 'light' && mode !== 'dark' && mode !== 'system') mode = theme === 'light' || theme === 'dark' ? theme : theme === 'juyo-concept' ? 'light' : 'system';
+      if (mode !== 'light' && mode !== 'dark' && mode !== 'system') mode = theme === 'light' || theme === 'dark' ? theme : theme === 'juyo-concept' ? 'light' : 'dark';
       var light = mode === 'system' ? !!window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches : mode === 'light';
       root.setAttribute('data-theme', theme === 'juyo-concept' ? theme : 'default');
       root.setAttribute('data-mode', mode);

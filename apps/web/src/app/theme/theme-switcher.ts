@@ -12,18 +12,34 @@ let nextId = 0;
 /**
  * The theme switch: two independent choices, Theme (Default or Concept) and Mode (Light, Dark or System).
  *
- * It is self-contained (its own icons, no inputs from the shell) and comes in two shapes:
- * - `rows` (the default): two labelled segmented controls, 60px tall, for the expanded sidebar's footer;
+ * It is self-contained (its own icons and styles, no inputs from the shell) and comes in two shapes:
+ * - `rows` (the default): two labelled segmented controls that fill the width they are given. In the sidebar's
+ *   footer (192px) the modes are icons with tooltips; from 256px up, as in a phone's menu sheet, each icon gets
+ *   its word beside it. On touch every segment is 44px tall;
  * - `menu`: one icon button that opens the same two choices as a menu, for a collapsed rail or a phone's header.
  *   `side` and `align` place the menu against the button.
  *
- * It takes the colours of where it sits, so it needs no variant for the dark rail.
+ * It takes the colours of where it sits, so it needs no variant for the dark rail. A visitor who has chosen
+ * nothing sees Default and Dark selected.
  */
 @Component({
   selector: 'app-theme-switcher',
   imports: [NgIcon, HlmButtonImports, HlmDropdownMenuImports, HlmTooltipImports],
   providers: [provideIcons({ phosphorDesktopLight, phosphorMoonLight, phosphorSunLight })],
   host: { class: 'block', '[class.inline-flex]': "variant() === 'menu'" },
+  styles: `
+    /* Its own width decides whether the modes have room for their words: the rail does not, a sheet does. */
+    .ts-rows { container-type: inline-size; }
+    /* styles.css mutes any span in a segment (it is meant for counts); a mode's word takes its segment's colour. */
+    .ts-word { display: none; color: inherit; }
+    @container (min-width: 16rem) {
+      .ts-word { display: inline; }
+    }
+    /* Touch: every segment is a 44px target, in either theme (WCAG 2.5.8, Apple HIG). */
+    @media (pointer: coarse) {
+      .ts-rows .seg > button { height: 44px; }
+    }
+  `,
   template: `
     @if (variant() === 'menu') {
       <button hlmBtn type="button" variant="ghost" size="icon" [attr.aria-label]="summary() + '. Change theme or mode'" [hlmDropdownMenuTrigger]="menu" [side]="side()" [align]="align()">
@@ -47,6 +63,7 @@ let nextId = 0;
         </hlm-dropdown-menu>
       </ng-template>
     } @else {
+      <div class="ts-rows">
       <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1">
         <span [id]="uid + '-theme'" class="text-[12px] font-medium">Theme</span>
         <div class="seg seg--fill" role="radiogroup" [attr.aria-labelledby]="uid + '-theme'" (keydown)="onArrow($event)">
@@ -58,10 +75,11 @@ let nextId = 0;
         <div class="seg seg--fill" role="radiogroup" [attr.aria-labelledby]="uid + '-mode'" (keydown)="onArrow($event)">
           @for (m of modes; track m.id) {
             <button type="button" role="radio" [attr.aria-checked]="theme.mode() === m.id" [attr.tabindex]="theme.mode() === m.id ? 0 : -1" [attr.aria-label]="m.hint" [hlmTooltip]="m.hint" (click)="theme.setMode(m.id)">
-              <ng-icon [name]="m.icon" class="text-[15px]" aria-hidden="true" />
+              <ng-icon [name]="m.icon" class="text-[15px]" aria-hidden="true" /><span class="ts-word" aria-hidden="true">{{ m.label }}</span>
             </button>
           }
         </div>
+      </div>
       </div>
     }
   `,

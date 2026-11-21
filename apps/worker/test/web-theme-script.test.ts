@@ -44,11 +44,12 @@ describe('the theme script of apps/web/src/index.html', () => {
     expect(script).toContain('compass.mode');
   });
 
-  it('starts a first visit in the default theme, in the device’s mode', () => {
-    expect(boot({ device: 'dark' })).toEqual({ theme: 'default', mode: 'system', classes: 'dark' });
-    expect(boot({ device: 'light' })).toEqual({ theme: 'default', mode: 'system', classes: 'light' });
-    // No answer from the device: dark, like Juyo's product.
-    expect(boot({ device: 'unknown' })).toEqual({ theme: 'default', mode: 'system', classes: 'dark' });
+  it('starts a first visit in the default theme, in the dark mode, whatever the device prefers', () => {
+    expect(boot({ device: 'dark' })).toEqual({ theme: 'default', mode: 'dark', classes: 'dark' });
+    expect(boot({ device: 'light' })).toEqual({ theme: 'default', mode: 'dark', classes: 'dark' });
+    expect(boot({ device: 'unknown' })).toEqual({ theme: 'default', mode: 'dark', classes: 'dark' });
+    // A theme stored without a mode (it cannot be written that way today) is dark as well.
+    expect(boot({ theme: 'default', device: 'light' })).toEqual({ theme: 'default', mode: 'dark', classes: 'dark' });
   });
 
   it('applies the two remembered choices', () => {
@@ -58,9 +59,12 @@ describe('the theme script of apps/web/src/index.html', () => {
     expect(boot({ theme: 'default', mode: 'dark', device: 'light' })).toEqual({ theme: 'default', mode: 'dark', classes: 'dark' });
   });
 
-  it('resolves the system mode from the device, for either theme', () => {
+  it('resolves the system mode from the device once it is chosen, for either theme', () => {
     expect(boot({ theme: 'juyo-concept', mode: 'system', device: 'dark' })).toEqual({ theme: 'juyo-concept', mode: 'system', classes: 'dark' });
     expect(boot({ theme: 'juyo-concept', mode: 'system', device: 'light' })).toEqual({ theme: 'juyo-concept', mode: 'system', classes: 'light' });
+    expect(boot({ theme: 'default', mode: 'system', device: 'light' })).toEqual({ theme: 'default', mode: 'system', classes: 'light' });
+    // No answer from the device: dark.
+    expect(boot({ theme: 'default', mode: 'system', device: 'unknown' })).toEqual({ theme: 'default', mode: 'system', classes: 'dark' });
   });
 
   it('reads the single value of before the mode was a choice as what the person had', () => {
@@ -71,11 +75,11 @@ describe('the theme script of apps/web/src/index.html', () => {
   });
 
   it('ignores values it does not know', () => {
-    expect(boot({ theme: 'sepia', mode: 'dim', device: 'light' })).toEqual({ theme: 'default', mode: 'system', classes: 'light' });
+    expect(boot({ theme: 'sepia', mode: 'dim', device: 'light' })).toEqual({ theme: 'default', mode: 'dark', classes: 'dark' });
   });
 
   it('lets an attribute already on <html> win, and survives blocked storage', () => {
     expect(boot({ theme: 'default', mode: 'light', attrs: { 'data-theme': 'juyo-concept', 'data-mode': 'dark' } })).toEqual({ theme: 'juyo-concept', mode: 'dark', classes: 'dark' });
-    expect(boot({ storage: 'blocked', device: 'light' })).toEqual({ theme: 'default', mode: 'system', classes: 'light' });
+    expect(boot({ storage: 'blocked', device: 'light' })).toEqual({ theme: 'default', mode: 'dark', classes: 'dark' });
   });
 });

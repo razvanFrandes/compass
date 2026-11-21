@@ -7,6 +7,8 @@ import { DOCUMENT, Service, computed, inject, signal } from '@angular/core';
   mode in effect. The class is what CSS reads: Spartan, Tailwind's `dark:`, the default themes (`:root.light`) and
   the concept theme (`[data-theme='juyo-concept'].dark`). The script in index.html applies the same three before
   the first paint; this service takes over from there.
+
+  With no choice the theme is Default and the mode is Dark. The device's preference counts only under System.
 */
 
 /** The themes the app ships. `id` is the value of `data-theme` on `<html>`. */
@@ -15,7 +17,7 @@ export const THEMES = [
   { id: 'juyo-concept', label: 'Concept', name: 'Juyo concept' },
 ] as const;
 
-/** The modes a person can choose. `system` follows `prefers-color-scheme`, and keeps following it. */
+/** The modes a person can choose. `system` follows `prefers-color-scheme`, and keeps following it; it is never assumed. */
 export const MODES = [
   { id: 'light', label: 'Light', hint: 'Light', icon: 'phosphorSunLight' },
   { id: 'dark', label: 'Dark', hint: 'Dark', icon: 'phosphorMoonLight' },
@@ -26,6 +28,9 @@ export type ThemeId = (typeof THEMES)[number]['id'];
 export type ModeId = (typeof MODES)[number]['id'];
 /** The mode in effect: what `system` resolves to. */
 export type Scheme = 'light' | 'dark';
+
+/** The mode of a visitor who has chosen nothing: dark, like Juyo's product, whatever the device prefers. */
+export const DEFAULT_MODE: ModeId = 'dark';
 
 /** Where the choices are remembered. index.html reads the same keys before the first paint. */
 export const THEME_STORAGE_KEY = 'compass.theme';
@@ -42,11 +47,11 @@ export interface ThemeChoice {
 /**
  * The two stored values as a choice. Until the mode was a choice of its own, one value held everything: `light`,
  * `dark` or `juyo-concept`, which was a light theme. Those still read as what the person had. Nothing stored is the
- * default theme following the device. index.html applies the same rules; apps/worker/test/web-theme-script.test.ts
- * holds the two together.
+ * default theme in the dark mode: the device's preference counts only when the person chooses System.
+ * index.html applies the same rules; apps/worker/test/web-theme-script.test.ts holds the two together.
  */
 export function choiceFrom(theme: string | null | undefined, mode: string | null | undefined): ThemeChoice {
-  const former: ModeId = theme === 'light' || theme === 'dark' ? theme : theme === 'juyo-concept' ? 'light' : 'system';
+  const former: ModeId = theme === 'light' || theme === 'dark' ? theme : theme === 'juyo-concept' ? 'light' : DEFAULT_MODE;
   return { theme: theme === 'juyo-concept' ? 'juyo-concept' : 'default', mode: isModeId(mode) ? mode : former };
 }
 
@@ -59,7 +64,7 @@ export class Theme {
   private readonly start = this.read();
   private readonly theme = signal<ThemeId>(this.start.theme);
   private readonly chosenMode = signal<ModeId>(this.start.mode);
-  /** What the device asks for. With no answer the app is dark, like Juyo's product. */
+  /** What the device asks for, which only the System mode reads. With no answer it is dark. */
   private readonly systemLight = signal(this.media?.matches ?? false);
 
   /** The theme: `default` or `juyo-concept`. */
@@ -74,7 +79,7 @@ export class Theme {
   /** What the toaster and other two-tone parts need. */
   readonly dark = computed(() => this.scheme() === 'dark');
   readonly option = computed(() => THEMES.find((t) => t.id === this.theme()) ?? THEMES[0]);
-  readonly modeOption = computed(() => MODES.find((m) => m.id === this.chosenMode()) ?? MODES[2]);
+  readonly modeOption = computed(() => MODES.find((m) => m.id === this.chosenMode()) ?? MODES[1]);
 
   constructor() {
     this.media?.addEventListener?.('change', (e) => {

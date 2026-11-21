@@ -830,8 +830,9 @@ Two independent choices, each remembered:
 | Mode | `light`, `dark`, `system` | `localStorage["compass.mode"]` | `data-mode` (the choice), and the class `.light` or `.dark` (the mode in effect) |
 
 - **The class is what CSS reads.** It is the class Spartan and Tailwind’s `dark:` variant already read, and the default themes already switch on it (`:root.light`). The concept’s dark mode is therefore one more selector, `[data-theme='juyo-concept'].dark`, and a themed subtree works the same way as the page: the theme lab’s dark pane is `<div class="dark" data-theme="juyo-concept">`.
-- **System follows `prefers-color-scheme` and keeps following it.** What is stored is “system”, never the mode it resolved to. A first visit is the default theme in system mode, which is what the app did before; with no answer from the device it is dark.
-- **Before the first paint**, the inline script in `index.html` reads the two values and sets the attribute, the choice and the class, so no combination flashes another. `theme.ts` applies the same rules afterwards and listens to the device.
+- **With no choice, the mode is Dark.** A first visit is the default theme in the dark mode, whatever the device prefers: Juyo’s product is dark, and the owner decided the demo opens that way for everyone. Nothing is stored until a choice is made.
+- **System is a choice, never an assumption.** Once chosen it follows `prefers-color-scheme` and keeps following it; what is stored is “system”, never the mode it resolved to. With no answer from the device it is dark.
+- **Before the first paint**, the inline script in `index.html` reads the two values and sets the attribute, the choice and the class, so no combination flashes another, and a light device with no stored choice paints dark from the first frame. `theme.ts` applies the same rules afterwards and listens to the device.
 - **Old values still work.** `compass.theme` used to hold one of `light`, `dark`, `juyo-concept`. They read as default light, default dark and concept light (the concept was a light theme), and the service rewrites them once as two values. `choiceFrom()` in `theme.ts` and the inline script hold the same rules; `theme.spec.ts` tests the first and `apps/worker/test/web-theme-script.test.ts` runs the second.
 - A dark block may only set tokens that the light block declares. A light pane nested in a dark page then gets every value back, which is how the lab and the chart catalogue show the four combinations at once.
 
@@ -849,8 +850,10 @@ The theme's base block is not clear of it yet. §6 put the concept's density the
 
 | Input | Values | |
 |---|---|---|
-| `variant` | `rows` (default), `menu` | `rows`: two labelled segmented controls, Theme (Default, Concept) and Mode (Light, Dark, System as icons with tooltips), 60px tall together, for the expanded sidebar’s footer. `menu`: one icon button that opens the same two choices as a menu, for a collapsed rail or a phone’s header |
+| `variant` | `rows` (default), `menu` | `rows`: two labelled segmented controls, Theme (Default, Concept) and Mode (Light, Dark, System), which fill the width they are given. `menu`: one icon button that opens the same two choices as a menu, for a collapsed rail or a phone’s header |
 | `side`, `align` | the menu’s side and alignment | Where the menu opens: `side="right"` for a collapsed rail |
+
+`rows` asks its own width, with a container query, how much it can show. Under 256px, as in the sidebar’s footer (192px), the modes are icons with tooltips and the two rows are 60px tall together in the concept theme (68px in the default). From 256px up, as in a phone’s menu sheet, each mode has its word beside its icon; it was checked at 288px and 358px, the inner widths of a sheet on 320px and 390px phones, in all four combinations. On a touch device every segment is 44px tall in either theme. It needs nothing from its host but a width.
 
 Each group in `rows` is a `radiogroup` with one tab stop and arrow keys; the menu is a CDK menu of `menuitemradio`. The button’s name says the state: “Theme: Concept, system (dark). Change theme or mode”.
 

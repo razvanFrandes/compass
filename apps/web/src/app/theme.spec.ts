@@ -64,20 +64,39 @@ describe('Theme', () => {
       expect(choiceFrom('juyo-concept', null)).toEqual({ theme: 'juyo-concept', mode: 'light' });
     });
 
-    it('falls back to the default theme following the device', () => {
-      expect(choiceFrom(null, null)).toEqual({ theme: 'default', mode: 'system' });
-      expect(choiceFrom('sepia', 'dim')).toEqual({ theme: 'default', mode: 'system' });
+    it('falls back to the default theme in the dark mode, not to the device', () => {
+      expect(choiceFrom(null, null)).toEqual({ theme: 'default', mode: 'dark' });
+      expect(choiceFrom('sepia', 'dim')).toEqual({ theme: 'default', mode: 'dark' });
       expect(choiceFrom(undefined, 'light')).toEqual({ theme: 'default', mode: 'light' });
+      // A theme stored without a mode is dark as well.
+      expect(choiceFrom('default', null)).toEqual({ theme: 'default', mode: 'dark' });
     });
   });
 
-  it('starts as the default theme in the device’s mode, and stores nothing until a choice is made', () => {
+  it('starts as the default theme in the dark mode, and stores nothing until a choice is made', () => {
     const theme = TestBed.inject(Theme);
     expect(theme.id()).toBe('default');
-    expect(theme.mode()).toBe('system');
+    expect(theme.mode()).toBe('dark');
     expect(theme.scheme()).toBe('dark');
-    expect(state()).toEqual({ theme: 'default', mode: 'system', light: false, dark: true });
+    expect(state()).toEqual({ theme: 'default', mode: 'dark', light: false, dark: true });
     expect(stored()).toEqual({ theme: null, mode: null });
+  });
+
+  it('starts dark on a light device too: the device counts only once System is chosen', () => {
+    device.set(true);
+    const theme = TestBed.inject(Theme);
+    expect(theme.mode()).toBe('dark');
+    expect(theme.scheme()).toBe('dark');
+    expect(state()).toEqual({ theme: 'default', mode: 'dark', light: false, dark: true });
+    // The device changing its mind moves nothing either.
+    device.set(false);
+    device.set(true);
+    expect(state().dark).toBe(true);
+
+    theme.setMode('system');
+    expect(theme.scheme()).toBe('light');
+    expect(state()).toEqual({ theme: 'default', mode: 'system', light: true, dark: false });
+    expect(stored()).toEqual({ theme: 'default', mode: 'system' });
   });
 
   it('starts from what index.html left on <html>', () => {
@@ -102,8 +121,8 @@ describe('Theme', () => {
   it('changes the theme and the mode independently, and remembers both', () => {
     const theme = TestBed.inject(Theme);
     theme.set('juyo-concept');
-    expect(state()).toEqual({ theme: 'juyo-concept', mode: 'system', light: false, dark: true });
-    expect(stored()).toEqual({ theme: 'juyo-concept', mode: 'system' });
+    expect(state()).toEqual({ theme: 'juyo-concept', mode: 'dark', light: false, dark: true });
+    expect(stored()).toEqual({ theme: 'juyo-concept', mode: 'dark' });
     expect(theme.option().name).toBe('Juyo concept');
 
     theme.setMode('light');
@@ -125,6 +144,7 @@ describe('Theme', () => {
     it('follows the device, and keeps following it', () => {
       const theme = TestBed.inject(Theme);
       theme.set('juyo-concept');
+      theme.setMode('system');
       expect(theme.scheme()).toBe('dark');
       device.set(true);
       expect(theme.mode()).toBe('system');
@@ -136,9 +156,12 @@ describe('Theme', () => {
       expect(stored().mode).toBe('system');
     });
 
-    it('starts light on a light device', () => {
+    it('starts light on a light device when System is what the browser remembers', () => {
+      localStorage.setItem(THEME_STORAGE_KEY, 'default');
+      localStorage.setItem(MODE_STORAGE_KEY, 'system');
       device.set(true);
       const theme = TestBed.inject(Theme);
+      expect(theme.mode()).toBe('system');
       expect(theme.scheme()).toBe('light');
       expect(state().light).toBe(true);
     });
@@ -155,6 +178,7 @@ describe('Theme', () => {
       device.restore();
       const original = window.matchMedia;
       window.matchMedia = undefined as unknown as typeof window.matchMedia;
+      localStorage.setItem(MODE_STORAGE_KEY, 'system');
       try {
         expect(TestBed.inject(Theme).scheme()).toBe('dark');
       } finally {
