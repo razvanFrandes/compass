@@ -1,7 +1,6 @@
 import { Component, DOCUMENT, computed, effect, inject, signal } from '@angular/core';
-import { NgIcon, provideIcons } from '@ng-icons/core';
+import { provideIcons } from '@ng-icons/core';
 import { phosphorCompassLight } from '@ng-icons/phosphor-icons/light';
-import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmToasterImports } from '@spartan-ng/helm/sonner';
 import { provideBrnTooltipGroup } from '@spartan-ng/brain/tooltip';
 import { BoardView, BoardsList } from './board';
@@ -21,7 +20,7 @@ import { BoardsService } from './boards/boards.service';
 import { ScopeSwitcher } from './scope/scope-switcher';
 import { OrbLab } from './orb/orb-lab';
 import { CatalogView } from './charts/catalog';
-import { isActiveNav } from './shell/nav';
+import { MobileMenu } from './shell/mobile-menu';
 import { Sidebar } from './shell/sidebar';
 import { RAIL_WIDTH, SIDEBAR_WIDTH, SidebarState } from './shell/sidebar-state';
 import * as icons from './icons';
@@ -32,7 +31,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, Sidebar, HlmButtonImports, HlmToasterImports],
+  imports: [BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, Sidebar, MobileMenu, HlmToasterImports],
   providers: [provideIcons({ ...icons, phosphorCompassLight }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   styles: `
@@ -69,7 +68,8 @@ import * as icons from './icons';
 
       <main id="content" class="min-w-0 max-lg:overflow-x-clip lg:min-h-0" [class]="store.view() === 'thread' ? 'h-dvh' : 'lg:overflow-y-auto'">
         @if (store.view() !== 'thread') {
-          <header class="flex h-14 items-center justify-between px-[max(16px,env(safe-area-inset-left,0px))] lg:hidden">
+          <!-- Phone: the logo, the hotel scope, and the menu. There is no tab bar: the bottom edge is Kassandra's (src/app/shell/mobile-menu.ts). -->
+          <header class="flex h-14 items-center justify-between gap-2 pr-[max(6px,env(safe-area-inset-right,0px))] pl-[max(16px,env(safe-area-inset-left,0px))] lg:hidden">
             <div class="flex min-w-0 items-center gap-2">
               <a href="/" class="text-foreground flex shrink-0 items-center" aria-label="Juyo, morning brief" (click)="$event.preventDefault(); store.go('inbox')">
                 <app-juyo-logo [size]="20" />
@@ -77,7 +77,7 @@ import * as icons from './icons';
               <span class="text-muted-foreground text-[14px]" aria-hidden="true">/</span>
               <app-scope-switcher />
             </div>
-            <button hlmBtn variant="ghost" size="icon" [attr.aria-label]="'Theme: ' + theme.option().label + '. Switch to ' + theme.next().label" (click)="theme.set(theme.next().id)"><ng-icon [name]="theme.option().icon" /></button>
+            <app-mobile-menu [items]="nav()" />
           </header>
         }
         @switch (store.view()) {
@@ -127,23 +127,8 @@ import * as icons from './icons';
       </main>
     </div>
 
-    <!-- Phone: bottom tab bar (hidden inside a thread, which has its own back button) -->
-    @if (store.view() !== 'thread') {
-      <nav class="bg-background/90 border-border/70 fixed inset-x-0 bottom-0 z-30 grid grid-cols-3 border-t pb-[env(safe-area-inset-bottom,0px)] backdrop-blur lg:hidden" aria-label="Main">
-        @for (n of nav(); track n.view) {
-          <button type="button" class="relative flex flex-col items-center gap-0.5 py-2 text-[12px]" [class]="isActive(n.view) ? 'text-foreground font-medium' : 'text-muted-foreground'" [attr.aria-current]="isActive(n.view) ? 'page' : null" (click)="store.go(n.view)">
-            <ng-icon [name]="isActive(n.view) ? n.iconActive : n.icon" class="text-[20px]" />
-            {{ n.label }}
-            @if (n.count) {
-              <span class="bg-(--brass) text-background absolute top-1 left-1/2 ml-2 rounded-full px-1.5 text-[11px] font-semibold tabular-nums">{{ n.count }}</span>
-            }
-          </button>
-        }
-      </nav>
     }
-
-    }
-    <!-- Toasts sit where no composer is: top on phones (the ask bar and tab bar are at the bottom), bottom right on desktop -->
+    <!-- Toasts sit where no composer is: top on phones (the ask bar is at the bottom), bottom right on desktop -->
     <hlm-toaster [theme]="theme.dark() ? 'dark' : 'light'" [position]="phone() ? 'top-center' : 'bottom-right'" [offset]="phone() ? '12px' : '24px'" />
   `,
 })
@@ -166,10 +151,6 @@ export class App {
     { view: 'boards' as View, label: 'Boards', icon: 'phosphorSquaresFourLight', iconActive: 'phosphorSquaresFourFill', count: 0 },
     { view: 'watchers' as View, label: 'Agent Studio', icon: 'phosphorLightningLight', iconActive: 'phosphorLightningFill', count: this.live.pendingList().length },
   ]);
-
-  protected isActive(v: View) {
-    return isActiveNav(this.store.view(), v);
-  }
 
   /** ⌘K / Ctrl+K: ask from anywhere. */
   protected onKey(e: KeyboardEvent) {

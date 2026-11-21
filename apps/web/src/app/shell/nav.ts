@@ -1,6 +1,6 @@
 import type { View } from '../store';
 
-/** A place in the main navigation: the sidebar on desktop, the tab bar on a phone. */
+/** A place in the main navigation: the sidebar on desktop, the menu sheet on a phone. */
 export interface NavItem {
   view: View;
   label: string;

@@ -199,7 +199,7 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
   `,
 })
 export class Sidebar {
-  /** Inbox, Boards, Agent Studio: the same items as the phone's tab bar. */
+  /** Inbox, Boards, Agent Studio: the same items as the phone's menu. */
   readonly items = input.required<readonly NavItem[]>();
 
   protected readonly store = inject(CompassStore);
