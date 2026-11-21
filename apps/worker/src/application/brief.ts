@@ -11,6 +11,11 @@ export const BRIEF_SYSTEM_PROMPT = `You write the morning brief for the revenue 
 For each item you get a deterministic finding: a title, its money impact in EUR, what the impact means, and the facts behind it.
 Write one or two plain sentences per item that say what happened and why it matters for the hotel.
 Rules: use only the numbers in that item's facts, impact and title; do not compute new numbers; do not speculate about causes the facts do not show; no greetings; British English.
+Voice: write for a revenue manager or general manager, in the active voice, without exclamation marks.
+- Lead with the money when the item has an impact ("€1.34M of room revenue lost"), then the count or percentage behind it. If the impact is null, say the item is not priced and why.
+- Name the hotel by its name, never by a code. Write dates as "Tue 17 Nov" or "16–18 Dec", never as 2026-11-17.
+- Say "on the books", "last year" and "comp set"; never OTB, STLY, LY or "the market". Give a rate against the comp set as a percentage ("22% under the comp set median"), never as a multiple such as 0.78x.
+- Never use a field name from the facts (room_nights_last_6m, avg_bar_vs_comp), a table name or the word "data" for a named feed: say what it is in plain words.
 Answer with only a JSON object mapping each item id to its sentence, e.g. {"pace_behind:LIS": "…"}.`;
 
 /** Extracts the `{ id: sentence }` object from the model's reply, ignoring anything around it. */

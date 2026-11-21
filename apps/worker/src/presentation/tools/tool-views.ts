@@ -67,7 +67,7 @@ const MIX_KEYS: Record<string, string> = { segment: 'Segment', channel: 'Channel
 
 export const TOOL_VIEWS: Record<string, ToolView> = {
   list_hotels: {
-    title: 'Hotels of the group',
+    title: 'Hotels in the group',
     columns: () => [
       text('hotel_code', 'Code'),
       text('name', 'Hotel'),
@@ -81,11 +81,11 @@ export const TOOL_VIEWS: Record<string, ToolView> = {
     ],
   },
   list_metrics: {
-    title: 'Governed metrics',
+    title: 'Metric definitions',
     columns: () => [hidden(col('key', 'Key', 'id')), text('label', 'Metric'), text('unit', 'Unit'), text('definition', 'Definition'), hidden(text('source', 'Source'))],
   },
   get_metric: {
-    title: 'Governed metric',
+    title: 'Metric over time',
     titleFor: (args) => `${metricByKey(args['metric'] as never).label}${args['compare'] === 'stly' ? ' vs last year' : ''}`,
     columns: (args) => {
       const metric = metricByKey(args['metric'] as never);
@@ -101,7 +101,7 @@ export const TOOL_VIEWS: Record<string, ToolView> = {
     },
   },
   get_pickup: {
-    title: 'Pickup in the last days',
+    title: 'Recent pickup',
     columns: () => [
       HOTEL,
       count('rooms_picked_up', 'Rooms picked up', NIGHTS),
@@ -127,8 +127,8 @@ export const TOOL_VIEWS: Record<string, ToolView> = {
       date('stay_date', 'Stay date'),
       col('bar_rate', 'Our BAR', 'currency', 'local currency'),
       col('comp_median', 'Comp set median', 'currency', 'local currency'),
-      num('bar_vs_comp', 'Our BAR vs comp set median', '× the median'),
-      count('comps_sold_out', 'Competitors sold out'),
+      num('bar_vs_comp', 'Our BAR vs the comp set median', '× the median'),
+      count('comps_sold_out', 'Comp set hotels sold out'),
     ],
   },
   get_channel_mix: {
@@ -173,7 +173,7 @@ export const TOOL_VIEWS: Record<string, ToolView> = {
     ],
   },
   get_fnb: {
-    title: 'Food & beverage',
+    title: 'Food and beverage',
     columns: (args) => [
       period(args['grain'], 'week'),
       HOTEL,
@@ -186,7 +186,7 @@ export const TOOL_VIEWS: Record<string, ToolView> = {
     ],
   },
   get_labor: {
-    title: 'Staffing',
+    title: 'Staffing vs plan',
     columns: (args) => [
       period(args['grain'], 'week'),
       HOTEL,
@@ -195,7 +195,7 @@ export const TOOL_VIEWS: Record<string, ToolView> = {
       num('scheduled_hours', 'Hours scheduled', 'hours'),
       num('actual_hours', 'Hours worked', 'hours'),
       num('overtime_hours', 'Overtime', 'hours'),
-      pct('staffing_pct', 'Staffing vs required'),
+      pct('staffing_pct', 'Hours worked vs required'),
       eur('labor_cost_eur', 'Labour cost'),
     ],
   },
@@ -209,7 +209,7 @@ export const TOOL_VIEWS: Record<string, ToolView> = {
     ],
   },
   search_reviews: {
-    title: 'Guest review quotes',
+    title: 'Guest reviews',
     columns: () => [
       HOTEL,
       date('review_date', 'Review date'),
@@ -239,7 +239,7 @@ export const TOOL_VIEWS: Record<string, ToolView> = {
     ],
   },
   get_web_funnel: {
-    title: 'Website funnel',
+    title: 'Website booking funnel',
     columns: (args) => [
       period(args['grain'], 'week'),
       HOTEL,
@@ -335,7 +335,7 @@ export const TOOL_VIEWS: Record<string, ToolView> = {
     ],
   },
   get_meetings_events: {
-    title: 'Meetings & events',
+    title: 'Meetings and events',
     columns: (args) => [
       period(args['grain'], 'month'),
       rollUp(args['by']),
@@ -368,14 +368,14 @@ export const TOOL_VIEWS: Record<string, ToolView> = {
     ],
   },
   get_brief: {
-    title: 'The morning brief',
+    title: 'Morning brief',
     columns: () => [
       hidden(col('id', 'ID', 'id')),
       hidden(text('kind', 'Kind of finding')),
       HOTEL,
       hidden(text('hotel_name', 'Hotel name')),
       text('severity', 'Severity'),
-      eur('impact_eur', 'Money impact'),
+      eur('impact_eur', 'Impact'),
       text('impact_basis', 'What the impact measures'),
       text('title', 'Finding'),
       hidden(text('facts', 'The numbers behind it')),
@@ -394,8 +394,8 @@ export const TOOL_VIEWS: Record<string, ToolView> = {
       text('status', 'Status'),
     ],
   },
-  get_schema: { title: 'Database schema', columns: () => [] },
-  run_readonly_query: { title: 'Custom query', columns: (_args, rows) => inferColumns(rows) },
+  get_schema: { title: 'Available data', columns: () => [] },
+  run_readonly_query: { title: 'Custom analysis', columns: (_args, rows) => inferColumns(rows) },
 };
 
 /** A human name for every table, view and function a tool or a brief detector reads. */
@@ -404,31 +404,31 @@ export const SOURCE_LABELS: Record<string, string> = {
   'hotel.brands': 'Brands',
   'hotel.v_hotel_day': 'Daily hotel performance',
   'hotel.comp_set_daily': 'Comp set benchmark',
-  'hotel.otb_as_of()': 'On-the-books history',
-  'hotel.pace_vs_stly()': 'Pace against the same time last year',
+  'hotel.otb_as_of()': 'On-the-books snapshots',
+  'hotel.pace_vs_stly()': 'Pace vs same time last year',
   'hotel.room_inventory_daily': 'Room inventory',
-  'hotel.v_rate_position': 'Rate shop against the comp set',
+  'hotel.v_rate_position': 'Comp set rate shop',
   'hotel.rates_daily': 'Daily rates (BAR)',
   'hotel.v_channel_month': 'Channel revenue by month',
   'hotel.channels': 'Booking channels',
-  'hotel.data_sources': 'Source system status',
+  'hotel.data_sources': 'Data feed status',
   'hotel.reservation_nights': 'Reservation nights',
   'hotel.reservations': 'Reservations',
-  'hotel.accounts': 'Company accounts',
+  'hotel.accounts': 'Accounts',
   'hotel.labor_daily': 'Staffing hours',
-  'hotel.fnb_daily': 'F&B sales',
+  'hotel.fnb_daily': 'F&B sales (POS)',
   'hotel.outlets': 'F&B outlets',
   'hotel.reviews': 'Guest reviews',
-  'hotel.review_passages': 'Guest review sentences (semantic index)',
+  'hotel.review_passages': 'Review sentences',
   'hotel.web_daily': 'Website analytics',
-  'hotel.pnl_monthly': 'Monthly P&L (USALI)',
+  'hotel.pnl_monthly': 'Monthly P&L',
   'hotel.forecasts': 'RMS forecast',
   'hotel.budgets': 'Budget',
-  'hotel.me_events': 'Meetings & events bookings',
+  'hotel.me_events': 'Meetings and events bookings',
   'hotel.meeting_rooms': 'Meeting rooms',
-  'hotel.lost_business': 'Regrets and denials',
-  'hotel.*': 'Hotel database (custom query)',
-  'governed metric catalog': 'Governed metric catalog',
+  'hotel.lost_business': 'Lost business',
+  'hotel.*': 'All hotel data (custom analysis)',
+  'governed metric catalog': 'Metric definitions',
 };
 
 /** The label of each source; one nobody named yet reads as its table name in words. */

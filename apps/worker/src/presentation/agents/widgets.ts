@@ -27,7 +27,7 @@ const shape = WidgetSpec.shape;
 const ShowWidgetArgs = z.object({
   kind: shape.kind.describe('The kind of widget. Prefer the simplest that fits.'),
   title: shape.title.describe('The conclusion the widget shows, with its number, e.g. "Lisbon is 15.9% behind last year for December"'),
-  subtitle: shape.subtitle.describe('The scope: hotels and period, e.g. "All hotels, next 45 nights"'),
+  subtitle: shape.subtitle.describe('The hotels and the period, e.g. "All 20 hotels · next 45 nights"'),
   sourceCallId: shape.sourceCallId.describe('The "Result id" printed at the end of the data tool result whose rows the widget draws'),
   x: shape.x.describe('Column name: the axis, the category or the source, by kind'),
   y: shape.y.describe('Column names: the numbers to draw, the stages in order, or the columns of a table'),
@@ -70,13 +70,15 @@ export const WIDGET_SECTIONS: PromptSection[] = [
           'show_widget after the data tool. Pass the "Result id" printed at the end of that tool result as sourceCallId and its ' +
           'column names as x, y, group and compare. The widget draws the rows of that result: you never type a number into it.',
         '- The title is a conclusion with its number ("Lisbon is 15.9% behind last year for December"), never a label ("Pace by hotel"). ' +
-          'The subtitle names the hotels and the period.',
+          'The subtitle names the hotels and the period ("All 20 hotels · next 45 nights"). Both are in sentence case, name a hotel ' +
+          'by its name and never show a hotel code, a column name or an ISO date.',
         '- Prefer the simplest kind that fits: kpi for one number, bar to rank or compare, line for a trend over time, table when the ' +
           'reader needs the exact rows. Use pie or donut only for 2–7 parts of one whole. Use the other kinds only for the case their description names.',
         '- If a result has the wrong shape for the kind, call the data tool again narrower (fewer hotels, grain total, a roll-up) ' +
           'instead of forcing the kind. If show_widget fails twice, answer without the widget.',
         '- At most 3 widgets per answer, and none when the answer is one number or a yes or no.',
-        '- A widget does not replace the answer: still write it, but do not repeat the rows of a widget as a list or a table.',
+        '- A widget does not replace the answer: still write it, but do not repeat the rows of a widget as a list or a table. ' +
+          'In the answer, call it a chart or a table, never a widget.',
       ].join('\n'),
   },
   {
@@ -88,8 +90,8 @@ export const WIDGET_SECTIONS: PromptSection[] = [
         '- Get the data the description needs, one data tool call per widget (in the same turn when you can), then call show_widget ' +
           '2 to 4 times so that the widgets together cover the description: the headline number or the ranking first, then the trend, then the breakdown.',
         '- Each title says what the widget shows now, with its number. Each subtitle names the hotels and the period.',
-        '- Then reply with one short sentence that names what the view shows. No analysis, no drivers, no next move.',
-        '- If the data cannot show what was asked, say so in one sentence and show the widgets that are possible.',
+        '- Then reply with one short sentence that names what the board shows. No analysis, no drivers, no next move.',
+        '- If the data cannot show what was asked, say so in one sentence and show the charts that are possible.',
       ].join('\n'),
   },
 ];

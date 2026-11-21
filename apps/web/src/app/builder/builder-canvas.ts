@@ -39,7 +39,7 @@ export function isEditable(node: WorkflowNode): boolean {
   return node.kind !== 'approval';
 }
 
-const KIND_NAMES: Record<WorkflowNodeKind, string> = { trigger: 'Trigger', scope: 'Hotels', check: 'Check', analyze: 'Analyze', approval: 'Approval', action: 'Action' };
+const KIND_NAMES: Record<WorkflowNodeKind, string> = { trigger: 'When', scope: 'Hotels', check: 'Data', analyze: 'Watch for', approval: 'Approval', action: 'Action' };
 const KIND_ICONS: Record<WorkflowNodeKind, string> = {
   trigger: 'phosphorClockLight',
   scope: 'phosphorBuildingsLight',
@@ -235,13 +235,13 @@ export interface CanvasResult {
       </span>
       @switch (runState(node.id)) {
         @case ('active') {
-          <span class="wb-status" data-run="active"><ng-icon name="phosphorCircleNotchLight" class="wb-spin text-[15px]" aria-hidden="true" />Running</span>
+          <span class="wb-status" data-run="active"><ng-icon name="phosphorCircleNotchLight" class="wb-spin text-[15px]" aria-hidden="true" />Running…</span>
         }
         @case ('done') {
           <span class="wb-status" data-run="done"><ng-icon name="phosphorCheckCircleFill" class="text-[15px]" aria-hidden="true" />Done</span>
         }
         @case ('failed') {
-          <span class="wb-status" data-run="failed"><ng-icon name="phosphorXCircleFill" class="text-[15px]" aria-hidden="true" />Failed</span>
+          <span class="wb-status" data-run="failed"><ng-icon name="phosphorXCircleFill" class="text-[15px]" aria-hidden="true" />Stopped here</span>
         }
         @default {
           @if (editable(node) && !locked()) {

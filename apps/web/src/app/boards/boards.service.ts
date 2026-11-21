@@ -30,7 +30,7 @@ function writeLocal(boards: Board[]) {
   try {
     globalThis.localStorage?.setItem(LOCAL_KEY, JSON.stringify(boards));
   } catch {
-    toast('This browser couldn’t save the board', { description: 'Storage is full or blocked.', duration: 8000 });
+    toast('Couldn’t save the board in this browser', { description: 'Its storage is full or blocked. Free some space, or allow storage for this site.', duration: 8000 });
   }
 }
 
@@ -82,13 +82,13 @@ export class BoardsService {
   async create(input: { name: string; description?: string; hotels?: string[] }): Promise<Result<Board>> {
     const name = input.name.trim() || 'Untitled board';
     if (this.mode() === 'local') {
-      if (this.boards().length >= LIMITS.boards) return this.fail(`You can keep up to ${LIMITS.boards} boards.`);
+      if (this.boards().length >= LIMITS.boards) return this.fail(`You can keep up to ${LIMITS.boards} boards. Delete one to make room.`);
       const b: Board = { id: uid('b'), name, description: input.description ?? '', hotels: input.hotels ?? [], widgets: [], createdAt: now(), updatedAt: now() };
       this.saveLocal([b, ...this.boards()]);
       return { ok: true, value: b };
     }
     const r = await this.req<Board>('POST', 'boards', { name, description: input.description ?? '', hotels: input.hotels ?? [] });
-    if (!r.ok) return this.fail(r.message, 'The board wasn’t created');
+    if (!r.ok) return this.fail(r.message, 'Couldn’t create the board');
     this.boards.update((l) => [r.value, ...l]);
     return { ok: true, value: r.value };
   }
@@ -103,7 +103,7 @@ export class BoardsService {
       return { ok: true, value: next };
     }
     const r = await this.req<Board>('PATCH', `boards/${encodeURIComponent(id)}`, patch);
-    if (!r.ok) return this.fail(r.message, 'The board wasn’t changed');
+    if (!r.ok) return this.fail(r.message, 'Couldn’t save the change to the board');
     this.cache.delete(id);
     this.replace(r.value);
     return { ok: true, value: r.value };
@@ -115,7 +115,7 @@ export class BoardsService {
       return { ok: true, value: null };
     }
     const r = await this.req<unknown>('DELETE', `boards/${encodeURIComponent(id)}`);
-    if (!r.ok) return this.fail(r.message, 'The board wasn’t deleted');
+    if (!r.ok) return this.fail(r.message, 'Couldn’t delete the board');
     this.cache.delete(id);
     this.boards.update((l) => l.filter((b) => b.id !== id));
     return { ok: true, value: null };
@@ -139,13 +139,13 @@ export class BoardsService {
     if (this.mode() === 'local') {
       const b = this.boards().find((x) => x.id === boardId);
       if (!b) return this.fail('This board no longer exists.');
-      if (b.widgets.length >= LIMITS.widgets) return this.fail(`A board holds up to ${LIMITS.widgets} charts.`);
+      if (b.widgets.length >= LIMITS.widgets) return this.fail(`A board holds up to ${LIMITS.widgets} charts. Remove one to add another.`);
       const w: BoardWidget = { ...payload, rows, id: uid('w'), addedAt: now() };
       this.saveLocal(this.boards().map((x) => (x.id === boardId ? { ...x, widgets: [...x.widgets, w], updatedAt: now() } : x)));
       return { ok: true, value: w };
     }
     const r = await this.req<BoardWidget>('POST', `boards/${encodeURIComponent(boardId)}/widgets`, { ...payload, rows });
-    if (!r.ok) return quiet ? { ok: false, message: r.message } : this.fail(r.message, 'The chart wasn’t added');
+    if (!r.ok) return quiet ? { ok: false, message: r.message } : this.fail(r.message, 'Couldn’t add the chart');
     this.cache.delete(boardId);
     this.boards.update((l) => l.map((b) => (b.id === boardId ? { ...b, widgets: [...b.widgets, r.value], updatedAt: now() } : b)));
     return { ok: true, value: r.value };
@@ -157,7 +157,7 @@ export class BoardsService {
       return { ok: true, value: null };
     }
     const r = await this.req<unknown>('DELETE', `boards/${encodeURIComponent(boardId)}/widgets/${encodeURIComponent(widgetId)}`);
-    if (!r.ok) return this.fail(r.message, 'The chart wasn’t removed');
+    if (!r.ok) return this.fail(r.message, 'Couldn’t remove the chart');
     this.cache.delete(boardId);
     this.boards.update((l) => l.map((b) => (b.id === boardId ? { ...b, widgets: b.widgets.filter((w) => w.id !== widgetId), updatedAt: now() } : b)));
     return { ok: true, value: null };
@@ -181,7 +181,7 @@ export class BoardsService {
     toast(`Added to ${name}`, {
       description: payload.spec.title,
       duration: 10000,
-      action: { label: 'View', onClick: () => open(boardId) },
+      action: { label: 'Open', onClick: () => open(boardId) },
       cancel: { label: 'Undo', onClick: () => void this.removeWidget(boardId, r.value.id) },
     });
     return true;
@@ -224,14 +224,14 @@ export class BoardsService {
         data = null;
       }
       if (!res.ok) {
-        const msg = (data && typeof data === 'object' && 'error' in data && typeof (data as { error: unknown }).error === 'string' ? (data as { error: string }).error : null) ?? (text && text.length < 300 && !text.startsWith('<') ? text : `${res.status} ${res.statusText}`);
+        const msg = (data && typeof data === 'object' && 'error' in data && typeof (data as { error: unknown }).error === 'string' ? (data as { error: string }).error : null) ?? (text && text.length < 300 && !text.startsWith('<') ? text : 'The server couldn’t do that just now. Try again in a moment.');
         return { ok: false, status: res.status, message: msg };
       }
       // The SPA fallback answers unknown paths with index.html: that means the endpoint isn't there yet.
-      if (data === null && text.startsWith('<')) return { ok: false, status: 404, message: 'Not found' };
+      if (data === null && text.startsWith('<')) return { ok: false, status: 404, message: 'Boards aren’t available right now. Try again in a moment.' };
       return { ok: true, value: data as T };
-    } catch (e) {
-      return { ok: false, status: 0, message: e instanceof Error ? e.message : 'Network error' };
+    } catch {
+      return { ok: false, status: 0, message: 'Couldn’t reach the server. Check your connection and try again.' };
     }
   }
 }

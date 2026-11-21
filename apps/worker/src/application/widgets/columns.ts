@@ -21,7 +21,7 @@ const LABELS: Record<string, string> = {
   change: 'Change',
   change_pct: 'Change %',
   rooms_otb: 'On the books',
-  rooms_otb_stly: 'On the books last year',
+  rooms_otb_stly: 'On the books, same time last year',
   adr_eur: 'ADR',
 };
 

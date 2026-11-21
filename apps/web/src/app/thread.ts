@@ -4,7 +4,8 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { EvidenceLayout } from './evidence';
 import { KassandraComposer } from './kassandra/kassandra-composer';
 import { KassandraConversation, type EvidenceSelection } from './kassandra/kassandra-conversation';
-import { SkeletonHold, evidenceSlots, stepsWithLive } from './kassandra/live-slots';
+import { evidenceEntries, evidenceTarget, hasEvidence, statedText } from './kassandra/evidence-target';
+import { SkeletonHold, evidenceSlots } from './kassandra/live-slots';
 import { Live } from './live';
 import { CompassStore } from './store';
 import * as icons from './icons';
@@ -13,7 +14,7 @@ import * as icons from './icons';
   The thread is a live conversation with Kassandra (KassandraChat over WebSocket), drawn by the Kassandra component
   family: `kassandra-conversation` for the turns (the work collapsed to one line, the answer streaming in, charts
   with "Add to board", next questions) and `kassandra-composer` for the ask bar (voice, Quick or Thinker, the hotel
-  scope). On the right, "How this was computed" from the evidence every data tool returns.
+  scope). On the right, "Behind the numbers" from the evidence every data tool returns.
   Explore, a chart click and a KPI tile send their question at once; only /ask?q= fills the composer and waits.
 */
 @Component({
@@ -23,7 +24,7 @@ import * as icons from './icons';
   host: { class: 'flex h-full min-h-0' },
   template: `
     <!-- Evidence integration point 1 of 3: the layout wraps the conversation; the evidence is its second pane (a sheet on phones) -->
-    <juyo-evidence-layout #evidence [entries]="selectedSteps()" [answer]="selectedAnswer()" [question]="selectedLabel()">
+    <juyo-evidence-layout #evidence [entries]="selectedSteps()" [answer]="selectedAnswer()" [question]="selectedLabel()" [chart]="target().chart?.title" [focusCallId]="target().callId" [focusColumns]="target().chart?.columns ?? []">
       <section class="flex min-h-0 min-w-0 flex-1 flex-col" aria-label="Conversation">
         <header class="border-border/70 flex h-14 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
           <button hlmBtn variant="ghost" size="sm" class="text-muted-foreground -ml-1" (click)="store.go('inbox')"><ng-icon name="phosphorArrowLeftLight" />Inbox</button>
@@ -34,7 +35,7 @@ import * as icons from './icons';
           }
           @if (turnsWithEvidence().length) {
             <!-- Evidence integration point 2 of 3: on phones the evidence is a sheet, opened from here or from a step -->
-            <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground shrink-0 lg:hidden" aria-haspopup="dialog" aria-label="How this was computed" title="How this was computed" (click)="evidence.open()"><ng-icon name="phosphorDatabaseLight" /></button>
+            <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground shrink-0 lg:hidden" aria-haspopup="dialog" aria-label="Behind the numbers" title="Behind the numbers" (click)="evidence.open()"><ng-icon name="phosphorDatabaseLight" /></button>
           }
           <button hlmBtn variant="ghost" size="sm" class="shrink-0" (click)="live.newChat()"><ng-icon name="phosphorPlusLight" />New</button>
         </header>
@@ -43,12 +44,12 @@ import * as icons from './icons';
           <div class="mx-auto flex max-w-[640px] flex-col">
             <h2 class="sr-only">Conversation</h2>
             @if (live.scope(); as sc) {
-              <div class="flex flex-wrap items-center gap-1.5 pt-4" role="group" aria-label="Scope of this conversation">
+              <div class="flex flex-wrap items-center gap-1.5 pt-4" role="group" aria-label="What this conversation covers">
                 @for (c of sc.chips; track c) {
                   <span class="scope-chip">{{ c }}</span>
                 }
                 @if (sc.patch && store.scopeDiffers(sc)) {
-                  <button hlmBtn variant="ghost" size="sm" class="h-7 px-2 text-[12.5px]" (click)="store.applyScope(sc)"><ng-icon name="phosphorSlidersHorizontalLight" />Apply to dashboard</button>
+                  <button hlmBtn variant="ghost" size="sm" class="h-7 px-2 text-[12.5px]" (click)="store.applyScope(sc)"><ng-icon name="phosphorSlidersHorizontalLight" />Show on the Portfolio board</button>
                 } @else if (!sc.patch && sc.note) {
                   <span class="text-muted-foreground text-[12px]">{{ sc.note }}</span>
                 }
@@ -69,7 +70,7 @@ import * as icons from './icons';
               <div class="pt-10">
                 <span class="orb-mark block" style="width: 28px; height: 28px" aria-hidden="true"></span>
                 <p class="mt-3 text-[20px] font-semibold tracking-[-0.01em]">Ask Kassandra</p>
-                <p class="text-muted-foreground mt-1 text-[14px]">About any hotel, night or metric. Every number links to the query behind it.</p>
+                <p class="text-muted-foreground mt-1 text-[14px]">About any hotel, night or metric. Every number in the answer shows where it comes from.</p>
               </div>
             </kassandra-conversation>
           </div>
@@ -80,7 +81,7 @@ import * as icons from './icons';
             <kassandra-composer
               inputId="thread-ask"
               label="Ask Kassandra"
-              [placeholder]="chat.running() ? 'Add to the running answer…' : chat.turns().length ? 'Ask a follow-up…' : 'Ask about any hotel, night or metric…'"
+              [placeholder]="chat.running() ? 'Add to your question…' : chat.turns().length ? 'Ask a follow-up…' : 'Ask about any hotel, night or metric…'"
               [busy]="chat.running()"
               [steerable]="true"
               [prefill]="live.composer()"
@@ -95,25 +96,31 @@ import * as icons from './icons';
   `,
 })
 export class ThreadView {
-  /** "How this was computed" was asked for a tool result: the turn and the call id. */
+  /** "Behind the numbers" was asked for a tool result: the turn and the call id. */
   readonly evidenceSelected = output<EvidenceSelection>();
 
   protected readonly store = inject(CompassStore);
   protected readonly live = inject(Live);
   protected readonly chat = this.live.chat;
-  /** The turn picked with "How this was computed", and how many turns there were then: a new question lets go of it. */
-  private readonly selected = signal<{ key: string; turns: number } | null>(null);
+  /** What "Behind the numbers" was asked for, and how many turns there were then: a new question lets go of it. */
+  private readonly selected = signal<{ selection: EvidenceSelection; turns: number } | null>(null);
+  /** The click as the panel reads it: the turn, the card of the tool result, and the chart it was asked on (if any). */
+  protected readonly target = computed(() => {
+    const turns = this.chat.turns();
+    const picked = this.selected();
+    return evidenceTarget(turns, picked && picked.turns === turns.length ? picked.selection : null);
+  });
   private readonly evidenceLayout = viewChild.required<EvidenceLayout>('evidence');
   private readonly liveTools = computed(() => this.chat.live()?.tools ?? null);
-  protected readonly turnsWithEvidence = computed(() => this.chat.turns().filter((t) => t.steps.some((s) => s.evidence)));
+  /** Turns with something to explain. A chart counts: it carries the evidence of the result it draws, even an older one. */
+  protected readonly turnsWithEvidence = computed(() => this.chat.turns().filter(hasEvidence));
   /**
    * The turn the panel explains: the one picked; else the answer in the making as soon as it reads data, so the
    * panel follows it; else the latest with evidence.
    */
   private readonly selectedTurn = computed(() => {
     const turns = this.chat.turns();
-    const picked = this.selected();
-    const chosen = picked && picked.turns === turns.length ? turns.find((t) => t.key === picked.key) : undefined;
+    const chosen = this.target().turn;
     if (chosen) return chosen;
     const running = turns.find((t) => t.running);
     if (running && evidenceSlots(running, this.liveTools()).length) return running;
@@ -128,18 +135,23 @@ export class ThreadView {
   /** A skeleton row that has appeared stays for its minimum time. */
   protected readonly hold = new SkeletonHold();
   /**
-   * What the evidence panel is given: the turn's steps, plus the calls only `live.tools` knows (a panel that draws
-   * its own waiting cards shows them from the first moment). A result whose skeleton row is still held is kept
-   * back, so the row and its card never show together.
+   * What the evidence panel is given: the turn's steps, the results its charts draw from when those were read in
+   * an earlier turn, and the calls only `live.tools` knows (a panel that draws its own waiting cards shows them
+   * from the first moment). A result whose skeleton row is still held is kept back, so the row and its card never
+   * show together.
    */
   protected readonly selectedSteps = computed(() => {
     const turn = this.selectedTurn();
     if (!turn) return [];
     const held = this.hold.held();
-    return stepsWithLive(turn, this.liveTools()).map((step) => (held.has(step.callId) && step.evidence ? { ...step, evidence: undefined, rows: undefined, status: 'running' } : step));
+    return evidenceEntries(this.chat.turns(), turn, this.liveTools()).map((step) => (held.has(step.callId) && step.evidence ? { ...step, evidence: undefined, rows: undefined, status: 'running' } : step));
   });
   protected readonly selectedLabel = computed(() => this.selectedTurn()?.question ?? '');
-  protected readonly selectedAnswer = computed(() => this.selectedTurn()?.answer ?? null);
+  /** The text whose numbers are traced: the answer, and the titles of the charts in it. */
+  protected readonly selectedAnswer = computed(() => {
+    const turn = this.selectedTurn();
+    return turn ? statedText(turn) : null;
+  });
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
   /** The person is at the end of the conversation; false once they scroll up to read. */
   private pinned = true;
@@ -173,10 +185,14 @@ export class ThreadView {
     if (el) this.pinned = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   }
 
-  /** "How this was computed" on a step or a widget: picks the turn and opens that tool call's card (the sheet on a phone). */
+  /**
+   * "Behind the numbers" on a step or a chart: the panel follows it. It picks the turn, opens the card of the
+   * tool result behind it (for a chart, the result it draws, even one read in an earlier turn) and shows the panel
+   * (the sheet on a phone).
+   */
   protected showEvidence(selection: EvidenceSelection) {
-    this.selected.set({ key: selection.turnKey, turns: this.chat.turns().length });
+    this.selected.set({ selection, turns: this.chat.turns().length });
     this.evidenceSelected.emit(selection);
-    this.evidenceLayout().open(selection.callId);
+    this.evidenceLayout().open(this.target().callId);
   }
 }

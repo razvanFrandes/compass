@@ -75,7 +75,7 @@ describe('Pi data extension', () => {
 
     expect(toolResultSeen).toContain('"hotel_code\\":\\"AMS\\"');
     expect(toolResultSeen).not.toContain('LIS');
-    expect(toolResultSeen).toContain('Scope: only AMS.');
+    expect(toolResultSeen).toContain('Limited to the hotels selected: AMS.');
   });
 
   it('offers every catalog tool to the model, with a JSON Schema', async () => {

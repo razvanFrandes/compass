@@ -60,8 +60,8 @@ export const WorkflowSpecShape = z.object({
 /** A complete workflow: an email action has a recipient, and no other action has one. */
 export const WorkflowSpec = WorkflowSpecShape.superRefine((spec, ctx) => {
   const isEmail = spec.action.type === 'email';
-  if (isEmail && !spec.delivery) ctx.addIssue({ code: 'custom', path: ['delivery'], message: 'An email action needs the address to send to.' });
-  if (!isEmail && spec.delivery) ctx.addIssue({ code: 'custom', path: ['delivery'], message: 'Only an email action has a delivery address.' });
+  if (isEmail && !spec.delivery) ctx.addIssue({ code: 'custom', path: ['delivery'], message: 'Add the address to send the email to.' });
+  if (!isEmail && spec.delivery) ctx.addIssue({ code: 'custom', path: ['delivery'], message: 'Only an agent that sends an email can have an address.' });
 });
 export type WorkflowSpec = z.infer<typeof WorkflowSpec>;
 export type WorkflowSpecInput = z.input<typeof WorkflowSpec>;

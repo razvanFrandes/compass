@@ -13,8 +13,8 @@ import type { BoardStore } from './store.ts';
 export type BoardError = { kind: 'not_found' | 'invalid' | 'limit'; message: string };
 type Outcome<T> = Promise<Result<T, BoardError>>;
 
-const NO_BOARD: BoardError = { kind: 'not_found', message: 'No board has this id.' };
-const NO_WIDGET: BoardError = { kind: 'not_found', message: 'This board has no widget with this id.' };
+const NO_BOARD: BoardError = { kind: 'not_found', message: 'This board no longer exists.' };
+const NO_WIDGET: BoardError = { kind: 'not_found', message: 'This chart is no longer on the board.' };
 
 /** A validated input, or what is wrong with it as `path: message`, short enough to show. */
 function parse<S extends z.ZodType>(schema: S, input: unknown): Result<z.infer<S>, BoardError> {
@@ -56,7 +56,7 @@ export class BoardService {
     const parsed = parse(BoardCreate, input);
     if (!parsed.ok) return parsed;
     if ((await this.#store.list()).length >= BOARD_LIMITS.boards) {
-      return err({ kind: 'limit', message: `The demo keeps at most ${BOARD_LIMITS.boards} boards. Delete one and try again.` });
+      return err({ kind: 'limit', message: `This demo holds up to ${BOARD_LIMITS.boards} boards. Delete one, then try again.` });
     }
     const at = this.#now().toISOString();
     const board: BoardSummary = {
@@ -84,7 +84,7 @@ export class BoardService {
     if (order) {
       const byId = new Map(board.widgets.map((widget) => [widget.id, widget]));
       const isPermutation = order.length === byId.size && new Set(order).size === order.length && order.every((widgetId) => byId.has(widgetId));
-      if (!isPermutation) return err({ kind: 'invalid', message: 'order: list every widget id of the board exactly once.' });
+      if (!isPermutation) return err({ kind: 'invalid', message: 'The new order must list every chart on the board exactly once.' });
       widgets = order.map((widgetId) => byId.get(widgetId)!);
     }
     const next: BoardSummary = {
@@ -114,9 +114,9 @@ export class BoardService {
     if (!parsed.ok) return parsed;
     const { spec, rows, columns, evidence, question } = parsed.value;
     const fitted = fitWidget(spec, { rows, columns });
-    if (!fitted.ok) return err({ kind: 'invalid', message: `This widget cannot be drawn from its rows. ${fitted.error}` });
+    if (!fitted.ok) return err({ kind: 'invalid', message: `This chart can’t be drawn from its data. ${fitted.error}` });
     if (board.widgets.length >= BOARD_LIMITS.widgetsPerBoard) {
-      return err({ kind: 'limit', message: `A board holds at most ${BOARD_LIMITS.widgetsPerBoard} widgets. Remove one and try again.` });
+      return err({ kind: 'limit', message: `A board holds up to ${BOARD_LIMITS.widgetsPerBoard} charts. Remove one, then try again.` });
     }
     const at = this.#now().toISOString();
     const widget: BoardWidget = { id: `w-${this.#newId()}`, spec: fitted.value, rows, columns, evidence, ...(question ? { question } : {}), addedAt: at };

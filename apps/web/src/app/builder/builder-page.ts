@@ -32,9 +32,9 @@ export function statusChip(state: {
 }): StatusChip {
   if (state.connection === 'reconnecting' || state.connection === 'closed') return { tone: 'fail', text: 'Offline' };
   if (!state.loaded) return { tone: 'busy', text: 'Connecting…' };
-  if (state.pending === 'test' || state.run?.status === 'running') return { tone: 'busy', text: 'Testing…' };
+  if (state.pending === 'test' || state.run?.status === 'running') return { tone: 'busy', text: 'Running a test…' };
   if (state.pending === 'save') return { tone: 'busy', text: 'Saving…' };
-  if (state.issues > 0) return { tone: 'neutral', text: state.issues === 1 ? 'Draft · 1 step to finish' : `Draft · ${state.issues} steps to finish` };
+  if (state.issues > 0) return { tone: 'neutral', text: state.issues === 1 ? 'Draft · 1 detail missing' : `Draft · ${state.issues} details missing` };
   if (state.workflowId && state.saved) return { tone: 'ok', text: 'Saved' };
   if (state.workflowId) return { tone: 'warn', text: 'Unsaved changes' };
   return { tone: 'neutral', text: 'Ready to save' };
@@ -43,15 +43,15 @@ export function statusChip(state: {
 /** How a finished test reads under the canvas; nothing while it runs. `summary` is the run's own last word. */
 export function testResult(run: BuilderRun | null, draft: WorkflowDraft, labelOf: (id: string) => string, summary: string | null): CanvasResult | null {
   if (!run || run.status === 'running') return null;
-  if (run.status === 'waiting_approval') return { tone: 'warn', text: 'The test is waiting for approval', detail: 'Approve it in the inbox to let it continue.' };
+  if (run.status === 'waiting_approval') return { tone: 'warn', text: 'The test run needs your decision', detail: 'Approve or decline it in Agent Studio to let it finish.' };
   if (run.status === 'failed') {
     const where = run.failed ? labelOf(run.failed) : '';
-    return { tone: 'fail', text: where ? `The test stopped at “${where}”` : 'The test failed', detail: summary ?? 'The run log has the details.' };
+    return { tone: 'fail', text: where ? `The test run stopped at “${where}”` : 'The test run couldn’t finish', detail: summary ?? 'Open the agent in Agent Studio to read its run log.' };
   }
-  if (!run.done.includes('action')) return { tone: 'warn', text: 'The test finished, but nothing was sent', detail: summary ?? 'The run log says why.' };
+  if (!run.done.includes('action')) return { tone: 'warn', text: 'The test run finished, but nothing was sent', detail: summary ?? 'Open the agent in Agent Studio to read its run log.' };
   const to = draft.action?.type === 'email' ? draft.delivery?.to : undefined;
-  if (to) return { tone: 'ok', text: `Mail sent to ${maskAddress(to)}`, detail: 'Look for “Test · Compass alert” in the inbox.' };
-  return { tone: 'ok', text: 'The test ran to the end' };
+  if (to) return { tone: 'ok', text: `Test email sent to ${maskAddress(to)}`, detail: 'Look for a subject that starts with “Test run ·” in your email.' };
+  return { tone: 'ok', text: 'The test run finished' };
 }
 
 /** The steps the draft still needs, one line each, in plain words and in the order of the chain. */
@@ -126,14 +126,14 @@ export function namedScope(graph: WorkflowGraph, hotels: readonly string[] | und
           } @else if (isSaved()) {
             <ng-icon name="phosphorCheckLight" aria-hidden="true" />Saved
           } @else {
-            Save
+            Save agent
           }
         </button>
         <button hlmBtn type="button" size="sm" [class.wb-off]="!canTest()" [attr.aria-disabled]="canTest() ? null : 'true'" [attr.aria-describedby]="!canTest() && blockers().length ? whyId : null" (click)="test()">
           @if (testing()) {
-            <ng-icon name="phosphorCircleNotchLight" class="wb-spin" aria-hidden="true" />Testing…
+            <ng-icon name="phosphorCircleNotchLight" class="wb-spin" aria-hidden="true" />Running a test…
           } @else {
-            <ng-icon name="phosphorPaperPlaneTiltLight" aria-hidden="true" />Send test now
+            <ng-icon name="phosphorPaperPlaneTiltLight" aria-hidden="true" />Run a test
           }
         </button>
         <!-- Why a button is off: always in the page for assistive technology, on screen on hover and focus. -->
@@ -153,14 +153,14 @@ export function namedScope(graph: WorkflowGraph, hotels: readonly string[] | und
     @if (offline()) {
       <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-(--field-border) bg-(--field) px-4 py-2 text-[13px]" role="status">
         <ng-icon name="phosphorWifiSlashLight" class="text-[16px] text-(--negative)" aria-hidden="true" />
-        <span>The connection dropped. Trying again; your draft is safe.</span>
-        <button hlmBtn type="button" variant="link" size="sm" (click)="socket.reconnect()">Retry now</button>
+        <span>The connection dropped. Reconnecting now; your draft is safe.</span>
+        <button hlmBtn type="button" variant="link" size="sm" (click)="socket.reconnect()">Try again</button>
       </div>
     }
     @if (editFailed()) {
       <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-(--field-border) bg-(--decision-tint) px-4 py-2 text-[13px]/5" role="alert">
         <ng-icon name="phosphorWarningFill" class="shrink-0 text-[16px] text-(--decision)" aria-hidden="true" />
-        <span>This agent could not be opened for editing, so nothing here would change it.</span>
+        <span>Couldn’t open this agent for editing, so changes made here won’t reach it. Go back and open it again.</span>
         <a hlmBtn variant="link" size="sm" [href]="backHref">Back to Agent Studio</a>
       </div>
     }
@@ -232,12 +232,12 @@ export class WorkflowBuilder {
 
   /** What keeps Save and Send test off, in the order the person can fix it. */
   protected readonly blockers = computed(() => {
-    if (this.offline()) return ['There is no connection right now.'];
+    if (this.offline()) return ['You’re offline. Reconnecting now.'];
     if (!this.socket.loaded()) return ['The draft is still loading.'];
-    if (this.testing()) return ['A test is running.'];
+    if (this.testing()) return ['A test run is in progress.'];
     return missingSteps(this.socket.issues());
   });
-  protected readonly blockersTitle = computed(() => (this.socket.loaded() && !this.offline() && !this.testing() ? 'To finish before you can save' : 'Not available yet'));
+  protected readonly blockersTitle = computed(() => (this.socket.loaded() && !this.offline() && !this.testing() ? 'Still needed before you can save' : 'Not available yet'));
   private readonly ready = computed(() => this.socket.loaded() && !this.offline() && !this.testing() && !this.socket.issues().length);
   protected readonly canSave = computed(() => this.ready() && !this.isSaved() && this.socket.pending() === null);
   protected readonly canTest = computed(() => this.ready() && this.socket.pending() === null);

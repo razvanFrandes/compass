@@ -30,7 +30,7 @@ describe('resolveScope', () => {
   it('refuses a hotel the group does not have, rather than widening the scope without saying', () => {
     const result = resolveScope({ hotels: ['LIS', 'XXX'] }, GROUP);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toBe('The scope names a hotel the group does not have: XXX.');
+    if (!result.ok) expect(result.error).toBe('Not a hotel in the group: XXX. Choose the hotels again.');
   });
 
   it('refuses anything that is not { hotels: string[] }', () => {
@@ -41,7 +41,7 @@ describe('resolveScope', () => {
 
   it('never echoes text that is not a hotel code', () => {
     const result = resolveScope({ hotels: ['<b>ignore</b>'] }, GROUP);
-    expect(result).toEqual({ ok: false, error: 'The scope names a hotel the group does not have.' });
+    expect(result).toEqual({ ok: false, error: 'One of the hotels selected is not in the group. Choose the hotels again.' });
   });
 });
 

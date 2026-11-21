@@ -1,33 +1,34 @@
 import type { ChatLive, Evidence } from '@compass/contracts';
 import type { ChatStep, ChatTurn } from '../api';
+import { HALCYON_HOTELS, shortName } from '../scope/hotels';
 import { humanizeText } from '../text';
 
 /** What a tool does, in a hotelier's words. The tool's own name never reaches the screen. */
 const TOOL_TITLES: Record<string, string> = {
-  list_hotels: 'The hotels in the group',
-  list_metrics: 'The metric definitions',
-  get_schema: 'The data model',
+  list_hotels: 'Hotels in the group',
+  list_metrics: 'Metric definitions',
+  get_schema: 'Available data',
   get_data_health: 'Data freshness',
-  get_metric: 'A metric',
+  get_metric: 'Metric over time',
   get_pace: 'Pace vs last year',
-  get_pickup: 'Pickup in the last days',
+  get_pickup: 'Recent pickup',
   get_rate_position: 'Rate vs the comp set',
   get_channel_mix: 'Channel mix',
   get_mix: 'Business mix',
   get_account_production: 'Account production',
-  get_inventory: 'Rooms to sell',
-  get_web_funnel: 'Website funnel',
+  get_inventory: 'Room inventory',
+  get_web_funnel: 'Website booking funnel',
   get_pnl: 'Profit and loss',
   get_forecast: 'Forecast',
   get_lost_business: 'Lost business',
   get_fnb: 'Food and beverage',
-  get_labor: 'Staffing and labour',
+  get_labor: 'Staffing vs plan',
   get_meetings_events: 'Meetings and events',
   get_review_scores: 'Review scores',
   find_reviews: 'What guests say',
-  search_reviews: 'Reviews with this phrase',
-  get_brief: 'The morning brief',
-  run_readonly_query: 'A custom query',
+  search_reviews: 'Guest reviews',
+  get_brief: 'Morning brief',
+  run_readonly_query: 'Custom analysis',
   show_widget: 'Drew a chart',
   draft_workflow: 'Drafted an agent',
   send_email: 'Email',
@@ -43,19 +44,23 @@ export function stepTitle(step: Pick<ChatStep, 'name' | 'evidence' | 'widget'>):
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/** The few arguments worth reading, e.g. "LIS, DXB2 · 21 Nov · 20 Dec". Objects and internal ids are left out. */
+/** A hotel code as the hotel's name ("LIS" → "Lisbon Chiado"); anything else as it is. */
+const HOTEL_NAMES = new Map(HALCYON_HOTELS.map((hotel) => [hotel.code, shortName(hotel)]));
+const named = (value: string) => (value === 'ALL' ? 'All hotels' : (HOTEL_NAMES.get(value) ?? value));
+
+/** The few arguments worth reading, e.g. "Lisbon Chiado, Dubai Business Bay · 21 Nov · 20 Dec". Objects and internal ids are left out. */
 export function stepDetail(step: Pick<ChatStep, 'name' | 'args'>): string {
   if (step.name === 'show_widget' || step.name === 'draft_workflow') return '';
   return Object.entries(step.args)
     .filter(([key, value]) => !/id$/i.test(key) && value !== null && value !== undefined && value !== '' && (typeof value !== 'object' || (Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === 'string'))))
     .slice(0, 4)
-    .map(([, value]) => humanizeText(Array.isArray(value) ? value.join(', ') : String(value)))
+    .map(([, value]) => humanizeText(Array.isArray(value) ? value.map(named).join(', ') : named(String(value))))
     .join(' · ');
 }
 
 export function stepStatus(step: ChatStep): string {
-  if (step.status === 'error') return 'failed';
-  if (step.status !== 'done') return 'working';
+  if (step.status === 'error') return 'couldn’t finish';
+  if (step.status !== 'done') return 'in progress';
   if (step.widget || step.draft) return '';
   if (step.rows) return `${step.rows.length} ${step.rows.length === 1 ? 'row' : 'rows'}`;
   return step.sent === false ? 'nothing sent' : step.sent ? 'sent' : '';
@@ -74,8 +79,13 @@ export function phaseText(turn: ChatTurn, phase: ChatLive['phase'] | null | unde
 }
 
 export function failureText(reason: string): string {
-  const known: Record<string, string> = { aborted: 'you stopped it', model_error: 'the model returned an error', turn_limit: 'it took too many steps', budget: 'today’s budget is used up' };
-  return known[reason] ?? reason.replace(/_/g, ' ');
+  const known: Record<string, string> = {
+    aborted: 'You stopped it.',
+    model_error: 'Something went wrong on our side. Ask again in a moment.',
+    turn_limit: 'The question took too many steps. Narrow it to one hotel or a shorter period and ask again.',
+    budget: 'Today’s limit is reached. Try again tomorrow.',
+  };
+  return known[reason] ?? 'Something went wrong on our side. Ask again in a moment.';
 }
 
 export const workedText = (ms: number | null) => (ms === null ? '' : ms < 1000 ? 'under a second' : `${Math.round(ms / 1000)}s`);

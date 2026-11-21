@@ -29,7 +29,7 @@ import { PF_CLOSED_MONTH, PF_DATES, PF_EVENTS, PF_INDEX, PF_MIX, PF_MIX_CMP, PF_
   - budget: a neutral, labelled reference line or tick;
   - forecast: hatched (IBCS);
   - everything else grey; orange only for "needs your decision" (not used here).
-  Rates change in percentage points ("+3.1 pp"), money in percent ("+4.2%").
+  Rates change in percentage points ("+3.1 pts"), money in percent ("+4.2%").
 */
 
 export type ChartSpec =
@@ -154,7 +154,9 @@ function cmpAt(s: FilterState, codes: string[], kind: 'rooms' | 'rev', i: number
   }
 }
 const isPeriod = (s: FilterState) => ['stly', 'ly_dow', 'ly_date', 'prev'].includes(s.compare);
-const cmpShort = (s: FilterState) => (s.compare === 'stly' ? 'STLY' : s.compare === 'ly_dow' ? 'LY' : s.compare === 'ly_date' ? 'LY (date)' : s.compare === 'prev' ? 'previous period' : COMPARES[s.compare].short);
+const cmpShort = (s: FilterState) => (s.compare === 'stly' || s.compare === 'ly_dow' ? 'last year' : s.compare === 'ly_date' ? 'last year, same date' : s.compare === 'prev' ? 'previous period' : COMPARES[s.compare].short);
+/** The same words where they open a label or head a column: "Last year". */
+const cmpHead = (s: FilterState) => cmpShort(s).replace(/^./, (c) => c.toUpperCase());
 
 export interface Totals {
   rooms: number;
@@ -202,7 +204,7 @@ export const fmt = {
   int: (n: number) => Math.round(n).toLocaleString('en-GB'),
   signedInt: (n: number) => `${n >= 0 ? '+' : '−'}${Math.abs(Math.round(n)).toLocaleString('en-GB')}`,
   k: (n: number) => (Math.abs(n) >= 1e4 ? `${(n / 1e3).toFixed(1)}k` : fmt.int(n)),
-  pp: (d: number) => `${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)} pp`,
+  pp: (d: number) => `${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)} pts`,
   rel: (d: number) => `${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}%`,
   axis: (n: number) => (n === 0 ? '€0' : Math.abs(n) >= 1e6 ? `€${+(n / 1e6).toFixed(1)}M` : `€${Math.round(n / 1e3)}k`),
 };
@@ -266,7 +268,7 @@ export function kpis(s: FilterState): Kpi[] {
           ? `${proj ? `Forecast ${METRIC[m].format(METRIC[m].value(basis))} · ` : ''}Budget ${METRIC[m].format(c)}`
           : s.compare === 'forecast'
             ? `Forecast P50 ${METRIC[m].format(c)}`
-            : `${cmpShort(s)} ${METRIC[m].format(c)} · ${compareDates(s.range, s.compare).split(',')[0]}`;
+            : `${cmpHead(s)} ${METRIC[m].format(c)} · ${compareDates(s.range, s.compare).split(',')[0]}`;
     return {
       metric: m,
       label: METRIC[m].label,
@@ -288,13 +290,13 @@ const scope = (s: FilterState) =>
 const dayLabel = (iso: string) => fmtDay(at(iso));
 const DEF = {
   occ: ['Occupancy', 'rooms sold (or on the books) ÷ rooms available; out-of-order rooms excluded'] as [string, string],
-  stly: ['Same time last year', 'the same weekday 364 days earlier, on the books at the same lead time (pace_vs_stly())'] as [string, string],
+  stly: ['Same time last year', 'the same weekday 364 days earlier, on the books at the same lead time'] as [string, string],
   lyDow: ['Last year, same weekday', 'final actuals 364 days earlier'] as [string, string],
   lyDate: ['Last year, same date', '365 days earlier; for future nights on the books at the same lead time'] as [string, string],
   prev: ['Previous period', 'the same number of nights immediately before'] as [string, string],
   bud: ['Budget per night', 'the month’s budget ÷ its days'] as [string, string],
-  fc: ['Forecast', `the RMS forecast made on ${fmtDay(at(BUSINESS_DATE))}: P50 is the middle case, P10–P90 the likely range. P25–P75 isn’t stored in this forecast table.`] as [string, string],
-  otb: ['On the books', 'reservations made before today and not cancelled (otb_as_of())'] as [string, string],
+  fc: ['Forecast', `the RMS forecast made on ${fmtDay(at(BUSINESS_DATE))}: P50 is the middle case, P10–P90 the likely range`] as [string, string],
+  otb: ['On the books', 'reservations made before today and not cancelled'] as [string, string],
 };
 const cmpDefs = (s: FilterState): [string, string][] =>
   s.compare === 'stly' ? [DEF.stly] : s.compare === 'ly_dow' ? [DEF.lyDow] : s.compare === 'ly_date' ? [DEF.lyDate] : s.compare === 'prev' ? [DEF.prev] : s.compare === 'budget' ? [DEF.bud] : s.compare === 'forecast' ? [DEF.fc] : [];
@@ -376,8 +378,8 @@ function position(s: FilterState): Resolved {
     return { name, code, otb, p50, bud, cmp, gap: bud ? (p50 ?? otb) / bud - 1 : 0 };
   };
   const hotels = codes.map((c) => row([c], short(c), c)).sort((a, b) => a.gap - b.gap);
-  // "Chain total" for the whole group, "Selection total" when only some hotels are chosen.
-  const totalName = s.hotels.length ? 'Selection total' : 'Chain total';
+  // "Group total" for the whole group, "Selection total" when only some hotels are chosen.
+  const totalName = s.hotels.length ? 'Selection total' : 'Group total';
   const rows = hotels.length > 1 ? [row(codes, totalName, null), ...hotels] : hotels;
   const one = hotels.length === 1;
   const pctOf = (x: number, b: number) => (b ? (x / b) * 100 : 0);
@@ -422,14 +424,14 @@ function position(s: FilterState): Resolved {
       { label: 'Budget = 100%', mark: 'line-ref' },
     ],
     table: {
-      columns: ['Hotel', future ? 'On the books' : 'Actual', ...(future ? ['Forecast P50'] : []), ...(isPeriod(s) ? [cmpShort(s)] : []), 'Budget', '% of budget'],
+      columns: ['Hotel', future ? 'On the books' : 'Actual', ...(future ? ['Forecast P50'] : []), ...(isPeriod(s) ? [cmpHead(s)] : []), 'Budget', '% of budget'],
       rows: rows.map((r) => [r.name, fmt.eur(r.otb), ...(future ? [fmt.eur(r.p50 ?? 0)] : []), ...(isPeriod(s) ? [fmt.eur(r.cmp ?? 0)] : []), fmt.eur(r.bud), `${Math.round(pctOf(r.otb, r.bud))}%`]),
       align: ['l', 'r', 'r', 'r', 'r', 'r'],
     },
     kpi: one ? { value: fmt.eur(worst.otb), delta: rowText(worst).split(' · ').slice(1).join(' · ') } : undefined,
     sql: PF_SQL.nights,
     definitions: [DEF.otb, DEF.bud, ...(future ? [DEF.fc] : []), ...cmpDefs(s).filter((d) => d !== DEF.bud && d !== DEF.fc)],
-    computed: `Each row sums room revenue over the selected nights and divides by the budget for the same nights, so every hotel shares one scale and the chain total sits on top. Sorted by where the hotel ${future ? 'is forecast to land' : 'finished'} against budget, worst first.`,
+    computed: `Each row sums room revenue over the selected nights and divides by the budget for the same nights, so every hotel shares one scale and the group total sits on top. Sorted by where the hotel ${future ? 'is forecast to land' : 'finished'} against budget, worst first.`,
     data: {
       kind: 'bullet',
       x: 'hotel',
@@ -534,7 +536,7 @@ function pace(s: FilterState): Resolved {
   const p10 = r.future ? sumCol(codes, 'p10', r.from, r.to) : null;
   const p50 = r.future ? sumCol(codes, 'p50', r.from, r.to) : null;
   const p90 = r.future ? sumCol(codes, 'p90', r.from, r.to) : null;
-  // Between today and the last night the projection follows last year's pickup shape (stated in "How this was computed").
+  // Between today and the last night the projection follows last year's pickup shape (stated in "Behind the numbers").
   const shape = (k: number) => (lyEnd - lyNow > 0 ? (ly[k] - lyNow) / (lyEnd - lyNow) : (k - (tyLen - 1)) / Math.max(1, lastIdx - (tyLen - 1)));
   const proj = (target: number | null) => labels.map((_, k) => (target === null || k < tyLen - 1 ? null : Math.round(now + (target - now) * Math.max(0, Math.min(1, shape(k))))));
   const [b10, b50, b90] = [proj(p10), proj(p50), proj(p90)];
@@ -577,7 +579,7 @@ function pace(s: FilterState): Resolved {
     },
     sql: PF_SQL.pace,
     definitions: [DEF.otb, DEF.stly, ...(r.future ? [DEF.fc] : []), ['Capacity', 'rooms available over the selected nights']],
-    computed: `Counts each reservation night in the window from the day it was booked until the day it was cancelled, the same rule as otb_as_of(). Last year uses the same weekdays 364 days earlier.${r.future ? ' The P10–P90 range ends at the forecast for these nights; between today and then it follows last year’s pickup shape.' : ''}`,
+    computed: `Counts each reservation night in the window from the day it was booked until the day it was cancelled. Last year uses the same weekdays 364 days earlier.${r.future ? ' The P10–P90 range ends at the forecast for these nights; between today and then it follows last year’s pickup shape.' : ''}`,
     data: {
       kind: 'line',
       x: 'booked_as_of',
@@ -808,9 +810,9 @@ function mixNet(s: FilterState): Resolved {
       ? { label: 'Compares with last year', detail: 'The mix is compared with the same weekdays last year; budget and forecast aren’t split by channel.' }
       : ignoreBadge(ig, 'The mix is counted from reservations on the books; the booking-date filter applies to pickup.'),
     ignores: [...ig, ...(cmpBadge ? ['comparison'] : [])],
-    legend: [{ label: 'Net room revenue', mark: 'solid' }, { label: 'Commission', mark: 'hatch' }, ...(ly ? [{ label: `${cmpShort(s)} net`, mark: 'tick-cmp' as Mark }] : [])],
+    legend: [{ label: 'Net room revenue', mark: 'solid' }, { label: 'Commission', mark: 'hatch' }, ...(ly ? [{ label: `${cmpHead(s)} net`, mark: 'tick-cmp' as Mark }] : [])],
     table: {
-      columns: ['Channel', 'Room nights', 'Revenue', 'Commission', 'Net', ...(ly ? [`${cmpShort(s)} net`] : []), 'Share of net'],
+      columns: ['Channel', 'Room nights', 'Revenue', 'Commission', 'Net', ...(ly ? [`${cmpHead(s)} net`] : []), 'Share of net'],
       rows: list.map((x) => [x.name, fmt.int(x.rn), fmt.eur(x.rev), fmt.eur(x.comm), fmt.eur(x.net), ...(ly ? [fmt.eur(x.lyNet ?? 0)] : []), `${Math.round((x.net / totalNet) * 100)}%`]),
       align: ['l', 'r', 'r', 'r', 'r', 'r', 'r'],
     },
@@ -825,7 +827,7 @@ function mixNet(s: FilterState): Resolved {
       ...(ly ? { compare: 'last_year_net' } : {}),
       format: 'currency',
       rows: list.map((x) => ({ channel: x.name, net: Math.round(x.net), commission: Math.round(x.comm), room_nights: x.rn, ...(x.lyNet !== null ? { last_year_net: Math.round(x.lyNet) } : {}) })),
-      columns: [col('channel', 'Channel', 'text'), col('net', 'Net room revenue', 'currency', 'EUR'), col('commission', 'Commission', 'currency', 'EUR'), col('room_nights', 'Room nights', 'count'), ...(ly ? [col('last_year_net', `${cmpShort(s)} net`, 'currency', 'EUR')] : [])],
+      columns: [col('channel', 'Channel', 'text'), col('net', 'Net room revenue', 'currency', 'EUR'), col('commission', 'Commission', 'currency', 'EUR'), col('room_nights', 'Room nights', 'count'), ...(ly ? [col('last_year_net', `${cmpHead(s)} net`, 'currency', 'EUR')] : [])],
     },
     height: Math.max(140, list.length * 34 + 30),
     drill: (i) => (list[i] ? { dimension: 'channel', value: list[i].code, label: list[i].name } : null),
@@ -837,7 +839,7 @@ function mixNet(s: FilterState): Resolved {
         ...tooltip(p),
         formatter: (xs: { dataIndex: number }[]) => {
           const x = list[xs[0].dataIndex];
-          return `<b>${x.name}</b><br/>Net ${fmt.eur(x.net)}<br/>Commission ${fmt.eur(x.comm)}${x.lyNet !== null ? `<br/>${cmpShort(s)} net ${fmt.eur(x.lyNet)}` : ''}`;
+          return `<b>${x.name}</b><br/>Net ${fmt.eur(x.net)}<br/>Commission ${fmt.eur(x.comm)}${x.lyNet !== null ? `<br/>${cmpHead(s)} net ${fmt.eur(x.lyNet)}` : ''}`;
         },
       },
       xAxis: { type: 'value', splitNumber: 3, ...axisBase(p), axisLabel: { ...axisBase(p).axisLabel, formatter: (x: number) => fmt.axis(x) } },
@@ -848,7 +850,7 @@ function mixNet(s: FilterState): Resolved {
       series: [
         { name: 'Net room revenue', type: 'bar', stack: 'm', barWidth: 12, data: list.map((x) => Math.round(x.net)), itemStyle: { color: p.series, ...solid } },
         { name: 'Commission', type: 'bar', stack: 'm', barWidth: 12, data: list.map((x) => Math.round(x.comm)), itemStyle: { color: 'transparent', borderColor: p.grey, borderWidth: 1, decal: hatch(p, p.grey) } },
-        ...(ly ? [{ name: `${cmpShort(s)} net`, type: 'scatter', symbol: 'rect', symbolSize: [2.5, 20], data: list.map((x, i) => [Math.round(x.lyNet ?? 0), i]), itemStyle: { color: p.cmp, ...solid }, z: 4 }] : []),
+        ...(ly ? [{ name: `${cmpHead(s)} net`, type: 'scatter', symbol: 'rect', symbolSize: [2.5, 20], data: list.map((x, i) => [Math.round(x.lyNet ?? 0), i]), itemStyle: { color: p.cmp, ...solid }, z: 4 }] : []),
       ],
     }),
   };
@@ -876,7 +878,7 @@ function share(s: FilterState): Resolved {
       : slices[slices.length - 1].code === 'OTHER' && slices[slices.length - 1].pct >= slices[0].pct
         ? '“Other” would be the largest slice'
         : slices[0].pct - slices[1].pct < 5
-          ? 'The two largest parts are under 5 pp apart; bars show the difference'
+          ? 'The two largest parts are under 5 pts apart; bars show the difference'
           : null;
   const top = list[0];
   const title = top ? `${top.name} is ${Math.round(top.pct)}% of room nights${top.lyPct !== null ? `, ${fmt.pp(top.pct - top.lyPct)} vs ${cmpShort(s)}` : ''}` : 'No room nights match these filters';
@@ -897,16 +899,16 @@ function share(s: FilterState): Resolved {
       ? { label: 'Compares with last year', detail: 'Shares are compared with the same weekdays last year; budget and forecast aren’t split by segment.' }
       : ignoreBadge(ig, 'Shares are counted from reservations on the books; the booking-date filter applies to pickup.'),
     ignores: [...ig, ...(cmpBadge ? ['comparison'] : [])],
-    legend: [{ label: 'Share of room nights', mark: 'solid' }, ...(ly ? [{ label: cmpShort(s), mark: 'tick-cmp' as Mark }] : [])],
+    legend: [{ label: 'Share of room nights', mark: 'solid' }, ...(ly ? [{ label: cmpHead(s), mark: 'tick-cmp' as Mark }] : [])],
     table: {
-      columns: ['Segment', 'Room nights', 'Share', ...(ly ? [cmpShort(s), 'Change'] : [])],
+      columns: ['Segment', 'Room nights', 'Share', ...(ly ? [cmpHead(s), 'Change'] : [])],
       rows: list.map((x) => [x.name, fmt.int(x.rn), `${x.pct.toFixed(1)}%`, ...(ly ? [`${(x.lyPct ?? 0).toFixed(1)}%`, fmt.pp(x.pct - (x.lyPct ?? 0))] : [])]),
       align: ['l', 'r', 'r', 'r', 'r'],
     },
     empty: list.length ? undefined : { text: 'No room nights match these filters. Try clearing the segment and channel filters.', action: { label: 'Clear segment and channel', patch: { segments: [], channels: [] } } },
     sql: `${PF_SQL.mix}\n\n${PF_SQL.mix_cmp}`,
     definitions: [['Share', 'room nights in the segment ÷ all room nights in the window'], ...(ly ? [s.compare === 'stly' ? DEF.stly : DEF.lyDow] : [])],
-    computed: 'Counts reservation nights in the window by segment, after the hotel and channel filters. A donut is offered only when the parts pass the gate: one whole, 2–5 slices after grouping, “Other” not the largest, the top two at least 5 pp apart.',
+    computed: 'Counts reservation nights in the window by segment, after the hotel and channel filters. A donut is offered only when the parts pass the gate: one whole, 2–5 slices after grouping, “Other” not the largest, the top two at least 5 pts apart.',
     data: {
       kind: gate ? 'bar' : 'donut',
       x: 'segment',
@@ -947,7 +949,7 @@ function share(s: FilterState): Resolved {
           ...tooltip(p),
           formatter: (xs: { dataIndex: number }[]) => {
             const x = list[xs[0].dataIndex];
-            return `<b>${x.name}</b><br/>${x.pct.toFixed(1)}% · ${fmt.int(x.rn)} room nights${x.lyPct !== null ? `<br/>${cmpShort(s)} ${x.lyPct.toFixed(1)}%` : ''}`;
+            return `<b>${x.name}</b><br/>${x.pct.toFixed(1)}% · ${fmt.int(x.rn)} room nights${x.lyPct !== null ? `<br/>${cmpHead(s)} ${x.lyPct.toFixed(1)}%` : ''}`;
           },
         },
         xAxis: { type: 'value', min: 0, max: Math.max(50, Math.ceil(Math.max(...list.map((x) => Math.max(x.pct, x.lyPct ?? 0))) / 10) * 10), splitNumber: 3, ...axisBase(p), axisLabel: { ...axisBase(p).axisLabel, formatter: '{value}%' } },
@@ -957,7 +959,7 @@ function share(s: FilterState): Resolved {
         ],
         series: [
           { name: 'Share', type: 'bar', barWidth: 12, data: list.map((x) => +x.pct.toFixed(1)), itemStyle: { color: p.series, ...solid } },
-          ...(ly ? [{ name: cmpShort(s), type: 'scatter', symbol: 'rect', symbolSize: [2.5, 20], data: list.map((x, i) => [+(x.lyPct ?? 0).toFixed(1), i]), itemStyle: { color: p.cmp, ...solid }, z: 4 }] : []),
+          ...(ly ? [{ name: cmpHead(s), type: 'scatter', symbol: 'rect', symbolSize: [2.5, 20], data: list.map((x, i) => [+(x.lyPct ?? 0).toFixed(1), i]), itemStyle: { color: p.cmp, ...solid }, z: 4 }] : []),
         ],
       };
     },
@@ -1077,7 +1079,7 @@ function quadrant(s: FilterState): Resolved {
       { view: 'table', ok: true },
     ],
     badge: future
-      ? { label: 'Own dates: last 30 nights', detail: 'MPI, ARI and RGI need actuals: the comp-set benchmark only covers nights already stayed.' }
+      ? { label: 'Own dates: last 30 nights', detail: 'MPI, ARI and RGI need actuals: the comp set benchmark only covers nights already stayed.' }
       : ig.length || cmpIg
         ? { label: 'Comp set is the comparison', detail: 'Each index already compares a hotel with its comp set; the comparison, segment, channel and booking filters don’t apply.' }
         : null,
@@ -1086,12 +1088,12 @@ function quadrant(s: FilterState): Resolved {
     table: { columns: ['Hotel', 'MPI', 'ARI', 'RGI'], rows: [...pts].sort((a, b) => a.rgi - b.rgi).map((x) => [x.name, String(x.mpi), String(x.ari), String(x.rgi)]), align: ['l', 'r', 'r', 'r'] },
     sql: PF_SQL.index,
     definitions: [
-      ['MPI', 'occupancy ÷ comp-set occupancy × 100 (share of demand)'],
-      ['ARI', 'ADR ÷ comp-set ADR × 100 (price position)'],
-      ['RGI', 'RevPAR ÷ comp-set RevPAR × 100 = MPI × ARI ÷ 100'],
-      ['Points', '+5 on an index means 5% against the comp set, not 5 pp of occupancy'],
+      ['MPI', 'occupancy ÷ comp set occupancy × 100 (share of demand)'],
+      ['ARI', 'ADR ÷ comp set ADR × 100 (price position)'],
+      ['RGI', 'RevPAR ÷ comp set RevPAR × 100 = MPI × ARI ÷ 100'],
+      ['Points', '+5 on an index means 5% against the comp set, not 5 pts of occupancy'],
     ],
-    computed: 'Computed from v_hotel_day and comp_set_daily over the window. The dotted curve is RGI = 100 (MPI = 10,000 ÷ ARI): hotels above it take more than their fair share of revenue.',
+    computed: 'Computed from each hotel’s daily results and its comp set’s over the window. The dotted curve is RGI = 100 (MPI = 10,000 ÷ ARI): hotels above it take more than their fair share of revenue.',
     data: {
       kind: 'scatter',
       x: 'ari',
@@ -1297,7 +1299,7 @@ function hotelTable(s: FilterState): Resolved {
     return { name, t, occ: METRIC.occupancy.value(t), dOcc: delta('occupancy', basis), dRev: delta('revenue', basis), spark };
   };
   const hotelRows = all.map((c) => make([c], short(c))).sort((a, b) => b.t.rev - a.t.rev);
-  const shown = all.length > 1 ? [make(all, s.hotels.length ? 'Selection total' : 'Chain total'), ...hotelRows] : hotelRows;
+  const shown = all.length > 1 ? [make(all, s.hotels.length ? 'Selection total' : 'Group total'), ...hotelRows] : hotelRows;
   const title = `${all.length} ${all.length === 1 ? 'hotel' : 'hotels'}, ${RANGES[s.range].short}, by room revenue`;
   const ig = ignoredOptional(s, []);
   return {
@@ -1333,7 +1335,7 @@ function hotelTable(s: FilterState): Resolved {
       columns: [
         col('hotel', 'Hotel', 'hotel'),
         col('occupancy', 'Occupancy', 'percent'),
-        col('occupancy_change_pp', 'Δ occupancy', 'number', 'pp'),
+        col('occupancy_change_pp', 'Δ occupancy', 'number', 'pts'),
         col('adr', 'ADR', 'currency', 'EUR'),
         col('revpar', 'RevPAR', 'currency', 'EUR'),
         col('room_revenue', 'Room revenue', 'currency', 'EUR'),

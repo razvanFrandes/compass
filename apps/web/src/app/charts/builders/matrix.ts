@@ -32,7 +32,7 @@ export function buildHeatmap(c: Ctx): Built {
   const cells = c.rows
     .map((r) => ({ x: xs.indexOf(String(cell(r, xKey) ?? '')), y: ys.indexOf(String(cell(r, yKey) ?? '')), v: numberAt(r, vKey) }))
     .filter((p): p is { x: number; y: number; v: number } => p.v !== null && p.y >= 0);
-  if (!cells.length) return empty(c, 'No data to plot for this period.');
+  if (!cells.length) return empty(c, 'No data for this period.');
   const min = Math.min(...cells.map((p) => p.v));
   const max = Math.max(...cells.map((p) => p.v));
   const xLabels = xs.map((x) => label(x, xCol));
@@ -74,7 +74,7 @@ export function buildHeatmap(c: Ctx): Built {
     points: cells.map((p, i) => ({ seriesIndex: 0, dataIndex: i, text: `${yLabels[p.y]}, ${label(xs[p.x], xCol, 'full')}: ${formatValue(p.v, col)}` })),
     legend: [],
     ramp: ramp(c, min, max, col, col.label),
-    note: allYs.length > ys.length ? `Showing the first ${ys.length} of ${allYs.length} rows; all of them are in the table.` : undefined,
+    note: allYs.length > ys.length ? `Showing the first ${ys.length} of ${allYs.length}. “View as table” has them all.` : undefined,
     table: tableModel(c, specKeys(c.spec)),
     summary: summary(c, `Heatmap of ${col.label.toLowerCase()}: ${ys.length} rows by ${xs.length} columns.`, extremes(cells.map((p) => ({ name: `${yLabels[p.y]} ${xLabels[p.x]}`, value: p.v, text: formatValue(p.v, col) })))),
   };
@@ -104,7 +104,7 @@ export function calendarLayout(first: number, last: number, width: number, heigh
 export function buildCalendarHeatmap(c: Ctx): Built {
   const xKey = c.spec.x ?? c.columns.find((k) => k.kind === 'date')?.key;
   const vKey = pickValueKey(c);
-  if (!xKey || !vKey) return empty(c, 'A calendar needs a date column (x) and a value (y).');
+  if (!xKey || !vKey) return empty(c, 'This calendar can’t be drawn: it is missing its dates or its values. Ask Kassandra for it again.');
   const col = valueColumn(c, vKey);
   const days = c.rows.map((r) => ({ t: parseDate(cell(r, xKey)), v: numberAt(r, vKey) })).filter((d): d is { t: number; v: number } => d.t !== null && d.v !== null);
   if (!days.length) return empty(c, 'No nights to show for this period.');

@@ -22,10 +22,10 @@ export type ConnectionState = 'connecting' | 'open' | 'reconnecting' | 'closed';
 /** The chain before the server has said anything: six placeholders (the same as `specToGraph({})`). */
 export const EMPTY_GRAPH: WorkflowGraph = {
   nodes: [
-    { id: 'trigger', kind: 'trigger', label: 'Choose a trigger', detail: 'When should it run?', state: 'empty' },
+    { id: 'trigger', kind: 'trigger', label: 'Choose when it runs', detail: 'Every morning, every week, or when the brief finds something', state: 'empty' },
     { id: 'scope', kind: 'scope', label: 'Choose hotels', detail: 'Which hotels should it watch?', state: 'empty' },
-    { id: 'check', kind: 'check', label: 'Add a check', detail: 'Which numbers should it look at?', state: 'empty' },
-    { id: 'analyze', kind: 'analyze', label: 'Describe what to watch', detail: 'What should it look for, and when should it act?', state: 'empty' },
+    { id: 'check', kind: 'check', label: 'Choose the data', detail: 'Which numbers should it read?', state: 'empty' },
+    { id: 'analyze', kind: 'analyze', label: 'Describe what to watch for', detail: 'What should it look for, and when should it act?', state: 'empty' },
     { id: 'action', kind: 'action', label: 'Choose an action', detail: 'What should it do when it finds something?', state: 'empty' },
   ],
   edges: [
@@ -198,7 +198,7 @@ export class BuilderSocket {
     }
     if (this.#closed) return;
     if (this.#queue.length >= MAX_QUEUED) {
-      this.error.set('Not connected. Your last message was not sent.');
+      this.error.set('You’re offline, so your last message wasn’t sent. Send it again once the connection is back.');
       return;
     }
     this.#queue.push(message);
@@ -256,7 +256,7 @@ export class BuilderSocket {
     // The server follows a test only while a socket is open, so a run in flight is lost to this page.
     if (this.run()?.status === 'running') {
       this.run.set(null);
-      this.error.set('The connection dropped during the test. The run may still finish; check the agent for its result.');
+      this.error.set('The connection dropped during the test run. The run may still finish: open the agent in Agent Studio to see its result.');
     }
     const delay = this.#backoff[Math.min(this.#attempt, this.#backoff.length - 1)]!;
     this.#attempt += 1;

@@ -23,7 +23,7 @@ export const BOARD_VIEW_PREFIX = 'Build a board view: ';
   host: { class: 'block' },
   template: `
     <kassandra-composer
-      label="Describe a view to add"
+      label="Describe this board to Kassandra"
       [placeholder]="placeholder()"
       [busy]="chat.running()"
       [showMode]="false"
@@ -32,10 +32,10 @@ export const BOARD_VIEW_PREFIX = 'Build a board view: ';
     />
 
     @if (receipt(); as r) {
-      <section class="receipt gen-in mt-3 items-start" aria-label="Views Kassandra added">
+      <section class="receipt gen-in mt-3 items-start" aria-label="Charts Kassandra added">
         <span class="orb-mark mt-0.5 shrink-0" aria-hidden="true"></span>
         <div class="min-w-0 flex-1 text-[13.5px]" role="status">
-          <p class="font-medium">Kassandra added {{ r.widgets.length }} {{ r.widgets.length === 1 ? 'view' : 'views' }} to {{ boardName() }}</p>
+          <p class="font-medium">Kassandra added {{ r.widgets.length }} {{ r.widgets.length === 1 ? 'chart' : 'charts' }} to {{ boardName() }}</p>
           <ul class="text-muted-foreground mt-1 flex flex-col gap-0.5">
             @for (w of r.widgets; track w.id) {
               <li>{{ w.spec.title }}</li>
@@ -56,7 +56,7 @@ export const BOARD_VIEW_PREFIX = 'Build a board view: ';
 export class KassandraDescribeView {
   readonly boardId = input.required<string>();
   readonly boardName = input('this board');
-  readonly placeholder = input('Describe a view to add, e.g. “channel profitability after commission”');
+  readonly placeholder = input('Describe what this board should show, e.g. “channel profitability after commission”');
   /** Widgets saved on the board from the last description. */
   readonly added = output<BoardWidget[]>();
   /** Widgets taken back with Undo (their ids). */
@@ -98,7 +98,7 @@ export class KassandraDescribeView {
       const result = await this.boards.addWidget(this.boardId(), { spec, rows, columns, evidence, ...(this.description ? { question: this.description } : {}) }, true);
       if (result.ok) saved.push(result.value);
       else {
-        toast(`“${widget.title}” wasn’t added to ${this.boardName()}`, { description: result.message, duration: 8000 });
+        toast(`Couldn’t add “${widget.title}” to ${this.boardName()}`, { description: result.message, duration: 8000 });
         break;
       }
     }

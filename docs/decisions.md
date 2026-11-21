@@ -349,6 +349,27 @@ The owner's review: evidence tables overflowed and showed internal names (`hotel
 - **Phones get a bottom sheet.** Under 1024 px the evidence is a native modal `<dialog>`: the browser traps focus, Esc closes it, and focus returns to the button that opened it.
 - **Open point for the backend:** a percent column whose values are fractions (today only `pickup_pct`, 0.1098 = 11%) needs `unit: 'ratio'` in its column metadata; the frontend already reads it.
 
+## Evidence panel: what fed the answer, and following a chart (Round 3, 2026-11-21)
+
+The owner's review of "What happened with Vantor Consulting at Arbor New York Midtown, and what did it cost?": the panel opened with the 20-row hotel list, and "How this was computed" on a chart from a later turn ("Show this as a chart") opened an empty panel. This replaces three points of the Round 2 section above: cards are no longer one closed card per call, internal columns are no longer behind "Show N internal columns", and the table no longer starts with the first 8 rows when the answer quotes some.
+
+- **Tool calls have a role** (`evidence/relevance.ts`): *data* (read the numbers), *check* (`get_data_health`, `get_brief`) and *reference* (`list_hotels`, `list_metrics`, `get_schema`).
+  - A reference call is a lookup whenever the answer read anything else. A check is a lookup unless the answer quotes it or has no data call.
+  - Lookups sit in one closed "Lookups" row at the end ("Kassandra also looked up the hotel list and checked data freshness"). They are never first and never open by themselves.
+  - A number of the answer is never traced to a lookup table while there is anything else: the 477 rooms of a hotel would "back" any 477.
+- **The cards that fed the answer come first, open, ordered by how many of its numbers they back.** When the answer quotes nothing we can trace, the first card opens. A run log with no answer keeps every card closed.
+- **The table starts with the rows the answer quotes**, the rest behind "Show all N rows"; with all rows shown the quoted ones are tinted.
+- **Columns:** the one that tells the rows apart leads, then the ones the answer quotes (never dropped), then as many as fit, six at most. The rest is behind "More columns": a code beside its name, the country and currency of a hotel, empty columns, ids. A value every row shares is said once above the table ("Every row · Hotel: …"), unless the card's title already says it.
+- **A few quoted rows whose columns do not fit are turned on their side** (rows across, columns down), so every quoted figure shows without scrolling. Sideways scrolling is the last resort; the first column stays frozen.
+- **One way of writing a column:** money in whole units once any value reaches 1,000, a percentage with one decimal if any value needs it, a number with the most decimals any value needs (two at most). A unit that is not a currency code ("local currency") is said in the header, not in every cell.
+- **The panel follows the chart that was clicked** (`kassandra/evidence-target.ts`).
+  - A turn's evidence is its own data calls plus the results its charts draw from, even when those were read in an earlier turn. A source that is out of the transcript is rebuilt from the widget's own rows, columns and evidence.
+  - The click carries the chart (`widgetCallId`). The header says "For the chart “…”" or "For the answer to “…”"; the source card opens, is outlined and scrolled to, with the chart's columns and every row.
+  - A chart's title counts as text of the answer, so the figure in it is traced too.
+- **The empty state is only for a conversation with no answer.** An answer that used tools but read no data says so.
+- **Folded away, the panel leaves a labelled rail** ("How this was computed"), not an icon alone.
+- **Not done:** the sideways layout has no sorting; the hotel a row is about is taken from the call's `hotels` argument, so a result for one hotel without that argument repeats the hotel above the table.
+
 ## Widget chart catalogue, Round 2 (2026-11-21)
 
 Built from `docs/round2-contracts.md` §2–§3. It sits next to the Portfolio catalogue above and does not replace it: the Portfolio charts answer fixed questions from the extract; these draw whatever rows a tool returned, from a `WidgetSpec` Kassandra chose.
@@ -436,6 +457,23 @@ Kassandra is drawn by the same components wherever she appears (`apps/web/src/ap
   - The Round 2 types are defined once, in `@compass/contracts`; `api/round2-contracts.ts` and `boards/types.ts` re-export them.
   - The built-in boards are `built-in-portfolio` and `built-in-dubai`, because the server's sample board "Portfolio overview" has the id `portfolio`.
 
+## The sidebar collapses to an icon rail (Round 3, 21 Nov 2026)
+
+- **Two states, one component.** `nav[appSidebar]` (`apps/web/src/app/shell/`) is the 232 px panel or a 64 px rail of icons, so the page gets 168 px more. The state is `SidebarState`: the person's choice, kept in `localStorage["compass.sidebar"]` (`collapsed` or `expanded`). Until there is a choice, a window under 1280 px starts as the rail. Phones keep the bottom tab bar; the sidebar and its shortcut are off there.
+- **The button is at the top, beside the logo**, where Linear, Notion, GitHub and Claude have it; the foot of the sidebar already holds the theme switch. In the rail it sits under the mark, so it stays the second stop in the focus order. It carries `aria-expanded`, and its tooltip says "Collapse sidebar" or "Expand sidebar" with the key.
+- **Keys:** `[` on its own, and ⌘\ or Ctrl+\ from anywhere. `[` is a character while someone types (a field, a menu), and nothing happens while a modal dialog is open. ⌘[ and Ctrl+[ stay the browser's.
+- **Nothing moves but the labels.** The logo mark, the scope's initial and every icon sit on one axis, 32 px from the left edge, in both states. An item is as wide as the sidebar, so collapsing cuts its label off while the grid column animates (`--motion-moderate`, 200 ms in the default themes; none with `prefers-reduced-motion`). The main area follows the column; it does not jump.
+- **What the rail shows:**
+  - The Juyo mark, without the wordmark.
+  - The scope: the group's initial with the number of hotels in scope as a badge (stronger when the scope is narrowed). It is the same button as in the panel (`ScopeSwitcher` with `compact`), so it opens the same picker.
+  - Inbox, Boards and Agent Studio as icons; a count becomes an orange badge with ink text (white fails 4.5:1 on the orange in the light theme). The current place keeps the Fill icon and a stronger background.
+  - Threads as one icon that opens the list as a menu beside the rail. Rename and Delete stay in the panel.
+  - The theme switch as three icons in a column (still a radio group), the theme lab, and the note about the demo data behind an "About this demo" button (a native popover, so it also works on touch).
+- **Tooltips** on every icon of the rail, to the right, with the house timing (600 ms, 100 ms, skip-delay group, never on touch). In the panel the items have labels, so their tooltips are off.
+- **Slot for Docs:** the links at the foot come from one list (`foot` in `shell/sidebar.ts`). A Docs entry added there shows in the panel and in the rail.
+- **Checks:** unit tests for the state, the keys and the rail's contents; headless Chrome for the behaviour (33 checks: persistence, keys, focus, tooltip delay, the menu, the popover, 1200 px, reduced motion, a phone); axe with no violations in the sidebar in the three themes, in both states and with the menu, a tooltip and the note open.
+- **Also fixed:** the count on the current row was 4.3:1 in the light theme and is now 5.2:1; the compass icon of the "Juyo concept" theme was not registered, so the phone header's theme button was empty in that theme.
+
 ## Themes: Light, Dark and "Juyo concept" (21 Nov 2026)
 
 - **Three themes, one set of token names.** `<html data-theme="light | dark | juyo-concept">`; the choice is kept in `localStorage["compass.theme"]` (until a choice is made, light or dark follows the OS) and applied by the inline script in `index.html` before the first paint. `data-theme` also works on any element.
@@ -449,6 +487,16 @@ Kassandra is drawn by the same components wherever she appears (`apps/web/src/ap
   - The evidence panel, hotel picker, builder, catalogue and widget styles take their radii, shadows and scrims from the tokens with the old literal as the fallback (`var(--radius-container, 14px)`), so the default themes are unchanged.
   - A dialog or popover that opens from the ink rail (the hotel picker) is paper again; it used to inherit the rail's inverse roles and showed white text on white.
 - **Open:** components should adopt the tokens so the bridge can shrink; the default themes should get the same non-colour tokens; the chart option builders should read `chartStyle()`.
+
+## Copy: one voice and one vocabulary (21 Nov 2026)
+
+- **`docs/copy-glossary.md` is the source for every word a hotelier reads:** the voice rules, the terms (agent, board, chart, finding, decision, scope, on the books, last year, comp set) and the formats for money, dates and changes. New strings follow it.
+- **"Agent", never workflow or watcher,** in anything shown. Identifiers, routes and API fields keep `workflow`.
+- **The panel beside an answer is "Behind the numbers".** It was "How this was computed".
+- **Autonomy reads Suggest / Ask first / Act alone.** "Approve" as a level sat next to the Approve button and meant something else. A decision is approved or declined.
+- **Builder steps are named for what the person decides:** When, Hotels, Data, Watch for, Approval, Action.
+- **What the models write follows the same rules.** Kassandra's prompt, the brief writer, the agents' run prompts and the builder prompt each carry a short voice block: money first, hotels by name, dates as "16–18 Dec", a rate against the comp set as a percentage, no tool, table or column names.
+- **Not covered:** the Inbox and the brief header (`inbox.ts`, `brief-charts.ts`) and the docs hub, which other branches rewrite.
 
 ## The morning brief, redesigned (21 Nov 2026)
 

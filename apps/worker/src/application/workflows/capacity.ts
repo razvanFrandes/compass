@@ -11,7 +11,7 @@ import type { Workflow } from '@compass/contracts';
 export const MAX_WORKFLOWS = 30;
 export const MAX_STORED_WORKFLOWS = 100;
 
-const FULL = `The demo runs at most ${MAX_WORKFLOWS} active workflows. Turn one off and try again.`;
+const FULL = `The demo runs at most ${MAX_WORKFLOWS} agents at a time. Pause one and try again.`;
 
 const active = (stored: readonly Workflow[]) => stored.filter((workflow) => workflow.enabled).length;
 

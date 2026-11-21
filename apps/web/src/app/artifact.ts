@@ -113,13 +113,13 @@ import { phosphorChartBarLight, phosphorChartLineLight, phosphorDatabaseLight } 
     <div class="border-border/70 mt-2 flex h-9 items-center justify-between gap-2 border-t text-[12px]">
       @switch (phase()) {
         @case ('choosing') {
-          <span class="text-muted-foreground shimmer motion-reduce:shimmer-none">Choosing a component…</span>
+          <span class="text-muted-foreground shimmer motion-reduce:shimmer-none">Choosing a chart…</span>
         }
         @case ('props') {
-          <span class="text-muted-foreground shimmer motion-reduce:shimmer-none">Building the query…</span>
+          <span class="text-muted-foreground shimmer motion-reduce:shimmer-none">Setting it up…</span>
         }
         @case ('data') {
-          <span class="text-muted-foreground shimmer motion-reduce:shimmer-none">Running the query…</span>
+          <span class="text-muted-foreground shimmer motion-reduce:shimmer-none">Reading the data…</span>
         }
         @default {
           <span class="text-muted-foreground gen-in flex min-w-0 items-center gap-1.5">

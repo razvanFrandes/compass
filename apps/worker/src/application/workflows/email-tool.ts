@@ -15,11 +15,11 @@ import type { WorkflowStore } from './store.ts';
  */
 
 const SendEmailArgs = z.object({
-  would_fire: z.boolean().describe("Whether the workflow's condition holds today, from your tool results"),
-  summary: z.string().min(20).max(MAX_SUMMARY_CHARS).describe('What you found, in two or three sentences, quoting numbers from tool results'),
-  facts: z.array(z.string().max(160)).min(1).max(6).describe('The key numbers, one per line, copied from tool results'),
-  definition: z.string().max(300).describe('How the numbers are defined, from the tool result'),
-  period: z.string().max(80).describe('The period the numbers cover, e.g. "December 2026"'),
+  would_fire: z.boolean().describe("Whether the agent's condition holds today, from your tool results"),
+  summary: z.string().min(20).max(MAX_SUMMARY_CHARS).describe('What you found, in two or three sentences for a revenue manager: the money or the gap first, hotels by name, quoting numbers from tool results'),
+  facts: z.array(z.string().max(160)).min(1).max(6).describe('The key numbers, one per line, each with a plain label ("Rooms on the books: 2,231"), copied from tool results'),
+  definition: z.string().max(300).describe('How the numbers are defined, in plain words, from the tool result'),
+  period: z.string().max(80).describe('The period the numbers cover, e.g. "December 2026" or "21 Nov – 18 Feb"; never an ISO date'),
   question: z.string().max(200).describe('A follow-up question the reader can ask Kassandra about this finding'),
 });
 
@@ -51,8 +51,8 @@ export function createEmailExtension({ store, sender, quota, appUrl, now = () =>
   const sendEmail = {
     name: 'send_email',
     description:
-      "Email the workflow's recipient what you found, in a fixed template. Call it after you checked the data, at most once per run. " +
-      'The recipient is set by the workflow; you cannot choose it. Quote numbers from tool results only. ' +
+      "Email the agent's recipient what you found, in a fixed template. Call it after you checked the data, at most once per run. " +
+      'The recipient is set by the agent; you cannot choose it. Quote numbers from tool results only. ' +
       'On a scheduled run nothing is sent when would_fire is false; a test run always sends and says whether it would fire today.',
     parameters: jsonSchema(SendEmailArgs),
     replay: 'safe',
@@ -65,7 +65,7 @@ export function createEmailExtension({ store, sender, quota, appUrl, now = () =>
         const earlier = await store.emailForRun(run.id);
         if (earlier) return { text: earlier, sent: true };
         if (await store.emailPending(run.id)) return notSent('An earlier attempt to send this email did not confirm; not sending again.');
-        if (workflow.action.type !== 'email' || !workflow.delivery) return notSent('This workflow has no email action; no email sent.');
+        if (workflow.action.type !== 'email' || !workflow.delivery) return notSent('This agent does not send email; no email sent.');
 
         const args = SendEmailArgs.parse(rawArgs);
         const test = run.test === true;

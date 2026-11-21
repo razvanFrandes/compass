@@ -6,7 +6,8 @@ import { clampPosition, positionFromPointer, readSplit, splitKey, splitRange, wr
 /**
  * Two panes side by side with a divider the person can move: drag it, use the arrow keys on it (Shift for
  * bigger steps, Home and End for the limits, Enter to fold the second pane away), or double-click it to go back
- * to the default. The second pane can be collapsed to a slim rail. The split and the collapse are remembered.
+ * to the default. The second pane can be collapsed to a slim rail that keeps its name and the button that brings
+ * it back. The split and the collapse are remembered.
  *
  * Usage: `<juyo-split-pane><div paneStart>…</div><aside paneEnd>…</aside></juyo-split-pane>`.
  * With `single`, only the first pane is laid out (phones: the second pane's content lives in a sheet instead).
@@ -97,11 +98,15 @@ import { clampPosition, positionFromPointer, readSplit, splitKey, splitRange, wr
       padding-top: 12px;
       border-left: 1px solid var(--border);
     }
+    /* The folded pane keeps its name on the rail, written down the side, so it is clear what the button brings back. */
     .sp-rail button {
-      display: grid;
-      place-items: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
       width: 32px;
-      height: 32px;
+      height: max-content;
+      padding: 7px 0 12px;
       border-radius: var(--radius-control, 8px);
       color: var(--muted-foreground);
       outline: none;
@@ -109,6 +114,16 @@ import { clampPosition, positionFromPointer, readSplit, splitKey, splitRange, wr
       transition:
         background-color 130ms ease,
         color 130ms ease;
+    }
+    .sp-rail-label {
+      writing-mode: vertical-rl;
+      font-size: 12.5px;
+      line-height: 18px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .sp-rail-label::first-letter {
+      text-transform: uppercase;
     }
     .sp-rail button:hover {
       background: var(--overlay-hover);
@@ -132,6 +147,7 @@ import { clampPosition, positionFromPointer, readSplit, splitKey, splitRange, wr
         <div class="sp-rail">
           <button #expand type="button" aria-expanded="false" [attr.aria-label]="'Show ' + endLabel()" [title]="'Show ' + endLabel()" (click)="restore()">
             <ng-icon name="phosphorSidebarSimpleLight" class="-scale-x-100 text-[18px]" aria-hidden="true" />
+            <span class="sp-rail-label" aria-hidden="true">{{ endLabel() }}</span>
           </button>
         </div>
       } @else {
@@ -173,7 +189,7 @@ export class SplitPane {
   readonly single = input(false);
   /** The divider's accessible name. */
   readonly label = input('Resize the panels');
-  /** What each side holds, for the divider's value text and the rail button: "conversation", "how this was computed". */
+  /** What each side holds, for the divider's value text and the rail button: "conversation", "behind the numbers". */
   readonly startLabel = input('first panel');
   readonly endLabel = input('second panel');
   /** The second pane is folded away to a rail. Two-way: `[(collapsed)]`. */

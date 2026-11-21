@@ -37,7 +37,7 @@ export function buildWidget(input: BuildInput): Built {
   const builder = BUILDERS[input.spec.kind] as Builder | undefined;
   if (!builder) {
     const table = tableModel(c, specKeys(c.spec));
-    return { render: 'table', kind: 'table', table, legend: [], note: `“${String(input.spec.kind)}” is not a chart this version can draw, so the rows are shown as a table.`, summary: summary({ ...c, spec: { ...c.spec, kind: 'table' } }, `Table with ${table.rows.length} rows.`) };
+    return { render: 'table', kind: 'table', table, legend: [], note: 'This kind of chart isn’t available yet, so the numbers are shown as a table.', summary: summary({ ...c, spec: { ...c.spec, kind: 'table' } }, `Table with ${table.rows.length} rows.`) };
   }
   return builder(c);
 }

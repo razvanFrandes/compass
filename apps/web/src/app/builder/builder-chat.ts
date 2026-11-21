@@ -6,9 +6,9 @@ import { KassandraComposer } from '../kassandra/kassandra-composer';
 import type { ConversationItem } from './builder-steps';
 
 export const STARTERS = [
-  "Email me every morning if Lisbon's pace falls more than 10% behind last year",
-  'Every week, email me the hotels priced below their comp set',
-  'Email me when the morning brief finds stale data at any hotel',
+  'Email me every morning if Lisbon’s pace falls more than 10% behind last year',
+  'Every week, email me the hotels priced under their comp set',
+  'Email me when a data feed stops syncing at any hotel',
 ];
 
 /** `**bold**` is the only Markdown the builder's one-line replies use; everything else stays plain text. */
@@ -103,9 +103,9 @@ export function richText(text: string): { text: string; bold: boolean }[] {
                           <span class="text-muted-foreground min-w-0 truncate">{{ step.detail }}</span>
                         }
                         @if (step.status === 'error') {
-                          <span class="text-destructive min-w-0">· {{ step.error || 'did not work' }}</span>
+                          <span class="text-destructive min-w-0">· {{ step.error || 'didn’t work' }}</span>
                         } @else if (step.status === 'running') {
-                          <span class="text-muted-foreground">· working</span>
+                          <span class="text-muted-foreground">· working…</span>
                         }
                       </li>
                     }
@@ -144,7 +144,7 @@ export function richText(text: string): { text: string; bold: boolean }[] {
       <kassandra-composer
         class="mx-auto block max-w-[620px]"
         label="Describe the agent, or ask for a change"
-        [placeholder]="items().length ? 'Ask for a change…' : 'Describe an agent…'"
+        [placeholder]="items().length ? 'Ask for a change…' : 'Describe what to watch…'"
         [busy]="running()"
         [steerable]="true"
         [online]="online()"

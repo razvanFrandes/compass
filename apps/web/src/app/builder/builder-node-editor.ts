@@ -17,18 +17,18 @@ export const isMasked = (address: string | undefined) => !!address && address.in
 /** What each labelled check reads, in a hotelier's words. The labels themselves are `CHECK_LABELS`. */
 export const CHECK_HINTS: Record<string, string> = {
   get_pace: 'Rooms and revenue on the books against the same time last year',
-  get_pickup: 'What was booked in the last days, by stay night',
+  get_pickup: 'New bookings in the last days, by stay night',
   get_rate_position: 'Your rate against the comp set, night by night',
   get_channel_mix: 'Where the bookings come from and what each channel costs',
   get_mix: 'Segments and channels of the business on the books',
   get_metric: 'Occupancy, ADR, RevPAR or revenue for a period',
   get_forecast: 'The forecast range against the books and the budget',
   get_pnl: 'Revenue, costs and GOP against budget and last year',
-  get_data_health: 'Whether every source system has synced',
+  get_data_health: 'Whether every data feed has synced',
   get_web_funnel: 'Searches, checkout starts and bookings on the website',
   get_account_production: 'Room nights and revenue of each corporate account',
   get_review_scores: 'Guest review scores, by source and by topic',
-  find_reviews: 'Reviews about a subject, found by meaning',
+  find_reviews: 'Guest reviews about a subject, in their own words',
   get_brief: 'Today’s findings from the morning brief',
 };
 
@@ -94,14 +94,14 @@ export function nodePatch(node: Pick<WorkflowNode, 'id' | 'kind'>, draft: Workfl
       return { patch: { hotels: values.hotels.length ? [...values.hotels] : ['ALL'] } };
     case 'check': {
       const checks = [...new Set(values.checks)];
-      if (checks.length > MAX_CHECKS) return { error: `Choose at most ${MAX_CHECKS} checks.` };
+      if (checks.length > MAX_CHECKS) return { error: `Choose up to ${MAX_CHECKS}.` };
       return { patch: { checks } };
     }
     case 'analyze': {
       const name = values.name.trim();
       const goal = values.goal.trim();
       if (name.length < 3 || name.length > 80) return { error: 'Give it a name of 3 to 80 characters.' };
-      if (goal.length < 10 || goal.length > 1000) return { error: 'Describe the goal in 10 to 1,000 characters.' };
+      if (goal.length < 10 || goal.length > 1000) return { error: 'Describe what to watch for in 10 to 1,000 characters.' };
       return { patch: { name, goal } };
     }
     case 'action': {
@@ -113,7 +113,7 @@ export function nodePatch(node: Pick<WorkflowNode, 'id' | 'kind'>, draft: Workfl
       return { patch: { action: { type: 'email', guidance }, delivery: { channel: 'email', to } } };
     }
     default:
-      return { error: 'This step cannot be edited by hand.' };
+      return { error: 'This step follows from the action and can’t be set by hand.' };
   }
 }
 
@@ -193,7 +193,7 @@ export function nodePatch(node: Pick<WorkflowNode, 'id' | 'kind'>, draft: Workfl
         @case ('check') {
           <fieldset class="flex flex-col">
             <legend class="text-[13px] font-medium">What should it read first?</legend>
-            <p class="text-muted-foreground mt-0.5 mb-2 text-[12.5px]" [id]="uid + '-checks-hint'">Kassandra reads these on every run, then looks further if she needs to. Up to {{ maxChecks }}.</p>
+            <p class="text-muted-foreground mt-0.5 mb-2 text-[12.5px]" [id]="uid + '-checks-hint'">Kassandra reads these on every run, then looks further if needed. Choose up to {{ maxChecks }}.</p>
             <div class="wb-checks">
               @for (option of checkOptions(); track option.tool) {
                 <label class="wb-choice">
@@ -214,18 +214,18 @@ export function nodePatch(node: Pick<WorkflowNode, 'id' | 'kind'>, draft: Workfl
             <input class="wb-input" [id]="uid + '-name'" autocomplete="off" maxlength="80" placeholder="Lisbon pace alert" [value]="name()" (input)="name.set($any($event.target).value)" [attr.aria-describedby]="error() ? uid + '-error' : null" />
           </div>
           <div class="flex flex-col gap-1.5">
-            <label class="text-[13px] font-medium" [for]="uid + '-goal'">Goal</label>
+            <label class="text-[13px] font-medium" [for]="uid + '-goal'">What to watch for</label>
             <textarea
               class="wb-input"
               [id]="uid + '-goal'"
               rows="4"
               maxlength="1000"
-              placeholder="What should it watch, and when should it act?"
+              placeholder="Email me when Lisbon is more than 10% behind last year"
               [value]="goal()"
               (input)="goal.set($any($event.target).value)"
               [attr.aria-describedby]="uid + '-goal-hint' + (error() ? ' ' + uid + '-error' : '')"
             ></textarea>
-            <p class="text-muted-foreground text-[12.5px]" [id]="uid + '-goal-hint'">Plain language: what to watch, the threshold, and when to act.</p>
+            <p class="text-muted-foreground text-[12.5px]" [id]="uid + '-goal-hint'">In plain words: what to watch, the threshold, and when to act.</p>
           </div>
         }
         @case ('action') {
@@ -245,7 +245,7 @@ export function nodePatch(node: Pick<WorkflowNode, 'id' | 'kind'>, draft: Workfl
               [attr.aria-describedby]="uid + '-email-hint' + (error() ? ' ' + uid + '-error' : '')"
             />
             @if (keptAddress(); as kept) {
-              <p class="text-muted-foreground text-[12.5px]" [id]="uid + '-email-hint'">It sends to {{ kept }} now. Leave this empty to keep it. A new address is saved as a new agent, and this one is turned off.</p>
+              <p class="text-muted-foreground text-[12.5px]" [id]="uid + '-email-hint'">It sends to {{ kept }} now. Leave this empty to keep it. A new address is saved as a new agent, and this one is paused.</p>
             } @else {
               <p class="text-muted-foreground text-[12.5px]" [id]="uid + '-email-hint'">One address. Only you see it in full.</p>
             }
@@ -293,7 +293,7 @@ export class WorkflowNodeEditor implements OnInit {
   });
   protected readonly checksSummary = computed(() => {
     const count = this.checks().length;
-    return count === 0 ? 'No check chosen: Kassandra decides what to read.' : count === 1 ? '1 check chosen.' : `${count} checks chosen.`;
+    return count === 0 ? 'Nothing chosen: Kassandra decides what to read.' : `${count} chosen.`;
   });
   /** The masked address of a saved email workflow, which an empty field keeps. */
   protected readonly keptAddress = computed(() => {
@@ -304,8 +304,8 @@ export class WorkflowNodeEditor implements OnInit {
   protected readonly triggerOptions = computed(() => {
     const options: { value: TriggerChoice; label: string; hint: string }[] = [
       { value: 'day', label: 'Every morning', hint: 'After the morning brief' },
-      { value: 'week', label: 'Every week', hint: 'After the morning brief, once a week' },
-      { value: 'manual', label: 'By hand', hint: 'Only when someone starts it' },
+      { value: 'week', label: 'Every week', hint: 'Once a week, after the morning brief' },
+      { value: 'manual', label: 'Only when you run it', hint: 'No schedule' },
     ];
     // A brief finding is chosen in the chat; the editor keeps it as an option instead of dropping it.
     if (this.draft().trigger?.kind === 'brief') options.push({ value: 'brief', label: this.node().label, hint: 'After the morning brief' });

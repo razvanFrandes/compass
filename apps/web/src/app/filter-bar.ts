@@ -234,7 +234,7 @@ type Panel = Pill | 'more' | 'all';
         }
         @case ('segment') {
           <div class="flex w-[280px] max-w-full flex-col gap-2 max-sm:w-full">
-            <div class="op-toggle self-start" role="group" aria-label="Segment operator">
+            <div class="op-toggle self-start" role="group" aria-label="Include or exclude these segments">
               <button type="button" [attr.aria-pressed]="w.segOp === 'is'" (click)="patch({ segOp: 'is' })">is</button>
               <button type="button" [attr.aria-pressed]="w.segOp === 'is_not'" (click)="patch({ segOp: 'is_not' })">is not</button>
             </div>
@@ -247,7 +247,7 @@ type Panel = Pill | 'more' | 'all';
         }
         @case ('channel') {
           <div class="flex w-[300px] max-w-full flex-col gap-2 max-sm:w-full">
-            <div class="op-toggle self-start" role="group" aria-label="Channel operator">
+            <div class="op-toggle self-start" role="group" aria-label="Include or exclude these channels">
               <button type="button" [attr.aria-pressed]="w.chOp === 'is'" (click)="patch({ chOp: 'is' })">is</button>
               <button type="button" [attr.aria-pressed]="w.chOp === 'is_not'" (click)="patch({ chOp: 'is_not' })">is not</button>
             </div>
@@ -255,7 +255,7 @@ type Panel = Pill | 'more' | 'all';
               @for (x of channels; track x.code) {
                 <label class="filter-opt"
                   ><input type="checkbox" [checked]="w.channels.includes(x.code)" (change)="toggleList('channels', x.code)" /><span class="flex-1">{{ x.name }}</span
-                  ><span class="text-muted-foreground text-[12px]">{{ x.commission_pct }}% comm.</span></label
+                  ><span class="text-muted-foreground text-[12px]">{{ x.commission_pct }}% commission</span></label
                 >
               }
             </div>
@@ -273,8 +273,8 @@ type Panel = Pill | 'more' | 'all';
         @case ('more') {
           <!-- Command list: pick a dimension, then its values -->
           <div class="flex w-[300px] max-w-full flex-col gap-2">
-            <input class="field-input w-full" type="search" placeholder="Filter by…" aria-label="Find a dimension" [value]="dimQuery()" (input)="dimQuery.set($any($event.target).value)" />
-            <ul class="flex flex-col" role="listbox" aria-label="Dimensions">
+            <input class="field-input w-full" type="search" placeholder="Filter by…" aria-label="Find a filter" [value]="dimQuery()" (input)="dimQuery.set($any($event.target).value)" />
+            <ul class="flex flex-col" role="listbox" aria-label="Filters to add">
               @for (d of dims(); track d.id) {
                 <li role="option" [attr.aria-disabled]="!d.ok" [attr.aria-selected]="false">
                   <button type="button" class="filter-opt w-full text-left" [disabled]="!d.ok" [class.opacity-60]="!d.ok" (click)="openDim(d.id, $event)">

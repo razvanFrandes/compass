@@ -28,7 +28,7 @@ export function resolveScope(raw: unknown, hotels: readonly HotelRef[]): Result<
   if (unknown.length) {
     // Only what looks like a code is repeated back.
     const named = unknown.filter((code) => CODE.test(code));
-    return err(`The scope names a hotel the group does not have${named.length ? `: ${named.join(', ')}` : ''}.`);
+    return err(named.length ? `Not a hotel in the group: ${named.join(', ')}. Choose the hotels again.` : 'One of the hotels selected is not in the group. Choose the hotels again.');
   }
   if (wanted.size === 0 || wanted.size === known.size) return ok([]);
   return ok(hotels.filter((hotel) => wanted.has(hotel.code)).map(({ code, name }) => ({ code, name })));

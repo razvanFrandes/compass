@@ -7,7 +7,7 @@ import type { EvidenceColumn } from '@compass/contracts';
 
 /** Words that are not written like ordinary words. */
 const WORDS: Record<string, string> = {
-  adr: 'ADR', revpar: 'RevPAR', bar: 'BAR', gop: 'GOP', otb: 'OTB', stly: 'STLY', ly: 'LY', mpi: 'MPI', ari: 'ARI', rgi: 'RGI',
+  adr: 'ADR', revpar: 'RevPAR', bar: 'BAR', gop: 'GOP', otb: 'on the books', stly: 'same time last year', ly: 'last year', mpi: 'MPI', ari: 'ARI', rgi: 'RGI',
   id: 'ID', fnb: 'F&B', eur: 'EUR', p10: 'P10', p50: 'P50', p90: 'P90', pos: 'POS', pms: 'PMS', rms: 'RMS', ota: 'OTA', gds: 'GDS',
   av: 'AV', sqm: 'sqm', usd: 'USD',
 };
@@ -20,13 +20,15 @@ export function humanize(key: string): string {
     .split(/[_\s]+/)
     .filter(Boolean);
   if (!words.length) return key;
-  return words
+  const label = words
     .map((word, i) => {
       const lower = word.toLowerCase();
       if (WORDS[lower]) return WORDS[lower];
       return i === 0 ? lower.charAt(0).toUpperCase() + lower.slice(1) : lower;
     })
     .join(' ');
+  // "otb_rooms" starts with a phrase from WORDS ("on the books"): a label still opens with a capital.
+  return /^(on the books|same time last year|last year)/.test(label) ? label.charAt(0).toUpperCase() + label.slice(1) : label;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}(?:[T ][\d:.]+(?:Z|[+-]\d{2}:?\d{2})?)?$/;

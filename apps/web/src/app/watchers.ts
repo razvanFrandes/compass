@@ -13,15 +13,21 @@ import { ScopeSwitcher } from './scope/scope-switcher';
 import { ScopeService } from './scope/scope.service';
 import { scopeLabel } from './scope/hotels';
 import { ConfirmDialog } from './studio/confirm';
-import { AUTONOMY_LONG, AUTONOMY_ORDER, AUTONOMY_SHORT, latestFinding, nextRunText, runStrip, stripSummary, studioStatus, type Autonomy } from './studio/studio';
+import { AUTONOMY_LONG, AUTONOMY_ORDER, AUTONOMY_SHORT, FINDING_LABEL, latestFinding, nextRunText, runStrip, stripSummary, studioStatus, type Autonomy } from './studio/studio';
 import { WorkflowActions } from './studio/workflow-actions';
 import { WorkflowMenu } from './studio/workflow-menu';
 import * as icons from './icons';
 
 export const AUTONOMY_LABEL: Record<Workflow['autonomy'], string> = AUTONOMY_LONG;
-export const RUN_STATUS: Record<string, string> = { running: 'Running', waiting_approval: 'Waiting for approval', done: 'Done', failed: 'Failed' };
+export const RUN_STATUS: Record<string, string> = { running: 'Running…', waiting_approval: 'Needs your decision', done: 'Finished', failed: 'Couldn’t run' };
 export const triggerText = (w: Pick<Workflow, 'trigger'>) =>
-  w.trigger.kind === 'schedule' ? `Every ${w.trigger.every}, after the morning brief` : w.trigger.kind === 'brief' ? `When the brief finds ${w.trigger.finding.replace(/_/g, ' ')}` : 'When you run it';
+  w.trigger.kind === 'schedule'
+    ? w.trigger.every === 'week'
+      ? 'Every week, after the morning brief'
+      : 'Every morning, after the brief'
+    : w.trigger.kind === 'brief'
+      ? `When the brief finds ${FINDING_LABEL[w.trigger.finding] ?? w.trigger.finding.replace(/_/g, ' ')}`
+      : 'Only when you run it';
 /** `silviu@gmail.com` → `si****@gmail.com` (same rule as contracts' maskEmail, without pulling zod into the bundle). */
 export function maskEmail(address: string): string {
   const at = address.lastIndexOf('@');
@@ -85,7 +91,7 @@ export const hotelName = (code: string) => HOTELS.find((h) => h.code === code)?.
             <h1 class="text-[26px] font-semibold tracking-[-0.02em]">Agent Studio</h1>
             <app-scope-switcher class="max-lg:hidden" />
           </div>
-          <p class="text-muted-foreground mt-1 max-w-[64ch] text-[14px]">Agents that watch the numbers, propose an action and act once you approve. Each one says what it found last, how its runs went and when it runs next.</p>
+          <p class="text-muted-foreground mt-1 max-w-[64ch] text-[14px]">Agents watch the numbers for you, propose an action and act once you approve. Each card shows the latest finding, the recent runs and the next run.</p>
         </div>
         <button hlmBtn (click)="store.openBuilder()"><ng-icon name="phosphorSparkleFill" aria-hidden="true" />New agent with Kassandra</button>
       </header>
@@ -106,15 +112,15 @@ export const hotelName = (code: string) => HOTELS.find((h) => h.code === code)?.
           <h2 id="w-list" tabindex="-1" class="text-[15px] font-semibold outline-none">Agents{{ cards().length ? ' · ' + cards().length : '' }}</h2>
           <p class="text-muted-foreground flex items-center gap-3 text-[12.5px]">
             @if (live.workflows.isLoading() && !cards().length) {
-              <span role="status">Loading…</span>
+              <span role="status">Loading agents…</span>
             }
             @if (hidden(); as n) {
-              <span>{{ n }} more for other hotels · <button type="button" class="hover:text-foreground underline underline-offset-2" (click)="scope.clear()">Show all hotels</button></span>
+              <span>{{ n }} more on other hotels · <button type="button" class="hover:text-foreground underline underline-offset-2" (click)="scope.clear()">Show all hotels</button></span>
             }
           </p>
         </div>
         @if (live.workflowsError(); as e) {
-          <p role="alert" class="border-border mb-3 rounded-[10px] border border-dashed p-3 text-[13.5px]">Couldn’t load the agents: {{ e }} <button hlmBtn variant="outline" size="sm" (click)="live.workflows.reload()">Retry</button></p>
+          <p role="alert" class="border-border mb-3 rounded-[10px] border border-dashed p-3 text-[13.5px]">Couldn’t load your agents. {{ e }} <button hlmBtn variant="outline" size="sm" (click)="live.workflows.reload()">Try again</button></p>
         }
         <ul class="grid gap-4 lg:grid-cols-2">
           @for (c of cards(); track c.w.id) {
@@ -133,7 +139,7 @@ export const hotelName = (code: string) => HOTELS.find((h) => h.code === code)?.
 
               <div class="ws-finding" [attr.data-pending]="c.finding?.pending ? '' : null">
                 <p class="ws-eyebrow">
-                  {{ c.finding ? (c.finding.kind === 'proposal' ? 'Latest finding' : c.finding.test ? 'Last test' : 'Last run') : 'Latest finding' }}
+                  {{ c.finding ? (c.finding.kind === 'proposal' ? 'Latest finding' : c.finding.test ? 'Last test run' : 'Last run') : 'Latest finding' }}
                   @if (c.finding) {
                     <span class="font-normal tracking-normal normal-case"> · {{ ago(c.finding.at) }}</span>
                   }
@@ -144,9 +150,9 @@ export const hotelName = (code: string) => HOTELS.find((h) => h.code === code)?.
                     <p class="text-muted-foreground mt-1 text-[12.5px]">{{ scope.nameOf(f.hotel) }}{{ f.pending ? ' · waiting for your decision' : '' }}</p>
                   }
                 } @else if (c.loading) {
-                  <p class="text-muted-foreground mt-1 text-[13.5px]/snug" role="status">Loading its history…</p>
+                  <p class="text-muted-foreground mt-1 text-[13.5px]/snug" role="status">Loading recent runs…</p>
                 } @else {
-                  <p class="text-muted-foreground mt-1 text-[13.5px]/snug">Nothing yet. {{ w.enabled ? 'Its first run will show here.' : 'Resume it, or run it now, to see what it finds.' }}</p>
+                  <p class="text-muted-foreground mt-1 text-[13.5px]/snug">{{ w.enabled ? 'No findings yet. The first run shows here.' : 'No findings yet. Resume the agent to see what it finds.' }}</p>
                 }
               </div>
 
@@ -164,7 +170,7 @@ export const hotelName = (code: string) => HOTELS.find((h) => h.code === code)?.
 
               <div class="border-border/70 above-link mt-auto flex flex-wrap items-center gap-x-4 gap-y-2.5 border-t pt-3.5">
                 <div class="flex items-center gap-2 text-[13px]">
-                  <button type="button" class="toggle" role="switch" [attr.aria-checked]="w.enabled" [attr.aria-label]="(w.enabled ? 'Pause ' : 'Turn on ') + w.name" [disabled]="!!busy(w.id)" (click)="actions.setEnabled(w, !w.enabled)"><i></i></button>
+                  <button type="button" class="toggle" role="switch" [attr.aria-checked]="w.enabled" [attr.aria-label]="(w.enabled ? 'Pause ' : 'Resume ') + w.name" [disabled]="!!busy(w.id)" (click)="actions.setEnabled(w, !w.enabled)"><i></i></button>
                   <span class="text-muted-foreground" aria-hidden="true">{{ w.enabled ? 'On' : 'Paused' }}</span>
                 </div>
                 @if (w.action.type === 'email') {
@@ -183,9 +189,9 @@ export const hotelName = (code: string) => HOTELS.find((h) => h.code === code)?.
             @if (!live.workflows.isLoading() && !live.workflowsError()) {
               <li class="text-muted-foreground border-border rounded-xl border border-dashed p-6 text-center text-[14px] lg:col-span-2">
                 @if (hidden()) {
-                  No agent watches {{ scope.phrase() }} yet. Create one with “New agent with Kassandra”: it starts on these hotels.
+                  No agent watches {{ scope.phrase() }} yet. Choose “New agent with Kassandra” and the new agent starts on these hotels.
                 } @else {
-                  No agents yet. Describe one to Kassandra with “New agent with Kassandra”.
+                  No agents yet. Choose “New agent with Kassandra” and describe what to watch.
                 }
               </li>
             }
@@ -193,10 +199,10 @@ export const hotelName = (code: string) => HOTELS.find((h) => h.code === code)?.
         </ul>
         @if (cards().length) {
           <p class="text-muted-foreground mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]" aria-hidden="true">
-            <span class="inline-flex items-end gap-1.5"><i class="ws-tick ws-key" data-outcome="none"></i>ran, nothing to flag</span>
-            <span class="inline-flex items-end gap-1.5"><i class="ws-tick ws-key" data-outcome="finding"></i>found something</span>
-            <span class="inline-flex items-end gap-1.5"><i class="ws-tick ws-key" data-outcome="pending"></i>waits for you</span>
-            <span class="inline-flex items-end gap-1.5"><i class="ws-tick ws-key" data-outcome="failed"></i>couldn’t run</span>
+            <span class="inline-flex items-end gap-1.5"><i class="ws-tick ws-key" data-outcome="none"></i>Nothing to flag</span>
+            <span class="inline-flex items-end gap-1.5"><i class="ws-tick ws-key" data-outcome="finding"></i>Found something</span>
+            <span class="inline-flex items-end gap-1.5"><i class="ws-tick ws-key" data-outcome="pending"></i>Needs your decision</span>
+            <span class="inline-flex items-end gap-1.5"><i class="ws-tick ws-key" data-outcome="failed"></i>Couldn’t run</span>
           </p>
         }
       </section>
@@ -204,7 +210,7 @@ export const hotelName = (code: string) => HOTELS.find((h) => h.code === code)?.
       <section aria-labelledby="w-audit">
         <div class="mb-3 flex items-baseline justify-between gap-3">
           <h2 id="w-audit" class="text-[15px] font-semibold">Audit log</h2>
-          <span class="text-muted-foreground text-[12.5px]">Nothing is written to source systems: approved actions become tasks for the revenue manager</span>
+          <span class="text-muted-foreground text-[12.5px]">Nothing changes in your hotel systems. An approved action becomes a task for the revenue manager.</span>
         </div>
         @if (auditRows().length) {
           <div class="insight-card overflow-x-auto" tabindex="0" aria-label="Audit log">
@@ -235,7 +241,7 @@ export const hotelName = (code: string) => HOTELS.find((h) => h.code === code)?.
             <button hlmBtn variant="ghost" size="sm" class="mt-2" (click)="showAll.set(!showAll())">{{ showAll() ? 'Show fewer' : 'Show all ' + auditRows().length }}</button>
           }
         } @else {
-          <p class="text-muted-foreground text-[13.5px]">Nothing yet. Approved and automatic actions are recorded here.</p>
+          <p class="text-muted-foreground text-[13.5px]">No actions yet. Every action an agent takes, approved or on its own, is recorded here.</p>
         }
       </section>
     </div>
@@ -315,7 +321,7 @@ export class WatchersView {
   private what(w: Workflow) {
     const hotels = w.hotels.includes('ALL') ? scopeLabel([], this.scope.catalog()) : scopeLabel(w.hotels, this.scope.catalog());
     const action = `${ACTION_LABEL[w.action.type] ?? w.action.type}${w.delivery ? ` to ${maskEmail(w.delivery.to)}` : ''}`;
-    const by = w.createdBy === 'kassandra' ? ' · made with Kassandra' : w.createdBy === 'user' ? ' · yours' : '';
+    const by = w.createdBy === 'kassandra' ? ' · built with Kassandra' : w.createdBy === 'user' ? ' · created by you' : '';
     return `${triggerText(w)} · ${hotels} · ${action}${by}`;
   }
   /** An email workflow turns itself off after 5 mails (docs/api.md, "Lifetime"). */
@@ -344,17 +350,18 @@ export class WatchersView {
     });
   }
   protected outcome(o: string) {
-    return ({ sent_to_rms: 'Sent to the RMS', suggested: 'Suggested', undone: 'Undone', emailed: 'Emailed' } as Record<string, string>)[o] ?? o;
+    return ({ sent_to_rms: 'Sent to the revenue manager', suggested: 'Suggested only', undone: 'Undone', emailed: 'Email sent' } as Record<string, string>)[o] ?? o;
   }
   /** Receipts read as sentences: message ids and task ids stay out of the way. */
   protected human(s: string) {
     return humanizeText(s)
       .replace(/^Email\s*<[^>]+>\s*to\s+/i, 'Emailed ')
       .replace(/^RMS task \S+ for ([A-Z0-9]+):\s*/, (_, c: string) => `Task for the revenue manager at ${hotelName(c)}: `)
+      .replace(/^RMS task to revert:\s*/, 'Task for the revenue manager to reverse it: ')
       .replace(/<[^>\s]+@[^>\s]+>/g, '');
   }
   protected by(who: string) {
-    return /auto/i.test(who) ? 'Automatic (low risk)' : /test/i.test(who) ? 'Test run' : /^workflow/i.test(who) ? 'The agent' : who;
+    return /auto/i.test(who) ? 'The agent, acting alone' : /test/i.test(who) ? 'Test run' : /^workflow/i.test(who) ? 'The agent' : who;
   }
   protected busy(id: string) {
     return this.live.busy()[id] ?? this.actions.busy()[id] ?? '';

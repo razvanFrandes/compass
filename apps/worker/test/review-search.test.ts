@@ -121,7 +121,7 @@ describe('shapeFindReviews', () => {
       },
     ]);
     expect(shaped.rows[0]).not.toHaveProperty('scope_reviews');
-    expect(shaped.notes.join(' ')).toContain('49 of 49 distinct sentences from 1220 reviews in scope are embedded (reviews dated 2026-08-01 to 2026-11-19)');
+    expect(shaped.notes.join(' ')).toContain('Searched 49 of 49 distinct sentences from 1220 reviews (reviews dated 2026-08-01 to 2026-11-19)');
     expect(shaped.notes[0]).toContain('"slow dinner"');
   });
 
@@ -134,7 +134,7 @@ describe('shapeFindReviews', () => {
 
   it('says when there are no reviews at all in scope', () => {
     const shaped = shapeFindReviews([{ ...noMatch, scope_reviews: 0, scope_passages: 0, embedded_passages: 0 }], context);
-    expect(shaped.notes.join(' ')).toMatch(/No reviews in scope for 2026-08-01 to 2026-11-19/);
+    expect(shaped.notes.join(' ')).toMatch(/No reviews for these hotels between 2026-08-01 and 2026-11-19/);
   });
 
   it('shows partial coverage honestly', () => {

@@ -36,5 +36,5 @@ export function lazySettlement(run: WorkflowRun, probe: RunProbe, now: Date): Pi
   const endedAt = now.toISOString();
   if ('finished' in probe) return { status: probe.finished.status, endedAt, summary: probe.finished.summary };
   if (probe.live || now.getTime() - Date.parse(run.startedAt) <= STALE_RUN_MS) return null;
-  return { status: 'failed', endedAt, summary: 'The run stopped before it finished.' };
+  return { status: 'failed', endedAt, summary: 'The run stopped before it finished. Run the agent again.' };
 }

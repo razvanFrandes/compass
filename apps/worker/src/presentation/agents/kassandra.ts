@@ -113,7 +113,7 @@ export class Kassandra extends DurableObject<Env> {
       return;
     }
     const text = message.text?.trim();
-    if (typeof text !== 'string' || !text || text.length > 2000) throw new PublicError('Send a question of 1–2000 characters.');
+    if (typeof text !== 'string' || !text || text.length > 2000) throw new PublicError('Ask a question of up to 2,000 characters.');
     // Every question spends model tokens: rate-limited per client and counted against the demo's daily budget.
     if (!(await this.env.ASK_RATE_LIMIT.limit({ key: client })).success) {
       throw new PublicError('Too many questions. Wait a minute and try again.');

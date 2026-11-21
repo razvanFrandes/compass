@@ -115,7 +115,7 @@ export function compareDates(r: RangeKey, c: CompareKey): string {
     case 'budget':
       return 'monthly budget, per night';
     case 'forecast':
-      return `forecast made ${fmtDay(BD)}, P50`;
+      return `forecast made ${fmtDay(BD)}, middle estimate`;
     default:
       return '';
   }
@@ -196,7 +196,7 @@ export class Filters {
     this.state.set(next);
     this.receipt.set(by === 'kassandra' ? { id: ++this.seq, before, changes } : null);
     this.flash.set({ id: ++this.seq, pills: changes.map((c) => c.key) });
-    this.status.set(`Dashboard updated: ${statusLine(next)}`);
+    this.status.set(`Board updated: ${statusLine(next)}`);
     this.writeUrl(next);
   }
   undoReceipt() {

@@ -53,8 +53,8 @@ describe('KassandraConversation: a turn', () => {
     expect(list.id).toBe(toggle.getAttribute('aria-controls'));
     const items = [...list.querySelectorAll('li')].map(text);
     expect(items[0]).toContain('Checking pace first.');
-    expect(items[0]).toContain('Pace vs last year · LIS · 2 rows');
-    expect(items[1]).toContain('Pickup in the last days · LIS · failed');
+    expect(items[0]).toContain('Pace vs last year · Lisbon Chiado · 2 rows');
+    expect(items[1]).toContain('Recent pickup · Lisbon Chiado · couldn’t finish');
     expect(items[1]).toContain('The data source failed to answer.');
     expect(text(list)).not.toContain('get_pace');
   });
@@ -75,7 +75,7 @@ describe('KassandraConversation: a turn', () => {
 
   it('says why a run ended without an answer', () => {
     const fixture = render([turn({ failure: { reason: 'turn_limit', detail: '12 turns' } })]);
-    expect(text(el(fixture).querySelector('[role=alert]'))).toBe('No answer this time: it took too many steps (12 turns)');
+    expect(text(el(fixture).querySelector('[role=alert]'))).toBe('No answer this time. The question took too many steps. Narrow it to one hotel or a shorter period and ask again. (12 turns)');
   });
 
   it('shows the server’s rejection as it is', () => {
@@ -178,12 +178,22 @@ describe('KassandraConversation: widgets', () => {
     });
   });
 
-  it('reports which tool result a widget’s "How this was computed" is about', () => {
+  it('reports which tool result a widget’s "Behind the numbers" is about, and which chart was asked', () => {
     const fixture = render([withWidget()]);
     const picked: EvidenceSelection[] = [];
     fixture.componentInstance.evidenceSelected.subscribe((selection) => picked.push(selection));
-    button(fixture, 'How this was computed')!.click();
-    expect(picked).toEqual([{ turnKey: 't1', callId: 'c1' }]);
+    button(fixture, 'Behind the numbers')!.click();
+    expect(picked).toEqual([{ turnKey: 't1', callId: 'c1', widgetCallId: 'c2' }]);
+  });
+
+  it('reports a chart drawn from an earlier answer with the turn it sits in and the result it draws', () => {
+    const asked = turn({ key: 't1', answer: 'Lisbon is behind.', steps: [step({ rows: [{}, {}], evidence: evidence() })] });
+    const charted = turn({ key: 't2', question: 'Show this as a chart', answer: 'See the chart.', steps: [step({ callId: 'c9', name: 'show_widget', widget: widget() })] });
+    const fixture = render([asked, charted]);
+    const picked: EvidenceSelection[] = [];
+    fixture.componentInstance.evidenceSelected.subscribe((selection) => picked.push(selection));
+    button(fixture, 'Behind the numbers')!.click();
+    expect(picked).toEqual([{ turnKey: 't2', callId: 'c1', widgetCallId: 'c9' }]);
   });
 
   it('saves a widget on the chosen board with the rows it was drawn from', async () => {
@@ -203,7 +213,7 @@ describe('KassandraConversation: widgets', () => {
     expect(body['rows']).toEqual(widget().rows);
     expect(body['question']).toBe('Why is Lisbon behind?');
     fixture.detectChanges();
-    expect(text(button(fixture, 'On Lisbon'))).toBe('On Lisbon · View');
+    expect(text(button(fixture, 'On Lisbon'))).toBe('On Lisbon · Open');
     fetched.mockRestore();
   });
 });
@@ -235,13 +245,13 @@ describe('KassandraConversation: what the person can do', () => {
     expect(stopped).toBe(1);
   });
 
-  it('reports a step’s "How this was computed" with its turn', () => {
+  it('reports a step’s "Behind the numbers" with its turn', () => {
     const fixture = render([turn({ key: 't7', answer: 'x', steps: [step({ callId: 'c5', evidence: evidence() })] })]);
     const picked: EvidenceSelection[] = [];
     fixture.componentInstance.evidenceSelected.subscribe((selection) => picked.push(selection));
     button(fixture, 'Worked for')!.click();
     fixture.detectChanges();
-    button(fixture, 'How this was computed')!.click();
-    expect(picked).toEqual([{ turnKey: 't7', callId: 'c5' }]);
+    button(fixture, 'Behind the numbers')!.click();
+    expect(picked).toEqual([{ turnKey: 't7', callId: 'c5', widgetCallId: undefined }]);
   });
 });

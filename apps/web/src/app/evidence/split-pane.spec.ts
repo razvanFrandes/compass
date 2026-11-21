@@ -104,6 +104,8 @@ describe('SplitPane', () => {
 
     const expand = el.querySelector<HTMLButtonElement>('.sp-rail button')!;
     expect(expand.getAttribute('aria-label')).toBe('Show evidence');
+    // The folded pane keeps its name on the rail, so it is clear what the button brings back.
+    expect(expand.querySelector('.sp-rail-label')!.textContent).toBe('evidence');
     expect(expand.getAttribute('aria-expanded')).toBe('false');
     expand.click();
     fixture.detectChanges();

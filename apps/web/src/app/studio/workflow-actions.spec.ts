@@ -110,19 +110,19 @@ describe('Agent Studio actions', () => {
     });
 
     it('shows the server’s reason when it refuses, and changes nothing', async () => {
-      api.fail = 'The demo keeps at most 100 workflows.';
+      api.fail = 'The demo keeps at most 100 agents.';
       expect(await actions.duplicate(workflow())).toBeNull();
-      expect(notices.last).toMatchObject({ title: 'Pace guard wasn’t duplicated', notice: { description: 'The demo keeps at most 100 workflows.' } });
+      expect(notices.last).toMatchObject({ title: 'Couldn’t duplicate Pace guard', notice: { description: 'The demo keeps at most 100 agents.' } });
       expect(actions.changed()).toBe(0);
     });
 
     it('pauses and resumes', async () => {
       expect(await actions.setEnabled(workflow(), false)).toBe(true);
       expect(api.calls.at(-1)).toEqual({ method: 'patch', id: 'wf-1', body: { enabled: false } });
-      expect(notices.last.title).toBe('Pace guard is paused');
+      expect(notices.last.title).toBe('Pace guard paused');
       await actions.setEnabled(workflow({ enabled: false }), true);
       expect(api.calls.at(-1)).toEqual({ method: 'patch', id: 'wf-1', body: { enabled: true } });
-      expect(notices.last.title).toBe('Pace guard is on');
+      expect(notices.last.title).toBe('Pace guard resumed');
       expect(actions.busy()).toEqual({});
     });
 
@@ -143,11 +143,11 @@ describe('Agent Studio actions', () => {
     });
 
     it('keeps the workflow when the server refuses to delete it', async () => {
-      api.fail = 'This workflow has a run in progress.';
+      api.fail = 'This agent is running. Wait for the run to finish, then delete it.';
       const result = actions.remove(workflow());
       confirm.answer(true);
       expect(await result).toBe(false);
-      expect(notices.last.notice.description).toBe('This workflow has a run in progress.');
+      expect(notices.last.notice.description).toBe('This agent is running. Wait for the run to finish, then delete it.');
     });
 
     it('asks before raising autonomy, and saves nothing when the person cancels', async () => {
@@ -171,7 +171,7 @@ describe('Agent Studio actions', () => {
       expect(await actions.setAutonomy(workflow({ autonomy: 'auto_low_risk' }), 'suggest')).toBe(true);
       expect(confirm.request()).toBeNull();
       expect(api.calls).toEqual([{ method: 'patch', id: 'wf-1', body: { autonomy: 'suggest' } }]);
-      expect(notices.last.title).toBe('Pace guard: suggests only');
+      expect(notices.last.title).toBe('Pace guard now only suggests');
       expect(notices.last.notice.action!.label).toBe('Undo');
 
       notices.last.notice.action!.onClick();

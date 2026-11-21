@@ -14,18 +14,18 @@ export const ACTION_LABEL: Record<ActionType, string> = {
   open_channel: 'Open a channel',
   contact_account: 'Contact the account',
   create_task: 'Create a task',
-  notify: 'Notify',
+  notify: 'Notify the team',
   email: 'Send an email',
 };
 const STATUS: Record<Proposal['status'], string> = {
   pending: 'Waiting for your decision',
   approved: 'Approved',
-  denied: 'Denied',
-  auto_approved: 'Done on its own (low risk)',
+  denied: 'Declined',
+  auto_approved: 'Done by the agent (low risk)',
   suggested: 'Suggested only',
-  applied: 'Sent to the RMS',
+  applied: 'Sent to the revenue manager',
   undone: 'Undone',
-  superseded: 'Replaced by a newer proposal',
+  superseded: 'Replaced by a newer decision',
 };
 
 /**
@@ -54,14 +54,14 @@ const STATUS: Record<Proposal['status'], string> = {
       }
       <p class="text-muted-foreground mt-2 text-[13.5px]" [class.line-clamp-3]="!more()">{{ rationale() }}</p>
       @if (p.rationale.length > 220) {
-        <button type="button" class="text-muted-foreground hover:text-foreground self-start text-[12.5px] underline underline-offset-2" (click)="more.set(!more())">{{ more() ? 'Less' : 'Why, in full' }}</button>
+        <button type="button" class="text-muted-foreground hover:text-foreground self-start text-[12.5px] underline underline-offset-2" (click)="more.set(!more())">{{ more() ? 'Show less' : 'See the full reasoning' }}</button>
       }
       <div class="mt-auto flex flex-wrap items-center gap-2 pt-4">
         @if (p.status === 'pending') {
           <button hlmBtn class="decision-btn" [disabled]="!!working()" (click)="live.decide(p, true)">{{ working() === 'Approving…' ? working() : 'Approve' }}</button>
-          <button hlmBtn variant="ghost" [disabled]="!!working()" (click)="live.decide(p, false)">{{ working() === 'Denying…' ? working() : 'Deny' }}</button>
+          <button hlmBtn variant="ghost" [disabled]="!!working()" (click)="live.decide(p, false)">{{ working() && working() !== 'Approving…' ? 'Declining…' : 'Decline' }}</button>
         } @else {
-          <span class="text-muted-foreground text-[12.5px]">{{ p.decidedBy ? 'By ' + p.decidedBy + ' · ' : '' }}{{ when() }}</span>
+          <span class="text-muted-foreground text-[12.5px]">{{ decider() ? 'By ' + decider() + ' · ' : '' }}{{ when() }}</span>
           @if (p.status === 'approved' || p.status === 'applied' || p.status === 'auto_approved') {
             <button hlmBtn variant="ghost" size="sm" class="ml-auto" (click)="live.undo(p)">Undo</button>
           }
@@ -83,6 +83,11 @@ export class ProposalCard {
   protected readonly money = computed(() => {
     const v = this.proposal().impact_eur ?? 0;
     return `${v < 0 ? '−' : '+'}${formatEurShort(v)}`;
+  });
+  /** Who decided, in words: an action the agent took alone reads "the agent", not "auto (low risk)". */
+  protected readonly decider = computed(() => {
+    const by = this.proposal().decidedBy ?? '';
+    return /^auto\b/i.test(by) ? 'the agent' : by;
   });
   protected readonly rationale = computed(() => humanizeText(this.proposal().rationale));
   protected readonly when = computed(() => ago(this.proposal().decidedAt ?? this.proposal().createdAt));

@@ -22,11 +22,19 @@ export const DecisionSignal = defineSignal({
 const ProposeArgs = z.object({
   hotel_code: z.string().describe('Hotel code the action is for'),
   action: ActionType,
-  title: z.string().min(5).max(120).describe('Short imperative title, e.g. "Raise BAR for Gulf Tech Week"'),
-  rationale: z.string().min(10).max(800).describe('Why, quoting the numbers from your tool results'),
-  before: z.string().max(120).describe('The current state, e.g. "665–790 AED"'),
-  after: z.string().max(120).describe('The proposed state, e.g. "900–1,050 AED"'),
-  scope: z.string().max(160).describe('Dates, room types or channels the change covers'),
+  title: z.string().min(5).max(120).describe('One decision, starting with a verb, with the nights in words, e.g. "Raise BAR for 16–18 Dec toward the comp set median". No hotel code.'),
+  rationale: z
+    .string()
+    .min(10)
+    .max(800)
+    .describe(
+      'Why, in two to four short sentences for a revenue manager: the money first, then the numbers behind it, quoted from your tool results. ' +
+        'Hotel names, not codes; dates as "16–18 Dec"; a rate against the comp set as a percentage ("26% under the comp set median"), not a multiple. ' +
+        'Never mention tools or what a tool did not return.',
+    ),
+  before: z.string().max(120).describe('The current state in a few words, e.g. "BAR AED 675–790"'),
+  after: z.string().max(120).describe('The proposed state in a few words, e.g. "BAR AED 760–1,050"'),
+  scope: z.string().max(160).describe('What the change covers, in words: nights as "16–18 Dec", room types or channels. No hotel code and no ISO dates.'),
   impact_eur: z.number().nullable().default(null).describe('EUR impact from a tool result, or null'),
   risk: z
     .enum(['low', 'high'])
@@ -48,7 +56,7 @@ export function createWorkflowExtension(store: WorkflowStore, now: () => Date = 
     name: 'propose_action',
     description:
       'Propose one concrete action for a person to approve. Call it once per action, after you checked the data. ' +
-      'Depending on the workflow autonomy it is recorded as a suggestion, applied automatically (low risk), or waits for approval. ' +
+      'Depending on how far the agent may go it is recorded as a suggestion, applied automatically (low risk), or waits for approval. ' +
       'When it returns approved, call apply_action with the proposal id.',
     parameters: jsonSchema(ProposeArgs),
     replay: 'safe',
@@ -57,7 +65,7 @@ export function createWorkflowExtension(store: WorkflowStore, now: () => Date = 
       if (!scope) throw new Error('propose_action only works inside a workflow run.');
       const { run, workflow } = scope;
       if (workflow.action.type === 'email') {
-        return { output: [{ type: 'text', text: 'This workflow sends an email and proposes nothing. Call send_email instead.' }] };
+        return { output: [{ type: 'text', text: 'This agent sends an email and proposes nothing. Call send_email instead.' }] };
       }
 
       const existing = await store.proposalForTask(api.taskId);
@@ -71,7 +79,7 @@ export function createWorkflowExtension(store: WorkflowStore, now: () => Date = 
         await store.updateRun(run.id, { status: 'running' });
         const text = approved
           ? `Approved by ${by}${note ? ` ("${note}")` : ''}. Call apply_action with proposal_id "${existing.id}".`
-          : `Denied by ${by}${note ? `: "${note}"` : ''}. Do not apply proposal ${existing.id}; report the decision.`;
+          : `Declined by ${by}${note ? `: "${note}"` : ''}. Do not apply proposal ${existing.id}; report the decision.`;
         return { output: [{ type: 'text', text }], details: { proposal: decided } };
       }
 
@@ -107,9 +115,9 @@ export function createWorkflowExtension(store: WorkflowStore, now: () => Date = 
       if (status === 'suggested') {
         await store.appendAudit({
           id: newId('audit'), at: now().toISOString(), workflowId: workflow.id, proposalId: proposal.id, hotel_code: proposal.hotel_code,
-          action: proposal.action, by: 'workflow (suggest only)', outcome: 'suggested', receipt: 'Suggestion recorded; no action taken.',
+          action: proposal.action, by: 'workflow (suggest only)', outcome: 'suggested', receipt: 'Recorded as a suggestion. Nothing was sent.',
         });
-        return { output: [{ type: 'text', text: `Recorded proposal ${proposal.id} as a suggestion. This workflow only suggests: do not apply it.` }], details: { proposal } };
+        return { output: [{ type: 'text', text: `Recorded proposal ${proposal.id} as a suggestion. This agent only suggests: do not apply it.` }], details: { proposal } };
       }
       if (status === 'auto_approved') {
         return { output: [{ type: 'text', text: `Approved automatically (low risk). Call apply_action with proposal_id "${proposal.id}".` }], details: { proposal } };

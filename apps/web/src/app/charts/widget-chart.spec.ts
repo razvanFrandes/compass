@@ -150,9 +150,9 @@ describe('WidgetChart', () => {
   it('says why a chart was drawn differently, and says so when there is nothing to draw', () => {
     const many = Array.from({ length: 9 }, (_, i) => ({ hotel: `Hotel ${i + 1}`, revpar: 100 + i }));
     const fallback = render({ spec: spec({ kind: 'donut', group: 'hotel', y: ['revpar'] }), rows: many, columns: COLUMNS });
-    expect(fallback.el.querySelector('.wc-note')?.textContent).toBe('9 parts are too many for a donut (it reads for 2 to 7), so this is shown as bars.');
+    expect(fallback.el.querySelector('.wc-note')?.textContent).toBe('9 parts are too many for a donut (it works for 2 to 7), so this is shown as bars.');
     const empty = render({ spec: spec({ kind: 'line', x: 'hotel', y: ['revpar'] }), rows: [], columns: COLUMNS });
-    expect(empty.el.querySelector('.wc-empty')?.textContent).toBe('No data to plot for this period.');
+    expect(empty.el.querySelector('.wc-empty')?.textContent).toBe('No data for this period.');
     // The button keeps its place (hidden and disabled), so the title wraps as it did while loading.
     expect(empty.el.querySelector<HTMLButtonElement>('.wc-toggle')?.disabled).toBe(true);
     expect(empty.el.querySelector('.wc-toggle')!.classList.contains('wc-toggle--stub')).toBe(true);

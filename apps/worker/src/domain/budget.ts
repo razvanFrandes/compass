@@ -21,11 +21,11 @@ export const DEFAULT_DAILY_LIMITS: DailyLimits = {
 
 export const BUDGET_LABELS: Record<BudgetKind, string> = {
   question: 'questions',
-  workflow_run: 'workflow runs',
-  decision: 'approval decisions',
+  workflow_run: 'agent runs',
+  decision: 'decisions',
   brief_refresh: 'brief refreshes',
-  embedding: 'semantic searches',
-  voice: 'voice dictations',
+  embedding: 'review searches',
+  voice: 'voice questions',
   board_write: 'board changes',
 };
 

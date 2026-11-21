@@ -84,8 +84,8 @@ describe('KassandraDescribeView', () => {
     expect(http.writes()).toEqual([{ method: 'POST', path: '/api/boards/b1/widgets', body: expect.objectContaining({ spec: expect.objectContaining({ kind: 'bar', title: 'Direct is the most profitable channel', sourceCallId: 'c1' }), rows: widget().rows, question: 'channel profitability' }) }]);
     fixture.detectChanges();
 
-    const receipt = (fixture.nativeElement as HTMLElement).querySelector('section[aria-label="Views Kassandra added"]')!;
-    expect(text(receipt.querySelector('[role=status] p'))).toBe('Kassandra added 1 view to Revenue');
+    const receipt = (fixture.nativeElement as HTMLElement).querySelector('section[aria-label="Charts Kassandra added"]')!;
+    expect(text(receipt.querySelector('[role=status] p'))).toBe('Kassandra added 1 chart to Revenue');
     expect(text(receipt.querySelector('[role=status] li'))).toBe('Direct is the most profitable channel');
     expect(added).toEqual([[saved('w1', 'Direct is the most profitable channel')]]);
 
@@ -94,7 +94,7 @@ describe('KassandraDescribeView', () => {
     expect(http.writes().at(-1)).toMatchObject({ method: 'DELETE', path: '/api/boards/b1/widgets/w1' });
     fixture.detectChanges();
     expect(removed).toEqual([['w1']]);
-    expect((fixture.nativeElement as HTMLElement).querySelector('section[aria-label="Views Kassandra added"]')).toBeNull();
+    expect((fixture.nativeElement as HTMLElement).querySelector('section[aria-label="Charts Kassandra added"]')).toBeNull();
   });
 
   it('saves nothing when the answer has no widget, and shows the answer', async () => {

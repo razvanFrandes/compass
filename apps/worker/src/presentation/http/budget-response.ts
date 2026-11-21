@@ -1,7 +1,7 @@
 import { BUDGET_LABELS, type BudgetDecision } from '../../domain/budget.ts';
 
 export function budgetMessage(decision: BudgetDecision): string {
-  return `The demo's daily budget of ${decision.limit} ${BUDGET_LABELS[decision.kind]} is used up. It resets at 00:00 UTC.`;
+  return `Today’s limit of ${decision.limit} ${BUDGET_LABELS[decision.kind]} for this demo is used up. It resets at midnight UTC.`;
 }
 
 export function budgetExceeded(decision: BudgetDecision, now = new Date()): Response {

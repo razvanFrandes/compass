@@ -16,7 +16,7 @@ import * as icons from './icons';
   The one card every chart uses, whether people or Kassandra made it (report: "Fiecare grafic poartă
   aceleași cinci piese"): a statement title and a scope line; a badge when a dashboard filter can't apply
   (click it for the read-only list); Chart/Table; "Show as" with Auto plus only the compatible views (the
-  others say what they lack); "How this was computed"; "Add to board" (saves the spec, not a picture);
+  others say what they lack); "Behind the numbers"; "Add to board" (saves the spec, not a picture);
   "Wrong chart". Clicking a mark sends a structured follow-up ({ drill: { dimension, value } }).
 */
 /** A new board made from one chart is named after what the chart shows; rename it any time. */
@@ -27,7 +27,7 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
   fan: 'Forecast',
   mix_net: 'Channel profitability',
   share: 'Business mix',
-  quadrant: 'Comp-set position',
+  quadrant: 'Comp set position',
   bridge: 'GOP review',
   table: 'Hotel performance',
 };
@@ -72,7 +72,7 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
               </li>
             }
           </ul>
-          <p class="text-muted-foreground mt-2">Struck-through filters don’t apply to this chart; the dashboard keeps them for the others.</p>
+          <p class="text-muted-foreground mt-2">Struck-through filters don’t apply to this chart. The board keeps them for the other charts.</p>
         </div>
       }
 
@@ -108,7 +108,7 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
                     @for (cell of row; track $index) {
                       @let c = cellOf(cell);
                       @if ($index === 0) {
-                        <th scope="row" class="py-2 pr-3 text-left whitespace-nowrap" [class]="c.text === 'Chain total' || c.text === 'Selection total' ? 'font-semibold' : 'font-normal'">{{ c.text }}</th>
+                        <th scope="row" class="py-2 pr-3 text-left whitespace-nowrap" [class]="c.text === 'Group total' || c.text === 'Selection total' ? 'font-semibold' : 'font-normal'">{{ c.text }}</th>
                       } @else {
                         <td class="py-2 pl-3 whitespace-nowrap" [class]="align(r, $index) === 'l' ? 'text-left' : 'text-right'" [class.text-muted-foreground]="c.muted">
                           @if (c.spark) {
@@ -146,13 +146,13 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
       }
 
       @if (howOpen()) {
-        <section class="border-border mt-4 border-t pt-3 text-[12.5px]" aria-label="How this was computed">
+        <section class="border-border mt-4 border-t pt-3 text-[12.5px]" aria-label="Behind the numbers">
           <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
             @for (d of r.definitions; track d[0]) {
               <dt class="text-muted-foreground">{{ d[0] }}</dt>
               <dd>{{ d[1] }}</dd>
             }
-            <dt class="text-muted-foreground">Scope</dt>
+            <dt class="text-muted-foreground">Filters</dt>
             <dd>{{ scope() }}</dd>
             <dt class="text-muted-foreground">Data</dt>
             <dd>Halcyon group data, as of {{ asOf }}</dd>
@@ -184,7 +184,7 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
           </button>
         }
         <hlm-dropdown-menu-separator />
-        <button hlmDropdownMenuItem (triggered)="howOpen.set(!howOpen())"><ng-icon name="phosphorDatabaseLight" />{{ howOpen() ? 'Hide how this was computed' : 'How this was computed' }}</button>
+        <button hlmDropdownMenuItem (triggered)="howOpen.set(!howOpen())"><ng-icon name="phosphorDatabaseLight" />{{ howOpen() ? 'Close Behind the numbers' : 'Behind the numbers' }}</button>
         <hlm-dropdown-menu-separator />
         <hlm-dropdown-menu-label>Add to board</hlm-dropdown-menu-label>
         @for (b of savedBoards(); track b.id) {
@@ -279,7 +279,7 @@ export class ChartCard {
   protected async addTo(target: string | 'new') {
     const payload = chartToWidget(this.spec(), this.filters.state());
     if (!payload) {
-      toast('Nothing to add', { description: 'This chart has no data for these filters.', duration: 5000 });
+      toast('Nothing to add', { description: 'This chart has no data for these filters. Widen the filters and try again.', duration: 5000 });
       return;
     }
     await this.boards.addTo(target, payload, (id) => this.store.openBoard(id), BOARD_NAME[this.spec().kind]);

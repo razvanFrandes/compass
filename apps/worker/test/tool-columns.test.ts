@@ -95,7 +95,7 @@ describe('tool views', () => {
     const shown = (outcome.structured as { evidence: Evidence }).evidence;
     expect(shown.columns?.map((column) => column.key).sort()).toEqual(Object.keys(match).sort());
     expect(shown.title).toBe('What guests say');
-    expect(shown.sourceLabels).toEqual({ 'hotel.reviews': 'Guest reviews', 'hotel.review_passages': 'Guest review sentences (semantic index)' });
+    expect(shown.sourceLabels).toEqual({ 'hotel.reviews': 'Guest reviews', 'hotel.review_passages': 'Review sentences' });
   });
 
   it('hides plumbing columns and marks hotel codes, money and percentages', async () => {
@@ -141,11 +141,11 @@ describe('tool views', () => {
   it('names every source the tools and the brief detectors read', () => {
     expect(sourceLabelsFor(['hotel.v_hotel_day', 'hotel.otb_as_of()'])).toEqual({
       'hotel.v_hotel_day': 'Daily hotel performance',
-      'hotel.otb_as_of()': 'On-the-books history',
+      'hotel.otb_as_of()': 'On-the-books snapshots',
     });
     // An unknown source still gets a readable name rather than nothing.
     expect(sourceLabelsFor(['hotel.some_new_table'])).toEqual({ 'hotel.some_new_table': 'Some new table' });
-    expect(SOURCE_LABELS['hotel.*']).toBe('Hotel database (custom query)');
+    expect(SOURCE_LABELS['hotel.*']).toBe('All hotel data (custom analysis)');
   });
 });
 
