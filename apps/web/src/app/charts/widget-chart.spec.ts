@@ -16,7 +16,7 @@ const ROWS: WidgetRow[] = [
 ];
 const spec = (over: Partial<WidgetSpec>): WidgetSpec => ({ kind: 'table', title: 'RevPAR by hotel', subtitle: 'November to date', sourceCallId: 'call_1', ...over });
 
-function render(inputs: { spec: WidgetSpec; rows?: readonly object[] | null; columns?: EvidenceColumn[]; compact?: boolean; header?: boolean; loading?: WidgetLoading }) {
+function render(inputs: { spec: WidgetSpec; rows?: readonly object[] | null; columns?: EvidenceColumn[]; compact?: boolean; header?: boolean; loading?: WidgetLoading; height?: number | null }) {
   const fixture = TestBed.createComponent(WidgetChart);
   for (const [name, value] of Object.entries(inputs)) fixture.componentRef.setInput(name, value);
   fixture.detectChanges();
@@ -222,6 +222,15 @@ describe('WidgetChart', () => {
         const heights = (['skeleton', 'title', 'none'] as const).map((loading) => bodyHeight(render({ spec: s, rows: ROWS, columns: COLUMNS, loading }).el));
         expect(new Set(heights).size, `${kind}: ${heights.join(' → ')}`).toBe(1);
       }
+    });
+
+    it('takes the host’s height in every state, and leaves KPI tiles to size themselves', () => {
+      const bar = spec({ kind: 'bar', x: 'hotel', y: ['revpar'] });
+      const heights = (['skeleton', 'title', 'none'] as const).map((loading) => bodyHeight(render({ spec: bar, rows: loading === 'none' ? ROWS : null, columns: COLUMNS, loading, height: 180 }).el));
+      expect(heights).toEqual(['180px', '180px', '180px']);
+      expect(bodyHeight(render({ spec: bar, rows: ROWS, columns: COLUMNS, height: 320, compact: true }).el)).toBe('320px');
+      const kpi = spec({ kind: 'kpi', y: ['revpar'] });
+      expect(bodyHeight(render({ spec: kpi, rows: ROWS.slice(0, 1), columns: COLUMNS, height: 180 }).el)).toBe(bodyHeight(render({ spec: kpi, rows: ROWS.slice(0, 1), columns: COLUMNS }).el));
     });
 
     it('draws a different skeleton for each kind, with the parts that kind will have', () => {

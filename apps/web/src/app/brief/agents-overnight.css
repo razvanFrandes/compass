@@ -1,0 +1,18 @@
+/* Agents overnight (the brief). No style encapsulation, like brief.css, which holds the density tokens these rules use. Loaded with app-agents-overnight. */
+/* ── Agents: rows told apart by space, the state by a dot ── */
+.agents { display: grid; gap: var(--space-card-gap); }
+.agent { display: flex; align-items: flex-start; gap: var(--space-stack); }
+.agent-dot { flex-shrink: 0; width: 0.5rem; height: 0.5rem; margin-top: 0.375rem; border-radius: 9999px; background: var(--series-muted); }
+.agent-dot[data-tone='needs'] { background: var(--decision); }
+.agent-dot[data-tone='failed'] { background: var(--negative); }
+.agent-dot[data-tone='finding'] { background: var(--series); }
+.agent-dot[data-tone='running'] { background: var(--foreground); }
+.agent-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--space-stack); }
+.agent-name { border-radius: 4px; text-align: left; font-size: var(--text-body); line-height: 1.25rem; font-weight: 600; }
+@media (hover: hover) { .agent-name:hover { text-decoration: underline; text-underline-offset: 2px; } }
+.agent-status { font-size: var(--text-label); color: var(--muted-foreground); white-space: nowrap; }
+.agent-status[data-tone='needs'] { font-weight: 600; color: var(--decision); }
+.agent-status[data-tone='failed'] { font-weight: 600; color: var(--negative); }
+.agent-finding { margin-top: 0.125rem; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 0.8125rem; line-height: 1.25rem; color: var(--muted-foreground); }
+.agent-skel { display: block; width: 86%; height: 0.75rem; margin-block: 0.25rem; border-radius: 4px; }
+.agent-meta { margin-top: 0.125rem; font-size: var(--text-label); line-height: 1rem; color: var(--muted-foreground); }

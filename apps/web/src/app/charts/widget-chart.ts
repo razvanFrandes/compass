@@ -59,6 +59,11 @@ export class WidgetChart {
   readonly header = input(true);
   /** The loading state to show; see WidgetLoading. Kassandra drives it from the streaming tool call. */
   readonly loading = input<WidgetLoading>('none');
+  /**
+   * The height of the chart's body in px, for a host with a rhythm of its own (180 in an overview row, 320 for a
+   * featured chart). Null keeps the catalogue's height for the kind. KPI tiles size themselves and ignore it.
+   */
+  readonly height = input<number | null>(null);
 
   protected readonly uid = `wc${nextId++}`;
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
@@ -82,7 +87,13 @@ export class WidgetChart {
     return b?.render === 'kpi_row' ? b.tiles.length : kpiCount(this.spec());
   });
   protected readonly tileCols = computed(() => kpiColumns(this.tiles(), this.width()));
-  protected readonly height = computed(() => bodyHeight(this.spec(), this.compact(), this.width(), this.tiles()));
+  /** The host's height where it applies; every state of the widget uses it, so nothing moves when the rows arrive. */
+  private readonly fixed = computed(() => {
+    const kind = this.spec().kind;
+    const h = this.height();
+    return h && h > 0 && kind !== 'kpi' && kind !== 'kpi_row' ? Math.round(h) : null;
+  });
+  protected readonly bodyH = computed(() => this.fixed() ?? bodyHeight(this.spec(), this.compact(), this.width(), this.tiles()));
   protected readonly narrow = computed(() => this.width() < 480);
   /** The state on screen: the one asked for, or `title` while there are no rows to draw. */
   protected readonly state = computed<WidgetLoading>(() => (this.loading() !== 'none' ? this.loading() : this.rows() ? 'none' : 'title'));
@@ -92,7 +103,7 @@ export class WidgetChart {
   protected readonly built = computed<Built | null>(() => {
     const rows = this.rows();
     if (!rows || this.state() !== 'none') return null;
-    return buildWidget({ spec: this.spec(), rows: rows as readonly WidgetRow[], columns: this.columns() ?? [], tokens: this.tokens(), width: this.width(), compact: this.compact(), motion: !this.reducedMotion() });
+    return buildWidget({ spec: this.spec(), rows: rows as readonly WidgetRow[], columns: this.columns() ?? [], tokens: this.tokens(), width: this.width(), compact: this.compact(), motion: !this.reducedMotion(), ...(this.fixed() ? { height: this.fixed()! } : {}) });
   });
 
   /** "View as table" resets when the widget becomes a different kind of chart. */

@@ -687,6 +687,8 @@ export type View = 'inbox' | 'thread' | 'boards' | 'board' | 'watchers' | 'watch
 /** Views with an address of their own; the rest live at "/". The builder is at /workflows/new and /workflows/<id>/edit. */
 const BUILDER_PATH = '/workflows/new';
 const EDIT_PATH = /^\/workflows\/[A-Za-z0-9_-]{1,64}\/edit\/?$/;
+/** `/workflows/new?describe=…`: text the builder's chat opens with. It is placed in the field and never sent. */
+export const BUILDER_DESCRIBE = 'describe';
 export const isBuilderUrl = (loc: Pick<Location, 'pathname' | 'search'>) => loc.pathname.startsWith(BUILDER_PATH) || EDIT_PATH.test(loc.pathname) || new URLSearchParams(loc.search).has('builder');
 /** /orb-lab: the demo page for the Kassandra orb. Not linked from the navigation. */
 export const isOrbLabUrl = (loc: Pick<Location, 'pathname'>) => loc.pathname.replace(/\/+$/, '') === '/orb-lab';
@@ -810,10 +812,12 @@ export class CompassStore {
    * The workflow builder: a new workflow at /workflows/new, an existing one at /workflows/<id>/edit.
    * The address changes first: the builder reads its draft id and the workflow to load from it.
    */
-  openBuilder(workflowId?: string) {
+  openBuilder(workflowId?: string, describe?: string) {
     const loc = globalThis.location;
     const path = workflowId ? `/workflows/${encodeURIComponent(workflowId)}/edit` : BUILDER_PATH;
-    if (loc && (workflowId ? loc.pathname !== path : !isBuilderUrl(loc))) globalThis.history?.pushState(null, '', this.scope.href(path));
+    // "Watch this" on a finding: a new draft whose chat opens with a description, for the person to edit and send.
+    const target = !workflowId && describe ? `${path}?${BUILDER_DESCRIBE}=${encodeURIComponent(describe)}` : path;
+    if (loc && (workflowId ? loc.pathname !== path : describe ? true : !isBuilderUrl(loc))) globalThis.history?.pushState(null, '', this.scope.href(target));
     this.view.set('builder');
   }
 

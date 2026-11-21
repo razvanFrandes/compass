@@ -148,7 +148,7 @@ export function richText(text: string): { text: string; bold: boolean }[] {
         [busy]="running()"
         [steerable]="true"
         [online]="online()"
-        [prefill]="starter()"
+        [prefill]="prefill()"
         [showMode]="false"
         [showScope]="false"
         [maxLength]="4000"
@@ -169,6 +169,13 @@ export class BuilderChat {
   protected readonly starters = STARTERS;
   /** The starter placed in the composer; a new `n` places it again. */
   protected readonly starter = signal<{ text: string; n: number } | null>(null);
+  /** A description to open with ("Watch this" on a brief finding). Only an empty conversation takes it. */
+  readonly describe = input<string | null>(null);
+  /** What goes in the field: the starter the person picked, else the description the page was opened with. */
+  protected readonly prefill = computed(() => {
+    const describe = this.describe()?.trim();
+    return this.starter() ?? (describe && !this.items().length ? { text: describe, n: 0 } : null);
+  });
   private readonly opened = signal<ReadonlySet<string>>(new Set());
   private readonly scroller = viewChild.required<ElementRef<HTMLElement>>('scroller');
   /** Running, with nothing on screen for it yet: no step in progress and no text being written. */

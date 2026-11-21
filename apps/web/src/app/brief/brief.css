@@ -1,0 +1,163 @@
+/*
+  The morning brief (app-inbox and src/app/brief), laid out as docs/research/layout/layout-and-density.md asks:
+  airy by having little chrome (flat cards on a hairline, no shadows, few rules, colour only where it means
+  something), with whitespace that separates groups: a section from its neighbours by more than a card from the
+  next, and a card's content from its edge by more than a title from its content.
+
+  Every distance is a density token. The values here are the comfortable ones, at zero specificity, so a density
+  layer for the whole app (`data-density="comfortable | compact"` on <html> or on a region) replaces them without a
+  fight; until it lands, `data-density="compact"` on any ancestor already works. Themes (Light, Dark, Juyo concept)
+  only change colour: none of them touches these.
+
+  No style encapsulation. This sheet has the tokens, the page and the shared pieces (brief-); each part keeps its
+  own rules next to it (pulse-rail.css, finding-card.css, nights-calendar.css, data-health.css, agents-overnight.css).
+*/
+:where(:root) {
+  --space-page-x: 1.5rem; /* 24 */
+  --space-section: 2rem; /* 32 */
+  --space-card-gap: 1rem; /* 16 */
+  --space-card-pad: 1.5rem; /* 24 */
+  --space-stack: 0.75rem; /* 12 */
+  --space-inline: 0.5rem; /* 8 */
+  --row-h: 2.5rem; /* 40 */
+  --control-h: 2.25rem; /* 36 */
+  /* Constants: density does not change them. */
+  --chart-h: 180px;
+  --chart-h-hero: 320px;
+  --spark-w: 80px;
+  --spark-h: 24px;
+  --content-max: 1280px;
+  --measure: 68ch;
+  --text-label: 0.75rem; /* 12/16 */
+  --text-body: 0.875rem; /* 14 */
+  --text-card-title: 1rem; /* 16/24 */
+  --text-kpi: 2rem; /* 32/40 */
+  --text-kpi-sm: 1.5rem; /* 24/32 */
+}
+:where([data-density='compact']) {
+  --space-page-x: 1rem;
+  --space-section: 1.5rem;
+  --space-card-gap: 0.5rem;
+  --space-card-pad: 1rem;
+  --space-stack: 0.5rem;
+  --space-inline: 0.25rem;
+  --row-h: 2rem;
+  --control-h: 2rem;
+}
+/* A phone has a 16 px gutter and less padding in a card, whatever the density. */
+@media (max-width: 599.98px) {
+  :where(:root) { --space-page-x: 1rem; --space-card-pad: 1rem; --space-section: 1.5rem; }
+}
+
+.brief-shell {
+  container-type: inline-size;
+  margin-inline: auto;
+  max-width: calc(var(--content-max) + 2 * var(--space-page-x));
+  padding: var(--space-section) max(var(--space-page-x), env(safe-area-inset-left, 0px)) calc(var(--space-section) + 9rem);
+}
+@media (min-width: 1024px) { .brief-shell { padding-bottom: calc(2 * var(--space-section)); } }
+.brief { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: var(--space-section); }
+.brief > *, .brief-below > * { min-width: 0; }
+:is(.brief-section, .finding-host) { display: block; min-width: 0; }
+
+/* ── Shared pieces ── */
+.brief-eyebrow { font-size: var(--text-label); line-height: 1rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); }
+.brief-count { display: inline-flex; align-items: center; justify-content: center; min-width: 1.25rem; height: 1.25rem; margin-left: var(--space-inline); padding: 0 0.375rem; border-radius: 9999px; background: var(--muted); font-size: var(--text-label); font-weight: 600; font-variant-numeric: tabular-nums; vertical-align: 0.1em; }
+.brief-count--decision { background: var(--decision-tint); color: var(--decision); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--decision) 45%, transparent); }
+.brief-link { border-radius: 4px; color: var(--foreground); font-size: var(--text-body); text-decoration: underline; text-underline-offset: 2px; }
+.brief-link--quiet { flex-shrink: 0; color: var(--muted-foreground); font-size: 0.8125rem; line-height: 1.25rem; text-decoration: none; white-space: nowrap; }
+.brief-link--quiet:disabled { opacity: 0.6; }
+@media (hover: hover) { .brief-link--quiet:not(:disabled):hover { color: var(--foreground); text-decoration: underline; } }
+:is(.brief-link, .brief-mover, .agent-name, .nights-cell, .brief-resolved-toggle, .brief-chip, .brief-more, .pulse-pace-btn):focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+:is(#brief-findings, #brief-decisions, #brief-health) { scroll-margin-top: var(--space-section); }
+:is(#brief-findings, #brief-decisions, #brief-health):focus-visible .brief-sec-title { text-decoration: underline; text-underline-offset: 4px; }
+
+/* A flat card: one hairline, the surface tone, no shadow. Hover changes nothing: only its controls are targets. */
+.brief-card { min-width: 0; border-radius: var(--card-radius, 12px); border: 1px solid var(--card-border, var(--border)); background: var(--card); padding: var(--space-card-pad); }
+.brief-msg { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: var(--space-stack); font-size: var(--text-body); color: var(--muted-foreground); }
+
+/* A section: its title and one line above the card, twelve pixels from it. */
+.brief-sec-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-inline) var(--space-card-gap); margin-bottom: var(--space-stack); }
+.brief-sec-titles { flex: 1 1 14rem; min-width: 0; }
+.brief-sec-title { font-size: var(--text-card-title); line-height: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
+.brief-sec-hint { font-size: 0.8125rem; line-height: 1.25rem; color: var(--muted-foreground); }
+.brief-sec-actions { display: flex; flex-shrink: 0; align-items: center; min-height: 1.25rem; }
+.brief-sec-actions:empty { display: none; }
+.brief-sec-tools { display: flex; align-items: center; gap: var(--space-card-gap); }
+.brief-sec-head .seg > button { white-space: nowrap; }
+.brief-sec-skel { border-radius: var(--card-radius, 12px); }
+.brief-figure { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.125rem var(--space-inline); min-height: 2rem; margin-bottom: var(--space-inline); font-size: 0.8125rem; color: var(--muted-foreground); font-variant-numeric: tabular-nums lining-nums; }
+.brief-figure strong { font-size: var(--text-kpi-sm); line-height: 2rem; font-weight: 600; letter-spacing: -0.02em; color: var(--foreground); }
+.brief-figure-delta { font-weight: 600; }
+.brief-figure-skel { display: block; width: 12rem; height: 1.25rem; border-radius: 5px; }
+:is(.pulse-delta, .brief-mover)[data-tone='up'] :is(.pulse-delta-figure, .brief-mover-value), .brief-figure-delta[data-tone='up'] { color: var(--positive); }
+:is(.pulse-delta, .brief-mover)[data-tone='down'] :is(.pulse-delta-figure, .brief-mover-value), .brief-figure-delta[data-tone='down'] { color: var(--negative); }
+
+/* ── Hero: the one sentence, the money in it, and the ask bar ── */
+.brief-hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-card-gap) var(--space-section); }
+.brief-hero-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-inline) var(--space-stack); }
+.brief-headline { margin-top: var(--space-stack); max-width: 26ch; font-size: 1.75rem; line-height: 1.2; font-weight: 600; letter-spacing: -0.02em; text-wrap: balance; }
+.brief-lead { margin-top: var(--space-inline); max-width: var(--measure); font-size: 0.9375rem; line-height: 1.5rem; color: var(--muted-foreground); text-wrap: pretty; }
+.brief-chips { display: flex; flex-wrap: wrap; gap: var(--space-inline); margin-top: var(--space-card-gap); }
+/* A chip is a tone, not a box: no border until it is the filter in use. */
+.brief-chip { display: inline-flex; align-items: center; gap: 0.375rem; min-height: 1.875rem; padding: 0 0.75rem; border-radius: var(--chip-radius, 8px); background: var(--muted); font-size: 0.8125rem; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; transition: background-color 110ms ease; }
+.brief-chip-arrow { font-size: 0.625rem; }
+.brief-chip[data-tone='risk'] .brief-chip-arrow { color: var(--negative); }
+.brief-chip[data-tone='upside'] .brief-chip-arrow { color: var(--positive); }
+.brief-chip-dot { width: 0.5rem; height: 0.5rem; border-radius: 9999px; background: var(--negative); }
+.brief-chip[data-tone='decision'] { background: var(--decision-tint); color: var(--decision); }
+.brief-chip[data-tone='decision'] .brief-chip-dot { background: var(--decision); }
+.brief-chip-sub { font-weight: 400; color: var(--muted-foreground); }
+.brief-chip[aria-pressed='true'] { box-shadow: inset 0 0 0 1.5px var(--foreground); }
+@media (hover: hover) { .brief-chip:hover { background: color-mix(in srgb, var(--foreground) 10%, var(--muted)); } .brief-chip[data-tone='decision']:hover { background: color-mix(in srgb, var(--decision) 14%, var(--decision-tint)); } }
+@media (pointer: coarse) { .brief-chip { min-height: 2.75rem; } }
+.brief-ask { display: none; }
+.brief-status { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.125rem var(--space-inline); font-size: var(--text-label); line-height: 1.125rem; color: var(--muted-foreground); }
+.brief-status .brief-link { font-size: inherit; line-height: inherit; }
+@media (min-width: 1024px) { .brief-ask { display: block; margin-bottom: var(--space-inline); } }
+@container (min-width: 1000px) {
+  .brief-hero { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: end; }
+  .brief-headline { font-size: 2rem; }
+}
+
+/* ── Findings: three to a row, one chart each ── */
+.brief-notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-inline) var(--space-stack); margin-bottom: var(--space-stack); font-size: var(--text-body); color: var(--muted-foreground); }
+.brief-cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-card-gap); }
+@container (min-width: 700px) { .brief-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (min-width: 1000px) { .brief-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.brief-cards > .brief-empty { grid-column: 1 / -1; }
+.brief-card-skel { min-height: 27rem; border-radius: var(--card-radius, 12px); }
+.brief-empty { display: flex; align-items: center; gap: var(--space-stack); font-size: var(--text-body); color: var(--muted-foreground); }
+.brief-empty ng-icon { flex-shrink: 0; font-size: 1.25rem; color: var(--positive); }
+.brief-more { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 0 var(--space-inline); width: 100%; min-height: var(--row-h); margin-top: var(--space-card-gap); padding: var(--space-inline) var(--space-card-pad); border-radius: var(--card-radius, 12px); background: var(--muted); font-size: var(--text-body); font-weight: 500; transition: background-color 110ms ease; }
+.brief-more-sub { font-weight: 400; color: var(--muted-foreground); }
+@media (hover: hover) { .brief-more:hover { background: color-mix(in srgb, var(--foreground) 8%, var(--muted)); } }
+.brief-resolved { margin-top: var(--space-card-gap); font-size: var(--text-body); }
+.brief-resolved-toggle { display: flex; align-items: center; gap: var(--space-inline); width: 100%; min-height: var(--row-h); border-radius: 6px; text-align: left; color: var(--muted-foreground); }
+.brief-resolved-list li { display: flex; align-items: center; gap: var(--space-stack); min-height: var(--row-h); padding-block: var(--space-inline); border-top: 1px solid var(--card-border, var(--border)); }
+.brief-resolved-why { display: block; font-size: var(--text-label); color: var(--muted-foreground); }
+
+/* ── Below the fold: a wide section beside a narrow one, 2/3 + 1/3 ── */
+.brief-below { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-section) var(--space-card-gap); margin-top: calc(var(--space-section) / 2); }
+@container (min-width: 1000px) {
+  .brief-below { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .brief-wide { grid-column: span 8; }
+  .brief-narrow { grid-column: span 4; }
+}
+.brief-decision { display: block; }
+.brief-decision + .brief-decision { margin-top: var(--space-card-gap); }
+.brief-decision > article { padding: var(--space-card-pad); border-radius: var(--card-radius, 12px); box-shadow: none !important; }
+.brief-decision-empty { display: flex; align-items: flex-start; gap: var(--space-stack); }
+.brief-decision-ok { flex-shrink: 0; margin-top: 0.125rem; font-size: 1.25rem; color: var(--positive); }
+.brief-decision-none { font-size: var(--text-body); font-weight: 600; }
+.brief-decision-how { margin-top: 0.25rem; font-size: 0.8125rem; line-height: 1.25rem; color: var(--muted-foreground); }
+.brief-movers { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-inline) var(--space-stack); margin-top: var(--space-card-gap); }
+.brief-movers-label { font-size: var(--text-label); color: var(--muted-foreground); }
+.brief-movers ul { display: flex; flex-wrap: wrap; gap: var(--space-inline); }
+/* On the card's own surface, so the coloured figure keeps its contrast in every theme. */
+.brief-mover { display: inline-flex; align-items: center; gap: var(--space-inline); min-height: 1.75rem; padding: 0 0.625rem; border-radius: var(--chip-radius, 8px); box-shadow: inset 0 0 0 1px var(--card-border, var(--border)); font-size: var(--text-label); transition: background-color 110ms ease; }
+.brief-mover-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+@media (hover: hover) { .brief-mover:hover { background: var(--overlay-hover); } }
+@media (pointer: coarse) { .brief-mover { min-height: 2.75rem; } }
+
+@media (prefers-reduced-motion: reduce) { .brief-chip, .brief-mover, .brief-more { transition: none; } }

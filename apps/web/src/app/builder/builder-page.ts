@@ -10,6 +10,7 @@ import { BuilderSocket, BuilderSocketOptions, builderSocketUrl, ensureDraftId, w
 import { issueText, maskAddress, toConversation } from './builder-steps';
 import { scopeLabel, shortName, type HotelRef } from '../scope/hotels';
 import { ScopeService } from '../scope/scope.service';
+import { BUILDER_DESCRIBE } from '../store';
 
 /** Overrides for the socket (a fake one in a preview or a test). */
 export const BUILDER_SOCKET_OPTIONS = new InjectionToken<Partial<BuilderSocketOptions>>('BUILDER_SOCKET_OPTIONS');
@@ -173,7 +174,7 @@ export function namedScope(graph: WorkflowGraph, hotels: readonly string[] | und
 
     <main class="grid grid-cols-[minmax(0,1fr)] lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(360px,460px)_minmax(0,1fr)]">
       <section class="border-border/70 flex min-w-0 flex-col lg:min-h-0 lg:border-r" aria-label="Chat">
-        <app-builder-chat class="lg:min-h-0 lg:flex-1" [items]="conversation()" [running]="socket.live().running" [online]="!offline()" (ask)="socket.ask($event)" (stop)="socket.abort()" />
+        <app-builder-chat class="lg:min-h-0 lg:flex-1" [describe]="describe" [items]="conversation()" [running]="socket.live().running" [online]="!offline()" (ask)="socket.ask($event)" (stop)="socket.abort()" />
       </section>
       <section class="border-border/70 min-w-0 max-lg:border-t lg:min-h-0" aria-label="Agent">
         <app-workflow-canvas
@@ -196,6 +197,8 @@ export class WorkflowBuilder {
   private readonly scope = inject(ScopeService);
   /** The workflow being edited (`/workflows/<id>/edit`), or null for a new one. */
   protected readonly editId = workflowToEdit(this.doc.defaultView!.location);
+  /** `?describe=…` (from "Watch this" on a brief finding): what the chat's field opens with on a new agent. */
+  protected readonly describe = this.editId ? null : (new URLSearchParams(this.doc.defaultView!.location.search).get(BUILDER_DESCRIBE)?.slice(0, 600) ?? null);
   protected readonly backHref = this.editId ? `/studio/${encodeURIComponent(this.editId)}` : '/studio';
   protected readonly socket = this.connect();
   private static next = 0;

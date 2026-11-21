@@ -34,7 +34,7 @@
     }
   </figcaption>
 
-  <div class="wc-body" [style.height.px]="height()">
+  <div class="wc-body" [style.height.px]="bodyH()">
     @if (!b) {
       <!-- A skeleton of this kind, in the box the finished widget will have -->
       <div class="wc-sk-host" [class.wc-shimmer]="state() !== 'skeleton'" role="status">
