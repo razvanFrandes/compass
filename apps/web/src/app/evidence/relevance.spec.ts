@@ -55,9 +55,11 @@ describe('arrangeCalls', () => {
 });
 
 describe('figureSources', () => {
-  it('never traces a number to a lookup table while there is anything else, and prefers data over checks', () => {
+  it('never traces a number to a lookup table, and prefers data over checks', () => {
     expect(ids(figureSources([hotels, health, production]))).toEqual(['p', 'd']);
-    expect(ids(figureSources([hotels]))).toEqual(['h']);
+    // Not even when the hotel list is all the answer read: its rooms and meeting space are no answer to anything.
+    expect(ids(figureSources([hotels]))).toEqual([]);
+    expect(ids(figureSources([hotels, call('m', 'list_metrics'), call('s', 'get_schema')]))).toEqual([]);
   });
 });
 

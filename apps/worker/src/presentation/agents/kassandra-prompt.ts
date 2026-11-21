@@ -36,6 +36,8 @@ export const KASSANDRA_SECTIONS = [
         '- Money is in EUR unless a tool says local currency. Ratios come from sums. Same time last year = 364 days back.',
         '- Stay dates on or after the business date are on the books, not actuals. Say which one you are showing.',
         '- If the data cannot answer, say so plainly. Never guess.',
+        '- A tool that fails says why and what to do next: retry once only when it says so. Otherwise tell the reader ' +
+          'which figure could not be read; never say a tool or the data is "not available in this session".',
         UNTRUSTED_RULE,
       ].join('\n'),
   },

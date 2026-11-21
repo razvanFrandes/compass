@@ -7,7 +7,7 @@ import { dataAsOf, formatNumber, formatPeriod, resolveColumns, yearOf, type Form
 import { HotelDirectory } from './hotel-directory';
 import { humanizeText } from '../text';
 import { humanizeKey, isDataTool, proseKeys, sourceLabel, toolTitle } from './labels';
-import { keyFigures, quotedFigures, type Figure, type FigureTable } from './quoted';
+import { quotedFigures, type Figure, type FigureTable } from './quoted';
 import { arrangeCalls, backedCounts, backingCells, figureSources, lookupSummary, toolRole } from './relevance';
 import type { EvidenceColumn, EvidenceEntry, EvidenceRow, RichEvidence } from './types';
 
@@ -277,7 +277,7 @@ function bringToTop(card: HTMLElement): void {
     } @else {
       @if (figures().length) {
         <section class="mb-section" [attr.aria-labelledby]="uid + '-figures'">
-          <h3 class="card-eyebrow" [id]="uid + '-figures'">{{ quoted() ? 'Numbers in this answer' : 'Key figures' }}</h3>
+          <h3 class="card-eyebrow" [id]="uid + '-figures'">Numbers in this answer</h3>
           <ul class="mt-stack grid grid-cols-1 gap-card-gap @[20rem]:grid-cols-2">
             @for (f of figures(); track f.callId + f.rowIndex + f.key) {
               <li class="min-w-0">
@@ -291,7 +291,7 @@ function bringToTop(card: HTMLElement): void {
             }
           </ul>
           <p class="text-muted-foreground mt-2 text-[12px]">
-            {{ quoted() ? 'Select a figure to see it in its table.' : 'The first figures of each table. Select one to see it in its table.' }}
+            Select a figure to see it in its table.
           </p>
         </section>
       }
@@ -350,7 +350,7 @@ function bringToTop(card: HTMLElement): void {
 export class EvidencePanel {
   /** The tool calls of one answer: `ChatStep[]`, or the `tool_result` entries of a transcript. */
   readonly entries = input.required<readonly EvidenceEntry[]>();
-  /** The final answer (Markdown). Its numbers are matched to rows; without it the panel leads with key figures. */
+  /** The final answer (Markdown). Its numbers are matched to rows, and only those are listed as figures. */
   readonly answer = input<string | null | undefined>(null);
   /** A tool call to open and bring into view ("Behind the numbers" on one step or one chart). */
   readonly focusCallId = input<string | null>(null);
@@ -419,17 +419,19 @@ export class EvidencePanel {
   );
 
   private readonly context = computed<FormatContext>(() => ({ hotelName: this.hotels.name, baseYear: yearOf(this.withEvidence()[0]?.evidence.businessDate) }));
-  /** The results a number may be traced to: never a lookup table while there is anything else. */
+  /** The results a number may be traced to: never a lookup table. */
   private readonly tables = computed<FigureTable[]>(() => figureSources(this.cards()).map((card) => ({ callId: card.callId, title: card.title, rows: card.rows, columns: card.columns })));
   /** Every number of the answer that is a cell of some result. */
   private readonly traced = computed(() => quotedFigures(this.answer(), this.tables(), this.context(), FIGURES_TRACED));
-  protected readonly quoted = computed(() => this.traced().length > 0);
-  protected readonly figures = computed<Figure[]>(() => (this.quoted() ? this.traced().slice(0, FIGURES_SHOWN) : keyFigures(this.tables(), this.context())));
+  /** Only numbers the answer states: a figure it does not use (the first cell of some table) is not evidence of anything. */
+  protected readonly figures = computed<Figure[]>(() => this.traced().slice(0, FIGURES_SHOWN));
 
   /** The cards that fed the answer, the one backing most of its numbers first, and the lookups. Each knows its quoted rows and columns. */
   protected readonly arranged = computed(() => {
     const traced = this.traced();
-    const arranged = arrangeCalls(this.cards(), backedCounts(traced), this.settled());
+    // A lookup is the answer's data only when it is all a finished answer read. When a data read failed, the lookup
+    // was on the way to it (the hotel list, to find the hotel's code): it stays a lookup.
+    const arranged = arrangeCalls(this.cards(), backedCounts(traced), this.settled() && !this.failed().length);
     const withCells = (card: Card) => {
       const cells = backingCells(traced, card.callId);
       return { ...card, quotedRows: cells.rows, quotedKeys: cells.keys };
