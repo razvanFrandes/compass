@@ -205,14 +205,16 @@
   --ease-enter: var(--jc-ease-enter);
   --ease-exit: var(--jc-ease-exit);
 
-  /* Density: compact by default, on the 4px grid. Touch keeps its 44px targets. */
-  --control-height-xs: 24px;
-  --control-height-sm: 28px;
-  --control-height-md: 32px;
-  --control-height-lg: 36px;
-  --row-height: 32px;
-  --row-height-two-line: 48px;
-  --cell-padding-x: var(--jc-space-4);
+  /* Density: not the theme's to decide. These are the theme's names for the app's density tokens (src/density.css):
+     28/32/36/40 px controls and 40 px rows when comfortable, 24/28/32/36 and 32 when compact. src/density.css
+     declares the same aliases on every [data-density] region, so a compact region inside the page follows too. */
+  --control-height-xs: var(--control-h-xs);
+  --control-height-sm: var(--control-h-sm);
+  --control-height-md: var(--control-h);
+  --control-height-lg: var(--control-h-lg);
+  --row-height: var(--row-h);
+  --row-height-two-line: calc(var(--row-h) + 1rem);
+  --cell-padding-x: var(--cell-pad-x);
   --cell-padding-y: 6px;
 
   /* ───────────────────────── Tier 3: component ───────────────────────── */
@@ -223,7 +225,8 @@
   --nav-item-radius: var(--radius-control);
   --card-radius: var(--radius-container);
   --card-border: var(--field-border);
-  --card-shadow-hover: var(--elevation-raised);
+  /* Cards are flat, also on hover: the hairline darkens. Shadows are for layers that float. */
+  --card-shadow-hover: none;
   --popover-radius: var(--radius-container);
   --popover-shadow: var(--elevation-overlay);
   --dialog-radius: var(--radius-overlay);

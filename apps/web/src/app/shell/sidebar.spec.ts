@@ -76,7 +76,9 @@ describe('Sidebar', () => {
     expect(nav.querySelector('kassandra-thread-list')?.textContent).toContain('Why is Lisbon pacing behind?');
     expect(nav.querySelector('app-rail-threads')).toBeNull();
     expect(nav.querySelector('.sw-side')?.hasAttribute('data-compact')).toBe(false);
-    expect([...nav.querySelectorAll('[role=radio]')].map((radio) => radio.textContent?.trim())).toEqual(['Light', 'Dark', 'Concept']);
+    expect([...nav.querySelectorAll('.rail-theme [role=radio]')].map((radio) => radio.textContent?.trim())).toEqual(['Light', 'Dark', 'Concept']);
+    // The density switch sits under the theme, and is its own group.
+    expect([...nav.querySelectorAll('app-density-switch [role=radio]')].map((radio) => radio.textContent?.trim())).toEqual(['Comfortable', 'Compact']);
     expect(nav.querySelector('#rail-note')?.hasAttribute('popover')).toBe(false);
     expect(nav.querySelector('[popovertarget]')).toBeNull();
   });
@@ -106,8 +108,12 @@ describe('Sidebar', () => {
     expect(threads.getAttribute('aria-haspopup')).toBe('menu');
 
     // The theme switch is three icons; the label stays for the radio group.
-    const radios = [...nav.querySelectorAll('[role=radio]')];
+    const radios = [...nav.querySelectorAll('.rail-theme [role=radio]')];
     expect(radios.map((radio) => radio.getAttribute('aria-label'))).toEqual(['Light', 'Dark', 'Juyo concept']);
+    // So is the density switch: two icons, named.
+    const densities = [...nav.querySelectorAll('app-density-switch [role=radio]')];
+    expect(densities.map((radio) => radio.getAttribute('aria-label'))).toEqual(['Comfortable', 'Compact']);
+    expect(densities.every((radio) => radio.querySelector('ng-icon') !== null)).toBe(true);
     expect(radios.every((radio) => radio.querySelector('ng-icon') !== null)).toBe(true);
     expect(nav.querySelector('#theme-label')?.classList.contains('sr-only')).toBe(true);
 
