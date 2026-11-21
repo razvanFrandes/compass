@@ -28,6 +28,7 @@ export const BOARD_VIEW_PREFIX = 'Build a board view: ';
       [busy]="chat.running()"
       [phase]="chat.live()?.phase"
       [showMode]="false"
+      [showPrompts]="false"
       (submitted)="describe($event)"
       (stopped)="chat.abort()"
     />

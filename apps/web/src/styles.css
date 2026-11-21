@@ -190,24 +190,79 @@
   }
 }
 
-/* ───────── Ask bar (voice_and_composer.md §A.4): quiet at rest, no gradient, static focus ring ───────── */
+/* ───────── Ask bar (voice_and_composer.md §A.4): two rows in one field, a still glow at rest ───────── */
+/* The light that runs round the border while Kassandra works: a conic gradient whose angle turns. */
+@property --ask-beam { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
 .ask-field {
+  --beam-1: var(--series);
+  --beam-2: var(--kassandra, var(--brand));
+  --beam-3: var(--ring);
+  position: relative;
+  isolation: isolate;
   display: block;
   min-height: 56px;
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1px solid var(--field-border);
   background: var(--field);
+  /* At rest: a still, faint glow of the brand under the field */
+  box-shadow: 0 12px 36px -22px color-mix(in srgb, var(--beam-2) 55%, transparent), 0 1px 2px rgb(0 0 0 / 0.08);
   transition: height 220ms cubic-bezier(0.2, 0.8, 0.2, 1), border-color 150ms ease, box-shadow 150ms ease;
 }
+.ask-field::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  padding: 1.5px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(from var(--ask-beam), transparent 0deg 200deg, var(--beam-1) 260deg, var(--beam-2) 310deg, var(--beam-3) 345deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+.ask-field[data-working]::before { opacity: 1; animation: ask-beam 2.4s linear infinite; }
+.ask-field[data-working] { box-shadow: 0 14px 44px -20px color-mix(in srgb, var(--beam-2) 70%, transparent), 0 1px 2px rgb(0 0 0 / 0.08); }
+@keyframes ask-beam { to { --ask-beam: 360deg; } }
 @media (max-width: 640px) { .ask-field { min-height: 52px; } }
 .ask-textarea { max-height: 140px; overflow-y: auto; field-sizing: content; }
+.ask-field--large .ask-textarea { min-height: 3.1em; font-size: 17px; }
+@media (max-width: 640px) { .ask-field--large .ask-textarea { min-height: 2.9em; font-size: 16px; } }
 .ask-field:hover { border-color: var(--field-border-hover); }
-.ask-field:focus-within { border-color: var(--focus-brand); box-shadow: 0 0 0 3px rgb(153 106 213 / 0.2); }
+.ask-field:focus-within { border-color: var(--focus-brand); box-shadow: 0 0 0 3px rgb(from var(--focus-brand) r g b / 0.2), 0 12px 36px -22px color-mix(in srgb, var(--beam-2) 55%, transparent); }
 .ask-field--voice { height: 120px; }
 .ask-mic { color: var(--icon-quiet); }
-.ask-send { background: var(--primary); color: var(--primary-foreground); animation: ask-send-in 120ms ease-out both; }
-@keyframes ask-send-in { from { opacity: 0; transform: scale(0.96); } }
-
+.ask-send { background: var(--primary); color: var(--primary-foreground); }
+.ask-send--idle { background: var(--muted); color: var(--muted-foreground); }
+/* The quiet buttons of the bottom row: Prompts, the effort. Text and an icon, no border until hovered. */
+.ask-tool {
+  display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; height: var(--control-h-sm, 32px); padding: 0 9px; border-radius: 9999px;
+  font-size: 13px; color: var(--foreground); outline: none; white-space: nowrap; transition: background-color 130ms ease;
+}
+@media (hover: hover) { .ask-tool:hover { background: var(--overlay-hover); } }
+.ask-tool[aria-expanded='true'] { background: var(--overlay-pressed); }
+.ask-tool:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+.ask-tool .ask-caret { color: var(--muted-foreground); transition: transform 150ms ease; }
+.ask-tool[aria-expanded='true'] .ask-caret, .ask-prompt-more[aria-checked='true'] .ask-caret { transform: rotate(180deg); }
+.ask-bar .ask-scope .sw-chip { height: var(--control-h-sm, 32px); border-color: transparent; background: transparent; }
+@media (hover: hover) { .ask-bar .ask-scope .sw-chip:hover { background: var(--overlay-hover); } }
+@media (pointer: coarse) { .ask-tool { height: 44px; } }
+/* The Prompts and effort menus: questions wrap, the list scrolls when it is long. */
+.ask-menu { max-height: min(70dvh, 520px); }
+.ask-menu .ask-prompt { align-items: flex-start; gap: 10px; text-align: left; padding-block: 6px; font-size: 13px; line-height: 1.4; white-space: normal; }
+.ask-prompt-icon { display: grid; flex: none; width: 22px; height: 22px; place-items: center; border-radius: 5px; background: var(--muted); font-size: 14px; }
+.ask-menu .ask-prompt-more { padding-inline-end: 8px; font-size: 13px; color: var(--muted-foreground); }
+.ask-menu .ask-prompt-more [data-slot='dropdown-menu-checkbox-item-indicator'] { display: none; }
+.ask-menu .ask-effort-item { align-items: center; gap: 10px; padding-block: 7px; }
+/* The docked composer (Thread, and the Inbox once its hero composer is scrolled past): a fade of the page above it. */
+.k-dock { position: relative; }
+.k-dock::before {
+  content: ''; position: absolute; inset: -28px 0 calc(100% - 1px) 0; pointer-events: none;
+  background: linear-gradient(to top, var(--background), transparent);
+}
+.k-dock-inner { max-width: 760px; margin-inline: auto; }
 /* The 18 px Kassandra mark: the only place the brand gradient lives at rest. */
 .orb-mark {
   width: 18px;
@@ -229,7 +284,10 @@
 .voice-sheet { animation: sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 @keyframes sheet-up { from { opacity: 0; transform: translateY(12px); } }
 @media (prefers-reduced-motion: reduce) {
-  .ask-field, .ask-send, .orb-mark--busy, .voice-sheet { animation: none; transition: none; }
+  .ask-field, .ask-send, .orb-mark--busy, .voice-sheet, .ask-tool, .ask-caret { animation: none; transition: none; }
+  /* No rotation: while Kassandra works the border holds the light still. */
+  .ask-field::before, .ask-field[data-working]::before { animation: none; transition: none; }
+  .ask-field[data-working]::before { background: linear-gradient(100deg, var(--beam-1), var(--beam-2), var(--beam-3)); opacity: 0.85; }
 }
 
 /* Clickable card (Astryx ClickableCard): 12px radius, 1px border, the whole surface is the target,

@@ -16,9 +16,9 @@
   container-type: inline-size;
   margin-inline: auto;
   max-width: calc(var(--content-max) + 2 * var(--space-page-x));
-  padding: var(--space-section) max(var(--space-page-x), env(safe-area-inset-left, 0px)) calc(var(--space-section) + 7rem);
+  /* The bottom keeps the docked composer's height free, so the last section scrolls fully into view above it. */
+  padding: var(--space-section) max(var(--space-page-x), env(safe-area-inset-left, 0px)) calc(var(--dock-h, 9rem) + var(--space-section));
 }
-@media (min-width: 1024px) { .brief-shell { padding-bottom: calc(2 * var(--space-section)); } }
 .brief { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: var(--space-section); }
 .brief > *, .brief-below > * { min-width: 0; }
 :is(.brief-section, .finding-host) { display: block; min-width: 0; }
@@ -56,12 +56,11 @@
 :is(.pulse-delta, .brief-mover)[data-tone='up'] :is(.pulse-delta-figure, .brief-mover-value), .brief-figure-delta[data-tone='up'] { color: var(--positive); }
 :is(.pulse-delta, .brief-mover)[data-tone='down'] :is(.pulse-delta-figure, .brief-mover-value), .brief-figure-delta[data-tone='down'] { color: var(--negative); }
 
-/* ── Hero: the one sentence, the money in it, and the ask bar ── */
-.brief-hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-card-gap) var(--space-section); }
-.brief-hero-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-inline) var(--space-stack); }
-.brief-headline { margin-top: var(--space-stack); max-width: 26ch; font-size: 1.75rem; line-height: 1.2; font-weight: 600; letter-spacing: -0.02em; text-wrap: balance; }
-.brief-lead { margin-top: var(--space-inline); max-width: var(--measure); font-size: 0.9375rem; line-height: 1.5rem; color: var(--muted-foreground); text-wrap: pretty; }
-.brief-chips { display: flex; flex-wrap: wrap; gap: var(--space-inline); margin-top: var(--space-card-gap); }
+/* ── Hero: the start page. The brief's sentence is the greeting, the composer under it, then the money in it. ── */
+.brief-hero { display: flex; flex-direction: column; align-items: center; padding-top: clamp(0rem, 5vh - 1.5rem, 3.5rem); text-align: center; }
+.brief-headline { margin-top: var(--space-stack); max-width: 28ch; font-size: 1.75rem; line-height: 1.2; font-weight: 600; letter-spacing: -0.02em; text-wrap: balance; }
+.brief-lead { margin-top: var(--space-inline); max-width: var(--measure); font-size: 0.9375rem; line-height: 1.5rem; color: var(--muted-foreground); text-wrap: balance; }
+.brief-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-inline); margin-top: var(--space-card-gap); }
 /* A chip is a tone, not a box: no border until it is the filter in use. */
 .brief-chip { display: inline-flex; align-items: center; gap: 0.375rem; min-height: 1.875rem; padding: 0 0.75rem; border-radius: var(--chip-radius, 8px); background: var(--muted); font-size: 0.8125rem; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; transition: background-color 110ms ease; }
 .brief-chip-arrow { font-size: 0.625rem; }
@@ -74,14 +73,20 @@
 .brief-chip[aria-pressed='true'] { box-shadow: inset 0 0 0 1.5px var(--foreground); }
 @media (hover: hover) { .brief-chip:hover { background: color-mix(in srgb, var(--foreground) 10%, var(--muted)); } .brief-chip[data-tone='decision']:hover { background: color-mix(in srgb, var(--decision) 14%, var(--decision-tint)); } }
 @media (pointer: coarse) { .brief-chip { min-height: 2.75rem; } }
-.brief-ask { display: none; }
-.brief-status { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.125rem var(--space-inline); font-size: var(--text-label); line-height: 1.125rem; color: var(--muted-foreground); }
+.brief-status { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 0.125rem var(--space-inline); margin-top: var(--space-stack); font-size: var(--text-label); line-height: 1.125rem; color: var(--muted-foreground); }
 .brief-status .brief-link { font-size: inherit; line-height: inherit; }
-@media (min-width: 1024px) { .brief-ask { display: block; margin-bottom: var(--space-inline); } }
-.brief-try { margin-top: var(--space-stack); }
+/* The composer, large and centred under the headline */
+.brief-ask-slot { width: 100%; max-width: 760px; margin-top: var(--space-section); text-align: left; }
+/* Docked: fixed at the bottom of the content column (not the window), centred, on a fade of the page */
+.brief-ask.brief-ask--docked {
+  position: fixed; z-index: 30; bottom: 0; left: var(--dock-left, 0px); width: var(--dock-width, 100%);
+  padding: 4px max(var(--space-page-x), env(safe-area-inset-right, 0px)) max(14px, env(safe-area-inset-bottom, 0px)) max(var(--space-page-x), env(safe-area-inset-left, 0px));
+  background: var(--background); text-align: left; animation: brief-dock-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes brief-dock-in { from { opacity: 0; transform: translateY(12px); } }
+@media (prefers-reduced-motion: reduce) { .brief-ask--docked { animation: none; } }
 @container (min-width: 1000px) {
-  .brief-hero { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: end; }
-  .brief-headline { font-size: 2rem; }
+  .brief-headline { font-size: 2.25rem; }
 }
 
 /* ── Findings: three to a row, one chart each ── */

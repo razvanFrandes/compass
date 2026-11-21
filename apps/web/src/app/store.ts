@@ -795,6 +795,8 @@ export class CompassStore {
   /** What the screens read is in scope; `items` keeps every hotel, so a status survives a change of scope. */
   private readonly scoped = computed(() => this.items().filter((i) => this.briefIds().has(i.id)));
   readonly needsYou = computed(() => this.scoped().filter((i) => i.status !== 'done'));
+  /** The Prompts menu's "About today's brief": the Explore questions of the top three open findings. */
+  readonly briefPrompts = computed(() => this.needsYou().slice(0, 3).map((i) => i.question));
   readonly earlier = computed(() => this.scoped().filter((i) => i.status === 'done'));
   readonly unread = computed(() => this.scoped().filter((i) => i.status === 'new').length);
   readonly busy = computed(() => this.threads().some((t) => t.turns.some((x) => !x.answerVisible && !x.stopped)));

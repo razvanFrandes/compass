@@ -2,51 +2,66 @@ import { Component, DOCUMENT, DestroyRef, ElementRef, afterRenderEffect, compute
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorArrowUpBold } from '@ng-icons/phosphor-icons/bold';
 import { phosphorStopFill } from '@ng-icons/phosphor-icons/fill';
-import { phosphorMicrophoneLight } from '@ng-icons/phosphor-icons/light';
+import { phosphorBrainLight, phosphorCaretDownLight, phosphorLightbulbLight, phosphorLightningLight, phosphorMicrophoneLight, phosphorNewspaperLight } from '@ng-icons/phosphor-icons/light';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmKbdImports } from '@spartan-ng/helm/kbd';
 import type { AnswerMode } from '@compass/contracts';
+import { ASK_GROUPS, FEATURED_ASKS, KIND_NAMES, type AskExample } from '../charts/ask-examples';
+import { KIND_ICONS, KIND_ICON_SET } from '../charts/kind-icons';
 import { JuyoOrb, type OrbState } from '../orb/juyo-orb';
+import { ScopeSwitcher } from '../scope/scope-switcher';
 import { canSend, initialComposer, step, transcript, type ComposerContext, type ComposerEvent } from './composer-machine';
 import { VoiceInput } from './voice/voice-input';
 
-const MODES: { id: AnswerMode; label: string; hint: string }[] = [
-  { id: 'quick', label: 'Quick', hint: 'A fast answer from one trusted source' },
-  { id: 'thinker', label: 'Thinker', hint: 'Works across several sources; takes longer' },
+/** The effort Kassandra puts into an answer: the composer's model picker. */
+export const EFFORTS: readonly { id: AnswerMode; label: string; hint: string; icon: string }[] = [
+  { id: 'quick', label: 'Quick', hint: 'Answers in seconds', icon: 'phosphorLightningLight' },
+  { id: 'thinker', label: 'Thinker', hint: 'Checks more sources, takes longer', icon: 'phosphorBrainLight' },
 ];
 const BANDS = 8;
+/** "Try asking" in the Prompts menu: three examples, and the whole gallery one item away. */
+const EXAMPLE_COUNT = ASK_GROUPS.reduce((total, group) => total + group.items.length, 0);
 let nextId = 0;
 
 /*
   Kassandra's composer: the one ask bar of the app (Inbox, Thread, workflow builder, a workflow's page, a board).
-  At rest it is quiet, like every composer we studied (docs/research/ui-round3/voice_and_composer.md): 56 px,
-  12 px radius, hairline border, the orb as the only colour (the Lattice orb at mark size, sharing one WebGL
-  context with every other orb on the page), a neutral mic, Send only when there is text. Under
-  it sits one control, Quick or Thinker, and nothing else: the hotel scope is in the sidebar and goes with every
-  question (Live), so the composer does not repeat it.
+  Two rows in one field: the question on top, with the Lattice orb as the mark (sharing one WebGL context with
+  every other orb on the page); under it, on the left, "Prompts" (questions about today's brief and examples that
+  show off each kind of answer) and the hotel scope; on the right, the effort (Quick or Thinker, a model picker),
+  the mic and Send. A light runs round the border only while Kassandra works (listening, thinking, writing); at
+  rest the field has a still, faint glow. A prompt fills the field and waits: nothing is ever sent but by Send.
   Voice grows the bar in place; on a phone it opens a full-screen sheet. The words appear while they are spoken
   (Soniox, English and Romanian) and keep adding up through any pause. Voice never sends on its own: the question
   goes when the person taps Send (or presses Enter); Stop or Esc leaves the words in the field, to edit and send.
 */
 @Component({
   selector: 'kassandra-composer',
-  imports: [NgIcon, JuyoOrb, HlmButtonImports, HlmKbdImports],
-  providers: [VoiceInput, provideIcons({ phosphorArrowUpBold, phosphorMicrophoneLight, phosphorStopFill })],
+  imports: [NgIcon, JuyoOrb, ScopeSwitcher, HlmButtonImports, HlmDropdownMenuImports, HlmKbdImports],
+  providers: [
+    VoiceInput,
+    provideIcons({ ...KIND_ICON_SET, phosphorArrowUpBold, phosphorBrainLight, phosphorCaretDownLight, phosphorLightbulbLight, phosphorLightningLight, phosphorMicrophoneLight, phosphorNewspaperLight, phosphorStopFill }),
+  ],
   host: { class: 'block', '(document:keydown.escape)': 'onEscape($event)' },
   template: `
-    <form class="ask-field group" [class.ask-field--voice]="voiceOn() && !sheet()" (submit)="$event.preventDefault(); voiceOn() ? sendVoice() : dispatch({ type: 'submit' })">
+    <form
+      class="ask-field group"
+      [class.ask-field--voice]="voiceOn() && !sheet()"
+      [class.ask-field--large]="size() === 'large'"
+      [attr.data-working]="working() ? '' : null"
+      (submit)="$event.preventDefault(); voiceOn() ? sendVoice() : dispatch({ type: 'submit' })"
+    >
       @if (!voiceOn() || sheet()) {
-        <div class="flex min-h-[54px] items-center gap-2.5 py-1.5 pr-2 pl-3.5 max-sm:min-h-[50px]">
-          <!-- The mark is the Lattice orb, 32 px (an 18 px sphere; the negative margin keeps the old 18 px slot):
-               it breathes at rest, winds while Kassandra thinks and sends rings while she writes -->
-          <juyo-orb class="-mx-[7px] shrink-0" [size]="32" [state]="orbState()" />
+        <div class="ask-top flex items-start gap-2.5 pt-2.5 pr-3 pl-3">
+          <!-- The mark is the Lattice orb, 32 px: it breathes at rest, winds while Kassandra thinks and sends rings while she writes -->
+          <juyo-orb class="-my-px shrink-0" [size]="32" [state]="orbState()" />
           <label [for]="inputId()" class="sr-only">{{ label() }}</label>
           <!-- A textarea that grows with its text: a pre-filled question can be long, and on a phone a one-line input shows only its end -->
           <textarea
             #field
             rows="1"
             [id]="inputId()"
-            class="ask-textarea placeholder:text-muted-foreground min-w-0 flex-1 resize-none bg-transparent py-1 text-[16px]/[1.45] outline-none sm:text-[15px]/[1.45]"
+            class="ask-textarea placeholder:text-muted-foreground min-w-0 flex-1 resize-none bg-transparent py-[5px] text-[16px]/[1.45] outline-none sm:text-[15px]/[1.45]"
             [placeholder]="placeholder()"
             [attr.maxlength]="maxLength()"
             [attr.aria-describedby]="state().notice ? noticeId : null"
@@ -57,15 +72,36 @@ let nextId = 0;
             (keydown.enter)="onEnter($event)"
           ></textarea>
           @if (shortcut()) {
-            <kbd hlmKbd class="hidden group-focus-within:hidden sm:inline-flex">⌘K</kbd>
+            <kbd hlmKbd class="mt-1.5 hidden group-focus-within:hidden sm:inline-flex">⌘K</kbd>
+          }
+        </div>
+        <div #bar class="ask-bar flex min-w-0 items-center gap-1 pt-1 pr-2 pb-2 pl-2">
+          @if (showPrompts()) {
+            <button type="button" class="ask-tool" [hlmDropdownMenuTrigger]="promptsMenu" [side]="menuSide()" align="start" aria-haspopup="menu">
+              <ng-icon name="phosphorLightbulbLight" class="text-[16px]" aria-hidden="true" />
+              <span class="max-sm:sr-only">Prompts</span>
+              <ng-icon name="phosphorCaretDownLight" class="ask-caret text-[11px]" aria-hidden="true" />
+            </button>
+          }
+          @if (showScope()) {
+            <!-- The hotel scope goes with every question; on a phone it is in the top bar -->
+            <app-scope-switcher class="ask-scope min-w-0 max-sm:hidden" />
+          }
+          <span class="min-w-0 flex-1"></span>
+          @if (showMode()) {
+            <button type="button" class="ask-tool ask-effort" [hlmDropdownMenuTrigger]="effortMenu" [side]="menuSide()" align="end" aria-haspopup="menu" [attr.aria-label]="'Effort: ' + effort().label + '. Change'">
+              <span class="text-muted-foreground max-sm:hidden" aria-hidden="true">Kassandra · </span>
+              <span aria-hidden="true">{{ effort().label }}</span>
+              <ng-icon name="phosphorCaretDownLight" class="ask-caret text-[11px]" aria-hidden="true" />
+            </button>
           }
           <button hlmBtn type="button" variant="ghost" size="icon-sm" class="ask-mic" aria-label="Ask with your voice" (click)="dispatch({ type: 'voice.start' })">
             <ng-icon name="phosphorMicrophoneLight" class="text-[18px]" />
           </button>
           @if (busy() && !(steerable() && hasText())) {
             <button hlmBtn type="button" size="icon-sm" aria-label="Stop Kassandra" (click)="stopped.emit()"><ng-icon name="phosphorStopFill" class="text-[11px]" /></button>
-          } @else if (hasText()) {
-            <button hlmBtn type="submit" size="icon-sm" class="ask-send" aria-label="Send" [attr.aria-disabled]="sendable() ? null : 'true'" [class.opacity-45]="!sendable()"><ng-icon name="phosphorArrowUpBold" class="text-[14px]" /></button>
+          } @else {
+            <button hlmBtn type="submit" size="icon-sm" class="ask-send" aria-label="Send" [attr.aria-disabled]="sendable() && hasText() ? null : 'true'" [class.ask-send--idle]="!(sendable() && hasText())"><ng-icon name="phosphorArrowUpBold" class="text-[14px]" /></button>
           }
         </div>
       } @else {
@@ -99,16 +135,51 @@ let nextId = 0;
       <p [id]="noticeId" class="text-muted-foreground mt-1.5 px-1 text-[12.5px]" role="status">{{ notice }}</p>
     }
 
-    @if (showMode()) {
-      <!-- Quick or Thinker. What each one means is the button's tooltip and its description for a screen reader. -->
-      <div class="mt-inline flex min-h-7 justify-end">
-        <div class="op-toggle" role="radiogroup" aria-label="Answer mode">
-          @for (m of modes; track m.id) {
-            <button type="button" role="radio" [attr.aria-checked]="mode() === m.id" [attr.tabindex]="mode() === m.id ? 0 : -1" [title]="m.hint" (click)="mode.set(m.id)" (keydown)="modeKey($event)">{{ m.label }}</button>
+    <ng-template #promptsMenu>
+      <hlm-dropdown-menu class="ask-menu w-[min(26rem,calc(100vw-24px))]" [sideOffset]="menuOffset()">
+        @if (briefPrompts().length) {
+          <hlm-dropdown-menu-group [attr.aria-labelledby]="uid + '-brief'">
+            <hlm-dropdown-menu-label [id]="uid + '-brief'">About today’s brief</hlm-dropdown-menu-label>
+            @for (q of briefPrompts(); track q) {
+              <button hlmDropdownMenuItem class="ask-prompt" (triggered)="choose(q)">
+                <span class="ask-prompt-icon"><ng-icon name="phosphorNewspaperLight" aria-hidden="true" /></span><span class="min-w-0 flex-1">{{ q }}</span>
+              </button>
+            }
+          </hlm-dropdown-menu-group>
+          <hlm-dropdown-menu-separator />
+        }
+        <hlm-dropdown-menu-group [attr.aria-labelledby]="uid + '-try'">
+          <hlm-dropdown-menu-label [id]="uid + '-try'">Try asking</hlm-dropdown-menu-label>
+          @for (e of examples(); track e.question) {
+            <button hlmDropdownMenuItem class="ask-prompt" (triggered)="choose(e.question)">
+              <span class="ask-prompt-icon"><ng-icon [name]="iconOf(e)" aria-hidden="true" /></span><span class="min-w-0 flex-1">{{ e.question }}<span class="sr-only"> (answers with {{ nameOf(e) }})</span></span>
+            </button>
           }
-        </div>
-      </div>
-    }
+        </hlm-dropdown-menu-group>
+        <hlm-dropdown-menu-separator />
+        <button hlmDropdownMenuCheckbox class="ask-prompt-more" [checked]="allExamples()" (triggered)="allExamples.set(!allExamples())">
+          All {{ exampleCount }} examples<ng-icon name="phosphorCaretDownLight" class="ask-caret ms-auto text-[11px]" aria-hidden="true" />
+        </button>
+      </hlm-dropdown-menu>
+    </ng-template>
+
+    <ng-template #effortMenu>
+      <hlm-dropdown-menu class="ask-menu w-64" [sideOffset]="menuOffset()">
+        <hlm-dropdown-menu-group [attr.aria-labelledby]="uid + '-effort'">
+          <hlm-dropdown-menu-label [id]="uid + '-effort'">Effort</hlm-dropdown-menu-label>
+          @for (m of efforts; track m.id) {
+            <button hlmDropdownMenuRadio class="ask-effort-item" [checked]="mode() === m.id" [keepOpen]="false" (triggered)="mode.set(m.id)">
+              <ng-icon [name]="m.icon" class="text-[16px]" aria-hidden="true" />
+              <span class="min-w-0 flex-1">
+                <span class="block text-[13px] font-medium">{{ m.label }}</span>
+                <span class="text-muted-foreground block text-[12px]">{{ m.hint }}</span>
+              </span>
+              <hlm-dropdown-menu-radio-indicator />
+            </button>
+          }
+        </hlm-dropdown-menu-group>
+      </hlm-dropdown-menu>
+    </ng-template>
 
     @if (voiceOn() && sheet()) {
       <!-- Phone voice: a calm full-screen sheet with the controls at the bottom. A native modal dialog sits in the
@@ -158,12 +229,39 @@ export class KassandraComposer {
   /** Quick or Thinker, two-way. Hidden with `showMode` where the host has one model only (the builder). */
   readonly mode = model<AnswerMode>('thinker');
   readonly showMode = input(true);
+  /** The Prompts menu: questions about today's brief and examples. */
+  readonly showPrompts = input(true);
+  /** The hotel scope button. Off where the question is not about the scope (the agent builder). */
+  readonly showScope = input(true);
+  /** Questions about today's brief, the first group of the Prompts menu (none: the group is left out). */
+  readonly briefPrompts = input<readonly string[]>([]);
+  /** Large on the Inbox's start page: a taller field and larger text. */
+  readonly size = input<'regular' | 'large'>('regular');
+  /** Docked at the bottom of the page: its menus open upward. */
+  readonly docked = input(false);
   readonly maxLength = input<number | null>(null);
   readonly submitted = output<string>();
   readonly stopped = output<void>();
 
+  protected readonly uid = `kassandra-composer-${nextId}`;
   protected readonly noticeId = `kassandra-notice-${nextId}`;
-  protected readonly modes = MODES;
+  protected readonly efforts = EFFORTS;
+  protected readonly effort = computed(() => EFFORTS.find((e) => e.id === this.mode()) ?? EFFORTS[1]!);
+  /** How far down the field the bottom row sits: a docked menu opens upward clear of the whole field. */
+  private readonly barTop = signal(0);
+  /** The menus' offset from their button, in 4 px steps (the menu's unit): docked, up past the question being typed. */
+  protected readonly menuOffset = computed(() => (this.docked() ? Math.ceil((this.barTop() + 10) / 4) : 1));
+  protected readonly menuSide = computed(() => (this.docked() ? 'top' : 'bottom'));
+  protected readonly exampleCount = EXAMPLE_COUNT;
+  /** The Prompts menu shows three examples until "All N examples" is checked. */
+  protected readonly allExamples = signal(false);
+  protected readonly examples = computed<readonly AskExample[]>(() => (this.allExamples() ? ASK_GROUPS.flatMap((group) => group.items) : FEATURED_ASKS));
+  protected iconOf(example: AskExample): string {
+    return KIND_ICONS[example.kind];
+  }
+  protected nameOf(example: AskExample): string {
+    return KIND_NAMES[example.kind];
+  }
 
   protected readonly state = signal(initialComposer());
   protected readonly sheet = signal(false);
@@ -171,6 +269,8 @@ export class KassandraComposer {
   protected readonly bands = signal<Float32Array | null>(null);
 
   protected readonly voiceOn = computed(() => this.state().voice !== 'off');
+  /** Kassandra is at work (listening, thinking or writing): the light runs round the border. */
+  protected readonly working = computed(() => this.voiceOn() || this.busy());
   protected readonly heard = computed(() => this.state().heard);
   protected readonly partial = computed(() => this.state().partial);
   protected readonly heardAnything = computed(() => !!transcript(this.state()));
@@ -196,6 +296,7 @@ export class KassandraComposer {
   private readonly doc = inject(DOCUMENT);
   private readonly voice = inject(VoiceInput);
   private readonly field = viewChild<ElementRef<HTMLTextAreaElement>>('field');
+  private readonly bar = viewChild<ElementRef<HTMLElement>>('bar');
   private readonly sendBtn = viewChild<ElementRef<HTMLButtonElement>>('sendBtn');
   private readonly sheetDlg = viewChild<ElementRef<HTMLDialogElement>>('sheetDlg');
   private raf = 0;
@@ -211,7 +312,7 @@ export class KassandraComposer {
     });
     // The field is as tall as its text, or as its placeholder while empty (a long one wraps on a phone).
     afterRenderEffect(() => {
-      void [this.state().draft, this.placeholder(), this.voiceOn()];
+      void [this.state().draft, this.placeholder(), this.voiceOn(), this.size()];
       this.fit();
     });
     // The phone sheet opens as a modal as soon as it renders.
@@ -282,16 +383,9 @@ export class KassandraComposer {
     this.dispatch({ type: 'voice.stop' });
   }
 
-  /** Arrow keys move between Quick and Thinker and select, as in any radio group; Home and End jump to the ends. */
-  protected modeKey(event: KeyboardEvent) {
-    const at = MODES.findIndex((m) => m.id === this.mode());
-    const to =
-      event.key === 'ArrowRight' || event.key === 'ArrowDown' ? (at + 1) % MODES.length : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? (at - 1 + MODES.length) % MODES.length : event.key === 'Home' ? 0 : event.key === 'End' ? MODES.length - 1 : -1;
-    if (to < 0) return;
-    event.preventDefault();
-    this.mode.set(MODES[to]!.id);
-    const group = (event.currentTarget as HTMLElement).parentElement;
-    setTimeout(() => group?.querySelectorAll<HTMLElement>('[role=radio]')[to]?.focus());
+  /** A prompt fills the field and waits for Send: it is never sent on its own. */
+  protected choose(question: string) {
+    this.dispatch({ type: 'prefill', text: question });
   }
 
   /** Height follows the text, up to six lines; then it scrolls. */
@@ -300,6 +394,7 @@ export class KassandraComposer {
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 6 * 22 + 8)}px`;
+    this.barTop.set(this.bar()?.nativeElement.offsetTop ?? 0);
   }
 
   private openVoice() {

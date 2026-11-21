@@ -412,6 +412,17 @@ Built from `docs/round2-contracts.md` §2–§3. It sits next to the Portfolio c
   - The extra chart types add about 30 kB (gzipped) to the first load.
   - Scatter labels are dropped where they would overlap; the tooltip and the table carry the rest.
 
+## Round 5: the composer is the start page (2026-11-21)
+
+The owner's decisions on how Kassandra's composer sits on the Inbox and everywhere else. **They replace the ask bar of round 3 and the bar layout of "one Kassandra component family" below.**
+
+- **The Inbox opens like a "What's on your mind" page.** One centred column: the eyebrow (date · Morning brief · scope), the brief's headline as the greeting ("10 things need you today: €1.79M at risk, €43k upside."), the composer large under it, then the stake chips, then Pulse, the findings and the rest. The right-hand ask card and the "Try asking" button stack are gone.
+- **It docks once scrolled past.** The same composer instance (its draft and focus survive) becomes fixed at the bottom of the content column, centred, at most 760 px, on a fade of the page; its slot keeps its height so nothing jumps. The page's bottom padding is the docked composer's measured height plus the fade, so the last section always scrolls clear of it. On a phone it docks the same way, inside the safe-area insets; there is no second phone composer any more. The Thread docks the same component the same way (`.k-dock`: the fade, 760 px); the builder chat is 760 px wide too and its menus open upward.
+- **Two rows in one field.** The question on top, with the Lattice orb as the mark. Bottom left: **Prompts** (lightbulb, label, caret) and the hotel scope button. Bottom right: the effort, the mic, Send (always in place, disabled while empty).
+- **Prompts is a menu** (Spartan dropdown menu, so CDK's keyboard model: arrows, Home/End, Enter, Esc, type-ahead; `role=menu` with labelled groups). "About today's brief": the Explore questions of the top three open findings (`CompassStore.briefPrompts`). "Try asking": three examples; "All 12 examples" is a `menuitemcheckbox` that shows the whole gallery in place. A pick fills the field and waits; nothing is ever sent but by Send. Docked, it opens upward, clear of the field.
+- **The effort is a model picker**, "Kassandra · Quick ▾": Quick ("Answers in seconds") or Thinker ("Checks more sources, takes longer"), radio items in a menu, the same `'quick' | 'thinker'` mode.
+- **A light runs round the border only while Kassandra works** (listening, thinking, writing): a conic gradient of `--series`, `--kassandra`/`--brand` and `--ring` whose angle turns (`@property --ask-beam`). At rest, a still, faint brand glow under the field. With reduced motion the light holds still. This reverses round 3's "no animated border": the motion now means something (she is at work) and stops when she does.
+
 ## Round 2: one Kassandra component family (2026-11-20, late)
 
 Kassandra is drawn by the same components wherever she appears (`apps/web/src/app/kassandra/`). The old ask bar and the old chat turn are gone.

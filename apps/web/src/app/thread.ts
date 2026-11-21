@@ -25,16 +25,6 @@ import * as icons from './icons';
   imports: [NgIcon, KassandraComposer, KassandraConversation, KassandraTryAsking, EvidenceLayout, HlmButtonImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'flex h-full min-h-0' },
-  styles: `
-    /* The end of the conversation fades into the page above the composer, so no rule is needed there. */
-    .thread-dock::before {
-      content: '';
-      position: absolute;
-      inset: -24px 0 100% 0;
-      background: linear-gradient(to top, var(--background), transparent);
-      pointer-events: none;
-    }
-  `,
   template: `
     <!-- Evidence integration point 1 of 3: the layout wraps the conversation; the evidence is its second pane (a sheet on phones) -->
     <juyo-evidence-layout #evidence [entries]="selectedSteps()" [answer]="selectedAnswer()" [question]="selectedLabel()" [chart]="target().chart?.title" [focusCallId]="target().callId" [focusColumns]="target().chart?.columns ?? []">
@@ -93,10 +83,12 @@ import * as icons from './icons';
           </div>
         </div>
 
-        <footer class="thread-dock relative shrink-0 px-page-x pt-1 pb-[max(var(--space-stack),env(safe-area-inset-bottom,0px))]">
-          <div class="max-w-measure mx-auto text-[14.5px]">
+        <footer class="k-dock shrink-0 pt-1 pr-[max(var(--space-page-x),env(safe-area-inset-right,0px))] pb-[max(var(--space-stack),env(safe-area-inset-bottom,0px))] pl-[max(var(--space-page-x),env(safe-area-inset-left,0px))]">
+          <div class="k-dock-inner text-[14.5px]">
             <kassandra-composer
               inputId="thread-ask"
+              [docked]="true"
+              [briefPrompts]="store.briefPrompts()"
               label="Ask Kassandra"
               [placeholder]="chat.running() ? 'Add to your question…' : chat.turns().length ? 'Ask a follow-up…' : 'Ask about any hotel, night or metric…'"
               [busy]="chat.running()"
