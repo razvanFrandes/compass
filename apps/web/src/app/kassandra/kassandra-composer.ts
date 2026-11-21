@@ -89,7 +89,7 @@ let nextId = 0;
           }
           <span class="min-w-0 flex-1"></span>
           @if (showMode()) {
-            <button type="button" class="ask-tool ask-effort" [hlmDropdownMenuTrigger]="effortMenu" [side]="menuSide()" align="end" aria-haspopup="menu" [attr.aria-label]="'Effort: ' + effort().label + '. Change'">
+            <button type="button" class="ask-tool ask-effort" [hlmDropdownMenuTrigger]="effortMenu" [side]="menuSide()" align="end" aria-haspopup="menu" (hlmDropdownMenuOpened)="focusChosenEffort()" [attr.aria-label]="'Effort: ' + effort().label + '. Change'">
               <span class="text-muted-foreground max-sm:hidden" aria-hidden="true">Kassandra · </span>
               <span aria-hidden="true">{{ effort().label }}</span>
               <ng-icon name="phosphorCaretDownLight" class="ask-caret text-[11px]" aria-hidden="true" />
@@ -300,6 +300,11 @@ export class KassandraComposer {
   private readonly sendBtn = viewChild<ElementRef<HTMLButtonElement>>('sendBtn');
   private readonly sheetDlg = viewChild<ElementRef<HTMLDialogElement>>('sheetDlg');
   private raf = 0;
+
+  /** The effort menu opens on the effort in use, not on the first item: the keyboard and the highlight start there. */
+  protected focusChosenEffort() {
+    setTimeout(() => document.querySelector<HTMLElement>('.ask-effort-item[aria-checked="true"]')?.focus(), 0);
+  }
 
   constructor() {
     inject(DestroyRef).onDestroy(() => this.closeVoice());

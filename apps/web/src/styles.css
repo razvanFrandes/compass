@@ -252,7 +252,10 @@
 /* The Prompts and effort menus: questions wrap, the list scrolls when it is long. */
 .ask-menu { max-height: min(70dvh, 520px); }
 .ask-menu .ask-prompt { align-items: flex-start; gap: 10px; text-align: left; padding-block: 6px; font-size: 13px; line-height: 1.4; white-space: normal; }
-.ask-menu .ask-effort-item { align-items: center; gap: 10px; text-align: left; justify-content: flex-start; }
+.ask-menu .ask-effort-item { align-items: center; gap: 10px; text-align: left; justify-content: flex-start; cursor: pointer; border-radius: 8px; }
+.ask-menu .ask-effort-item[aria-checked='true'] { background: rgb(from var(--foreground) r g b / 0.07); }
+.ask-menu .ask-effort-item:hover, .ask-menu .ask-effort-item:focus-visible, .ask-menu .ask-effort-item[data-highlighted] { background: rgb(from var(--foreground) r g b / 0.1); }
+.ask-menu .ask-effort-item + .ask-effort-item { margin-top: 2px; }
 .ask-prompt-icon { display: grid; flex: none; width: 22px; height: 22px; place-items: center; border-radius: 5px; background: var(--muted); font-size: 14px; }
 .ask-menu .ask-prompt-more { padding-inline-end: 8px; font-size: 13px; color: var(--muted-foreground); }
 .ask-menu .ask-prompt-more [data-slot='dropdown-menu-checkbox-item-indicator'] { display: none; }
