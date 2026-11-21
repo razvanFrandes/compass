@@ -15,7 +15,7 @@ import { WatchersView } from './watchers';
 import { Live } from './live';
 import { WatcherPage } from './watcher-page';
 import { WorkflowBuilder } from './builder/builder-page';
-import { JuyoLogo } from './juyo-logo';
+import { CompassLogo } from './shell/compass-logo';
 import { NotFound } from './not-found';
 import { BUILT_IN } from './board';
 import { BoardsService } from './boards/boards.service';
@@ -33,7 +33,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, Sidebar, ThemeSwitcher, HlmButtonImports, HlmToasterImports],
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, CompassLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, Sidebar, ThemeSwitcher, HlmButtonImports, HlmToasterImports],
   providers: [provideIcons({ ...icons, phosphorCompassLight }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   styles: `
@@ -72,8 +72,8 @@ import * as icons from './icons';
         @if (store.view() !== 'thread') {
           <header class="flex h-14 items-center justify-between px-[max(16px,env(safe-area-inset-left,0px))] lg:hidden">
             <div class="flex min-w-0 items-center gap-2">
-              <a href="/" class="text-foreground flex shrink-0 items-center" aria-label="Juyo, morning brief" (click)="$event.preventDefault(); store.go('inbox')">
-                <app-juyo-logo [size]="20" />
+              <a href="/" class="text-foreground flex shrink-0 items-center" aria-label="Compass, morning brief" (click)="$event.preventDefault(); store.go('inbox')">
+                <app-compass-logo [size]="20" />
               </a>
               <span class="text-muted-foreground text-[14px]" aria-hidden="true">/</span>
               <app-scope-switcher />
@@ -188,31 +188,31 @@ export class App {
   });
 }
 
-/** "Morning brief · Juyo", "Pace in Lisbon · Kassandra", "Agent Studio · Juyo". */
+/** "Morning brief · Compass", "Pace in Lisbon · Kassandra", "Agent Studio · Compass". */
 export function pageTitle(view: View, thread: string, board: string): string {
   const cut = (t: string) => (t.length > 60 ? `${t.slice(0, 57)}…` : t);
   switch (view) {
     case 'thread':
       return `${cut(thread)} · Kassandra`;
     case 'boards':
-      return 'Boards · Juyo';
+      return 'Boards · Compass';
     case 'board':
-      return `${cut(board)} · Juyo`;
+      return `${cut(board)} · Compass`;
     case 'watchers':
-      return 'Agent Studio · Juyo';
+      return 'Agent Studio · Compass';
     case 'watcher':
-      return 'Agent · Agent Studio · Juyo';
+      return 'Agent · Agent Studio · Compass';
     case 'builder':
-      return 'New agent · Agent Studio · Juyo';
+      return 'New agent · Agent Studio · Compass';
     case 'notfound':
-      return 'Page not found · Juyo';
+      return 'Page not found · Compass';
     case 'orb-lab':
-      return 'Kassandra orb · Juyo';
+      return 'Kassandra orb · Compass';
     case 'catalog':
-      return 'Chart catalogue · Juyo';
+      return 'Chart catalogue · Compass';
     case 'theme-lab':
-      return 'Theme lab · Juyo';
+      return 'Theme lab · Compass';
     default:
-      return 'Morning brief · Juyo';
+      return 'Morning brief · Compass';
   }
 }

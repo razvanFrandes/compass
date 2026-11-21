@@ -123,6 +123,9 @@
 
   /* The three voices: fact (ink and blue), Kassandra (violet), a decision that waits for you (orange). */
   --brand: var(--jc-violet-6);
+  /* The logo tile sits on paper and on the night rail: violet 5 is the step that keeps 3:1 on both, and under a white glyph. */
+  --logo-tile: var(--jc-violet-5);
+  --logo-ink: var(--jc-ink-0);
   --kassandra: var(--jc-violet-6);
   --kassandra-tint: var(--jc-violet-1);
   --kassandra-border: var(--jc-violet-3);

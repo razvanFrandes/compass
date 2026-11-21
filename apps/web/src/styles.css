@@ -61,6 +61,9 @@
   --rail: #0a0e13;
   --grid: rgb(255 255 255 / 0.06);
   --brand: #a97ee6;
+  /* The logo tile (src/app/shell/compass-logo.ts) is the brand purple as a fill: the button purple, so the white glyph passes 3:1. */
+  --logo-tile: var(--primary);
+  --logo-ink: var(--primary-foreground);
   --series: #5b8deb;
   --series-soft: rgb(91 141 235 / 0.6);
   /* Report: comparison is purple (dashed or lighter); budget is a neutral reference. */
