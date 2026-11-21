@@ -66,7 +66,7 @@ Server validates that keys exist in the referenced rows and that the kind fits t
 interface BoardWidget { id: string; spec: WidgetSpec; rows: object[]; columns: EvidenceColumn[]; evidence: Evidence; question?: string; addedAt: string }
 interface Board { id: string; name: string; description: string; hotels: string[]; widgets: BoardWidget[]; createdAt: string; updatedAt: string }
 
-GET    /api/boards                       → Board[] (without rows: widgets carry spec + title only)
+GET    /api/boards                       → (Board & { preview?: BoardWidgetPreview[] })[] (widgets carry spec + title only; `preview`: the first 4 widgets with only the columns they draw and ≤ 40 rows — a calendar keeps up to 92 days, a table its first 5 rows — for the cards on the Boards page)
 POST   /api/boards        {name, description?, hotels?}          → Board
 GET    /api/boards/:id                   → Board
 PATCH  /api/boards/:id    {name?, description?, hotels?, order?: string[]} → Board

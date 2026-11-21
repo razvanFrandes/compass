@@ -1,4 +1,4 @@
-import { BoardCreate, BoardPatch, BoardWidgetCreate, type Board, type BoardSummary, type BoardWidget } from '@compass/contracts';
+import { BoardCreate, BoardPatch, BoardWidgetCreate, type Board, type BoardListItem, type BoardWidget } from '@compass/contracts';
 import type { z } from 'zod';
 import type { BoardError } from '../../application/boards/boards.ts';
 import type { Result } from '../../domain/result.ts';
@@ -15,7 +15,7 @@ export const MAX_WIDGET_BYTES = 256 * 1024;
 
 /** What the routes need of the Boards object; the application service has the same shape, so tests use it directly. */
 export interface BoardsApi {
-  list(): Promise<BoardSummary[]>;
+  list(): Promise<BoardListItem[]>;
   get(id: string): Promise<Result<Board, BoardError>>;
   create(input: unknown): Promise<Result<Board, BoardError>>;
   update(id: string, input: unknown): Promise<Result<Board, BoardError>>;

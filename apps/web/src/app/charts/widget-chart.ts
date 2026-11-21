@@ -6,6 +6,7 @@ import { skeletonPlan } from './builders/skeleton';
 import { EChartHost } from './echart-host';
 import { type KindOption, compatibleKinds } from './kinds';
 import { readTokens } from './tokens';
+import { formatDate } from './format';
 import { ViewAs } from './view-as';
 import { ViewAsMemory } from './view-memory';
 import { hotelCatalog } from './hotel-names';
@@ -46,6 +47,12 @@ export function subtitleWithUnit(subtitle: string | null | undefined, unitNote: 
 }
 
 let nextId = 0;
+
+/** Today in the reader's time zone, as an ISO date. */
+function localDay(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
 
 /** Two specs that draw the same marks: only the words around the chart (title, subtitle) may differ. */
 function sameDrawing(a: WidgetSpec, b: WidgetSpec): boolean {
@@ -123,6 +130,8 @@ export class WidgetChart {
    * featured chart). Null keeps the catalogue's height for the kind. KPI tiles size themselves and ignore it.
    */
   readonly height = input<number | null>(null);
+  /** The day a calendar marks as today (ISO date): the data's business date when the host knows it, else today. */
+  readonly today = input<string | null>(null);
 
   protected readonly uid = `wc${nextId++}`;
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
@@ -177,7 +186,7 @@ export class WidgetChart {
     const rows = this.data();
     if (!rows || this.state() !== 'none') return null;
     hotelCatalog();
-    return buildWidget({ spec: this.drawn(), rows: rows as readonly WidgetRow[], columns: this.cols() ?? [], tokens: this.tokens(), width: this.width(), compact: this.compact(), motion: !this.reducedMotion(), ...(this.fixed() ? { height: this.fixed()! } : {}) });
+    return buildWidget({ spec: this.drawn(), rows: rows as readonly WidgetRow[], columns: this.cols() ?? [], tokens: this.tokens(), width: this.width(), today: this.today() ?? localDay(), compact: this.compact(), motion: !this.reducedMotion(), ...(this.fixed() ? { height: this.fixed()! } : {}) });
   });
 
   /** The unit of the amounts when they carry none ("In local currency"); a host with its own header shows it under the title. */
@@ -225,7 +234,7 @@ export class WidgetChart {
   });
 
   /* Keyboard: the arrow keys step through the marks; the tooltip and a live region follow. */
-  private readonly cursor = signal(-1);
+  protected readonly cursor = signal(-1);
   protected readonly announce = signal('');
 
   constructor() {
@@ -321,6 +330,43 @@ export class WidgetChart {
   protected leave() {
     this.cursor.set(-1);
     this.announce.set('');
+    this.calTip.set(null);
     this.echart()?.hideTip();
+  }
+
+  /* The calendar: its own tooltip, over the day under the pointer or the keyboard. */
+  protected readonly calTip = signal<{ i: number; x: number; y: number; below: boolean; date: string } | null>(null);
+
+  protected pointAt(i: number, cellEl: HTMLElement | null) {
+    const b = this.built();
+    const plot = cellEl?.closest('.wc-cal-plot');
+    if (!b || b.render !== 'calendar' || !cellEl || !plot) return;
+    const day = b.calendar.days[i];
+    if (!day) return;
+    const box = plot.getBoundingClientRect();
+    const at = cellEl.getBoundingClientRect();
+    const below = at.top - box.top < 84;
+    const x = Math.min(Math.max(at.left - box.left + at.width / 2, 96), Math.max(96, box.width - 96));
+    this.calTip.set({ i, x, y: below ? at.bottom - box.top + 6 : at.top - box.top - 6, below, date: formatDate(day.iso, 'date', 'full') });
+  }
+
+  protected onCalKey(e: KeyboardEvent) {
+    const b = this.built();
+    if (!b || b.render !== 'calendar' || !b.calendar.days.length) return;
+    const n = b.calendar.days.length;
+    const at = this.cursor();
+    const moves: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 7, ArrowUp: -7 };
+    let next: number;
+    if (e.key in moves) next = at < 0 ? (moves[e.key]! > 0 ? 0 : n - 1) : Math.min(n - 1, Math.max(0, at + moves[e.key]!));
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = n - 1;
+    else if (e.key === 'Escape') return this.leave();
+    else return;
+    e.preventDefault();
+    const day = b.calendar.days[next]!;
+    this.cursor.set(next);
+    this.announce.set(day.label);
+    const plot = e.currentTarget as HTMLElement;
+    this.pointAt(next, plot.querySelector<HTMLElement>(`[data-i="${next}"]`));
   }
 }

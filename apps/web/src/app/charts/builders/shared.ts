@@ -3,6 +3,7 @@ import { EMPTY, type Delta, esc, formatValue, humanize, isCurrencyCode, isNumeri
 import { hotelNames } from '../hotel-names';
 import { type ChartTokens, DARK_TOKENS, markRadius } from '../tokens';
 import type { ColumnKind, EvidenceColumn, WidgetKind, WidgetRow, WidgetSpec } from '../widget-types';
+import type { CalendarModel } from './matrix';
 
 /*
   What every builder gets and gives back. A builder is pure: rows + columns + spec (plus the theme tokens and
@@ -21,6 +22,8 @@ export interface BuildInput {
   motion?: boolean;
   /** The height of the body in px, when the host sets it (an overview card, a featured chart). Default: by kind. */
   height?: number;
+  /** The day to mark as today on a calendar (ISO date): the data's business date where the host knows it. */
+  today?: string;
 }
 
 export interface Ctx {
@@ -33,6 +36,8 @@ export interface Ctx {
   compact: boolean;
   motion: boolean;
   narrow: boolean;
+  /** The day a calendar marks as today (ISO date). */
+  today?: string;
   /** The unit of the money on the chart when no currency can be named for it ("In local currency"), said once. */
   unitNote?: string;
 }
@@ -119,6 +124,7 @@ export type Built =
   | (BuiltBase & { render: 'kpi_row'; tiles: KpiModel[] })
   | (BuiltBase & { render: 'sparklines'; items: SparkRow[] })
   | (BuiltBase & { render: 'table' })
+  | (BuiltBase & { render: 'calendar'; calendar: CalendarModel })
   | (BuiltBase & { render: 'empty'; message: string });
 
 export type Builder = (c: Ctx) => Built;
@@ -137,7 +143,7 @@ const HEIGHTS: Record<WidgetKind, [regular: number, compact: number]> = {
   table: [320, 240],
   // Not shorter when compact: an answer's heatmap is often the group's 20 hotels, and a row needs 13 px.
   heatmap: [300, 300],
-  calendar_heatmap: [240, 200],
+  calendar_heatmap: [380, 320],
   funnel: [280, 220],
   waterfall: [300, 220],
   bullet: [300, 220],
@@ -188,6 +194,7 @@ export function context(input: BuildInput): Ctx {
     compact,
     motion: input.motion ?? true,
     narrow: width < NARROW,
+    ...(input.today ? { today: input.today } : {}),
   };
 }
 
