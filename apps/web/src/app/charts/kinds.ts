@@ -258,6 +258,9 @@ function propose(kind: WidgetKind, roles: Roles, shape: Shape, stageLike: boolea
         const adds = !stageLike && parts.length >= 2 && sameScale(shape, parts) && parts.every((key) => additive(shape, key) && shape.values(key).every((value) => value >= 0));
         return adds ? { x: label, y: parts, reason: `${parts.length} numbers stacked into a total for each ${named}.` } : null;
       }
+      // One value and its comparison per hotel or segment is drawn as one bar with a marker (comparisonPair), the
+      // same as "Bar": offering both would be two buttons for one drawing. Over time they stay side by side.
+      if (measures.length < 2 && categorical) return null;
       const side = measures.length >= 2 ? measures.slice(0, 6) : compare ? [first, compare] : [];
       return side.length >= 2 && sameScale(shape, side) ? { x: label, y: side, reason: `${side.length} numbers side by side for each ${named}.` } : null;
     }

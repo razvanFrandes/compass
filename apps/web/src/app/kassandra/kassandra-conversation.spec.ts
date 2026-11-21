@@ -263,7 +263,7 @@ describe('KassandraConversation: instant previews and "View as"', () => {
     expect(text(card(fixture).querySelector('figcaption p.text-muted-foreground'))).toBe('Lisbon Chiado, Amsterdam Centraal, Paris Opera · 21 Nov – 20 Dec');
     expect(text(card(fixture).querySelector('.k-preview'))).toBe('Preview: drawn from the data as it arrived. Kassandra may still choose another chart.');
     expect(chart(fixture).getAttribute('data-kind')).toBe('bar');
-    expect([...card(fixture).querySelectorAll('[role=radio]')].map((b) => b.getAttribute('data-kind'))).toEqual(['kpi_row', 'bullet', 'bar', 'grouped_bar', 'donut', 'pie', 'treemap', 'table']);
+    expect([...card(fixture).querySelectorAll('[role=radio]')].map((b) => b.getAttribute('data-kind'))).toEqual(['kpi_row', 'bullet', 'bar', 'donut', 'pie', 'treemap', 'table']);
     expect(text(radio(fixture, 'Bar'))).toBe('Bar, recommended');
     expect(card(fixture).querySelector('figure')).toBe(figure); // the skeleton's card, not a new one
   });

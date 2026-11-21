@@ -72,7 +72,7 @@ const reviewRows = HOTELS.slice(0, 4).map((hotel_code, i) => ({ hotel_code, revi
 
 describe('compatibleKinds: the kinds a chart can be switched to', () => {
   const cases: [name: string, spec: WidgetSpec, rows: WidgetRow[], columns: EvidenceColumn[], expected: WidgetKind[]][] = [
-    ['a ranking of 8 hotels with last year', spec('bar', { x: 'hotel_code', y: ['rooms_otb'], compare: 'rooms_otb_stly' }), paceRows, paceColumns, ['bullet', 'bar', 'grouped_bar', 'treemap', 'table']],
+    ['a ranking of 8 hotels with last year', spec('bar', { x: 'hotel_code', y: ['rooms_otb'], compare: 'rooms_otb_stly' }), paceRows, paceColumns, ['bullet', 'bar', 'treemap', 'table']],
     ['a ranking on a percentage that goes below zero: points do not add up into a bridge', spec('bar', { x: 'hotel_code', y: ['pace_pct'] }), paceRows, paceColumns, ['bar', 'table']],
     ['5 parts of one whole, as counts', spec('donut', { group: 'key', y: ['room_nights'] }), mixRows, mixColumns, ['bar', 'donut', 'pie', 'treemap', 'table']],
     ['5 shares that add up to 100%', spec('bar', { x: 'key', y: ['share_pct'] }), mixRows, mixColumns, ['bar', 'donut', 'pie', 'treemap', 'table']],
@@ -82,14 +82,14 @@ describe('compatibleKinds: the kinds a chart can be switched to', () => {
     ['4 months for 8 hotels: too many lines to read', spec('sparkline_list', { x: 'period', y: ['value'], group: 'key' }), trendRows(HOTELS), trendColumns, ['sparkline_list', 'heatmap', 'table']],
     ['one number with last year', spec('kpi', { y: ['value'], compare: 'compare_value' }), oneRow, oneColumns, ['kpi', 'gauge', 'table']],
     ['one row, three numbers', spec('kpi_row', { y: ['revenue_eur', 'revenue_budget_eur', 'gop_margin_pct'] }), pnlRows.slice(0, 1), pnlColumns, ['kpi_row', 'table']],
-    ['actual against budget for 5 hotels', spec('bullet', { x: 'key', y: ['revenue_eur'], compare: 'revenue_budget_eur' }), pnlRows, pnlColumns, ['bullet', 'bar', 'grouped_bar', 'donut', 'pie', 'treemap', 'table']],
+    ['actual against budget for 5 hotels', spec('bullet', { x: 'key', y: ['revenue_eur'], compare: 'revenue_budget_eur' }), pnlRows, pnlColumns, ['bullet', 'bar', 'donut', 'pie', 'treemap', 'table']],
     ['4 stages that only shrink', spec('funnel', { x: 'stage', y: ['sessions'] }), funnelRows, funnelColumns, ['kpi_row', 'bar', 'funnel', 'table']],
     ['stages named by their column, seen as bars', spec('bar', { x: 'stage', y: ['sessions'] }), funnelRows, funnelColumns, ['kpi_row', 'bar', 'funnel', 'table']],
     ['signed steps between two totals', spec('waterfall', { x: 'step', y: ['amount'] }), bridgeRows, bridgeColumns, ['bar', 'waterfall', 'table']],
     ['two numbers per hotel', spec('scatter', { x: 'occupancy_pct', y: ['adr_eur'], group: 'hotel' }), positionRows, positionColumns, ['scatter', 'table']],
     ['a hotel by weekday grid', spec('heatmap', { x: 'weekday', y: ['occupancy_pct'], group: 'hotel' }), gridRows, gridColumns, ['heatmap', 'table']],
     ['segments within 4 hotels', spec('stacked_bar', { x: 'hotel_code', y: ['room_nights'], group: 'key' }), stackRows, stackColumns, ['grouped_bar', 'stacked_bar', 'heatmap', 'table']],
-    ['a table of a ranking', spec('table'), paceRows, paceColumns, ['bullet', 'bar', 'grouped_bar', 'treemap', 'table']],
+    ['a table of a ranking', spec('table'), paceRows, paceColumns, ['bullet', 'bar', 'treemap', 'table']],
     ['a table of reviews', spec('table'), reviewRows, reviewColumns, ['table']],
   ];
 
@@ -160,6 +160,12 @@ describe('compatibleKinds: the kinds a chart can be switched to', () => {
       expect(offered).not.toContain('area');
       const lead = [1, 2, 3, 4].map((days_out) => ({ days_out, rooms: 40 - days_out * 3 }));
       expect(kinds(spec('line', { x: 'days_out', y: ['rooms'] }), lead, [col('days_out', 'Days out', 'count'), col('rooms', 'Rooms', 'count')])).toEqual(['bar', 'line', 'area', 'table']);
+    });
+
+    it('grouped bars are not offered where they would draw the same as bars (one value and its comparison per category)', () => {
+      const pair = spec('bar', { x: 'hotel_code', y: ['rooms_otb'], compare: 'rooms_otb_stly' });
+      expect(kinds(pair, paceRows, paceColumns)).toContain('bar');
+      expect(kinds(pair, paceRows, paceColumns)).not.toContain('grouped_bar');
     });
 
     it('scatter: two different numbers per point, and at least three points', () => {
