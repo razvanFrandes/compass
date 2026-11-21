@@ -5,6 +5,8 @@ import {
   phosphorDatabaseLight,
   phosphorInfoLight,
   phosphorPaletteLight,
+  phosphorPathLight,
+  phosphorPersonArmsSpreadLight,
   phosphorPuzzlePieceLight,
   phosphorRobotLight,
   phosphorShieldCheckLight,
@@ -21,7 +23,7 @@ import { type Box, fabLift, isTypingTarget } from './fab-position';
 const AVOID = 'kassandra-composer, [data-sonner-toast], nav[aria-label="Main"].fixed, [data-docs-avoid]';
 
 /**
- * The floating Docs button, on every screen. It opens a panel with the sections of the documentation hub; "?"
+ * The floating Docs button, on every screen. It opens a panel with the pages of the documentation hub; "?"
  * opens it from the keyboard. It sits bottom right and moves above a composer, a toast or the phone tab bar.
  */
 @Component({
@@ -33,6 +35,8 @@ const AVOID = 'kassandra-composer, [data-sonner-toast], nav[aria-label="Main"].f
       phosphorDatabaseLight,
       phosphorInfoLight,
       phosphorPaletteLight,
+      phosphorPathLight,
+      phosphorPersonArmsSpreadLight,
       phosphorPuzzlePieceLight,
       phosphorRobotLight,
       phosphorShieldCheckLight,
@@ -110,7 +114,7 @@ const AVOID = 'kassandra-composer, [data-sonner-toast], nav[aria-label="Main"].f
     }
     .fab__panel {
       width: min(360px, calc(100vw - 32px));
-      /* As tall as its eight sections when the screen allows; it scrolls only on a short screen. */
+      /* As tall as its sections when the screen allows; it scrolls only on a short screen. */
       max-height: calc(100dvh - var(--docs-fab-lift, 16px) - env(safe-area-inset-bottom, 0px) - 76px);
       overflow-y: auto;
       padding: 12px 8px 6px;
@@ -145,6 +149,15 @@ const AVOID = 'kassandra-composer, [data-sonner-toast], nav[aria-label="Main"].f
     }
     .fab__link[aria-current='page'] {
       background: var(--overlay-pressed);
+    }
+    .fab__tag {
+      padding: 1px 6px;
+      border: 1px solid color-mix(in srgb, var(--brand) 45%, transparent);
+      border-radius: var(--tag-radius, 5px);
+      color: var(--foreground);
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.4;
     }
     .fab__close {
       display: grid;
@@ -202,7 +215,7 @@ const AVOID = 'kassandra-composer, [data-sonner-toast], nav[aria-label="Main"].f
                 <li>
                   <a class="fab__link" [href]="path(p.id)" [attr.aria-current]="current() === p.id ? 'page' : null" (click)="go($event, p.id)">
                     <ng-icon [name]="p.icon" aria-hidden="true" />
-                    <span class="text-[14px] font-medium">{{ p.label }}</span>
+                    <span class="flex items-center gap-2 text-[14px] font-medium">{{ p.label }}@if (p.id === 'process') {<span class="fab__tag">Start here</span>}</span>
                     <span class="text-muted-foreground text-[12.5px]/snug">{{ p.blurb }}</span>
                   </a>
                 </li>

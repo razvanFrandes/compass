@@ -7,7 +7,7 @@ const ANSWER = [
   { title: 'Tool calls', text: 'Each tool runs fixed SQL as a read-only role and returns rows with their evidence.' },
   { title: 'Answer', text: 'The model explains the rows in plain words. The steps stay collapsed above it.' },
   { title: 'Widgets', text: '`show_widget` points at a tool result. The server copies the rows into a chart, table or KPI.' },
-  { title: 'Evidence', text: '“How this was computed” opens the sources, definitions, period and the SQL.' },
+  { title: 'Evidence', text: '“Behind the numbers” opens the sources, definitions, period and the SQL.' },
 ] as const;
 
 const MODES: readonly (readonly string[])[] = [

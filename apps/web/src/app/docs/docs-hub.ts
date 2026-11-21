@@ -6,6 +6,8 @@ import {
   phosphorDatabaseLight,
   phosphorInfoLight,
   phosphorPaletteLight,
+  phosphorPathLight,
+  phosphorPersonArmsSpreadLight,
   phosphorPuzzlePieceLight,
   phosphorRobotLight,
   phosphorShieldCheckLight,
@@ -16,6 +18,7 @@ import { CompassStore, type View } from '../store';
 import { DOCS_PAGES, type DocsPageId, SHOWCASES, docsPath } from './docs-pages';
 import { DocsRouter } from './docs-router';
 import { DocsAbout } from './pages/about';
+import { DocsAccessibility } from './pages/accessibility';
 import { DocsArchitecture } from './pages/architecture';
 import { DocsComponents } from './pages/components';
 import { DocsData } from './pages/data';
@@ -23,6 +26,7 @@ import { DocsDecisions } from './pages/decisions';
 import { DocsDesignSystem } from './pages/design-system';
 import { DocsIndex } from './pages/index';
 import { DocsKassandra } from './pages/kassandra';
+import { DocsProcess } from './pages/process';
 import { DocsSecurity } from './pages/security';
 
 /**
@@ -31,7 +35,7 @@ import { DocsSecurity } from './pages/security';
  */
 @Component({
   selector: 'app-docs-hub',
-  imports: [NgIcon, DocsIndex, DocsArchitecture, DocsComponents, DocsDesignSystem, DocsKassandra, DocsData, DocsSecurity, DocsDecisions, DocsAbout],
+  imports: [NgIcon, DocsIndex, DocsProcess, DocsAccessibility, DocsArchitecture, DocsComponents, DocsDesignSystem, DocsKassandra, DocsData, DocsSecurity, DocsDecisions, DocsAbout],
   providers: [
     provideIcons({
       phosphorArrowUpRightLight,
@@ -39,6 +43,8 @@ import { DocsSecurity } from './pages/security';
       phosphorDatabaseLight,
       phosphorInfoLight,
       phosphorPaletteLight,
+      phosphorPathLight,
+      phosphorPersonArmsSpreadLight,
       phosphorPuzzlePieceLight,
       phosphorRobotLight,
       phosphorShieldCheckLight,
@@ -202,7 +208,7 @@ import { DocsSecurity } from './pages/security';
       color: var(--foreground);
     }
     .docs-table tbody th code,
-    .docs-table .docs-nowrap code {
+    .docs-table .docs-nowrap {
       white-space: nowrap;
     }
     .docs-table tbody td {
@@ -391,6 +397,9 @@ import { DocsSecurity } from './pages/security';
 
       <div class="min-w-0">
         @switch (router.page()) {
+          @case ('process') {
+            <docs-process />
+          }
           @case ('architecture') {
             <docs-architecture />
           }
@@ -399,6 +408,9 @@ import { DocsSecurity } from './pages/security';
           }
           @case ('design-system') {
             <docs-design-system />
+          }
+          @case ('accessibility') {
+            <docs-accessibility />
           }
           @case ('kassandra') {
             <docs-kassandra />

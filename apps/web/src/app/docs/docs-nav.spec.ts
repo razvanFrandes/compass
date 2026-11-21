@@ -13,6 +13,9 @@ import { DocsSource } from './docs-kit';
 import { DocsComponents } from './pages/components';
 import { DocsData, SIZE_ROWS, STORIES } from './pages/data';
 import { DocsDesignSystem } from './pages/design-system';
+import { COLOUR_SHIFTS, DocsAccessibility } from './pages/accessibility';
+import { DocsProcess, PROCESS_SHIFTS, PRODUCT_MAP } from './pages/process';
+import { contrastOf, hexToRgb } from './pages/process-visuals';
 
 /** The heavy pages draw charts and WebGL; the navigation tests only need to know which page is on screen. */
 @Component({ selector: 'docs-components', template: '<h1 id="docs-title" tabindex="-1">Components stub</h1>' })
@@ -70,7 +73,7 @@ describe('DocsFab: the floating Docs button', () => {
     expect(panel()).toBeNull();
   });
 
-  it('opens a panel with the eight sections, each a link to its docs page', async () => {
+  it('opens a panel with the ten sections, each a link to its docs page', async () => {
     button().click();
     await settle(fixture);
     expect(button().getAttribute('aria-expanded')).toBe('true');
@@ -78,7 +81,7 @@ describe('DocsFab: the floating Docs button', () => {
     expect(panel()!.getAttribute('aria-label')).toBe('Documentation');
     const links = [...panel()!.querySelectorAll<HTMLAnchorElement>('a')];
     expect(links.map((a) => a.getAttribute('href'))).toEqual(DOCS_PAGES.map((p) => `/docs/${p.id}`));
-    expect(links.map((a) => a.querySelector('span')!.textContent)).toEqual(['Architecture', 'Components', 'Design system', 'Kassandra & agents', 'Data & MCP', 'Security', 'Decisions', 'About this build']);
+    expect(links.map((a) => a.querySelector('span')!.firstChild!.textContent)).toEqual(['How this was built', 'Architecture', 'Components', 'Design system', 'Accessibility', 'Kassandra & agents', 'Data & MCP', 'Security', 'Decisions', 'About this build']);
   });
 
   it('opens with "?" and closes with Escape, returning the focus to the button', async () => {
@@ -154,7 +157,7 @@ describe('DocsHub: the docs navigation', () => {
     expect(navLinks().filter((a) => a.getAttribute('aria-current') === 'page').map((a) => a.textContent!.trim())).toEqual(['About this build']);
   });
 
-  it('lists the overview, the eight pages and the three showcases', async () => {
+  it('lists the overview, the ten pages and the three showcases', async () => {
     await render('/docs');
     expect(heading()).toBe('How Compass is designed and built');
     expect(navLinks().map((a) => a.getAttribute('href'))).toEqual(['/docs', ...DOCS_PAGES.map((p) => `/docs/${p.id}`), '/catalog', '/theme-lab', '/orb-lab']);
@@ -188,7 +191,7 @@ describe('DocsHub: the docs navigation', () => {
   });
 
   it('renders every text page under one heading', async () => {
-    for (const id of ['architecture', 'kassandra', 'data', 'security', 'decisions', 'about'] as const) {
+    for (const id of ['process', 'accessibility', 'architecture', 'kassandra', 'data', 'security', 'decisions', 'about'] as const) {
       await render(`/docs/${id}`);
       expect(root.querySelectorAll('h1'), id).toHaveLength(1);
       expect(root.querySelectorAll('h2').length, id).toBeGreaterThanOrEqual(2);
@@ -307,5 +310,89 @@ describe('the data page', () => {
     fixture.componentRef.setInput('repo', 'https://github.com/owner/compass-mvp');
     await settle(fixture);
     expect(root.querySelector('a')!.getAttribute('href')).toBe('https://github.com/owner/compass-mvp/tree/HEAD/docs/decisions.md');
+  });
+});
+
+describe('the process and accessibility pages', () => {
+  it('computes contrast from the hex values, so the before and after figures are not typed', () => {
+    expect(hexToRgb('#8556C9')).toEqual([133, 86, 201]);
+    expect(hexToRgb('#fff')).toEqual([255, 255, 255]);
+    // Juyo's purple under a white label misses 4.5:1; one step darker passes.
+    expect(contrastOf('#996AD5', '#FFFFFF')).toBe(3.9);
+    expect(contrastOf('#8556C9', '#FFFFFF')).toBe(5);
+    // The chart blue on the dark card.
+    expect(contrastOf('#477EE3', '#161C22')).toBe(4.4);
+    expect(contrastOf('#5B8DEB', '#161C22')).toBe(5.3);
+    // The decision orange on white.
+    expect(contrastOf('#FE7637', '#FFFFFF')).toBe(2.7);
+    expect(contrastOf('#C2410C', '#FFFFFF')).toBe(5.2);
+  });
+
+  it('shows only adjustments that end above their target', () => {
+    for (const shift of [...COLOUR_SHIFTS, ...PROCESS_SHIFTS]) {
+      const need = shift.kind === 'text' ? 4.5 : 3;
+      expect(contrastOf(shift.to, shift.against), shift.role).toBeGreaterThanOrEqual(need);
+      expect(contrastOf(shift.to, shift.against), shift.role).toBeGreaterThan(contrastOf(shift.from, shift.against));
+    }
+  });
+
+  it('maps Juyo’s products to what was built, and says what was not', () => {
+    const statuses = PRODUCT_MAP.map((row) => row[2]!);
+    for (const status of statuses) expect(['● Built', '◐ Partial', '○ Not built']).toContain(status);
+    const status = (name: string) => PRODUCT_MAP.find((row) => row[0]!.startsWith(name))![2];
+    expect(status('Kassandra Quick and Thinker')).toBe('● Built');
+    expect(status('Kassandra Strategic')).toBe('○ Not built');
+    expect(status('Agent Studio')).toBe('● Built');
+    expect(status('Forecast Builder')).toBe('◐ Partial');
+    expect(status('Data Drop')).toBe('○ Not built');
+  });
+
+  it('tells the journey in order: the prototype, Juyo’s product, the restart, accessibility', async () => {
+    configure('/docs/process');
+    const fixture = TestBed.createComponent(DocsProcess);
+    const root = fixture.nativeElement as HTMLElement;
+    await settle(fixture);
+    expect(root.querySelector('h1')!.textContent!.trim()).toBe('How this was built');
+    const phases = [...root.querySelectorAll('docs-timeline li h3')].map((h) => h.textContent!.trim());
+    expect(phases.slice(0, 4)).toEqual(['A prototype, and what it taught me', 'Understanding Juyo’s product first', 'A clean restart', 'Accessibility as a rule, not a pass at the end']);
+    expect(phases).toHaveLength(12);
+    expect([...root.querySelectorAll('h2')].map((h) => h.textContent!.trim())).toEqual([
+      'The timeline',
+      'Understanding Juyo’s product first',
+      'Research first',
+      'The design system',
+      'The interaction model',
+      'Working with Claude',
+      'Engineering decisions',
+      'What changed along the way',
+      'What I would do next',
+    ]);
+    expect(root.querySelectorAll('#juyo docs-table tbody tr')).toHaveLength(PRODUCT_MAP.length);
+    expect(root.querySelectorAll('#research li.docs-panel')).toHaveLength(6);
+    expect(root.querySelectorAll('#engineering li.docs-panel')).toHaveLength(9);
+    // The small pictures: the palette before and after, the icon sets, the themes and the two layouts.
+    expect(root.querySelectorAll('docs-colour-shifts li')).toHaveLength(PROCESS_SHIFTS.length);
+    expect(root.querySelectorAll('docs-icon-sets tbody tr')).toHaveLength(4);
+    expect(root.querySelectorAll('docs-theme-strips [data-theme]')).toHaveLength(3);
+    expect(root.querySelectorAll('docs-model-wireframes figure')).toHaveLength(2);
+    expect(root.querySelector('#design a[href="/docs/accessibility"]')).not.toBeNull();
+  });
+
+  it('states the accessibility target, the findings that were fixed and what is not done', async () => {
+    configure('/docs/accessibility');
+    const fixture = TestBed.createComponent(DocsAccessibility);
+    const root = fixture.nativeElement as HTMLElement;
+    await settle(fixture);
+    expect(root.querySelector('dl')!.textContent).toContain('WCAG 2.2 AA');
+    const purple = root.querySelector('docs-colour-shifts li')!.textContent!;
+    expect(purple).toContain('#996AD5');
+    expect(purple).toContain('3.9:1');
+    expect(purple).toContain('#8556C9');
+    expect(purple).toContain('5:1');
+    const fixed = root.querySelector('#axe table')!.textContent!;
+    for (const finding of ['aria-pressed', 'nested-interactive', 'label-content-name-mismatch', 'color-contrast', '3.65:1']) expect(fixed).toContain(finding);
+    for (const anchor of ['colour', 'not-colour', 'axe', 'keyboard', 'screen-readers', 'motion', 'touch', 'choice', 'check', 'limits']) expect(root.querySelector(`#${anchor}`), anchor).not.toBeNull();
+    expect(root.querySelector('#limits')!.textContent).toContain('1.54:1');
+    expect(root.querySelector('#screen-readers juyo-widget-chart')).not.toBeNull();
   });
 });

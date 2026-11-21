@@ -323,7 +323,7 @@ export class DocsComponents {
   protected readonly enabled = signal(true);
   protected readonly levels = [
     { id: 'suggest', label: 'Suggest' },
-    { id: 'approve', label: 'Approve' },
+    { id: 'approve', label: 'Ask first' },
     { id: 'auto_low_risk', label: 'Act alone' },
   ] as const;
   protected readonly autonomy = signal<'suggest' | 'approve' | 'auto_low_risk'>('approve');

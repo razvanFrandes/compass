@@ -62,7 +62,7 @@ const GROUPS: readonly { id: string; heading: string; note: string; items: reado
       {
         title: 'Generative UI from a closed catalogue',
         chose: '`show_widget` picks one of 21 kinds and names an earlier tool result and its columns. The server copies the rows and checks that the kind fits them.',
-        over: 'Model-written markup. Hashbrown was the planned runtime; the shipped version does it with one tool and one spec.',
+        over: 'Model-written markup, and a second runtime for it. Hashbrown was the first pick; it came out because it and the agent loop both want to own the conversation.',
         why: 'Every answer stays consistent and accessible, a pie can only show parts of a whole, and a widget can be pinned to a board with its evidence.',
       },
       {

@@ -19,8 +19,8 @@ function setup(url: string) {
 }
 
 describe('docs pages', () => {
-  it('lists the eight sections, in the order the Docs panel shows them', () => {
-    expect(DOCS_PAGES.map((p) => p.label)).toEqual(['Architecture', 'Components', 'Design system', 'Kassandra & agents', 'Data & MCP', 'Security', 'Decisions', 'About this build']);
+  it('lists the ten sections, in the order the Docs panel shows them, with the journey first', () => {
+    expect(DOCS_PAGES.map((p) => p.label)).toEqual(['How this was built', 'Architecture', 'Components', 'Design system', 'Accessibility', 'Kassandra & agents', 'Data & MCP', 'Security', 'Decisions', 'About this build']);
     expect(new Set(DOCS_PAGES.map((p) => p.id)).size).toBe(DOCS_PAGES.length);
     for (const p of DOCS_PAGES) {
       expect(p.blurb.length).toBeGreaterThan(20);
@@ -31,7 +31,7 @@ describe('docs pages', () => {
   it('gives every page an address under /docs', () => {
     expect(docsPath('index')).toBe('/docs');
     expect(docsPath('architecture')).toBe('/docs/architecture');
-    expect(DOCS_PAGES.map((p) => docsPath(p.id))).toEqual(['/docs/architecture', '/docs/components', '/docs/design-system', '/docs/kassandra', '/docs/data', '/docs/security', '/docs/decisions', '/docs/about']);
+    expect(DOCS_PAGES.map((p) => docsPath(p.id))).toEqual(['/docs/process', '/docs/architecture', '/docs/components', '/docs/design-system', '/docs/accessibility', '/docs/kassandra', '/docs/data', '/docs/security', '/docs/decisions', '/docs/about']);
   });
 
   it('reads the page from an address, with or without a trailing slash', () => {

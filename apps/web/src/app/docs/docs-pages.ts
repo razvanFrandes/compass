@@ -17,9 +17,11 @@ export interface DocsPage {
 }
 
 export const DOCS_PAGES = [
+  { id: 'process', label: 'How this was built', blurb: 'The journey: research, decisions and evidence, in order.', icon: 'phosphorPathLight' },
   { id: 'architecture', label: 'Architecture', blurb: 'One Worker, three durable agents, one read-only database.', icon: 'phosphorTreeStructureLight' },
   { id: 'components', label: 'Components', blurb: 'Every chart, card and control an answer or a board can show.', icon: 'phosphorPuzzlePieceLight' },
   { id: 'design-system', label: 'Design system', blurb: 'The tokens of the theme on screen, read from the page.', icon: 'phosphorPaletteLight' },
+  { id: 'accessibility', label: 'Accessibility', blurb: 'The target, how it is checked, and what was found and fixed.', icon: 'phosphorPersonArmsSpreadLight' },
   { id: 'kassandra', label: 'Kassandra & agents', blurb: 'How a question is answered, and how an agent waits for you.', icon: 'phosphorRobotLight' },
   { id: 'data', label: 'Data & MCP', blurb: 'The data model, the metrics, the evals and the public MCP server.', icon: 'phosphorDatabaseLight' },
   { id: 'security', label: 'Security', blurb: 'How a public demo with no login stays safe and bounded.', icon: 'phosphorShieldCheckLight' },
@@ -60,13 +62,13 @@ export const SHOWCASES: readonly { label: string; href: string; view: View | nul
 export const REPO_URL: string = '';
 
 /**
- * The data generator is a repository of its own. It is private for now: while `public` is false the docs link to
- * it and say that the link needs access. Set `public` to true when the repository is opened.
+ * The data generator is a repository of its own, and public. While `public` is false the docs still link to it and
+ * say that the link needs access.
  */
 export const DATAGEN_REPO: { readonly url: string; readonly name: string; readonly public: boolean } = {
   url: 'https://github.com/razvanFrandes/compass-datagen',
   name: 'compass-datagen',
-  public: false,
+  public: true,
 };
 
 /**
