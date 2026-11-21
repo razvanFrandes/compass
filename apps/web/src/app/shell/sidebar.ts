@@ -1,12 +1,13 @@
 import { Component, DOCUMENT, ElementRef, Injector, ViewEncapsulation, afterNextRender, computed, inject, input, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { phosphorSwatchesFill } from '@ng-icons/phosphor-icons/fill';
-import { phosphorCompassLight, phosphorInfoLight, phosphorSidebarSimpleLight } from '@ng-icons/phosphor-icons/light';
+import { phosphorBookOpenFill, phosphorSwatchesFill } from '@ng-icons/phosphor-icons/fill';
+import { phosphorBookOpenLight, phosphorCompassLight, phosphorInfoLight, phosphorSidebarSimpleLight } from '@ng-icons/phosphor-icons/light';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { GROUP } from '../data';
 import * as icons from '../icons';
 import { KassandraThreadList } from '../kassandra/kassandra-thread-list';
 import { ScopeSwitcher } from '../scope/scope-switcher';
+import { DocsRouter } from '../docs/docs-router';
 import { CompassStore } from '../store';
 import { DensitySwitch } from '../theme/density-switch';
 import { ThemeSwitcher } from '../theme/theme-switcher';
@@ -30,7 +31,7 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
 @Component({
   selector: 'nav[appSidebar]',
   imports: [NgIcon, CompassLogo, ScopeSwitcher, KassandraThreadList, RailThreads, ThemeSwitcher, DensitySwitch, HlmTooltipImports],
-  providers: [provideIcons({ ...icons, phosphorCompassLight, phosphorInfoLight, phosphorSidebarSimpleLight, phosphorSwatchesFill })],
+  providers: [provideIcons({ ...icons, phosphorBookOpenFill, phosphorBookOpenLight, phosphorCompassLight, phosphorInfoLight, phosphorSidebarSimpleLight, phosphorSwatchesFill })],
   encapsulation: ViewEncapsulation.None,
   host: {
     id: 'main-nav',
@@ -178,7 +179,7 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
           position="right"
           [sideOffset]="tipGap"
           [tooltipDisabled]="!collapsed()"
-          (click)="store.go(n.view)"
+          (click)="go(n.view)"
         >
           <ng-icon [name]="isActive(n.view) ? n.iconActive : n.icon" class="rail-icon" aria-hidden="true" />
           <span class="rail-label">{{ n.label }}</span>
@@ -198,6 +199,7 @@ export class Sidebar {
   readonly items = input.required<readonly NavItem[]>();
 
   protected readonly store = inject(CompassStore);
+  private readonly docs = inject(DocsRouter);
   private readonly state = inject(SidebarState);
   private readonly doc = inject(DOCUMENT);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -210,12 +212,17 @@ export class Sidebar {
   protected readonly tipGap = RAIL_TIP_GAP;
   protected readonly toggleLabel = computed(() => (this.collapsed() ? 'Expand sidebar' : 'Collapse sidebar'));
 
-  /**
-   * The links at the foot, above the note. Slot for r3/docs-hub: Docs goes after the theme lab, as
-   * `{ view: 'docs', label: 'Docs', icon: 'phosphorBookOpenLight', iconActive: 'phosphorBookOpenFill', count: 0 }`
-   * (register the two icons above). It then shows in the panel and in the rail, with its tooltip.
-   */
-  protected readonly foot: readonly NavItem[] = [{ view: 'theme-lab', label: 'Theme lab', icon: 'phosphorSwatchesLight', iconActive: 'phosphorSwatchesFill', count: 0 }];
+  /** The links at the foot, above the note: the theme lab and the docs hub (src/app/docs). In the panel and in the rail. */
+  protected readonly foot: readonly NavItem[] = [
+    { view: 'theme-lab', label: 'Theme lab', icon: 'phosphorSwatchesLight', iconActive: 'phosphorSwatchesFill', count: 0 },
+    { view: 'docs', label: 'Docs', icon: 'phosphorBookOpenLight', iconActive: 'phosphorBookOpenFill', count: 0 },
+  ];
+
+  /** The docs hub keeps its own page and address (DocsRouter); every other place is the store's. */
+  protected go(view: NavItem['view']) {
+    if (view === 'docs') this.docs.open('index');
+    else this.store.go(view);
+  }
 
   protected isActive(view: NavItem['view']) {
     return isActiveNav(this.store.view(), view);

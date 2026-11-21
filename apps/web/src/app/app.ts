@@ -20,6 +20,9 @@ import { BoardsService } from './boards/boards.service';
 import { ScopeSwitcher } from './scope/scope-switcher';
 import { OrbLab } from './orb/orb-lab';
 import { CatalogView } from './charts/catalog';
+import { DocsFab } from './docs/docs-fab';
+import { DocsHub } from './docs/docs-hub';
+import { DocsRouter } from './docs/docs-router';
 import { MobileMenu } from './shell/mobile-menu';
 import { Sidebar } from './shell/sidebar';
 import { RAIL_WIDTH, SIDEBAR_WIDTH, SidebarState } from './shell/sidebar-state';
@@ -31,7 +34,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, CompassLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, Sidebar, MobileMenu, HlmToasterImports],
+  imports: [BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, CompassLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, DocsHub, DocsFab, Sidebar, MobileMenu, HlmToasterImports],
   providers: [provideIcons({ ...icons, phosphorCompassLight }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   styles: `
@@ -115,6 +118,14 @@ import * as icons from './icons';
               <p class="text-muted-foreground px-page-x pt-section text-[14px]" role="status">Loading the agent…</p>
             }
           }
+          @case ('docs') {
+            <!-- /docs/*: the documentation hub; its code loads on first visit -->
+            @defer (on immediate) {
+              <app-docs-hub />
+            } @placeholder {
+              <p class="text-muted-foreground px-page-x pt-section text-[14px]" role="status">Loading the docs…</p>
+            }
+          }
           @case ('catalog') {
             <!-- /catalog: the chart design-system page; its code (and the extra chart types) loads on first visit -->
             @defer (on immediate) {
@@ -128,6 +139,8 @@ import * as icons from './icons';
     </div>
 
     }
+    <!-- Docs: a floating button on every screen; it moves above a composer or a toast (src/app/docs) -->
+    <app-docs-fab />
     <!-- Toasts sit where no composer is: top on phones (the ask bar is at the bottom), bottom right on desktop -->
     <hlm-toaster [theme]="theme.dark() ? 'dark' : 'light'" [position]="phone() ? 'top-center' : 'bottom-right'" [offset]="phone() ? '12px' : '24px'" />
   `,
@@ -138,11 +151,12 @@ export class App {
   private readonly doc = inject(DOCUMENT);
   protected readonly theme = inject(Theme);
   protected readonly sidebar = inject(SidebarState);
+  private readonly docs = inject(DocsRouter);
   protected readonly phone = signal(this.doc.defaultView?.matchMedia('(max-width: 1023px)').matches ?? false);
 
   constructor() {
     effect(() => {
-      this.doc.title = pageTitle(this.store.view(), this.live.title(), this.boardName());
+      this.doc.title = this.store.view() === 'docs' ? this.docs.title() : pageTitle(this.store.view(), this.live.title(), this.boardName());
     });
   }
 

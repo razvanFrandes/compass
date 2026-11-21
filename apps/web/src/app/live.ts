@@ -7,6 +7,7 @@ import { AnswerScope, BRIEF_ITEMS, BriefRow, CompassStore, THEME_LAB_PATH, isBui
 import { Drill } from './portfolio';
 import { drillContent } from './drill';
 import { ScopeService } from './scope/scope.service';
+import { docsPageOf } from './docs/docs-pages';
 
 /** Who decides, as the audit log records it. The demo has no sign-in yet. */
 export const DECIDER = 'Revenue manager (web)';
@@ -162,6 +163,7 @@ export class Live {
       case 'builder':
       case 'notfound':
       case 'orb-lab':
+      case 'docs': // /docs/*: DocsRouter keeps the page and its address
         return null;
       case 'catalog':
         return { path: '/catalog' };
@@ -184,6 +186,7 @@ export class Live {
     if (isBuilderUrl(loc)) return this.store.view.set('builder');
     if (isOrbLabUrl(loc)) return this.store.view.set('orb-lab');
     if (path === THEME_LAB_PATH) return this.store.view.set('theme-lab');
+    if (docsPageOf(path)) return this.store.view.set('docs');
     if (path === '/ask') {
       const c = params.get('c');
       if (c) this.chat.open(c);

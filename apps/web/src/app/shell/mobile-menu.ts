@@ -1,6 +1,8 @@
 import { Component, ElementRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { phosphorSwatchesFill } from '@ng-icons/phosphor-icons/fill';
+import { phosphorBookOpenFill, phosphorSwatchesFill } from '@ng-icons/phosphor-icons/fill';
+import { phosphorBookOpenLight } from '@ng-icons/phosphor-icons/light';
+import { DocsRouter } from '../docs/docs-router';
 import { GROUP } from '../data';
 import * as icons from '../icons';
 import { agoShort } from '../kassandra/kassandra-thread-list';
@@ -29,7 +31,7 @@ let nextId = 0;
 @Component({
   selector: 'app-mobile-menu',
   imports: [NgIcon, CompassLogo, ScopeSwitcher, AppearanceControls],
-  providers: [provideIcons({ ...icons, phosphorSwatchesFill })],
+  providers: [provideIcons({ ...icons, phosphorBookOpenFill, phosphorBookOpenLight, phosphorSwatchesFill })],
   host: { class: 'block shrink-0' },
   styles: `
     /* Ink for text on the orange count: it passes 4.5:1 on --brass in every theme; white does not. */
@@ -221,6 +223,7 @@ export class MobileMenu {
   private readonly store = inject(CompassStore);
   private readonly live = inject(Live);
   private readonly sidebar = inject(SidebarState);
+  private readonly docs = inject(DocsRouter);
   private readonly trigger = viewChild.required<ElementRef<HTMLButtonElement>>('trigger');
   private readonly sheet = viewChild.required<ElementRef<HTMLDialogElement>>('sheet');
   private readonly closeButton = viewChild.required<ElementRef<HTMLButtonElement>>('closeButton');
@@ -231,12 +234,11 @@ export class MobileMenu {
   /** Read when the sheet opens: "5 min" does not need to tick while the menu is closed. */
   private readonly now = signal(Date.now());
 
-  /**
-   * The secondary links, under the conversations. Slot for r3/docs-hub: once the /docs routes are on main, Docs goes
-   * first, as `{ view: 'docs', label: 'Docs', icon: 'phosphorBookOpenLight', iconActive: 'phosphorBookOpenFill', count: 0 }`
-   * (register the two icons above). The sidebar has the same slot (`foot` in shell/sidebar.ts).
-   */
-  protected readonly more: readonly NavItem[] = [{ view: 'theme-lab', label: 'Theme lab', icon: 'phosphorSwatchesLight', iconActive: 'phosphorSwatchesFill', count: 0 }];
+  /** The secondary links, under the conversations: the docs hub first, then the theme lab (the sidebar's `foot`). */
+  protected readonly more: readonly NavItem[] = [
+    { view: 'docs', label: 'Docs', icon: 'phosphorBookOpenLight', iconActive: 'phosphorBookOpenFill', count: 0 },
+    { view: 'theme-lab', label: 'Theme lab', icon: 'phosphorSwatchesLight', iconActive: 'phosphorSwatchesFill', count: 0 },
+  ];
 
   /** What waits, for the dot on the button: "6 in Inbox, 1 in Agent Studio". Empty when nothing does. */
   protected readonly waiting = computed(() => {
@@ -301,7 +303,9 @@ export class MobileMenu {
 
   protected go(view: NavItem['view']) {
     this.close();
-    this.store.go(view);
+    // The docs hub keeps its own page and address (DocsRouter); every other place is the store's.
+    if (view === 'docs') this.docs.open('index');
+    else this.store.go(view);
   }
 
   protected openThread(id: string) {
