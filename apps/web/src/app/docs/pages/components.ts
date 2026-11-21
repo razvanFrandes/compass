@@ -113,6 +113,8 @@ const RUN_LABEL: Record<string, string> = { none: 'nothing found', finding: 'a f
                 <juyo-widget-chart [spec]="c.spec" [rows]="c.rows" [columns]="c.columns" [compact]="true" />
               } @placeholder {
                 <div class="h-[260px]" aria-hidden="true"></div>
+              } @error {
+                <p class="text-muted-foreground grid h-[260px] place-items-center text-[13px]" role="status">This chart couldn’t load. Reload the page to see it.</p>
               }
             </li>
           }

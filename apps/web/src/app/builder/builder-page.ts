@@ -154,7 +154,13 @@ export function namedScope(graph: WorkflowGraph, hotels: readonly string[] | und
       </div>
     </header>
 
-    @if (offline()) {
+    @if (socket.stalled()) {
+      <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-(--field-border) bg-(--field) px-page-x py-2 text-[13px]" role="alert">
+        <ng-icon name="phosphorWifiSlashLight" class="text-[16px] text-(--negative)" aria-hidden="true" />
+        <span>The builder isn’t answering. Trying a fresh connection; your draft is safe.</span>
+        <button hlmBtn type="button" variant="link" size="sm" (click)="socket.retry()">Retry</button>
+      </div>
+    } @else if (offline()) {
       <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-(--field-border) bg-(--field) px-page-x py-2 text-[13px]" role="status">
         <ng-icon name="phosphorWifiSlashLight" class="text-[16px] text-(--negative)" aria-hidden="true" />
         <span>The connection dropped. Reconnecting now; your draft is safe.</span>

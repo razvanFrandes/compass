@@ -55,12 +55,16 @@ export interface BuilderSocketOptions {
   createSocket?: (url: string) => SocketLike;
   /** Delays between reconnect attempts; the last one repeats. */
   backoffMs?: readonly number[];
+  /** How long to wait for the first `draft` before calling the connection stalled. */
+  loadTimeoutMs?: number;
 }
 
 const OPEN = 1;
 const DEFAULT_BACKOFF = [500, 1000, 2000, 4000, 8000] as const;
 /** Messages typed while the socket is down are sent when it is back; more than this is a stuck connection. */
 const MAX_QUEUED = 8;
+/** No `draft` this long after opening a connection: the connection is stuck, so say so and start a fresh one. */
+export const LOAD_TIMEOUT_MS = 8_000;
 
 /**
  * The draft id is the only key to a draft, so it is a random UUID and lives in the address bar (`?draft=`):
@@ -114,10 +118,14 @@ export class BuilderSocket {
   readonly connected = signal(false);
   /** The last thing the server refused or the connection lost, until the next action. */
   readonly error = signal<string | null>(null);
+  /** The draft did not arrive in time; true until it does. The page shows it with a Retry. */
+  readonly stalled = signal(false);
 
   readonly #url: string;
   readonly #createSocket: (url: string) => SocketLike;
   readonly #backoff: readonly number[];
+  readonly #loadTimeoutMs: number;
+  #loadTimer: ReturnType<typeof setTimeout> | null = null;
   #socket: SocketLike | null = null;
   #attempt = 0;
   #timer: ReturnType<typeof setTimeout> | null = null;
@@ -129,6 +137,7 @@ export class BuilderSocket {
     this.#url = options.url;
     this.#createSocket = options.createSocket ?? ((url) => new WebSocket(url) as unknown as SocketLike);
     this.#backoff = options.backoffMs?.length ? options.backoffMs : DEFAULT_BACKOFF;
+    this.#loadTimeoutMs = options.loadTimeoutMs ?? LOAD_TIMEOUT_MS;
     this.#open();
   }
 
@@ -172,9 +181,20 @@ export class BuilderSocket {
     this.#open();
   }
 
+  /** Retry: a fresh connection now, even when the current one looks open (it may be stuck). */
+  retry(): void {
+    if (this.#closed) return;
+    this.#clearTimer();
+    this.#attempt = 0;
+    this.connected.set(false);
+    this.state.set('connecting');
+    this.#open();
+  }
+
   close(): void {
     this.#closed = true;
     this.#clearTimer();
+    this.#clearLoadTimer();
     this.connected.set(false);
     this.state.set('closed');
     const socket = this.#socket;
@@ -220,6 +240,7 @@ export class BuilderSocket {
       return;
     }
     this.#socket = socket;
+    this.#watchLoad(socket);
     socket.onopen = () => {
       if (socket !== this.#socket) return;
       this.#attempt = 0;
@@ -300,6 +321,8 @@ export class BuilderSocket {
         this.issues.set(message.issues);
         this.revision.update((count) => count + 1);
         this.loaded.set(true);
+        this.stalled.set(false);
+        this.#clearLoadTimer();
         return;
       }
       case 'run':
@@ -309,6 +332,30 @@ export class BuilderSocket {
       default:
         return;
     }
+  }
+
+  /** Until the first draft: a connection that has not delivered it in time is dropped and replaced. */
+  #watchLoad(socket: SocketLike): void {
+    this.#clearLoadTimer();
+    if (this.loaded()) return;
+    this.#loadTimer = setTimeout(() => {
+      this.#loadTimer = null;
+      if (socket !== this.#socket || this.loaded()) return;
+      this.stalled.set(true);
+      this.#detach(socket);
+      socket.close();
+      this.#socket = null;
+      this.#attempt = 0;
+      this.connected.set(false);
+      this.state.set('reconnecting');
+      this.#clearTimer();
+      this.#open();
+    }, this.#loadTimeoutMs);
+  }
+
+  #clearLoadTimer(): void {
+    if (this.#loadTimer !== null) clearTimeout(this.#loadTimer);
+    this.#loadTimer = null;
   }
 
   #detach(socket: SocketLike): void {
