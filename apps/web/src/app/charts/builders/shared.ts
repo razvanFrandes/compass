@@ -53,7 +53,7 @@ export interface TableModel {
   rows: TableCell[][];
 }
 
-export type LegendMark = 'solid' | 'line' | 'dashed' | 'tick' | 'outline';
+export type LegendMark = 'solid' | 'line' | 'dashed' | 'tick' | 'outline' | 'dotted' | 'band' | 'hatch' | 'rule';
 export interface LegendItem {
   label: string;
   color: string;
@@ -80,6 +80,8 @@ export interface KpiModel {
   /** "vs last year": what the delta compares against. */
   versus: string;
   spark: SparkPath | null;
+  /** The comparison's trend (last year), dashed, on the same scale as `spark`. */
+  sparkCmp?: SparkPath | null;
 }
 export interface SparkPath {
   /** Line path in a 100 × 28 box. */
@@ -304,7 +306,16 @@ export function tableModel(c: Pick<Ctx, 'columns' | 'rows' | 'spec'>, keys?: str
 
 /** The keys a spec uses, in reading order: what the fallback table shows for a chart. */
 export function specKeys(spec: WidgetSpec): string[] {
-  return [spec.group, spec.x, ...(spec.y ?? []), spec.compare].filter((k): k is string => !!k);
+  return distinct([spec.group, spec.x, ...(spec.y ?? []), spec.forecast, ...(spec.band ?? []), spec.compare, spec.target, spec.limit].filter((k): k is string => !!k));
+}
+
+/**
+ * Diagonal hatching as a fill (forecast still to come, a cost inside a bar): an SVG tile repeated, so no global
+ * decal setting is needed and the fill follows the theme's colour.
+ */
+export function hatch(color: string, background = 'transparent'): { image: string; repeat: 'repeat'; imageWidth: number; imageHeight: number } {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="6" height="6"><rect width="6" height="6" fill="${background}"/><path d="M-1,1 l2,-2 M0,6 l6,-6 M5,7 l2,-2" stroke="${color}" stroke-width="1.2"/></svg>`;
+  return { image: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, repeat: 'repeat', imageWidth: 6, imageHeight: 6 };
 }
 
 export function empty(c: Ctx, message: string): Built {

@@ -34,19 +34,26 @@ const ShowWidgetArgs = z.object({
   y: shape.y.describe('Column names: the numbers to draw, the stages in order, or the columns of a table'),
   group: shape.group.describe('Column name: splits the rows into series, names the parts, or is the target of a flow'),
   compare: shape.compare.describe('Column name: the comparison, e.g. last year or budget'),
+  forecast: shape.forecast.describe('Column name: the forecast (P50) of the first y, drawn dotted. line, area, bar, bullet'),
+  band: shape.band.describe('Two column names, low then high: the likely range (P10, P90), drawn as a shaded band. line, area, bar'),
+  target: shape.target.describe('Column name: the budget or target. bullet: each bar as % of it; line, bar: a step line'),
+  limit: shape.limit.describe('Column name: a ceiling such as capacity, drawn as one flat line. line, area, bar'),
   format: shape.format.describe('How to format y. Leave it out: it is read from the column.'),
 });
 
 const DESCRIPTION = [
   'Show a chart, a table or a KPI tile under your answer, drawn from the rows of a data tool result of this conversation. ' +
     'You choose the kind, the title and the columns; the rows are copied from that result, so you never type a number into a widget. ' +
-    'Call it after the data tool, with the "Result id" printed at the end of that result. x, y, group and compare are column names of that result.',
+    'Call it after the data tool, with the "Result id" printed at the end of that result. x, y, group, compare, forecast, band, ' +
+    'target and limit are column names of that result.',
   'Kinds and what they need:',
   '- kpi: one number. 1 row; y: the number; compare: last year or budget (optional).',
   '- kpi_row: 2–6 tiles. 1 row with y: 2–6 number columns; or 2–6 rows with x: the tile name and y: one number.',
-  '- bar: rank or compare categories. x: the category (e.g. the hotel), y: one number, compare (optional). One row per category.',
+  '- bar: rank or compare categories. x: the category (e.g. the hotel), y: one number, compare (optional). One row per category. ' +
+    'Over months or days: forecast, band, target and limit too (optional).',
   '- grouped_bar, stacked_bar: x, and y: 2–8 number columns; or y: one number with group: the column that splits it.',
-  '- line, area: a trend. x: a date, month or number column; y: 1–6 number columns, or one number with group (a line per hotel); compare (optional, with one y).',
+  '- line, area: a trend. x: a date, month or number column; y: 1–6 number columns, or one number with group (a line per hotel); compare (optional, with one y). ' +
+    'Optional without group: forecast (P50; rows after today have y empty), band: [P10, P90], target (line only), limit (e.g. capacity).',
   '- sparkline_list: a small trend per group value. x: ordered, y: one number, group.',
   '- pie, donut: only for 2–7 parts of one whole. group: the part name, y: one number that adds up to the whole.',
   '- treemap: 2–60 parts. group: the part name, y: one number. With x too, the parts (x, e.g. the hotel) sit inside their parents (group, e.g. the region).',
@@ -54,7 +61,8 @@ const DESCRIPTION = [
   '- heatmap: x across, group down, y: the number in each cell (e.g. nights across, hotels down). calendar_heatmap: x: a day column, y: one number, one row per day.',
   '- funnel: stages that only shrink. y: 2–8 stage columns in order (x names each funnel when there are 2–4 rows); or x: the stage name and y: one number, one row per stage.',
   '- waterfall: x: the step name, y: the change of each step. The first and last rows are the totals it starts from and ends on (get_pnl view "bridge" gives exactly these rows).',
-  '- bullet: actual against target. y: the actual, compare: the target, x: the name when there are several rows.',
+  '- bullet: actual against target. y: the actual, x: the name when there are several rows; target: the budget (each bar as % of it), ' +
+    'forecast: the P50 (optional), compare: last year (optional). Without target, compare is the target.',
   '- gauge: 1 row. y: a percent; or y with compare: the target.',
   '- scatter: x and y: number columns; group: the name of each point (optional).',
   '- radar: y: 3–8 number columns on one scale; one row per shape, named by x.',
@@ -94,6 +102,12 @@ export const WIDGET_SECTIONS: PromptSection[] = [
         '  · actual against a budget or target → bullet (y: the actual, compare: the budget or target, x: the name of each bar), ' +
           'e.g. get_pnl summary per hotel or get_rate_position grain "total" (y: bar_rate, compare: comp_median, x: hotel_code). ' +
           'gauge for one percentage against its target.',
+        '  · a forecast → show the range, not one number. Pass get_forecast from the first day of next month (the current month ' +
+          'mixes in its actual nights). Hotels against budget: get_forecast by "hotel" with grain "total" → ' +
+          'bullet with y: rooms_on_books, target: budget_rooms_sold, forecast: rooms_p50, compare: rooms_on_books_stly, x: key. ' +
+          'The months ahead: get_forecast with grain "month" → bar with x: period, y: rooms_on_books, forecast: rooms_p50, ' +
+          'band: [rooms_p10, rooms_p90], target: budget_rooms_sold. When rows have a forecast column (P50) and its P10 and P90 ' +
+          'over dates → line with forecast and band, and capacity as limit when there is one.',
         '  · hotels × nights → heatmap, whenever a measure is asked for each hotel and each night or day ("occupancy for the ' +
           'next 14 nights by hotel"): get_metric by "hotel" with grain "day" gives x: period, group: key, y: value. Do not sum the ' +
           'nights into one bar per hotel: the grid is the answer. Which nights of one hotel are filling or full over several ' +

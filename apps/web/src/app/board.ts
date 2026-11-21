@@ -5,12 +5,11 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { ChartCard } from './chart-card';
 import { FilterBar } from './filter-bar';
-import { DEFAULTS, Filters, parseFilterRequest } from './filters';
-import { PORTFOLIO_SPECS, kpis, type ChartSpec } from './portfolio';
+import { COMPARES, DEFAULTS, Filters, parseFilterRequest, scopeChips } from './filters';
+import { PORTFOLIO_SPECS, kpiWidget, kpis, type ChartSpec } from './portfolio';
 import type { ChartSize } from './theme/density';
 import { KassandraComposer } from './kassandra/kassandra-composer';
 import { KassandraDescribeView } from './kassandra/kassandra-describe-view';
-import { MetricChart } from './metric-chart';
 import { Live, ago } from './live';
 import { CompassStore, DUBAI_BOARD, PORTFOLIO_BOARD } from './store';
 import { METRICS, MetricKey, NIGHTS, Range, metricSeries, metricTotal } from './data';
@@ -19,6 +18,7 @@ import { BoardsService } from './boards/boards.service';
 import type { Board, BoardWidget } from './boards/types';
 import { ViewAs } from './charts/view-as';
 import { WidgetChart, subtitleWithUnit } from './charts/widget-chart';
+import type { EvidenceColumn, WidgetSpec } from './charts/widget-types';
 import { tidyBoardWidget } from './widget-tidy';
 import { formatDate, formatPeriod } from './evidence/format';
 import { sourceLabel } from './evidence/labels';
@@ -34,7 +34,7 @@ export const isBuiltIn = (id: string) => BUILT_IN.some((b) => b.id === id);
 /** One chart, four metrics: the KPI strip picks the metric; this year against the same time last year. */
 @Component({
   selector: 'app-performance-widget',
-  imports: [MetricChart],
+  imports: [WidgetChart],
   template: `
     <div class="flex flex-wrap items-end justify-between gap-3">
       <h2 class="text-[14px] font-semibold tracking-[-0.01em]">Performance</h2>
@@ -55,11 +55,8 @@ export const isBuiltIn = (id: string) => BUILT_IN.some((b) => b.id === id);
     </div>
 
     <div class="-mx-1 mt-card-pad sm:-mx-2">
-      <app-metric-chart [values]="series().ty" [compare]="series().ly" [dates]="dates()" [format]="meta().format" [tickFormat]="metric() === 'occupancy' ? pct : undefined" [capAt]="metric() === 'occupancy' ? 100 : null" [marks]="[]" [height]="chartHeight" [zeroBased]="metric() === 'occupancy'" [ariaLabel]="meta().label + ', this year versus same time last year'" />
-    </div>
-    <div class="text-muted-foreground mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[12px]">
-      <span class="flex items-center gap-1.5"><i class="inline-block h-0.5 w-3 rounded bg-(--series)"></i>This year{{ range() === 'forward' ? ', on the books' : '' }}</span>
-      <span class="flex items-center gap-1.5"><i class="inline-block w-3 border-t-[1.5px] border-dashed border-(--series-cmp)"></i>Same time last year</span>
+      @let w = widget();
+      <juyo-widget-chart [spec]="w.spec" [rows]="w.rows" [columns]="w.columns" [header]="false" [switcher]="true" controls="external" [height]="chartHeight" />
     </div>
   `,
 })
@@ -68,11 +65,28 @@ export class PerformanceWidget {
   protected readonly range = signal<Range>('forward');
   protected readonly metric = signal<MetricKey>('occupancy');
   protected readonly chartHeight = this.doc.defaultView && this.doc.defaultView.innerWidth < 640 ? 220 : 260;
-  protected readonly pct = (n: number) => `${n.toFixed(0)}%`;
   protected readonly nights = computed(() => NIGHTS[this.range()]);
-  protected readonly dates = computed(() => this.nights().map((n) => n.date));
   protected readonly meta = computed(() => METRICS[this.metric()]);
-  protected readonly series = computed(() => ({ ty: metricSeries(this.nights(), this.metric()), ly: metricSeries(this.nights(), this.metric(), true) }));
+  /** The chosen figure by night, this year against the same time last year: a line, drawn by the one chart system. */
+  protected readonly widget = computed(() => {
+    const key = this.metric();
+    const m = this.meta();
+    const ty = metricSeries(this.nights(), key);
+    const ly = metricSeries(this.nights(), key, true);
+    const kind: EvidenceColumn['kind'] = key === 'occupancy' ? 'percent' : 'currency';
+    const unit = key === 'occupancy' ? undefined : 'EUR';
+    const forward = this.range() === 'forward';
+    const spec: WidgetSpec = { kind: 'line', title: `${m.label} by night`, subtitle: forward ? 'Next 45 nights, on the books' : 'Last 45 nights', sourceCallId: `dubai:${key}:${this.range()}`, x: 'stay_date', y: ['value'], compare: 'last_year' };
+    return {
+      spec,
+      rows: this.nights().map((n, i) => ({ stay_date: new Date(n.date).toISOString().slice(0, 10), value: ty[i], last_year: ly[i] })),
+      columns: [
+        { key: 'stay_date', label: 'Night of stay', kind: 'date' as const },
+        { key: 'value', label: forward ? 'This year, on the books' : 'This year', kind, ...(unit ? { unit } : {}) },
+        { key: 'last_year', label: 'Same time last year', kind, ...(unit ? { unit } : {}) },
+      ],
+    };
+  });
   protected readonly kpis = computed(() =>
     (Object.keys(METRICS) as MetricKey[]).map((key) => {
       const m = METRICS[key];
@@ -200,7 +214,7 @@ export class SavedWidget {
  */
 @Component({
   selector: 'app-board',
-  imports: [NgIcon, KassandraComposer, KassandraDescribeView, PerformanceWidget, ChartCard, FilterBar, ProposalCard, SavedWidget, HlmButtonImports, HlmDropdownMenuImports],
+  imports: [NgIcon, KassandraComposer, KassandraDescribeView, PerformanceWidget, ChartCard, FilterBar, ProposalCard, SavedWidget, WidgetChart, HlmButtonImports, HlmDropdownMenuImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
@@ -248,29 +262,12 @@ export class SavedWidget {
               </div>
             </section>
           }
-          <!-- KPI rail: at most four tiles on a row, 200 px at least. Label, the figure with its sparkline, then what it is compared with. -->
-          <ul class="kpi-row" aria-label="Key figures">
-            @for (k of kpis(); track k.metric) {
-              <li class="insight-card gap-stack flex min-w-0 flex-col p-card-pad">
-                <p class="text-muted-foreground text-[12px]/4 font-medium">{{ k.label }}</p>
-                <div class="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
-                  <p class="text-kpi font-semibold tracking-[-0.02em] tabular-nums">{{ k.value }}</p>
-                  @if (k.spark.length > 1) {
-                    <svg viewBox="0 0 64 22" preserveAspectRatio="none" class="mb-2 h-(--spark-h) w-(--spark-w) shrink-0" aria-hidden="true">
-                      @if (k.sparkCmp) {
-                        <polyline [attr.points]="spark(k.spark, k.sparkCmp)[1]" fill="none" stroke="var(--series-cmp)" stroke-width="1.25" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" />
-                      }
-                      <polyline [attr.points]="spark(k.spark, k.sparkCmp)[0]" fill="none" stroke="var(--series)" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
-                    </svg>
-                  }
-                </div>
-                <div class="text-[12px]/4 tabular-nums">
-                  <p>{{ deltaLine(k) }}</p>
-                  <p class="text-muted-foreground mt-0.5">{{ k.base }}</p>
-                </div>
-              </li>
-            }
-          </ul>
+          <!-- The key figures: one widget, drawn like every other (figure, delta against a named base, sparkline with the comparison dashed) -->
+          @let kw = kpiWidget();
+          <section class="insight-card min-w-0 p-card-pad" aria-label="Key figures">
+            <juyo-widget-chart [spec]="kw.spec" [rows]="kw.rows" [columns]="kw.columns" [header]="false" [switcher]="true" controls="external" />
+            <p class="text-muted-foreground mt-2 text-[12px]">{{ kpiBase() }}</p>
+          </section>
           </div>
           <!-- Twelve columns: the board's hero and its table take a row; the rest sit two to a row, three on a wide screen -->
           <div class="grid-12">
@@ -382,7 +379,16 @@ export class BoardView {
     const id = this.store.activeBoardId();
     return id === PORTFOLIO_BOARD ? 'portfolio' : id === DUBAI_BOARD ? 'dubai' : 'saved';
   });
-  protected readonly kpis = computed(() => kpis(this.filters.state()));
+  /** What the tiles' deltas are against, said once under them. */
+  protected readonly kpiBase = computed(() => {
+    const s = this.filters.state();
+    return s.compare === 'none' ? 'No comparison' : `Changes against ${COMPARES[s.compare].label.toLowerCase()}; the dashed line in each trend is the comparison.`;
+  });
+  /** The key figures as a kpi_row widget, under the board's filters. */
+  protected readonly kpiWidget = computed(() => {
+    const { rows, columns, ...drawing } = kpiWidget(this.filters.state());
+    return { spec: { ...drawing, title: 'Key figures', subtitle: scopeChips(this.filters.state()).join(' · '), sourceCallId: 'portfolio:kpis' } as WidgetSpec, rows, columns };
+  });
   protected readonly loading = signal(false);
   protected readonly renaming = signal(false);
   private readonly full = signal<Board | null>(null);
@@ -423,18 +429,6 @@ export class BoardView {
     const req = parseFilterRequest(text);
     if (req) this.filters.set(req.patch, 'kassandra', req.said);
     else this.live.askNew(text);
-  }
-  protected deltaLine(k: { delta: number | null; deltaText: string }) {
-    if (k.delta === null) return '';
-    if (Math.abs(k.delta) < 0.05) return k.deltaText.replace(/^[+−]/, '±');
-    return `${k.delta > 0 ? '▲' : '▼'} ${k.deltaText}`;
-  }
-  protected spark(a: number[], b: number[] | null): [string, string] {
-    const all = [...a, ...(b ?? [])];
-    const lo = Math.min(...all);
-    const span = Math.max(...all) - lo || 1;
-    const pts = (xs: number[]) => xs.map((x, i) => `${((i / Math.max(1, xs.length - 1)) * 62 + 1).toFixed(1)},${(20 - ((x - lo) / span) * 18).toFixed(1)}`).join(' ');
-    return [pts(a), b ? pts(b) : ''];
   }
   /** Columns of the 12 a chart takes: a wide chart the row, a single figure a quarter (four to a row at most), the rest a half, or a third on a wide screen. */
   protected span(w: BoardWidget) {

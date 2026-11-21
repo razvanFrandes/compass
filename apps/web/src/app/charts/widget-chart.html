@@ -155,6 +155,9 @@
               @if (k.spark; as sp) {
                 <div class="wc-spark wc-spark--tile" aria-hidden="true">
                   <svg viewBox="0 0 100 28" preserveAspectRatio="none">
+                    @if (k.sparkCmp; as cmp) {
+                      <path class="wc-spark-cmp" [attr.d]="cmp.line" />
+                    }
                     <path class="wc-spark-area" [attr.d]="sp.area" />
                     <path class="wc-spark-line" [attr.d]="sp.line" />
                   </svg>

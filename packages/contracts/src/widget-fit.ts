@@ -24,7 +24,7 @@ const ok = (value: WidgetSpec): WidgetFit => ({ ok: true, value });
 const err = (error: string): WidgetFit => ({ ok: false, error });
 
 type Row = Record<string, unknown>;
-type Used = Pick<WidgetSpec, 'x' | 'y' | 'group' | 'compare'>;
+type Used = Pick<WidgetSpec, 'x' | 'y' | 'group' | 'compare' | 'forecast' | 'band' | 'target' | 'limit'>;
 /** A check: null when fine, else the sentence for the model. */
 type Check = string | null;
 
@@ -67,13 +67,24 @@ export function fitWidget(spec: WidgetSpec, source: WidgetSource): WidgetFit {
   }
 
   const known = [...new Set([...columns.map((column) => column.key), ...rows.flatMap((row) => Object.keys(row))])];
-  const named = [spec.x, ...(spec.y ?? []), spec.group, spec.compare].filter((key): key is string => key !== undefined);
+  const named = [spec.x, ...(spec.y ?? []), spec.group, spec.compare, spec.forecast, ...(spec.band ?? []), spec.target, spec.limit].filter(
+    (key): key is string => key !== undefined,
+  );
   const unknown = named.filter((key) => !known.includes(key));
   if (unknown.length) return err(`Unknown ${plural(unknown.length, 'column')} ${unknown.map(quote).join(', ')}. Columns of that result: ${known.join(', ')}.`);
 
   const numeric = known.filter((key) => isNumeric(rows, key));
   // A table lists any columns; everywhere else y is drawn, so it has to be a number.
-  const drawn = [...(spec.kind === 'table' ? [] : (spec.y ?? []).map((key) => ['y', key] as const)), ...(spec.compare ? [['compare', spec.compare] as const] : [])];
+  const extra = (role: string, key: string | undefined) => (key ? [[role, key] as const] : []);
+  const drawn = [
+    ...(spec.kind === 'table' ? [] : (spec.y ?? []).map((key) => ['y', key] as const)),
+    ...extra('compare', spec.compare),
+    ...extra('forecast', spec.forecast),
+    ...extra('the low end of band', spec.band?.[0]),
+    ...extra('the high end of band', spec.band?.[1]),
+    ...extra('target', spec.target),
+    ...extra('limit', spec.limit),
+  ];
   for (const [role, key] of drawn) {
     if (!numeric.includes(key)) return err(`${quote(key)} is not a number column, so it cannot be ${role}. Number columns of that result: ${numeric.join(', ') || 'none'}.`);
   }
@@ -93,13 +104,17 @@ export function fitWidget(spec: WidgetSpec, source: WidgetSource): WidgetFit {
     ...(used.y?.length ? { y: used.y } : {}),
     ...(used.group ? { group: used.group } : {}),
     ...(used.compare ? { compare: used.compare } : {}),
+    ...(used.forecast ? { forecast: used.forecast } : {}),
+    ...(used.band ? { band: used.band } : {}),
+    ...(used.target ? { target: used.target } : {}),
+    ...(used.limit ? { limit: used.limit } : {}),
     ...(format ? { format } : {}),
   });
 }
 
 /** The fields the kind uses, or why the kind does not fit these rows. */
 function rulesFor(spec: WidgetSpec, rows: Row[], columns: EvidenceColumn[]): Used | string {
-  const { kind, x, group, compare } = spec;
+  const { kind, x, group, compare, forecast, band, target, limit } = spec;
   const y = spec.y ?? [];
   const n = rows.length;
   const kindOf = (key: string | undefined) => columns.find((column) => column.key === key)?.kind;
@@ -126,6 +141,16 @@ function rulesFor(spec: WidgetSpec, rows: Row[], columns: EvidenceColumn[]): Use
   const notNegative = (key: string | undefined): Check =>
     key && rows.some((row) => isNumber(row[key]) && (row[key] as number) < 0) ? `${kind} cannot show negative values, and ${quote(key)} has some. Use bar.` : null;
   const labelled = (what: string): Check => (n === 1 ? null : first(needX(what), unique([x], 'Each row needs its own x value.')));
+  /** The low end of the band is never above the high end. */
+  const bandInOrder = (): Check => {
+    if (!band) return null;
+    const [low, high] = band;
+    if (low === high) return `band needs two different columns: the low end (P10) and the high end (P90). You passed ${quote(low)} twice.`;
+    const crossed = rows.some((row) => isNumber(row[low]) && isNumber(row[high]) && (row[low] as number) > (row[high] as number));
+    return crossed ? `band is [low, high], and ${quote(low)} is above ${quote(high)} on some rows. Pass them the other way round.` : null;
+  };
+  /** The overlays a line, an area or a bar draws: with group (a line per hotel) only the limit, which is one flat line. */
+  const overlays = (): Pick<Used, 'forecast' | 'band' | 'target' | 'limit'> => (group ? { limit } : { forecast, band, target, limit });
   /** Stages only shrink: `values` in stage order, `names` to say which one grew. */
   const shrinking = (values: unknown[], names: string[]): Check => {
     for (let i = 1; i < values.length; i++) {
@@ -167,7 +192,8 @@ function rulesFor(spec: WidgetSpec, rows: Row[], columns: EvidenceColumn[]): Use
           series(20),
           unique([x, group], group ? 'Each line needs one row per x value.' : 'Pass group (the column that splits the rows into lines, e.g. the hotel), or call the data tool for one hotel or a roll-up.'),
           points(),
-        ) ?? { x, y, group, compare: group || y.length > 1 ? undefined : compare }
+          bandInOrder(),
+        ) ?? { x, y, group, compare: group || y.length > 1 ? undefined : compare, ...overlays(), target: group || kind === 'area' ? undefined : target }
       );
 
     case 'sparkline_list':
@@ -201,7 +227,11 @@ function rulesFor(spec: WidgetSpec, rows: Row[], columns: EvidenceColumn[]): Use
           yCount(1, 1, 'the length of each bar'),
           rowCount(2, 50, 'Use kpi for one value and table for more than 50.'),
           unique([x], 'Each bar needs its own x value: use grouped_bar or stacked_bar with group, or call the data tool with grain "total".'),
-        ) ?? { x, y, compare }
+          (forecast || band) && x && !isOrdered(rows, x)
+            ? `bar draws forecast and band over columns in date order, and ${quote(x)} is not a date, month or number column. Leave forecast and band out, or use bullet for a forecast per hotel.`
+            : null,
+          bandInOrder(),
+        ) ?? { x, y, compare, forecast, band, target, limit }
       );
 
     case 'stacked_bar':
@@ -293,10 +323,13 @@ function rulesFor(spec: WidgetSpec, rows: Row[], columns: EvidenceColumn[]): Use
       return (
         first(
           yCount(1, 1, 'the actual'),
-          compare ? null : 'bullet needs compare: the column with the target, e.g. the budget or last year. Use bar without one.',
+          compare || target ? null : 'bullet needs compare or target: target is the budget (each bar as a % of it), compare the target or last year. Use bar without either.',
           rowCount(1, 20, 'Use table for more.'),
           labelled('the column that names each bar'),
-        ) ?? { x: n > 1 ? x : undefined, y, compare }
+          !target || rows.every((row) => isNumber(row[target]) && (row[target] as number) > 0)
+            ? null
+            : `bullet draws each row as a % of its own target, and ${quote(target ?? '')} is empty or 0 on some rows. Call the data tool for the hotels that have one, or leave target out and pass the budget as compare.`,
+        ) ?? { x: n > 1 ? x : undefined, y, compare, forecast, target }
       );
 
     case 'scatter':

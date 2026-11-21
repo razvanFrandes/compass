@@ -278,10 +278,6 @@
   .md th { font-size: var(--type-label-size); letter-spacing: var(--type-label-tracking); border-bottom-color: var(--border-strong); }
   .md td { height: var(--row-height); border-bottom-color: var(--table-rule); padding-block: 5px; }
 
-  /* Charts drawn by ECharts: the theme sets axis and grid defaults (echart.ts); text takes the numeric cut here,
-     because option builders name their font inline. */
-  app-echart text { font-family: var(--font-numeric) !important; font-stretch: var(--font-width-numeric); font-variant-numeric: tabular-nums lining-nums; }
-
   /* Widget charts (app/charts): the option carries the theme's font, colours, dash and mark radius (charts/tokens.ts).
      What an SVG attribute cannot say is set here: the condensed cut for figures, and the weights of the scale.
      The component's styles are unlayered and load later, so each rule names .juyo-wc to outrank them. */

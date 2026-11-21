@@ -41,7 +41,8 @@ export { WIDGET_FORMATS, WIDGET_MAX_ROWS } from './widget-limits.ts';
 const columnKey = z.string().min(1).max(64);
 
 /**
- * What a widget shows. What `x`, `y`, `group` and `compare` mean depends on the kind: see "Widgets" in docs/api.md.
+ * What a widget shows. What `x`, `y`, `group`, `compare`, `forecast`, `band`, `target` and `limit` mean depends on the
+ * kind: see "Widgets" in docs/api.md. All of them are column keys of the rows, never numbers.
  * The server stores only the fields the kind uses, and fills `format` from the first `y` column when it is left out.
  */
 export const WidgetSpec = z.object({
@@ -60,6 +61,21 @@ export const WidgetSpec = z.object({
   group: columnKey.optional(),
   /** Column key for the comparison series (last year, budget). */
   compare: columnKey.optional(),
+  /**
+   * Column key for the forecast (P50) of the first y. line, area: a dotted projection where the actuals stop (rows after
+   * today have y empty and the forecast set). bar: a dotted line over the columns. bullet: a hatched extension from the
+   * actual to the forecast.
+   */
+  forecast: columnKey.optional(),
+  /** Column keys for the likely range, low and high (P10 and P90), drawn as a shaded band. line, area, bar. */
+  band: z.tuple([columnKey, columnKey]).optional(),
+  /**
+   * Column key for the budget or target. bullet: each row is drawn as % of its own target, with a 100% line (`compare`
+   * is then last year, as a tick). line, bar: a labelled step line.
+   */
+  target: columnKey.optional(),
+  /** Column key for a ceiling such as capacity: one labelled flat line at its first value. line, area, bar. */
+  limit: columnKey.optional(),
   format: z.enum(WIDGET_FORMATS).optional(),
 });
 export type WidgetSpec = z.infer<typeof WidgetSpec>;

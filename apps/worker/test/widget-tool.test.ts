@@ -173,6 +173,27 @@ describe('show_widget', () => {
     expect(seen[2]).toMatchObject({ isError: true, text: expect.stringContaining('hotel_code, rooms_otb') });
   });
 
+  it('takes forecast, band, target and limit as column names, and checks them', async () => {
+    const months = [
+      { period: '2026-12-01', key: 'LIS', rooms_on_books: 2100, rooms_p10: 2400, rooms_p50: 2600, rooms_p90: 2800, budget_rooms_sold: 2700, rooms_available: 3500 },
+      { period: '2027-01-01', key: 'LIS', rooms_on_books: 1200, rooms_p10: 2000, rooms_p50: 2300, rooms_p90: 2600, budget_rooms_sold: 2400, rooms_available: 3500 },
+    ];
+    const overlays = { forecast: 'rooms_p50', band: ['rooms_p10', 'rooms_p90'], target: 'budget_rooms_sold', limit: 'rooms_available' };
+    const { seen } = await run(cannedData(months), [
+      ['get_rows', {}],
+      (ids) => ['show_widget', { kind: 'bar', title: 'Lisbon is forecast 4% below budget', sourceCallId: ids[0]!, x: 'period', y: ['rooms_on_books'], ...overlays }],
+      (ids) => ['show_widget', { kind: 'bar', title: 'Lisbon is forecast 4% below budget', sourceCallId: ids[0]!, x: 'period', y: ['rooms_on_books'], band: ['rooms_p90', 'rooms_p10'] }],
+      (ids) => ['show_widget', { kind: 'bar', title: 'Lisbon is forecast 4% below budget', sourceCallId: ids[0]!, x: 'period', y: ['rooms_on_books'], band: ['rooms_p10'] }],
+    ]);
+    const [, shown, crossed, short] = seen;
+    expect(shown).toMatchObject({ isError: false });
+    expect(shown!.details!.widget).toMatchObject({ kind: 'bar', x: 'period', y: ['rooms_on_books'], ...overlays });
+    expect(crossed).toMatchObject({ isError: true });
+    expect(crossed!.text).toMatch(/other way round/);
+    expect(short).toMatchObject({ isError: true });
+    expect(short!.text).toMatch(/band: expected at least 2 items/);
+  });
+
   it('refuses a result that has no rows to draw', async () => {
     const { seen } = await run(cannedData([]), [['get_rows', {}], () => bar('anything')]);
     // A result without rows prints no id, so there is nothing the model could name.
@@ -202,5 +223,7 @@ describe('withWidgets', () => {
     expect(prompt).toMatch(/board_view: /);
     expect(prompt).toContain('Build a board view:');
     expect(prompt).toMatch(/2 to 4/);
+    expect(prompt).toMatch(/band: \[rooms_p10, rooms_p90\]/);
+    expect(prompt).toMatch(/target: budget_rooms_sold/);
   });
 });

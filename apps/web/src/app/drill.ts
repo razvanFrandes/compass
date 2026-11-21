@@ -60,7 +60,7 @@ export function drillContent(d: Drill, s: FilterState): DrillResult {
       steps: [
         { title: 'Read the board’s filters', detail: scopeChips(scope).join(' · ') },
         { title: `Narrowed to ${d.label}`, detail: `${d.dimension}: ${d.label}` },
-        { title: 'Used the same figures as the charts', detail: parts.map((p) => p.view).join(', ') },
+        { title: 'Used the same figures as the charts', detail: parts.map((p) => p.data?.kind ?? 'table').join(', ') },
       ],
       answer: answer.length ? answer : [{ t: `No data for ${d.label} with these filters.` }],
       sources: d.dimension === 'hotel' ? ['v_hotel_day', 'pace_vs_stly()', 'forecasts', 'comp_set_daily'] : ['reservations', 'channels'],
