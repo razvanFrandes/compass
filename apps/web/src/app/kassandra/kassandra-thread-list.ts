@@ -24,7 +24,7 @@ export function agoShort(at: number, now: number): string {
  * "Recent" in the sidebar: the conversations with Kassandra, under Today, Yesterday and Earlier. Each has a short
  * title and, under it, the takeaway of its answer, both written on the server after the first answer (until then,
  * the question). A small icon says what the answer showed. Like Claude's sidebar, a row is only words: the whole title (up to two lines), then the takeaway; when it was
- * last asked is in the tooltip. On hover and focus, Rename and Delete appear and the text makes room for them.
+ * last asked is read out to screen readers only. On hover and focus, Rename and Delete appear and the text makes room for them.
  * Rename (in place) and Delete (with Undo) show on hover and on focus. "New" starts an empty conversation.
  *
  * The styles are global (styles.css, `.k-recent`, `.k-thread`).
@@ -56,9 +56,6 @@ export function agoShort(at: number, now: number): string {
                     type="button"
                     class="k-thread-open"
                     [attr.aria-current]="isCurrent(t.id) ? 'page' : null"
-                    [hlmTooltip]="t.time"
-                    position="right"
-                    [sideOffset]="gap"
                     (click)="live.openConversation(t.id)"
                   >
                     <span class="k-thread-text">
