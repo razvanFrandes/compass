@@ -5,7 +5,7 @@ import type { EvidenceColumn, EvidenceRow } from './types';
   The panel leads with the numbers the answer quotes, each traced to the row it came from. The model never
   computes a number, so a figure in the answer should be a cell of some tool result: this finds that cell. A
   figure that matches nothing (a difference the model worked out in words, a rounded total) is simply not listed;
-  when nothing matches, the panel shows key figures per tool instead.
+  when nothing matches, the panel lists no figures: a figure the answer does not use would only look like evidence.
 */
 
 /** A number as the answer wrote it. */
@@ -122,6 +122,18 @@ function namingColumns(table: FigureTable): EvidenceColumn[] {
   return [lead, hotel, ...labels.filter((column) => column !== lead && column !== hotel)].filter((column): column is EvidenceColumn => !!column);
 }
 
+/**
+ * The row's name, with a hotel's name wherever a cell is a hotel code: a result may declare its codes as plain text
+ * (a custom query, a lookup), and a figure never shows "DPS" where it can say "Lumen Bali Uluwatu".
+ */
+function contextOf(table: FigureTable, row: EvidenceRow, context: FormatContext): string {
+  const columns = namingColumns(table).map((column) => {
+    const value = row[column.key];
+    return column.kind === 'text' && typeof value === 'string' && context.hotelName?.(value) ? { ...column, kind: 'hotel' as const } : column;
+  });
+  return rowLabel(row, columns, context);
+}
+
 function figureAt(table: FigureTable, rowIndex: number, column: EvidenceColumn, context: FormatContext): Figure {
   const row = table.rows[rowIndex]!;
   return {
@@ -131,7 +143,7 @@ function figureAt(table: FigureTable, rowIndex: number, column: EvidenceColumn, 
     // Written as the table writes its column, so the figure and its cell read the same.
     value: formatCell(row[column.key], column, context, columnDecimals(column, table.rows)),
     label: column.label,
-    context: rowLabel(row, namingColumns(table), context),
+    context: contextOf(table, row, context),
     source: table.title,
   };
 }
@@ -161,23 +173,6 @@ export function quotedFigures(answer: string | null | undefined, tables: readonl
     taken.add(`${best.table.callId}:${best.rowIndex}:${best.column.key}`);
     figures.push(figureAt(best.table, best.rowIndex, best.column, context));
     if (figures.length >= limit) break;
-  }
-  return figures;
-}
-
-/** When the answer quotes nothing we can trace: the first figures of each result, so the panel still leads with numbers. */
-export function keyFigures(tables: readonly FigureTable[], context: FormatContext = {}, perTool = 2, limit = 6): Figure[] {
-  const figures: Figure[] = [];
-  for (const table of tables) {
-    const row = table.rows[0];
-    if (!row) continue;
-    const columns = visibleColumns(table.columns)
-      .filter((column) => isNumericKind(column.kind) && typeof row[column.key] === 'number')
-      .slice(0, perTool);
-    for (const column of columns) {
-      figures.push(figureAt(table, 0, column, context));
-      if (figures.length >= limit) return figures;
-    }
   }
   return figures;
 }

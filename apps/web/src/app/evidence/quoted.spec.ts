@@ -1,5 +1,5 @@
 import { resolveColumns } from './format';
-import { keyFigures, numbersIn, quotedFigures, type FigureTable } from './quoted';
+import { numbersIn, quotedFigures, type FigureTable } from './quoted';
 
 const HOTELS: Record<string, string> = { LIS: 'Arbor Lisbon Chiado', NYC: 'Arbor New York Midtown' };
 const context = { hotelName: (code: string) => HOTELS[code], baseYear: 2026 };
@@ -68,18 +68,15 @@ describe('quotedFigures', () => {
   });
 });
 
-describe('keyFigures', () => {
-  it('takes the first figures of each result when the answer quotes none', () => {
-    const figures = keyFigures([pace, forecast], context, 2);
-    expect(figures.map((f) => [f.value, f.label, f.source])).toEqual([
-      ['2,928', 'Rooms on the books', 'Pace vs last year'],
-      ['3,337', 'Same time last year', 'Pace vs last year'],
-      ['830', 'Rooms on the books', 'Forecast'],
-      ['−22.2%', 'Pace vs last year', 'Forecast'],
-    ]);
-  });
-
-  it('skips results with no rows', () => {
-    expect(keyFigures([table('c9', 'Empty', [])], context)).toEqual([]);
+describe('a figure names its row', () => {
+  it('names a hotel, never its code, even in a column not marked as hotels', () => {
+    // A custom query's column of codes, declared as plain text by the server.
+    const rows = [{ hotel_code: 'LIS', room_nights: 2928 }];
+    const codes: FigureTable = { callId: 'c5', title: 'Custom query', rows, columns: [
+      { key: 'hotel_code', label: 'Code', kind: 'text' },
+      { key: 'room_nights', label: 'Room nights', kind: 'count' },
+    ] };
+    const [figure] = quotedFigures('2,928 room nights.', [codes], context);
+    expect(figure!.context).toBe('Arbor Lisbon Chiado');
   });
 });

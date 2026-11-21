@@ -2,7 +2,7 @@ import type { AgentChange, Extension } from '@earendil-works/pi-durable';
 
 /**
  * Kassandra's answer modes, after Juyo's own tiers:
- * - Quick: a fast, cheap answer from a trusted source. Haiku, only the governed-metric tools, a few turns.
+ * - Quick: a fast, cheap answer from a trusted source. Haiku, only the governed-metric and mix tools, a few turns.
  * - Thinker: reasons across sources. Sonnet, every tool, more turns.
  * A mode is a per-conversation agent change (model, offered tools, turn limit, instructions), applied before a question.
  */
@@ -19,6 +19,9 @@ export const QUICK_TOOLS = [
   'get_pace',
   'get_pickup',
   'get_rate_position',
+  // The channel and business mix: a core question ("What's the channel mix at Barcelona?"), one governed query each.
+  'get_channel_mix',
+  'get_mix',
   'get_data_health',
   'get_brief',
   'get_pnl',
