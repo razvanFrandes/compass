@@ -54,13 +54,26 @@ export const SHOWCASES: readonly { label: string; href: string; view: View | nul
 ];
 
 /**
- * The public address of the repository, e.g. `https://github.com/<owner>/compass-mvp`. It is empty until the
+ * The public address of this repository, e.g. `https://github.com/<owner>/compass-mvp`. It is empty until the
  * repository is public: source paths in the docs are then plain text, and become links once this is set.
  */
 export const REPO_URL: string = '';
 
-/** A link to a path in the repository on its default branch, or null while the repository is not public. */
+/**
+ * The data generator is a repository of its own. It is private for now: while `public` is false the docs link to
+ * it and say that the link needs access. Set `public` to true when the repository is opened.
+ */
+export const DATAGEN_REPO: { readonly url: string; readonly name: string; readonly public: boolean } = {
+  url: 'https://github.com/razvanFrandes/compass-datagen',
+  name: 'compass-datagen',
+  public: false,
+};
+
+/**
+ * A link to a path in a repository on its default branch (`HEAD`, whatever the branch is called), or null when the
+ * repository has no address yet.
+ */
 export function repoHref(path: string, kind: 'tree' | 'blob' = 'tree', base: string = REPO_URL): string | null {
   const root = base.trim().replace(/\/+$/, '');
-  return root ? `${root}/${kind}/main/${path.replace(/^\/+/, '')}` : null;
+  return root ? `${root}/${kind}/HEAD/${path.replace(/^\/+/, '')}` : null;
 }

@@ -5,7 +5,7 @@ import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { CompassStore } from '../store';
 import { DocsFab } from './docs-fab';
 import { DocsHub } from './docs-hub';
-import { DOCS_PAGES } from './docs-pages';
+import { DATAGEN_REPO, DOCS_PAGES } from './docs-pages';
 import { DocsRouter } from './docs-router';
 import { DocsArchitecture } from './pages/architecture';
 import { EDGES, FLOWS, NODES, nodeHeight, placeRows } from './pages/architecture-map';
@@ -281,24 +281,31 @@ describe('the data page', () => {
     const made = root.querySelector('#made')!;
     expect([...made.querySelectorAll('.docs-flow > li strong')].map((e) => e.textContent)).toEqual(['Config', 'World', 'Bookings simulation', 'Market, operations, finance', 'Postgres', 'Views']);
     expect(made.querySelector('a[href="https://github.com/chadwambles/isla-velaluz"]')).not.toBeNull();
+    // The generator is its own repository: the page links to it, and says so while it is private.
+    expect(made.querySelector('a[href="https://github.com/razvanFrandes/compass-datagen"]')!.textContent).toContain('compass-datagen');
+    expect(made.textContent!.includes('private for now')).toBe(!DATAGEN_REPO.public);
+    expect([...root.querySelectorAll('#evals docs-source a')].map((a) => a.getAttribute('href'))).toEqual([
+      'https://github.com/razvanFrandes/compass-datagen/blob/HEAD/datagen/config.py',
+      'https://github.com/razvanFrandes/compass-datagen/blob/HEAD/tests/check.py',
+    ]);
     expect(root.querySelector('#tables juyo-widget-chart')).not.toBeNull();
     expect(root.querySelectorAll('#tables .docs-cells > li')).toHaveLength(12);
     const commands = root.querySelector('#regenerate pre')!.textContent!;
-    for (const line of ['uv sync', 'uv run python -m datagen', 'db/load.sh', 'uv run python tests/check.py']) expect(commands).toContain(line);
+    for (const line of ['git clone https://github.com/razvanFrandes/compass-datagen.git', 'cd compass-datagen', 'uv sync', 'uv run python -m datagen', 'db/load.sh', 'uv run python tests/check.py']) expect(commands).toContain(line);
     expect(root.querySelectorAll('#evals li.docs-panel')).toHaveLength(7);
   });
 
-  it('names a source path as text, and as a link once the repository is public', async () => {
+  it('names a source path as text, and as a link once its repository has an address', async () => {
     configure('/docs/data');
     const fixture = TestBed.createComponent(DocsSource);
-    fixture.componentRef.setInput('path', 'tools/datagen');
+    fixture.componentRef.setInput('path', 'docs/decisions.md');
     fixture.componentRef.setInput('repo', '');
     await settle(fixture);
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('a')).toBeNull();
-    expect(root.textContent!.trim()).toBe('tools/datagen');
+    expect(root.textContent!.trim()).toBe('docs/decisions.md');
     fixture.componentRef.setInput('repo', 'https://github.com/owner/compass-mvp');
     await settle(fixture);
-    expect(root.querySelector('a')!.getAttribute('href')).toBe('https://github.com/owner/compass-mvp/tree/main/tools/datagen');
+    expect(root.querySelector('a')!.getAttribute('href')).toBe('https://github.com/owner/compass-mvp/tree/HEAD/docs/decisions.md');
   });
 });

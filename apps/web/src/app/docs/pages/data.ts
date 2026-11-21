@@ -2,10 +2,9 @@ import { Component } from '@angular/core';
 import type { EvidenceColumn, WidgetSpec } from '@compass/contracts';
 import { WidgetChart } from '../../charts/widget-chart';
 import { DOCS_KIT, type DocsCell } from '../docs-kit';
+import { DATAGEN_REPO } from '../docs-pages';
 
 export const MCP_URL = 'https://juyo.razvanfrandes.com/mcp';
-/** Where the generator lives in the repository. */
-export const DATAGEN_PATH = 'tools/datagen';
 
 const FACTS = [
   { value: '20', label: 'hotels', note: 'in 20 cities and 5 regions, under 4 brands: Kestrel, Arbor, Tessera, Lumen' },
@@ -14,7 +13,7 @@ const FACTS = [
   { value: '20 Nov 2026', label: 'business date', note: 'earlier stays are actuals, later ones are on the books' },
 ] as const;
 
-/* ───────────── How the data was made (tools/datagen) ───────────── */
+/* ───────────── How the data was made (the compass-datagen repository) ───────────── */
 
 const PIPELINE = [
   { title: 'Config', file: 'config.py', text: 'Hotels, segments, channels, events, and the planted stories with the size of each effect.' },
@@ -109,7 +108,8 @@ const HELPERS: readonly (readonly string[])[] = [
   ['`business_date()`', 'The data’s “today”'],
 ];
 
-const REGENERATE = `cd tools/datagen
+const REGENERATE = `git clone ${DATAGEN_REPO.url}.git
+cd ${DATAGEN_REPO.name}
 uv sync
 uv run python -m datagen --preview   # about 10 reservations per hotel, in seconds
 uv run python -m datagen             # the full run: about 1.2M reservations, about 2 minutes
@@ -244,7 +244,7 @@ const MCP_RULES: readonly DocsCell[] = [
 ];
 
 /**
- * /docs/data: how the synthetic data was made (tools/datagen), what is in the database, the governed metrics, the
+ * /docs/data: how the synthetic data was made (the compass-datagen repository), what is in the database, the governed metrics, the
  * planted stories that double as evals, and the public MCP server.
  */
 @Component({
@@ -256,7 +256,7 @@ const MCP_RULES: readonly DocsCell[] = [
       <docs-head
         eyebrow="Docs · Data & MCP"
         title="A generated hotel group, with the definitions in SQL"
-        lede="Halcyon Hospitality Group is fictional. Its data comes from a generator in this repository that simulates the systems a hotel analytics platform connects to, and loads them into one Postgres database. Kassandra, the agents and any outside AI read it through the same 24 tools, and no model ever computes a figure."
+        lede="Halcyon Hospitality Group is fictional. Its data comes from a generator, in a repository of its own, that simulates the systems a hotel analytics platform connects to, and loads them into one Postgres database. Kassandra, the agents and any outside AI read it through the same 24 tools, and no model ever computes a figure."
       />
 
       <dl class="docs-cells" style="--docs-cell-min: 200px">
@@ -271,9 +271,13 @@ const MCP_RULES: readonly DocsCell[] = [
 
       <docs-section heading="How the data was made" anchor="made">
         <p class="text-muted-foreground -mt-3 mb-4 max-w-[76ch] text-[14px]/relaxed">
-          The generator is <docs-source [path]="datagen" />: one config file, a world built first, a core simulation of bookings, then the areas that follow from it. Everything in it is fictional: the hotels, the companies, the competitors and the city events. Its architecture follows
+          The generator is a repository of its own,
+          <a class="docs-link" [href]="repo.url" target="_blank" rel="noopener noreferrer">{{ repo.name }}<span class="sr-only"> (opens in a new tab)</span></a>: one config file, a world built first, a core simulation of bookings, then the areas that follow from it. Everything in it is fictional: the hotels, the companies, the competitors and the city events. Its architecture follows
           <a class="docs-link" href="https://github.com/chadwambles/isla-velaluz" target="_blank" rel="noopener noreferrer">Isla Velaluz<span class="sr-only"> (opens in a new tab)</span></a>
           (MIT). The booking model is new.
+          @if (!repo.public) {
+            The repository is private for now, so its links open only for people with access.
+          }
         </p>
         <ol class="docs-flow">
           @for (p of pipeline; track p.title) {
@@ -309,7 +313,7 @@ const MCP_RULES: readonly DocsCell[] = [
         <docs-cells class="mt-4" [items]="systems" [min]="300" />
       </docs-section>
 
-      <docs-section heading="Regenerate it" anchor="regenerate" note="The generator runs with uv. The full run takes about two minutes and the load about one. \`db/load.sh\` uses \`DATABASE_URL\` when it is set, so it loads into any Postgres server.">
+      <docs-section heading="Regenerate it" anchor="regenerate" note="The generator runs with uv, outside this app. The full run takes about two minutes and the load about one. \`db/load.sh\` uses \`DATABASE_URL\` when it is set, so it loads into any Postgres server.">
         <docs-copy [value]="regenerate" label="the commands" [block]="true" />
       </docs-section>
 
@@ -333,7 +337,7 @@ const MCP_RULES: readonly DocsCell[] = [
 
       <docs-section heading="Seven planted stories, seven evals: 7 of 7" anchor="evals">
         <p class="text-muted-foreground -mt-3 mb-4 max-w-[76ch] text-[14px]/relaxed">
-          Each story is a cause written into <docs-source [path]="datagen + '/datagen/config.py'" kind="blob" />, with the size of its effect. <docs-source [path]="datagen + '/tests/check.py'" kind="blob" /> recovers each one with SQL, so it is the answer key. The same seven are Kassandra’s evals: a fixed question per story, which passes when the answer names the hotel and the planted cause. On 20 Nov 2026, against production, she found 7 of 7.
+          Each story is a cause written into the generator’s <docs-source path="datagen/config.py" kind="blob" [repo]="repo.url" />, with the size of its effect. Its <docs-source path="tests/check.py" kind="blob" [repo]="repo.url" /> recovers each one with SQL, so it is the answer key. The same seven are Kassandra’s evals: a fixed question per story, which passes when the answer names the hotel and the planted cause. On 20 Nov 2026, against production, she found 7 of 7.
         </p>
         <ul class="grid gap-3 xl:grid-cols-2">
           @for (s of stories; track s.id) {
@@ -389,7 +393,7 @@ const MCP_RULES: readonly DocsCell[] = [
 })
 export class DocsData {
   protected readonly url = MCP_URL;
-  protected readonly datagen = DATAGEN_PATH;
+  protected readonly repo = DATAGEN_REPO;
   protected readonly facts = FACTS;
   protected readonly pipeline = PIPELINE;
   protected readonly simulation = SIMULATION;

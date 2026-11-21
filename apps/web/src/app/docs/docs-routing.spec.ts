@@ -6,7 +6,7 @@ import { FakeSocket } from '../api/testing';
 import { pageTitle } from '../app';
 import { Live } from '../live';
 import { CompassStore } from '../store';
-import { DOCS_PAGES, REPO_URL, SHOWCASES, docsLabel, docsPageOf, docsPath, docsTitle, repoHref } from './docs-pages';
+import { DATAGEN_REPO, DOCS_PAGES, REPO_URL, SHOWCASES, docsLabel, docsPageOf, docsPath, docsTitle, repoHref } from './docs-pages';
 import { DocsRouter } from './docs-router';
 
 function setup(url: string) {
@@ -52,12 +52,19 @@ describe('docs pages', () => {
     expect(docsLabel('about')).toBe('About this build');
   });
 
-  it('links a source path only once the repository has a public address', () => {
-    // Until the repository is public the constant is empty, and a path in the docs is plain text.
-    expect(repoHref('tools/datagen', 'tree', '')).toBeNull();
-    expect(repoHref('tools/datagen')).toBe(REPO_URL ? `${REPO_URL.replace(/\/+$/, '')}/tree/main/tools/datagen` : null);
-    expect(repoHref('tools/datagen', 'tree', 'https://github.com/owner/compass-mvp')).toBe('https://github.com/owner/compass-mvp/tree/main/tools/datagen');
-    expect(repoHref('/tools/datagen/tests/check.py', 'blob', 'https://github.com/owner/compass-mvp/')).toBe('https://github.com/owner/compass-mvp/blob/main/tools/datagen/tests/check.py');
+  it('links a source path only when its repository has an address', () => {
+    // This repository has no public address yet, so a path in it is plain text.
+    expect(repoHref('docs/decisions.md', 'blob', '')).toBeNull();
+    expect(repoHref('docs/decisions.md', 'blob')).toBe(REPO_URL ? `${REPO_URL.replace(/\/+$/, '')}/blob/HEAD/docs/decisions.md` : null);
+    // HEAD is the default branch, whatever it is called.
+    expect(repoHref('datagen', 'tree', 'https://github.com/owner/repo')).toBe('https://github.com/owner/repo/tree/HEAD/datagen');
+    expect(repoHref('/tests/check.py', 'blob', 'https://github.com/owner/repo/')).toBe('https://github.com/owner/repo/blob/HEAD/tests/check.py');
+  });
+
+  it('knows the data generator as a repository of its own', () => {
+    expect(DATAGEN_REPO.url).toBe('https://github.com/razvanFrandes/compass-datagen');
+    expect(DATAGEN_REPO.name).toBe('compass-datagen');
+    expect(repoHref('datagen/config.py', 'blob', DATAGEN_REPO.url)).toBe('https://github.com/razvanFrandes/compass-datagen/blob/HEAD/datagen/config.py');
   });
 
   it('points to the three showcase views', () => {
