@@ -12,8 +12,8 @@ import { CompassStore } from '../store';
 import type { EvidenceSelection } from './evidence-target';
 import { ScopeService } from '../scope/scope.service';
 import { KassandraWidget } from './kassandra-widget';
-import { SkeletonHold, shownPhase, stepCount, widgetSlots } from './live-slots';
-import { failureText, followUps, modeOf, phaseText, stepDetail, stepStatus, stepTitle, workedText } from './turn-text';
+import { type LiveTool, SkeletonHold, liveCalls, shownPhase, stepCount, widgetSlots } from './live-slots';
+import { AS_CHART, failureText, followUps, modeOf, phaseText, stepDetail, stepStatus, stepTitle, workedText } from './turn-text';
 
 export type { EvidenceSelection } from './evidence-target';
 
@@ -44,7 +44,8 @@ const AUTONOMY: Record<string, string> = { suggest: 'only suggests', approve: 'a
 
 /**
  * One turn: the question, the work collapsed to one line ("Worked for 4s · 3 steps"), what Kassandra is doing right
- * now, the charts she showed (a skeleton from the moment she starts one), the answer as Markdown, a failure in plain
+ * now, the charts she showed (a skeleton from the moment she starts one; with `previews`, a chart of each data result
+ * the moment it is in, which her own choice then replaces in place), the answer as Markdown, a failure in plain
  * words, and a drafted workflow as a card.
  * Her narration between tool rounds is a step, never the answer. Tokens and cost sit behind "Details".
  */
@@ -160,9 +161,9 @@ const AUTONOMY: Record<string, string> = { suggest: 'only suggests', approve: 'a
       </p>
     }
 
-    @if (suggestions().length) {
+    @if (asks().length) {
       <ul class="flex flex-wrap gap-2 pt-1" aria-label="Ask next">
-        @for (s of suggestions(); track s) {
+        @for (s of asks(); track s) {
           <li><button type="button" class="k-suggestion" (click)="suggestionPicked.emit(s)">{{ s }}<ng-icon name="phosphorArrowUpRightLight" class="text-muted-foreground shrink-0" aria-hidden="true" /></button></li>
         }
       </ul>
@@ -194,7 +195,9 @@ export class KassandraTurn {
   /** What the agent is doing right now (`live.phase`), for the running turn only. */
   readonly phase = input<ChatLive['phase'] | null>(null);
   /** The tool calls of the run in progress (`live.tools`), for the running turn only: a chart gets its skeleton here. */
-  readonly liveTools = input<ChatLive['tools'] | null | undefined>(null);
+  readonly liveTools = input<readonly LiveTool[] | null | undefined>(null);
+  /** Every data result that can be charted is drawn as soon as it is in (see `widgetSlots`). */
+  readonly previews = input(false);
   /** "Behind the numbers" links are shown. */
   readonly showEvidence = input(true);
   /** Widgets offer "Add to board". */
@@ -227,8 +230,10 @@ export class KassandraTurn {
   protected readonly worked = computed(() => workedText(this.turn().workedMs) || '—');
   protected readonly doing = computed(() => phaseText(this.turn(), this.phase()));
   protected readonly count = computed(() => stepCount(this.turn(), this.liveTools()));
-  /** Charts shown, and one in the making for each `show_widget` call that has started. */
-  protected readonly widgets = computed(() => widgetSlots(this.turn(), this.liveTools()));
+  /** Charts shown, one in the making for each `show_widget` call that has started and, with `previews`, one per data result. */
+  protected readonly widgets = computed(() => widgetSlots(this.turn(), this.liveTools(), { previews: this.previews() }));
+  /** An answer that already shows a chart does not offer to draw one. */
+  protected readonly asks = computed(() => (this.widgets().length ? this.suggestions().filter((ask) => ask !== AS_CHART) : this.suggestions()));
   /** A skeleton that has appeared stays for its minimum time, so a fast chart does not flicker in. */
   protected readonly hold = new SkeletonHold();
 
@@ -290,7 +295,8 @@ export class KassandraTurn {
       <kassandra-turn
         [turn]="t"
         [phase]="t.running ? phase() : null"
-        [liveTools]="t.running ? liveTools() : null"
+        [liveTools]="t.running ? calls() : null"
+        [previews]="previews()"
         [showEvidence]="showEvidence()"
         [addToBoard]="addToBoard()"
         [stoppable]="stoppable()"
@@ -314,6 +320,10 @@ export class KassandraConversation {
   readonly phase = input<ChatLive['phase'] | null | undefined>(null);
   /** `live.tools` of the socket: a chart Kassandra has started on shows as a skeleton before its entry is committed. */
   readonly liveTools = input<ChatLive['tools'] | null | undefined>(null);
+  /** `live.drafting` of the socket: calls the model is still writing. A chart's skeleton, and its title, start from these. */
+  readonly drafting = input<ChatLive['drafting'] | null | undefined>(null);
+  /** Draw a chart from each data result as soon as it is in; Kassandra's own choice then takes its place. */
+  readonly previews = input(false);
   /** The last message the server rejected (rate limit, budget), shown as is. */
   readonly error = input<string | null>(null);
   /** Tokens and cost of the whole conversation, shown behind the last answer's "Details". */
@@ -328,6 +338,8 @@ export class KassandraConversation {
   readonly suggestionPicked = output<string>();
   readonly stopped = output<void>();
 
+  /** The calls in flight: the ones running, and the ones still being written. */
+  protected readonly calls = computed(() => liveCalls({ tools: this.liveTools() ?? [], drafting: this.drafting() ?? undefined }));
   protected readonly next = computed(() => {
     const last = this.turns().at(-1);
     return last ? followUps(last) : [];

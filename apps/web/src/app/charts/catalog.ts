@@ -165,7 +165,7 @@ const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
             <p class="text-muted-foreground text-[12px] font-medium tracking-[0.06em] uppercase">Design system</p>
             <h1 class="mt-1 text-[26px] font-semibold tracking-[-0.02em]">Chart catalogue</h1>
             <p class="text-muted-foreground mt-2 max-w-[68ch] text-[14px]/relaxed">
-              Every chart Kassandra can put in an answer or on a board: {{ kinds }} kinds, drawn by one component from one set of colour tokens. Kassandra chooses the kind and the columns; the component formats the values, draws the chart and offers the same numbers as a table. The numbers on this page are samples shaped like Halcyon’s data.
+              Every chart Kassandra can put in an answer or on a board: {{ kinds }} kinds, drawn by one component from one set of colour tokens. Kassandra chooses the kind and the columns; the component formats the values, draws the chart. “View as” under each one lists the other kinds its numbers can be shown as, the table among them. The numbers on this page are samples shaped like Halcyon’s data.
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
@@ -212,7 +212,7 @@ const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
                     <div class="cat-scope" [class]="themeClass(scope)" [attr.data-theme]="themeAttr(scope)" [style]="themeReset(scope)">
                       <article class="cat-card" [attr.aria-label]="sp.spec.kind + (both() ? ', ' + themeName(scope) + ' theme' : '')">
                         <p class="cat-kind mb-3"><ng-icon [name]="icons[sp.spec.kind]" aria-hidden="true" /><b>{{ sp.spec.kind }}</b> · {{ mapping(sp) }}</p>
-                        <juyo-widget-chart [spec]="sp.spec" [rows]="sp.rows" [columns]="sp.columns" [compact]="compact()" [loading]="loading()" />
+                        <juyo-widget-chart [spec]="sp.spec" [rows]="sp.rows" [columns]="sp.columns" [compact]="compact()" [loading]="loading()" [switcher]="true" />
                         @if (sp.shows) {
                           <p class="text-muted-foreground border-border mt-4 border-t pt-3 text-[12.5px]/relaxed">{{ sp.shows }}</p>
                         }

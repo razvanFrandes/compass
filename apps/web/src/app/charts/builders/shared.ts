@@ -349,8 +349,13 @@ export function extremes(points: { name: string; value: number | null; text: str
   return `Highest: ${hi.name} (${hi.text}). Lowest: ${lo.name} (${lo.text}).`;
 }
 
+/** How a chart's text alternative opens: its title and scope line, each as a sentence. */
+export function summaryHead(spec: Pick<WidgetSpec, 'title' | 'subtitle'>): string {
+  return [spec.title.replace(/\.$/, '') + '.', spec.subtitle ? spec.subtitle.replace(/\.$/, '') + '.' : ''].filter(Boolean).join(' ');
+}
+
 export function summary(c: Ctx, what: string, detail = ''): string {
-  return [c.spec.title.replace(/\.$/, '') + '.', c.spec.subtitle ? c.spec.subtitle.replace(/\.$/, '') + '.' : '', what, detail].filter(Boolean).join(' ');
+  return [summaryHead(c.spec), what, detail].filter(Boolean).join(' ');
 }
 
 export { EMPTY };

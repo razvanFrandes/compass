@@ -72,6 +72,7 @@ wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=<id>
   - Thinker (Sonnet) answers mostly do not stream: the provider sends the reasoning, then the whole answer text within a few milliseconds at the end of the turn. `streamingText` stays empty for a few seconds while `phase` is `thinking`, then the `assistant` entry lands. Show a "Thinking…" state from `phase`, not from an empty `streamingText`.
 - `streamingText` — the answer being written, before it lands as an `assistant` entry;
 - `tools: [{ callId, name, status }]`, where `status` is `pending | running | done | sleeping | waiting`;
+- `drafting: [{ callId, name, args }]` (optional) — tool calls the model is **still writing**, with their arguments as far as they have streamed. A string may be cut mid-word and later keys may be missing. Absent when there is none. A call leaves the list when its `assistant` entry is committed; from then on it is in `tools`. The app starts a chart's skeleton from a drafted data call, and shows the title of a drafted `show_widget` over the preview while she writes it. Use `kind` and the column keys only from the committed entry;
 - `turns`;
 - `failure: { reason, detail? } | null`, e.g. `model_error`, `turn_limit`, `aborted`;
 - `usage: { tokens, costUsd }` — the conversation total, for the cost meter.
@@ -182,7 +183,7 @@ interface WidgetSpec {
 - **Limits:** at most 400 rows per widget (20 hotels over 20 nights), at most 4 widgets per answer (the prompt asks for at most 3; a board view may show 4).
 - **Order:** a widget belongs to the answer of its run. Show the widgets of a run under its final `assistant` entry, in the order of their entries.
 - **Skeleton:** `live.tools` shows `show_widget` as `running` while the widget is being built.
-- **Add to board:** send the widget as it is to `POST /api/boards/:id/widgets` (see "Boards").
+- **Add to board:** send the widget to `POST /api/boards/:id/widgets` (see "Boards"), with the kind chosen in "View as" when the person switched it.
 
 What each kind takes. `x`, `y`, `group` and `compare` are column keys; "label" columns are text, the rest are numbers.
 
@@ -210,6 +211,53 @@ What each kind takes. `x`, `y`, `group` and `compare` are column keys; "label" c
 | `sankey` | 2–100, one per flow | the source | 1: the flow, not negative | the target | – |
 
 A table without `y` shows every column that is not `hidden`.
+
+**One check, both sides.** These rules are `fitWidget(spec, { rows, columns })` in `@compass/contracts` (`widget-fit.ts`; the entry `@compass/contracts/widget-fit` loads it without zod). The Worker runs it in `show_widget` and on `POST /api/boards/:id/widgets`; the app runs the same function for "View as" and for the instant preview.
+
+### "View as": other kinds for the same rows
+
+Under every chart (answers, boards, `/catalog`) a row of buttons lists the kinds its rows can be shown as. It is client-side and instant: the rows do not change, only the column roles (`charts/kinds.ts` in the app).
+
+- `compatibleKinds(spec, rows, columns)` → `{ kind, reason, spec }[]`. Each option carries a spec that passes `fitWidget`, so a switched chart can always be saved. The widget's own kind is always there, as it is, and marked **Recommended**: Kassandra's choice, or the preview's.
+- `recommendKind(rows, columns, hint?)` is the first look at rows nobody described (the instant preview). `hint` carries a kind and columns already known; its kind wins when the rows allow it.
+- Nothing is computed, aggregated or pivoted. A kind that draws one number is offered only for a chart of one number (with its comparison), so a switch never leaves a series out. The table shows every column.
+- The choice is remembered per widget in this browser (`localStorage`, key `compass.view-as.v1`: `answer:<call id>`, `board:<widget id>`). **Add to board** sends the spec on screen, with the chosen kind.
+
+What a kind needs before it is offered, on top of the table above:
+
+| Kind | Offered when |
+|---|---|
+| Table | always (any rows, up to 200) |
+| Number (`kpi`), Gauge | one row and one number; a gauge needs a percentage between 0 and 100, or a comparison to hold it against |
+| Tiles (`kpi_row`) | one row with 2–4 numbers; or 2–4 named rows of one number |
+| Bullet | one number with a comparison (budget, last year), up to 20 named rows |
+| Bar | one number, one row per category, 2–50 rows (up to 31 along a date) |
+| Grouped bar | 2–6 numbers on one scale per category, or one number split by a second column into 2–6 series; up to 24 categories |
+| Stacked bar | as grouped, and only parts that add up: counts or money, none below zero |
+| Line, Area | an ordered x (date, month or number) with at least 2 points; up to 6 lines |
+| Sparklines | an ordered x and a second column that splits one number into up to 30 series |
+| Calendar | one number per day (`YYYY-MM-DD`), at least 7 days |
+| Donut, Pie | 2–7 parts of one whole: counts or money (never a rate, an average or a score), or percentages that add up to 100; none below zero, at least two above |
+| Treemap | 3–60 parts, same rule for what a part is |
+| Funnel | 2–8 stages in order that only shrink, in a column that names stages |
+| Waterfall | 2–20 ordered steps that add up, with both signs or rows that mark their totals; never percentages |
+| Scatter | two different numbers per row, at least 3 rows |
+| Heatmap | two columns that together name each row, at least 2 values each, and one number |
+| Radar, Flow (`sankey`) | only when the widget came as one |
+
+### Instant previews in the Thread
+
+In the Thread a chart does not wait for `show_widget` (`kassandra/live-slots.ts` and `kassandra/preview.ts` in the app; no model, no server change):
+
+1. A data tool call starts (`live.drafting`, then `live.tools`): a neutral skeleton takes its place in the answer.
+2. Its `tool_result` lands with `rows` and `evidence.columns`: the skeleton becomes a chart of the kind `recommendKind` picks, titled by `evidence.title`, marked "Preview". The numbers are the tool's rows.
+3. Kassandra's `show_widget` for that result (`sourceCallId`) lands: the same card takes her kind, title and subtitle. If the kind is the same, only the words change. While she is still writing the call, her title shows over the preview (`live.drafting`); once the call is committed the app runs `fitWidget` on her arguments and draws her chart before the result confirms it.
+4. If she shows no widget for a result, its preview stays as the answer's chart once the answer is final.
+
+- **No preview** for reference tools (`list_hotels`, `list_metrics`, `get_schema`, `get_data_health`, `get_brief`, `find_reviews`, `search_reviews`), for rows that only read as a table, for no rows or more than 200, and for a run that stopped without an answer.
+- **A re-read redraws in place.** A second call of the same tool with the same arguments apart from its scope (`hotels`, `from`, `to`, `daysAhead`, `limit`, …) is the same reading: its rows replace the earlier preview in the same card.
+- **At most 3 charts per answer.** Kassandra's own widgets always show (a board view may have 4); previews take what is left, first come first.
+- Previews are on in the Thread only (`<kassandra-conversation [previews]="true">`). A workflow's run log and a board's "Describe a view" show only what Kassandra chose.
 
 ## Boards
 

@@ -65,6 +65,7 @@ A `ChatTurn` is `{ key, question, pending, steps, answer, streamingText, running
 - `ask()` returns the ask id, or null for empty text. A rejected question leaves `turns` and its reason is in `error`; keep the text in the composer until the turn is no longer pending if you want to let the person retry.
 - **`/ask?q=…`** (links in the alert emails) must pre-fill the composer with `q` and must not call `ask()`.
 - **Scope.** `ask(text, mode, { hotels })` restricts the answer to those hotels (round2-contracts §1). An empty list is left out of the message: the whole group. `Live` passes `ScopeService.hotels()` with every question.
+- **Calls being written.** `live.drafting` (optional) lists tool calls the model is still writing, with partial arguments. `<kassandra-conversation [drafting]>` merges them with `live.tools` (`liveCalls`), so skeletons and a chart's title start early.
 - **Widgets.** A `show_widget` step carries `widget`: the spec plus the `rows`, `columns` and `evidence` of the tool result it names (round2-contracts §3). `<kassandra-conversation>` draws it; do not render it yourself.
 - **Round 2 types** (`AskScope`, `WidgetSpec`, `ChatWidget`, `EvidenceColumn`, `Board`, `BoardWidget`, `VoiceToken`) are defined in `@compass/contracts`; `round2-contracts.ts` re-exports them under these names.
 

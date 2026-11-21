@@ -1,4 +1,4 @@
-@let s = spec();
+@let s = view();
 @let b = built();
 <figure
   class="wc"
@@ -7,6 +7,7 @@
   [attr.aria-label]="header() && state() !== 'skeleton' ? null : s.title || 'Chart'"
   [attr.aria-busy]="b ? null : 'true'"
 >
+  @if (header() || toggleSlot()) {
   <figcaption class="wc-head">
     <div class="wc-titles">
       @if (header()) {
@@ -33,6 +34,7 @@
       </button>
     }
   </figcaption>
+  }
 
   <div class="wc-body" [style.height.px]="height()">
     @if (!b) {
@@ -100,11 +102,11 @@
           }
         </div>
       }
-      <div class="wc-plot" role="img" tabindex="0" [attr.aria-label]="b.summary" [attr.aria-describedby]="b.points.length ? uid + '-k' : null" (keydown)="onKey($event)" (blur)="leave()">
+      <div class="wc-plot" role="img" tabindex="0" [attr.aria-label]="summary()" [attr.aria-describedby]="b.points.length ? uid + '-k' : null" (keydown)="onKey($event)" (blur)="leave()">
         <juyo-echart [option]="b.option" />
       </div>
       @if (b.points.length) {
-        <span class="sr-only" [id]="uid + '-k'">Use the arrow keys to step through the data. The same numbers are in “View as table”.</span>
+        <span class="sr-only" [id]="uid + '-k'">Use the arrow keys to step through the data. The same numbers are in {{ switcher() ? '“View as”, Table' : '“View as table”' }}.</span>
       }
     } @else if (b.render === 'kpi') {
       <div class="wc-kpi">
@@ -181,5 +183,15 @@
       <p class="wc-note">{{ note }}</p>
     }
   </div>
+  @if (switcherSlot()) {
+    <div class="wc-view-row" #viewRow [style.min-height.px]="rowFloor() || null">
+      @if (b && options().length > 1) {
+        <juyo-view-as [options]="options()" [value]="s.kind" [recommended]="recommendedKind()" [of]="s.title" (picked)="viewAs($event)" />
+      } @else if (!b) {
+        <!-- The row is there before the rows are, so the card does not grow when the chart lands -->
+        <div class="wc-view wc-view--stub" aria-hidden="true"><i></i><i></i><i></i></div>
+      }
+    </div>
+  }
   <span class="sr-only" aria-live="polite">{{ announce() }}</span>
 </figure>

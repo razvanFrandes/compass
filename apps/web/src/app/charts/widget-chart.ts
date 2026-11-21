@@ -1,10 +1,13 @@
-import { Component, DestroyRef, ElementRef, InjectionToken, type Signal, ViewEncapsulation, afterNextRender, computed, inject, input, linkedSignal, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, InjectionToken, type Signal, ViewEncapsulation, afterNextRender, afterRenderEffect, computed, inject, input, linkedSignal, signal, untracked, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorArrowsDownUpLight, phosphorCaretDownLight, phosphorCaretUpLight, phosphorChartBarLight, phosphorTableLight } from '@ng-icons/phosphor-icons/light';
-import { type Built, type TableModel, bodyHeight, buildWidget, kpiColumns, kpiCount } from './builders';
+import { type Built, type TableModel, bodyHeight, buildWidget, kpiColumns, kpiCount, summaryHead } from './builders';
 import { skeletonPlan } from './builders/skeleton';
 import { EChartHost } from './echart-host';
+import { type KindOption, compatibleKinds } from './kinds';
 import { readTokens } from './tokens';
+import { ViewAs } from './view-as';
+import { ViewAsMemory } from './view-memory';
 import { WidgetSkeleton } from './widget-skeleton';
 import type { EvidenceColumn, WidgetKind, WidgetRow, WidgetSpec } from './widget-types';
 
@@ -30,6 +33,11 @@ export type WidgetLoading = 'none' | 'skeleton' | 'title';
 
 let nextId = 0;
 
+/** Two specs that draw the same marks: only the words around the chart (title, subtitle) may differ. */
+function sameDrawing(a: WidgetSpec, b: WidgetSpec): boolean {
+  return a.kind === b.kind && a.x === b.x && a.group === b.group && a.compare === b.compare && a.format === b.format && a.sourceCallId === b.sourceCallId && (a.y ?? []).join('\u0000') === (b.y ?? []).join('\u0000');
+}
+
 /**
  * The one way to draw a widget (contract §3): every WidgetKind, from rows the backend sent.
  *
@@ -38,15 +46,19 @@ let nextId = 0;
  * While it loads (`[loading]`, or rows that are null or undefined) it shows a skeleton of its own kind, in the
  * box the finished widget will have. Every chart can be read as a table ("View as table"), reached and stepped through with the keyboard,
  * and follows the theme and prefers-reduced-motion.
+ *
+ * With `[switcher]` it has a "View as" row under it: the kinds these rows can be shown as (`compatibleKinds`), the
+ * one the widget came with marked "Recommended". A switch is instant and reads the same rows; `[viewKey]` remembers
+ * it for this widget. The host reads the spec on screen with `specAs(spec, memory.kind(key), rows, columns)`.
  */
 @Component({
   selector: 'juyo-widget-chart',
-  imports: [EChartHost, NgIcon, WidgetSkeleton],
+  imports: [EChartHost, NgIcon, ViewAs, WidgetSkeleton],
   providers: [provideIcons({ phosphorArrowsDownUpLight, phosphorCaretDownLight, phosphorCaretUpLight, phosphorChartBarLight, phosphorTableLight })],
   encapsulation: ViewEncapsulation.None,
   styleUrl: './widget-chart.css',
   templateUrl: './widget-chart.html',
-  host: { class: 'juyo-wc', '[class.juyo-wc--compact]': 'compact()', '[attr.data-kind]': 'spec().kind' },
+  host: { class: 'juyo-wc', '[class.juyo-wc--compact]': 'compact()', '[attr.data-kind]': 'view().kind' },
 })
 export class WidgetChart {
   readonly spec = input.required<WidgetSpec>();
@@ -59,6 +71,33 @@ export class WidgetChart {
   readonly header = input(true);
   /** The loading state to show; see WidgetLoading. Kassandra drives it from the streaming tool call. */
   readonly loading = input<WidgetLoading>('none');
+  /** Shows "View as" under the widget: the other kinds its rows can be drawn as. It takes the place of "View as table". */
+  readonly switcher = input(false);
+  /** Remembers the kind chosen in "View as" under this key (see ViewAsMemory). Without one the choice lasts while the widget does. */
+  readonly viewKey = input<string | null>(null);
+  /** The kind marked "Recommended". By default the one the widget came with: Kassandra's choice, or the first look at the rows. */
+  readonly recommended = input<WidgetKind | null>(null);
+
+  private readonly memory = inject(ViewAsMemory);
+  /** The choice of a widget nobody gave a key: it lasts until the widget shows other data. */
+  private readonly unkeyed = linkedSignal<string, WidgetKind | null>({ source: () => this.spec().sourceCallId, computation: () => null });
+  /** The kinds these rows can be shown as; empty until there are rows, or when nobody asked for the switcher. */
+  protected readonly options = computed<KindOption[]>(() => {
+    const rows = this.rows();
+    return this.switcher() && rows ? compatibleKinds(this.spec(), rows as readonly WidgetRow[], this.columns()) : [];
+  });
+  private readonly chosen = computed(() => (this.viewKey() ? this.memory.kind(this.viewKey()) : this.unkeyed()));
+  /** The spec on screen: the widget's own, or the one for the kind chosen in "View as" when these rows still allow it. */
+  readonly view = computed<WidgetSpec>(() => this.options().find((option) => option.kind === this.chosen())?.spec ?? this.spec());
+  protected readonly recommendedKind = computed(() => this.recommended() ?? this.spec().kind);
+  /** The row keeps its place while the widget loads, and goes when there is nothing to switch to. */
+  protected readonly switcherSlot = computed(() => this.switcher() && (this.state() !== 'none' || !this.rows() || this.options().length > 1 || this.rowFloor() > 0));
+  private readonly viewRow = viewChild<ElementRef<HTMLElement>>('viewRow');
+  /**
+   * The tallest the "View as" row has been at this width. The row never gets shorter than that: when a preview
+   * becomes Kassandra's chart and fewer kinds fit, nothing under the chart moves up.
+   */
+  protected readonly rowFloor = linkedSignal<number, number>({ source: () => this.width(), computation: () => 0 });
 
   protected readonly uid = `wc${nextId++}`;
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
@@ -79,29 +118,43 @@ export class WidgetChart {
   /** KPI tiles: how many there are (known from the spec before the rows arrive) and how many sit in a row. */
   private readonly tiles = computed(() => {
     const b = this.built();
-    return b?.render === 'kpi_row' ? b.tiles.length : kpiCount(this.spec());
+    return b?.render === 'kpi_row' ? b.tiles.length : kpiCount(this.view());
   });
   protected readonly tileCols = computed(() => kpiColumns(this.tiles(), this.width()));
-  protected readonly height = computed(() => bodyHeight(this.spec(), this.compact(), this.width(), this.tiles()));
+  protected readonly height = computed(() => bodyHeight(this.view(), this.compact(), this.width(), this.tiles()));
   protected readonly narrow = computed(() => this.width() < 480);
   /** The state on screen: the one asked for, or `title` while there are no rows to draw. */
   protected readonly state = computed<WidgetLoading>(() => (this.loading() !== 'none' ? this.loading() : this.rows() ? 'none' : 'title'));
-  protected readonly plan = computed(() => skeletonPlan(this.spec(), this.columns() ?? [], this.width()));
+  protected readonly plan = computed(() => skeletonPlan(this.view(), this.columns() ?? [], this.width()));
   protected readonly nbsp = '\u00a0';
+
+  /**
+   * The spec the marks are built from. A new title over the same columns (Kassandra's conclusion replacing the
+   * preview's label) keeps it, so the chart is not drawn again for words that sit outside it.
+   */
+  private readonly drawn = computed(() => this.view(), { equal: sameDrawing });
 
   protected readonly built = computed<Built | null>(() => {
     const rows = this.rows();
     if (!rows || this.state() !== 'none') return null;
-    return buildWidget({ spec: this.spec(), rows: rows as readonly WidgetRow[], columns: this.columns() ?? [], tokens: this.tokens(), width: this.width(), compact: this.compact(), motion: !this.reducedMotion() });
+    return buildWidget({ spec: this.drawn(), rows: rows as readonly WidgetRow[], columns: this.columns() ?? [], tokens: this.tokens(), width: this.width(), compact: this.compact(), motion: !this.reducedMotion() });
+  });
+
+  /** The chart's text alternative, opening with the title on screen (the marks may have been built under an earlier one). */
+  protected readonly summary = computed(() => {
+    const text = this.built()?.summary ?? '';
+    const was = summaryHead(this.drawn());
+    const now = summaryHead(this.view());
+    return was !== now && text.startsWith(was) ? now + text.slice(was.length) : text;
   });
 
   /** "View as table" resets when the widget becomes a different kind of chart. */
-  protected readonly asTable = linkedSignal<WidgetKind, boolean>({ source: () => this.spec().kind, computation: () => false });
+  protected readonly asTable = linkedSignal<WidgetKind, boolean>({ source: () => this.view().kind, computation: () => false });
   /**
    * "View as table" has a place in the header for every kind but `table`, and keeps it while loading and when
    * the result turns out empty, so the title wraps the same way in every state. It is only shown when it can do something.
    */
-  protected readonly toggleSlot = computed(() => this.spec().kind !== 'table');
+  protected readonly toggleSlot = computed(() => !this.switcher() && this.spec().kind !== 'table');
   protected readonly canToggle = computed(() => {
     const b = this.built();
     return !!b && b.render !== 'table' && b.render !== 'empty';
@@ -133,6 +186,7 @@ export class WidgetChart {
 
   constructor() {
     const destroy = inject(DestroyRef);
+    afterRenderEffect(() => this.measureRow());
     afterNextRender(() => {
       this.mounted.set(true);
       const measure = (w: number) => this.width.set(Math.max(240, Math.round(w / 20) * 20));
@@ -148,6 +202,23 @@ export class WidgetChart {
         mq?.removeEventListener?.('change', onMotion);
       });
     });
+  }
+
+  /** "View as": the kind the widget came with needs no remembering. */
+  protected viewAs(kind: WidgetKind) {
+    const pick = kind === this.spec().kind ? null : kind;
+    const key = this.viewKey();
+    if (key) this.memory.set(key, pick);
+    else this.unkeyed.set(pick);
+    this.leave();
+  }
+
+  private measureRow() {
+    this.options();
+    this.mounted();
+    const content = this.viewRow()?.nativeElement.firstElementChild;
+    const height = Math.ceil(content?.getBoundingClientRect().height ?? 0);
+    if (height > untracked(this.rowFloor)) this.rowFloor.set(height);
   }
 
   protected sortBy(col: number) {

@@ -42,5 +42,5 @@ export function buildWidget(input: BuildInput): Built {
   return builder(c);
 }
 
-export { bodyHeight, context, kpiColumns, kpiCount, tableModel, NARROW } from './shared';
+export { bodyHeight, context, kpiColumns, kpiCount, summaryHead, tableModel, NARROW } from './shared';
 export type { BuildInput, Built, Builder, Ctx, KpiModel, LegendItem, PointRef, RampLegend, SparkPath, SparkRow, TableModel } from './shared';

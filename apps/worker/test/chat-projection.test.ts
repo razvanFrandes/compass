@@ -107,6 +107,39 @@ describe('projectLive', () => {
   });
 });
 
+describe('projectLive drafting: tool calls the model is still writing', () => {
+  const during = (content: unknown[], tools: unknown[] = []) =>
+    projectLive({ 'pi.live': { run: { taskId: 9, turns: 1 }, generation: { attempt: 1, message: { role: 'assistant', content } }, tools } });
+
+  it('carries each streamed call with the arguments parsed so far, so a chart can show its title early', () => {
+    const live = during([
+      { type: 'thinking', thinking: 'A bar ranks the hotels.' },
+      { type: 'toolCall', id: 'w1', name: 'show_widget', arguments: { kind: 'bar', title: 'Lisbon is 17.4% beh' } },
+    ]);
+    expect(live.drafting).toEqual([{ callId: 'w1', name: 'show_widget', args: { kind: 'bar', title: 'Lisbon is 17.4% beh' } }]);
+    expect(live.phase).toBe('tools');
+  });
+
+  it('keeps a call whose arguments have not started, and never passes on a value that is not an object', () => {
+    const live = during([
+      { type: 'toolCall', id: 'c1', name: 'get_pace' },
+      { type: 'toolCall', id: 'c2', name: 'get_mix', arguments: 'hotels' },
+      { type: 'toolCall', id: 'c3', name: 'get_pickup', arguments: ['LIS'] },
+    ]);
+    expect(live.drafting).toEqual([
+      { callId: 'c1', name: 'get_pace', args: {} },
+      { callId: 'c2', name: 'get_mix', args: {} },
+      { callId: 'c3', name: 'get_pickup', args: {} },
+    ]);
+  });
+
+  it('is absent when the partial answer has no call, a call has no id yet, or nothing runs', () => {
+    expect(during([{ type: 'text', text: 'Lisbon is ' }])).not.toHaveProperty('drafting');
+    expect(during([{ type: 'toolCall', name: 'show_widget', arguments: {} }])).not.toHaveProperty('drafting');
+    expect(projectLive({ 'pi.live': { generation: { message: { content: [{ type: 'toolCall', id: 'w1', name: 'show_widget', arguments: {} }] } } } })).not.toHaveProperty('drafting');
+  });
+});
+
 describe('projectLive phase', () => {
   const during = (generation?: unknown, tools: unknown[] = []) =>
     projectLive({ 'pi.live': { run: { taskId: 9, turns: 0 }, ...(generation ? { generation } : {}), tools } });
