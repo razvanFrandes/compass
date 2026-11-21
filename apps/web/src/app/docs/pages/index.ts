@@ -64,7 +64,7 @@ const FACTS = [
         </ul>
       </docs-section>
 
-      <p class="text-muted-foreground max-w-[76ch] text-[13.5px]/relaxed">Halcyon Hospitality Group, its 20 hotels and every number in this app are fictional and generated. Compass is not a Juyo product. The business date is fixed at Fri 20 Nov 2026.</p>
+      <p class="text-muted-foreground max-w-[76ch] text-[13.5px]/relaxed">Compass is the name of this product. Juyo is the company it was built for, and whose product it interprets: Compass is not a Juyo product. Halcyon Hospitality Group, its 20 hotels and every number in this app are fictional and generated. The business date is fixed at Fri 20 Nov 2026.</p>
     </div>
   `,
 })

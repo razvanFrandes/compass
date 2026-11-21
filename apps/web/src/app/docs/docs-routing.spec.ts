@@ -47,8 +47,9 @@ describe('docs pages', () => {
   });
 
   it('titles a page with its name, then Docs, then the brand', () => {
-    expect(docsTitle('index')).toBe('Docs · Juyo');
-    expect(docsTitle('kassandra')).toBe('Kassandra & agents · Docs · Juyo');
+    expect(docsTitle('index')).toBe('Docs · Compass');
+    expect(docsTitle('kassandra')).toBe('Kassandra & agents · Docs · Compass');
+    for (const p of DOCS_PAGES) expect(docsTitle(p.id).endsWith('· Compass'), p.id).toBe(true);
     expect(docsLabel('about')).toBe('About this build');
   });
 
@@ -83,7 +84,7 @@ describe('docs routing', () => {
     const { store, router } = setup('/docs/security');
     expect(store.view()).toBe('docs');
     expect(router.page()).toBe('security');
-    expect(router.title()).toBe('Security · Docs · Juyo');
+    expect(router.title()).toBe('Security · Docs · Compass');
     // The app does not rewrite a docs address to "/".
     expect(location.pathname).toBe('/docs/security');
   });
@@ -110,7 +111,7 @@ describe('docs routing', () => {
     router.open('data');
     TestBed.tick();
     expect(location.pathname).toBe('/docs/data');
-    expect(router.title()).toBe('Data & MCP · Docs · Juyo');
+    expect(router.title()).toBe('Data & MCP · Docs · Compass');
   });
 
   it('keeps the hotel scope in the address of a docs page', () => {
@@ -141,8 +142,9 @@ describe('docs routing', () => {
     expect(location.pathname).toBe('/boards');
   });
 
-  it('leaves the other page titles as they were', () => {
-    expect(pageTitle('inbox', '', '')).toBe('Morning brief · Juyo');
-    expect(pageTitle('catalog', '', '')).toBe('Chart catalogue · Juyo');
+  it('leaves the titles of the other views to the shell', () => {
+    // The shell names its own views; only a docs page takes its title from the docs.
+    expect(pageTitle('inbox', '', '')).not.toContain('Docs');
+    expect(pageTitle('catalog', '', '')).toMatch(/^Chart catalogue · /);
   });
 });

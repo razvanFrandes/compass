@@ -45,8 +45,11 @@ export function docsPageOf(pathname: string): DocsPageId | null {
 
 export const docsLabel = (id: DocsPageId): string => DOCS_PAGES.find((p) => p.id === id)?.label ?? 'Docs';
 
-/** "Architecture · Docs · Juyo"; the index is "Docs · Juyo". */
-export const docsTitle = (id: DocsPageId): string => (id === 'index' ? 'Docs · Juyo' : `${docsLabel(id)} · Docs · Juyo`);
+/** The product is Compass. Juyo is the company it was built for, so its name is not in a page title. */
+export const DOCS_BRAND = 'Compass';
+
+/** "Architecture · Docs · Compass"; the index is "Docs · Compass". */
+export const docsTitle = (id: DocsPageId): string => (id === 'index' ? `Docs · ${DOCS_BRAND}` : `${docsLabel(id)} · Docs · ${DOCS_BRAND}`);
 
 /** The showcase views the docs point to. They are views of the app, not docs pages; the orb lab loads as a page. */
 export const SHOWCASES: readonly { label: string; href: string; view: View | null; note: string }[] = [

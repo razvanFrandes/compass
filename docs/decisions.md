@@ -469,4 +469,5 @@ Reviewers should see the system, the thinking and the craft from inside the site
 - **Contrast figures in the docs are computed, not typed.** The before and after pairs are hex values; the page runs them through the theme lab's `wcagRatio`. The "before" colours fail on purpose, so they are drawn as shapes, never as text.
 - **Lucide appears once**, in the icon comparison on `/docs/process`, to show why it was not chosen. Nothing else imports it.
 - **The data generator's repository is public**, so `DATAGEN_REPO.public` is true and the page no longer says the link needs access.
+- **The docs call the product Compass.** Juyo is the company it was built for and whose product it interprets. Docs page titles end "· Compass" (`DOCS_BRAND`), and no docs page shows the Juyo logo.
 - **Open:** the agent card could become a component of its own, so the docs and Agent Studio share it.
