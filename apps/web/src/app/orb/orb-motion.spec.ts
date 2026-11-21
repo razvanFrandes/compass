@@ -1,7 +1,6 @@
-import { icosphere } from './icosphere';
+import { GOLDEN_ANGLE, LATTICE_DIST, latticePoint, pointCount, silhouetteRadius } from './lattice';
 import {
   ORB_BANDS,
-  ORB_SH,
   ORB_STATES,
   OrbMotion,
   type OrbFeatures,
@@ -10,9 +9,7 @@ import {
   damp,
   lerp,
   mixParams,
-  perFrame,
   resampleBands,
-  shCoefficients,
   simulatedVoice,
   smoothstep,
   speechPulse,
@@ -58,11 +55,6 @@ describe('easing', () => {
     expect(damp(0.2, 1, 0, 0.016)).toBe(1);
   });
 
-  it('perFrame converts a 60 fps factor to the real frame time', () => {
-    expect(perFrame(0.95, 1 / 60)).toBeCloseTo(0.95, 12);
-    // Two 120 Hz frames fade as much as one 60 Hz frame.
-    expect(perFrame(0.95, 1 / 120) ** 2).toBeCloseTo(0.95, 12);
-  });
 });
 
 describe('bands', () => {
@@ -128,72 +120,57 @@ describe('state parameters', () => {
     }
   });
 
-  it('listening follows the voice: bass bulges, mids ripple, highs sparkle, level throws the trails further', () => {
+  it('listening hands the sphere to the voice: bands lift far, bass swells, highs twinkle, loudness turns it faster', () => {
     const base = stateParams('listening', quiet, 1);
-    const bass = stateParams('listening', { ...quiet, bass: 1 }, 1);
-    const mid = stateParams('listening', { ...quiet, mid: 1 }, 1);
-    const high = stateParams('listening', { ...quiet, high: 1 }, 1);
-    const level = stateParams('listening', { ...quiet, level: 1 }, 1);
-    expect(bass.amp).toBeGreaterThan(base.amp);
-    expect(bass.wobble).toBeGreaterThan(base.wobble * 2);
-    expect(bass.ripple).toBe(base.ripple);
-    expect(mid.ripple).toBeGreaterThan(base.ripple * 3);
-    expect(mid.trailWarp).toBeGreaterThan(base.trailWarp);
-    expect(high.sparkle).toBe(1);
+    const idle = stateParams('idle', quiet, 1);
+    expect(base.lift).toBeGreaterThan(idle.lift * 3);
+    expect(stateParams('listening', { ...quiet, bass: 1 }, 1).scale).toBeGreaterThan(base.scale);
+    expect(stateParams('listening', { ...quiet, high: 1 }, 1).sparkle).toBe(1);
     expect(base.sparkle).toBe(0);
-    expect(high.rim).toBeGreaterThan(base.rim);
-    expect(level.trailZoom).toBeGreaterThan(base.trailZoom * 3);
-    expect(level.scale).toBeGreaterThan(base.scale);
-    expect(level.ring).toBeGreaterThan(base.ring);
+    const level = stateParams('listening', { ...quiet, level: 1 }, 1);
+    expect(level.spin).toBeGreaterThan(base.spin * 2);
+    expect(level.glow).toBeGreaterThan(base.glow);
+    expect(level.dot).toBeGreaterThan(base.dot);
   });
 
-  it('idle barely reacts, thinking does not react at all', () => {
-    const idleQuiet = stateParams('idle', quiet, 2);
-    const idleLoud = stateParams('idle', loud, 2);
-    const listenLoud = stateParams('listening', loud, 2);
-    const listenQuiet = stateParams('listening', quiet, 2);
-    expect(idleLoud.amp - idleQuiet.amp).toBeLessThan((listenLoud.amp - listenQuiet.amp) / 2);
+  it('thinking does not react to sound, and is the state that spirals and turns', () => {
     expect(stateParams('thinking', loud, 2)).toEqual(stateParams('thinking', quiet, 2));
-  });
-
-  it('thinking is the state that twists and turns', () => {
     const thinking = stateParams('thinking', quiet, 0);
     for (const s of ORB_STATES.filter((x) => x !== 'thinking')) {
       const other = stateParams(s, quiet, 0);
-      expect(thinking.twist).toBeGreaterThan(Math.abs(other.twist) * 3);
-      expect(thinking.spin).toBeGreaterThan(other.spin * 2);
-      expect(thinking.trailSpin).toBeGreaterThan(other.trailSpin * 2);
+      expect(other.spiral).toBe(0);
+      expect(thinking.spin).toBeGreaterThan(other.spin * 3);
+      expect(thinking.lift).toBeLessThan(other.lift);
     }
+    expect(thinking.spiral).toBeGreaterThan(0);
   });
 
   it('speaking pulses on its own, and follows a level when one is given', () => {
     const pulses = Array.from({ length: 200 }, (_, i) => stateParams('speaking', quiet, i * 0.03).pulse);
-    expect(Math.max(...pulses) - Math.min(...pulses)).toBeGreaterThan(0.015);
+    expect(Math.max(...pulses) - Math.min(...pulses)).toBeGreaterThan(0.03);
     expect(stateParams('speaking', { ...quiet, level: 1 }, 0).pulse).toBeGreaterThanOrEqual(Math.max(...pulses));
-    expect(stateParams('idle', loud, 0).pulse).toBe(0);
+    for (const s of ORB_STATES.filter((x) => x !== 'speaking')) expect(stateParams(s, loud, 0).pulse).toBe(0);
   });
 
-  it('even at its loudest the surface cannot turn inside out or leave its canvas', () => {
-    const ORB_FILL = 0.54; // share of the half-canvas the resting orb fills (orb-renderer.ts)
+  it('idle is the calmest: slowest turn, no sparkle, no rings, no spiral', () => {
+    const idle = stateParams('idle', loud, 3);
+    for (const s of ORB_STATES.filter((x) => x !== 'idle')) expect(idle.spin).toBeLessThan(stateParams(s, quiet, 3).spin);
+    expect(idle.sparkle).toBe(0);
+    expect(idle.pulse).toBe(0);
+    expect(idle.spiral).toBe(0);
+    expect(idle.ripple).toBeGreaterThan(0); // but never frozen
+  });
+
+  it('even at its loudest no point can cross the centre or leave the canvas', () => {
     for (const s of ORB_STATES) {
       for (let t = 0; t < 8; t += 0.5) {
         const p = stateParams(s, loud, t);
-        // Worst case, everything peaking at one point: noise ≤ amp, harmonics ≤ about 3 × wobble,
-        // plus ripples, rings and swirl ridges.
-        const worst = p.amp + 3 * p.wobble + p.ripple + p.pulse + 0.034 * Math.abs(p.twist);
-        expect(worst, s).toBeLessThan(1); // radius 1 − worst stays positive
-        expect(ORB_FILL * p.scale * (1 + worst), s).toBeLessThan(1);
-      }
-    }
-  });
-
-  it('trails always fade and always move outwards', () => {
-    for (const s of ORB_STATES) {
-      for (const f of [quiet, loud]) {
-        const p = stateParams(s, f, 1);
-        expect(p.trailDecay).toBeGreaterThan(0.9);
-        expect(p.trailDecay).toBeLessThan(0.97);
-        expect(p.trailZoom).toBeGreaterThan(0);
+        // Worst case: every displacement peaking at the same point.
+        const push = p.lift + p.ripple + p.pulse + p.spiral;
+        expect(push, s).toBeLessThan(1);
+        const reach = p.scale * (1 + push);
+        expect(reach, s).toBeLessThan(LATTICE_DIST); // stays in front of the camera
+        expect(silhouetteRadius(reach), s).toBeLessThan(0.95); // and inside the canvas, with room for the dot
       }
     }
   });
@@ -222,7 +199,7 @@ describe('state transitions', () => {
     for (let i = 0; i < 10; i++) w = stepWeights(w, 'listening', 1 / 60);
     const before = mixParams(w, quiet, 1);
     const after = mixParams(stepWeights(w, 'thinking', 1 / 60), quiet, 1 + 1 / 60);
-    for (const k of PARAM_KEYS) expect(Math.abs(after[k] - before[k]), k).toBeLessThan(0.08);
+    for (const k of PARAM_KEYS) expect(Math.abs(after[k] - before[k]), k).toBeLessThan(0.1);
   });
 
   it('a settled mix equals the state itself, and a half-way mix sits between the two', () => {
@@ -231,20 +208,7 @@ describe('state transitions', () => {
     const idle = stateParams('idle', quiet, 0);
     const thinking = stateParams('thinking', quiet, 0);
     expect(half.spin).toBeCloseTo((idle.spin + thinking.spin) / 2, 10);
-    expect(half.twist).toBeCloseTo((idle.twist + thinking.twist) / 2, 10);
-  });
-});
-
-describe('spherical-harmonic wobble', () => {
-  it('scales with the amplitude, weights degree 3 below degree 2, and is zero at amplitude 0', () => {
-    const out = new Float32Array(ORB_SH);
-    expect(Array.from(shCoefficients(1.3, 0, out)).every((v) => v === 0)).toBe(true);
-    const a = Array.from(shCoefficients(1.3, 0.1, new Float32Array(ORB_SH)));
-    const b = Array.from(shCoefficients(1.3, 0.2, new Float32Array(ORB_SH)));
-    a.forEach((v, i) => expect(b[i]).toBeCloseTo(v * 2, 6));
-    for (let phase = 0; phase < 20; phase += 0.7) {
-      shCoefficients(phase, 0.1, out).forEach((v, i) => expect(Math.abs(v)).toBeLessThanOrEqual((i < 5 ? 0.1 : 0.045) + 1e-6));
-    }
+    expect(half.spiral).toBeCloseTo(thinking.spiral / 2, 10);
   });
 });
 
@@ -255,11 +219,7 @@ describe('OrbMotion', () => {
     expect(f.time).toBeCloseTo(1 / 60, 10);
     for (const k of PARAM_KEYS) expect(Number.isFinite(f.params[k])).toBe(true);
     expect(f.bands).toHaveLength(ORB_BANDS);
-    expect(f.sh).toHaveLength(ORB_SH);
-    expect(f.decay).toBeGreaterThan(0.9);
-    expect(f.decay).toBeLessThan(1);
-    expect(f.zoom).toBeGreaterThan(1);
-    expect(f.frames).toBeCloseTo(1, 10);
+    for (const v of [f.spinT, f.waveT, f.pulseT, f.spiralT, f.twinkleT, f.hueT]) expect(Number.isFinite(v)).toBe(true);
   });
 
   it('a state change is eased, not snapped', () => {
@@ -273,18 +233,18 @@ describe('OrbMotion', () => {
     expect(last).toBeCloseTo(stateParams('thinking', quiet, 0).spin, 2);
   });
 
-  it('louder voice moves the surface faster, without time ever running backwards', () => {
+  it('a louder voice turns the sphere faster, and it never turns backwards', () => {
     const run = (level: number) => {
       const m = new OrbMotion('listening', 0);
       let f = m.step(1 / 60, { state: 'listening', level, bands: null });
-      const start = f.flowT;
+      const start = f.spinT;
       let previous = start;
       for (let i = 0; i < 120; i++) {
         f = m.step(1 / 60, { state: 'listening', level, bands: null });
-        expect(f.flowT).toBeGreaterThan(previous);
-        previous = f.flowT;
+        expect(f.spinT).toBeGreaterThan(previous);
+        previous = f.spinT;
       }
-      return f.flowT - start;
+      return f.spinT - start;
     };
     expect(run(0.9)).toBeGreaterThan(run(0) * 2);
   });
@@ -301,45 +261,66 @@ describe('OrbMotion', () => {
     expect(f.features.level).toBeGreaterThan(0.9);
   });
 
-  it('a long frame fades the trails as much as the short frames it replaces', () => {
-    const a = new OrbMotion('idle', 0).step(1 / 30, { state: 'idle', level: 0, bands: null });
-    const m = new OrbMotion('idle', 0);
-    const b1 = m.step(1 / 60, { state: 'idle', level: 0, bands: null }).decay;
-    const b2 = m.step(1 / 60, { state: 'idle', level: 0, bands: null }).decay;
-    expect(a.decay).toBeCloseTo(b1 * b2, 3);
+  it('moves the same distance in one long frame as in the short frames it replaces', () => {
+    const input = { state: 'thinking', level: 0, bands: null } as const;
+    const a = new OrbMotion('thinking', 0).step(1 / 30, input);
+    const m = new OrbMotion('thinking', 0);
+    m.step(1 / 60, input);
+    const b = m.step(1 / 60, input);
+    expect(a.spinT).toBeCloseTo(b.spinT, 3);
+    expect(a.waveT).toBeCloseTo(b.waveT, 3);
   });
 });
 
-describe('icosphere', () => {
-  it('has 10·4^n + 2 vertices and 20·4^n triangles', () => {
-    for (const [detail, verts, tris] of [
-      [0, 12, 20],
-      [2, 162, 320],
-      [4, 2562, 5120],
-    ]) {
-      const mesh = icosphere(detail);
-      expect(mesh.positions.length / 3).toBe(verts);
-      expect(mesh.indices.length / 3).toBe(tris);
+describe('lattice', () => {
+  it('every point is on the unit sphere', () => {
+    for (const n of [1100, 2600]) {
+      for (let i = 0; i < n; i += 37) {
+        const [x, y, z] = latticePoint(i, n);
+        expect(Math.hypot(x, y, z)).toBeCloseTo(1, 10);
+      }
     }
   });
 
-  it('every vertex is on the unit sphere and every triangle faces outwards', () => {
-    const { positions: p, indices } = icosphere(3);
-    for (let i = 0; i < p.length; i += 3) expect(Math.hypot(p[i], p[i + 1], p[i + 2])).toBeCloseTo(1, 5);
-    for (let i = 0; i < indices.length; i += 3) {
-      const [a, b, c] = [indices[i] * 3, indices[i + 1] * 3, indices[i + 2] * 3];
-      const ab = [p[b] - p[a], p[b + 1] - p[a + 1], p[b + 2] - p[a + 2]];
-      const ac = [p[c] - p[a], p[c + 1] - p[a + 1], p[c + 2] - p[a + 2]];
-      const n = [ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0]];
-      // Counter-clockwise seen from outside: the normal points the same way as the vertex.
-      expect(n[0] * p[a] + n[1] * p[a + 1] + n[2] * p[a + 2]).toBeGreaterThan(0);
+  it('heights run evenly from just under the top to just above the bottom', () => {
+    const n = 100;
+    expect(latticePoint(0, n)[1]).toBeCloseTo(0.99, 10);
+    expect(latticePoint(n - 1, n)[1]).toBeCloseTo(-0.99, 10);
+    expect(latticePoint(10, n)[1] - latticePoint(11, n)[1]).toBeCloseTo(2 / n, 10);
+  });
+
+  it('each point is a golden angle further round than the one before', () => {
+    expect(GOLDEN_ANGLE).toBeCloseTo(2.39996323, 7); // the constant written into the vertex shader
+    const [x, , z] = latticePoint(1, 1000);
+    expect(Math.atan2(z, x)).toBeCloseTo(GOLDEN_ANGLE, 10);
+  });
+
+  it('spreads points evenly: no two neighbours crowd, no hemisphere is favoured', () => {
+    const n = 600;
+    const pts = Array.from({ length: n }, (_, i) => latticePoint(i, n));
+    // On a unit sphere each of n points owns an area of 4π/n: a typical spacing of about sqrt(4π/n).
+    const spacing = Math.sqrt((4 * Math.PI) / n);
+    let closest = Infinity;
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        closest = Math.min(closest, Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1], pts[i][2] - pts[j][2]));
+      }
+    }
+    expect(closest).toBeGreaterThan(spacing * 0.5);
+    for (const axis of [0, 1, 2]) {
+      const positive = pts.filter((p) => p[axis] > 0).length;
+      expect(Math.abs(positive - n / 2)).toBeLessThan(n * 0.03);
     }
   });
 
-  it('shares vertices between neighbouring triangles (no cracks when displaced)', () => {
-    const { positions: p } = icosphere(2);
-    const seen = new Set<string>();
-    for (let i = 0; i < p.length; i += 3) seen.add(`${p[i].toFixed(5)},${p[i + 1].toFixed(5)},${p[i + 2].toFixed(5)}`);
-    expect(seen.size).toBe(p.length / 3);
+  it('frames the resting sphere at a little over half the canvas', () => {
+    expect(silhouetteRadius(1)).toBeGreaterThan(0.5);
+    expect(silhouetteRadius(1)).toBeLessThan(0.6);
+    expect(silhouetteRadius(1.3)).toBeGreaterThan(silhouetteRadius(1));
+  });
+
+  it('uses fewer points on a small orb', () => {
+    expect(pointCount(104)).toBeLessThan(pointCount(200));
+    expect(pointCount(480)).toBe(pointCount(200));
   });
 });

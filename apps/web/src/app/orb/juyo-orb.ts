@@ -1,4 +1,5 @@
 import { Component, DestroyRef, ElementRef, afterNextRender, effect, inject, input, signal, viewChild } from '@angular/core';
+import { pointCount } from './lattice';
 import { OrbMotion, type OrbState } from './orb-motion';
 import type { OrbRenderer } from './orb-renderer';
 
@@ -10,23 +11,21 @@ const STILL_LEVEL: Record<OrbState, number> = { idle: 0, listening: 0.5, thinkin
 /*
   <juyo-orb>: Kassandra's voice orb.
 
-  A living sphere in WebGL2: its surface morphs (simplex noise + spherical harmonics), plasma flows inside
-  the glass, the rim glows in the Kassandra gradient, and a feedback buffer leaves trails around it, in the
-  spirit of the MilkDrop visualiser (each frame is last frame, zoomed, turned, warped and faded).
+  A sphere made of points, in the Kassandra gradient. Each latitude is a frequency band: the voice pushes
+  the points of its bands out from the centre, bass at the equator, highs at the poles.
 
       <juyo-orb [state]="'listening'" [level]="mic.level()" [bands]="mic.bands()" [size]="200" />
 
-  idle       slow breathing morph
-  listening  the voice drives it: bass bulges the body, mids ripple the surface, highs sparkle on the rim,
-             and a waveform ring leaves ripples in the trails
-  thinking   a calmer, twisting, rotating swirl
-  speaking   rhythmic rings over the surface; follows `level` if given, a speech-like rhythm if not
+  idle       turns slowly and breathes
+  listening  the voice drives it: the bands lift their latitudes, a wave carries the lift from pole to pole,
+             highs make the points twinkle, and it turns faster the louder you are
+  thinking   quiet: a three-armed spiral winds around it and it turns quickly
+  speaking   rings leave the equator in the rhythm of speech; follows `level` if given
 
   Decorative: aria-hidden, no focus, no pointer events. Say the state in text next to it.
   It stops drawing when off-screen or when the tab is hidden, frees its GL objects on destroy, comes back
   after a lost context, shows a still frame with a gentle opacity pulse under prefers-reduced-motion, and
-  falls back to a CSS orb where WebGL2 is missing. The renderer (7 kB gzipped) is loaded on demand,
-  outside the main bundle.
+  falls back to a CSS orb where WebGL2 is missing. The renderer is loaded on demand, outside the main bundle.
 */
 @Component({
   selector: 'juyo-orb',
@@ -78,19 +77,17 @@ const STILL_LEVEL: Record<OrbState, number> = { idle: 0, listening: 0.5, thinkin
     .fallback {
       display: grid;
       place-items: center;
-      /* The halo is a gradient sized by the box, so it scales with the orb and never meets the edge. */
-      background: radial-gradient(closest-side, rgb(167 140 251 / 0.42) 54%, rgb(111 160 251 / 0.12) 74%, transparent 96%);
       transform: scale(calc(1 + var(--orb-level, 0) * 0.1));
     }
+    /* A disc of dots in the gradient: the lattice, flat. */
     .fallback-orb {
-      width: 54%;
-      height: 54%;
+      width: 56%;
+      height: 56%;
       border-radius: 9999px;
-      background:
-        radial-gradient(circle at 30% 26%, rgb(255 255 255 / 0.7) 0 6%, transparent 34%),
-        radial-gradient(circle at 50% 50%, transparent 52%, rgb(255 255 255 / 0.28) 70%, transparent 71%),
-        radial-gradient(circle at 62% 70%, rgb(235 117 190 / 0.9), transparent 62%), linear-gradient(135deg, #6fa0fb, #a78cfb 55%, #eb75be);
-      box-shadow: inset 0 -4px 10px rgb(40 24 96 / 0.35);
+      background: linear-gradient(to top, #6fa0fb, #a78cfb 50%, #eb75be);
+      -webkit-mask: radial-gradient(circle, #000 0 1px, transparent 1.6px) center / 6px 6px;
+      mask: radial-gradient(circle, #000 0 1px, transparent 1.6px) center / 6px 6px;
+      clip-path: circle(50%);
       animation: orb-breathe 6s ease-in-out infinite;
     }
     @keyframes orb-breathe {
@@ -132,7 +129,7 @@ export class JuyoOrb {
   readonly state = input<OrbState>('idle');
   /** Frequency bands, low to high, 0..1 each; any length. Without them the orb derives its detail from `level`. */
   readonly bands = input<Float32Array | null>(null);
-  /** Width and height in CSS pixels. The orb itself fills about 54% of it; the rest is room for the halo. */
+  /** Width and height in CSS pixels. The resting sphere fills about 57% of it; the rest is room for the voice to push points out. */
   readonly size = input(160);
 
   /** A WebGL frame is on screen. */
@@ -143,6 +140,8 @@ export class JuyoOrb {
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly ready = signal(false);
+  /** The page behind is light (the app sets `.light` on <html>): dots are drawn deeper and opaque. */
+  private readonly light = signal(false);
   private rendererType: typeof OrbRenderer | null = null;
   private renderer: OrbRenderer | null = null;
   private motion = new OrbMotion();
@@ -167,6 +166,12 @@ export class JuyoOrb {
 
       const onVisibility = () => this.kick();
       doc.addEventListener('visibilitychange', onVisibility);
+
+      const root = doc.documentElement;
+      const onTheme = () => this.light.set(root.classList.contains('light'));
+      onTheme();
+      const theme = new MutationObserver(onTheme);
+      theme.observe(root, { attributes: true, attributeFilter: ['class'] });
 
       const observer = new IntersectionObserver((entries) => {
         this.onScreen = entries[entries.length - 1].isIntersecting;
@@ -197,6 +202,7 @@ export class JuyoOrb {
         this.destroyed = true;
         this.stop();
         observer.disconnect();
+        theme.disconnect();
         reduced.removeEventListener('change', onReduced);
         doc.removeEventListener('visibilitychange', onVisibility);
         canvas.removeEventListener('webglcontextlost', onLost);
@@ -212,7 +218,8 @@ export class JuyoOrb {
       if (!this.ready()) return;
       const size = this.size();
       const state = this.state();
-      if (this.still()) this.drawStill(state, size);
+      const light = this.light();
+      if (this.still()) this.drawStill(state, size, light);
       else this.kick();
     });
   }
@@ -220,8 +227,7 @@ export class JuyoOrb {
   private build() {
     const canvas = this.canvas().nativeElement;
     if (!this.rendererType || this.destroyed) return;
-    // 2,562 vertices are plenty for a small orb; a large one gets 10,242.
-    this.renderer = this.rendererType.create(canvas, this.size() <= 96 ? 4 : 5);
+    this.renderer = this.rendererType.create(canvas, pointCount(this.size()));
     if (!this.renderer) return; // no WebGL2: the CSS orb stays
     this.motion = new OrbMotion(this.state());
     this.ready.set(true);
@@ -249,7 +255,7 @@ export class JuyoOrb {
     const dt = Math.min(0.05, Math.max(0, (now - this.last) / 1000));
     this.last = now;
     this.fit(this.size());
-    this.renderer.render(this.motion.step(dt, { state: this.state(), level: this.level(), bands: this.bands() }));
+    this.renderer.render(this.motion.step(dt, { state: this.state(), level: this.level(), bands: this.bands() }), this.light());
     if (!this.live()) this.live.set(true);
     this.raf = requestAnimationFrame(this.frame);
   };
@@ -260,16 +266,17 @@ export class JuyoOrb {
     this.renderer?.resize(size * dpr, size * dpr);
   }
 
-  /** One settled frame: run the simulation forward off-screen so the trails exist, then leave it. */
-  private drawStill(state: OrbState, size: number) {
+  /** One settled frame: run the motion forward so the state has taken hold, draw it, and leave it. */
+  private drawStill(state: OrbState, size: number, light: boolean) {
     const renderer = this.renderer;
     if (!renderer) return;
     this.stop();
     this.fit(size);
-    renderer.clearTrails();
     const motion = new OrbMotion(state);
     const input = { state, level: STILL_LEVEL[state], bands: null };
-    for (let i = 0; i < 40; i++) renderer.render(motion.step(1 / 24, input));
+    let frame = motion.step(1 / 24, input);
+    for (let i = 0; i < 40; i++) frame = motion.step(1 / 24, input);
+    renderer.render(frame, light);
     this.motion = motion;
     this.live.set(true);
   }
