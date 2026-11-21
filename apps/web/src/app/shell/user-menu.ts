@@ -56,6 +56,9 @@ let nextId = 0;
       box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand, var(--primary)) 40%, transparent);
       color: var(--foreground); font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
     }
+    .um-avatar::before {
+      content: attr(data-initials);
+    }
     .um-text { min-width: 0; flex: 1; transition: opacity 120ms ease; }
     .um-caret { flex-shrink: 0; color: var(--muted-foreground); font-size: 14px; transition: opacity 120ms ease; }
     :host([data-collapsed]) :is(.um-text, .um-caret) { opacity: 0; }
@@ -71,7 +74,7 @@ let nextId = 0;
       cdkOverlayOrigin
       type="button"
       class="um-trigger"
-      [attr.aria-label]="label"
+      [attr.aria-label]="collapsed() ? label : null"
       [hlmDropdownMenuTrigger]="menu"
       side="top"
       align="start"
@@ -82,9 +85,11 @@ let nextId = 0;
       (hlmDropdownMenuOpened)="menuOpen.set(true)"
       (hlmDropdownMenuClosed)="menuOpen.set(false)"
     >
-      <span class="um-avatar" aria-hidden="true">{{ persona.initials }}</span>
-      <span class="um-text" aria-hidden="true">
-        <span class="block truncate text-[13px] font-medium">{{ persona.name }}</span>
+      <!-- The initials are drawn, not written: in the rail the label alone names the button (label in name). -->
+      <span class="um-avatar" aria-hidden="true" [attr.data-initials]="persona.initials"></span>
+      <!-- Open, the name and role on screen are the button's name (WCAG 2.5.3); in the rail, only the avatar shows and the label says who. -->
+      <span class="um-text" [attr.aria-hidden]="collapsed() ? 'true' : null">
+        <span class="block truncate text-[13px] font-medium">{{ persona.name }}</span><span class="sr-only">, </span>
         <span class="text-muted-foreground block truncate text-[12px]">{{ persona.role }}</span>
       </span>
       <ng-icon name="phosphorCaretUpDownLight" class="um-caret" aria-hidden="true" />
@@ -93,7 +98,8 @@ let nextId = 0;
     <ng-template #menu>
       <hlm-dropdown-menu class="w-64" [style.margin-left.px]="collapsed() ? gap : 0">
         <hlm-dropdown-menu-label class="flex items-center gap-2.5 py-2">
-          <span class="um-avatar" aria-hidden="true">{{ persona.initials }}</span>
+          <!-- The initials are drawn, not written: in the rail the label alone names the button (label in name). -->
+      <span class="um-avatar" aria-hidden="true" [attr.data-initials]="persona.initials"></span>
           <span class="min-w-0">
             <span class="text-foreground block truncate text-[13px] font-medium">{{ persona.name }}</span>
             <span class="block truncate text-[12px]">{{ persona.role }} · Arbor Lisbon Chiado</span>

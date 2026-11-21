@@ -22,6 +22,17 @@ describe('formatValue by column kind', () => {
     expect(formatValue(1200, { kind: 'currency', unit: 'USD' })).toBe('$1,200');
   });
 
+  it('never writes a unit that is not a currency next to an amount: “local currency 1.2k” reads 1.2k', () => {
+    const local = { kind: 'currency' as const, unit: 'local currency' };
+    expect(formatValue(1240, local, { axis: true })).toBe('1.2k');
+    expect(formatValue(800, local, { axis: true })).toBe('800');
+    expect(formatValue(530, local)).toBe('530');
+    expect(formatValue(446.2, local)).toBe('446');
+    expect(formatValue(43_250, local, { compact: true })).toBe('43.3k');
+    expect(formatValue(1240, { kind: 'currency', unit: 'aed' }, { axis: true })).toBe('AED 1.2k');
+    expect(formatValue(1240, { kind: 'currency', unit: 'QAR' })).toBe('QAR 1,240');
+  });
+
   it('reads percent columns as 0–100, like the backend sends them, and ratios when the unit says so', () => {
     expect(formatValue(78.44, { kind: 'percent' })).toBe('78.4%');
     expect(formatValue(80, { kind: 'percent' })).toBe('80.0%');

@@ -19,8 +19,8 @@
           }
         } @else {
           <p class="wc-title" [id]="uid + '-t'">{{ s.title }}</p>
-          @if (s.subtitle) {
-            <p class="wc-subtitle">{{ s.subtitle }}</p>
+          @if (subtitle(); as sub) {
+            <p class="wc-subtitle">{{ sub }}</p>
           }
         }
       }
@@ -112,7 +112,7 @@
         <juyo-echart [option]="b.option" />
       </div>
       @if (b.more) {
-        <button type="button" class="wc-more" [attr.aria-label]="'Show all ' + b.table.rows.length + ' rows as a table'" (click)="showAll()">+{{ b.more }} more</button>
+        <button type="button" class="wc-more" [attr.aria-label]="'+' + b.more + ' more: show all ' + b.table.rows.length + ' rows as a table'" (click)="showAll()">+{{ b.more }} more</button>
       }
       @if (b.points.length) {
         <span class="sr-only" [id]="uid + '-k'">Use the arrow keys to step through the data. The same numbers are in {{ switcher() ? '“View as”, Table' : '“View as table”' }}.</span>

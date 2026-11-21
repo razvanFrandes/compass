@@ -2,7 +2,7 @@ import { Component, computed, inject, input, output } from '@angular/core';
 import type { ChatWidget } from '../api';
 import { specAs } from '../charts/kinds';
 import { ViewAsMemory } from '../charts/view-memory';
-import { WidgetChart, type WidgetLoading } from '../charts/widget-chart';
+import { WidgetChart, type WidgetLoading, subtitleWithUnit } from '../charts/widget-chart';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorDatabaseLight } from '@ng-icons/phosphor-icons/light';
 import { ViewAs } from '../charts/view-as';
@@ -74,12 +74,13 @@ const LOADING: Record<SlotPhase, WidgetLoading> = { chosen: 'skeleton', describe
   template: `
     @let s = slot();
     <figure class="insight-card gen-in p-card-pad" [attr.aria-busy]="phase() === 'ready' ? null : 'true'">
-      <figcaption class="flex min-h-[42px] items-start gap-3">
-        <div class="min-w-0 flex-1">
+      <!-- In a narrow card the tools drop under the title rather than squeeze it to a word a line -->
+      <figcaption class="flex min-h-[42px] flex-wrap items-start gap-x-3 gap-y-2">
+        <div class="min-w-[min(100%,15rem)] flex-1">
           @if (s.title) {
             <h3 class="text-[14.5px]/snug font-semibold tracking-[-0.005em] text-balance">{{ s.title }}</h3>
-            @if (s.subtitle) {
-              <p class="text-muted-foreground mt-0.5 text-[12.5px]">{{ s.subtitle }}</p>
+            @if (withUnit(s.subtitle, wc.unitNote()); as sub) {
+              <p class="text-muted-foreground mt-0.5 text-[12.5px]">{{ sub }}</p>
             }
           } @else {
             <span class="sr-only" role="status">{{ s.preview ? 'Kassandra is reading the data' : 'Kassandra is drawing a chart' }}</span>
@@ -93,7 +94,7 @@ const LOADING: Record<SlotPhase, WidgetLoading> = { chosen: 'skeleton', describe
           <p class="k-preview" title="Drawn from the data as it arrived. Kassandra may still choose another chart.">Preview<span class="sr-only">: drawn from the data as it arrived. Kassandra may still choose another chart.</span></p>
         }
         <!-- The card's tools sit top right, so the body is only the chart: View as, Behind the numbers, Add to board -->
-        <div class="flex min-w-[3.5rem] flex-none items-center justify-end gap-1">
+        <div class="ml-auto flex min-w-[3.5rem] flex-none items-center justify-end gap-1">
           @if (phase() === 'ready' && shown(); as w) {
             <juyo-view-as [for]="wc" />
             @if (showEvidence()) {
@@ -124,6 +125,8 @@ export class KassandraWidget {
   readonly evidence = output<string>();
 
   private readonly memory = inject(ViewAsMemory);
+  /** The subtitle, with the unit of the amounts when the chart's numbers carry none. */
+  protected readonly withUnit = subtitleWithUnit;
   protected readonly phase = computed(() => shownPhase(this.slot().phase, this.held()));
   protected readonly loading = computed(() => LOADING[this.phase()]);
   /** The chart on screen is the instant preview, not yet Kassandra's choice. */

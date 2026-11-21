@@ -18,7 +18,7 @@ import { ProposalCard } from './proposal-card';
 import { BoardsService } from './boards/boards.service';
 import type { Board, BoardWidget } from './boards/types';
 import { ViewAs } from './charts/view-as';
-import { WidgetChart } from './charts/widget-chart';
+import { WidgetChart, subtitleWithUnit } from './charts/widget-chart';
 import { formatDate, formatPeriod } from './evidence/format';
 import { sourceLabel } from './evidence/labels';
 import * as icons from './icons';
@@ -100,15 +100,17 @@ export class PerformanceWidget {
   template: `
     @let w = widget();
     <article class="insight-card flex h-full flex-col p-card-pad" [attr.aria-labelledby]="'w-' + w.id">
-      <header class="flex items-start gap-3">
-        <div class="min-w-0 flex-1">
+      <header class="flex flex-wrap items-start gap-x-3 gap-y-2">
+        <div class="min-w-[min(100%,15rem)] flex-1">
           <h2 [id]="'w-' + w.id" class="text-[15.5px]/snug font-semibold tracking-[-0.005em]">{{ w.spec.title }}</h2>
-          @if (w.spec.subtitle) {
-            <p class="text-muted-foreground mt-1 text-[12.5px]/snug">{{ w.spec.subtitle }}</p>
+          @if (withUnit(w.spec.subtitle, wc.unitNote()); as sub) {
+            <p class="text-muted-foreground mt-1 text-[12.5px]/snug">{{ sub }}</p>
           }
         </div>
+        <div class="ml-auto flex flex-none items-start gap-3">
         <juyo-view-as class="mt-0.5" [for]="wc" />
         <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground" [attr.aria-label]="'More for ' + w.spec.title" [hlmDropdownMenuTrigger]="menu" align="end"><ng-icon name="phosphorDotsThreeBold" class="text-[18px]" /></button>
+        </div>
       </header>
       <div class="mt-stack min-h-0 flex-1">
         <juyo-widget-chart #wc [spec]="w.spec" [rows]="w.rows" [columns]="w.columns" [header]="false" [switcher]="true" controls="external" [viewKey]="'board:' + w.id" />
@@ -154,6 +156,8 @@ export class PerformanceWidget {
 })
 export class SavedWidget {
   readonly widget = input.required<BoardWidget>({ alias: 'widgetRef' });
+  /** The subtitle, with the unit of the amounts when the chart's numbers carry none. */
+  protected readonly withUnit = subtitleWithUnit;
   readonly board = input.required<Board>({ alias: 'boardRef' });
   private readonly boards = inject(BoardsService);
   protected readonly how = signal(false);

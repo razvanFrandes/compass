@@ -24,6 +24,7 @@ import {
   textWidth,
   tip,
   tooltip,
+  bandTip,
   valueAxis,
   valueColumn,
 } from './shared';
@@ -146,7 +147,8 @@ function lineLike(c: Ctx, area: boolean): Built {
   // Name the series on the line ends when they fit; otherwise the legend carries them.
   const direct = !c.narrow && f.series.length <= 4;
   const endText = (s: Series) => (multi ? s.name : formatValue(lastValue(s.values), s.col, { compact: true }));
-  const right = direct ? Math.min(150, Math.max(...f.series.map((s) => textWidth(endText(s), 12)))) + 4 : 12;
+  // The end label sits 8 px past the line's end: its room is that, its width and a little air, or it is clipped.
+  const right = direct ? Math.min(150, Math.max(...f.series.map((s) => textWidth(endText(s), 12)))) + 8 + 8 : 12;
   const option = {
     ...baseOption(c),
     grid: { left: 8, right, top: 14, bottom: 4, containLabel: true },
@@ -421,7 +423,7 @@ function barRows(c: Ctx, whole: Frame, note?: string): Built {
     : null;
   const option = {
     ...baseOption(c),
-    tooltip: tooltip(c, { trigger: 'item', formatter: (p: unknown) => tipAt(c, f, (p as { dataIndex: number }).dataIndex) }),
+    tooltip: bandTip(c, (i) => tipAt(c, f, i)),
     grid: { left, right, top: 4, height: layout.plot, containLabel: false },
     xAxis: hiddenValueAxis(c, f.valueCol, extent),
     yAxis: nameAxis(c, f, subject, layout),
@@ -460,7 +462,7 @@ function barColumns(c: Ctx, f: Frame, note?: string): Built {
   const tick = cmp ? { type: 'scatter', name: cmp.name, data: cmp.values, symbol: 'rect', symbolSize: [20, 2.5], itemStyle: { color: cmp.color, borderColor: c.t.surface, borderWidth: 1 }, emphasis: { scale: false }, z: 3 } : null;
   const option = {
     ...baseOption(c),
-    tooltip: tooltip(c, { trigger: 'item', formatter: (p: unknown) => tipAt(c, f, (p as { dataIndex: number }).dataIndex) }),
+    tooltip: bandTip(c, (i) => tipAt(c, f, i)),
     grid: { left: 8, right: 12, top: valueLabels ? 22 : 12, bottom: 4, containLabel: true },
     xAxis: categoryAxis(c, f.labels),
     yAxis: valueAxis(c, f.valueCol, valueLabels ? { axisLabel: { show: false }, splitLine: { show: false } } : {}),
@@ -627,18 +629,51 @@ export function waterfallSteps(c: Ctx): WaterfallStep[] {
 }
 
 /**
- * When the steps are small next to the totals, most of the axis is cut out (and drawn as a break across the
- * totals), so a €20k step is not a hairline under a €1.4M bar.
+ * Where the value axis of a bridge starts. When the steps are small next to the totals it starts a little under the
+ * lowest running total (a round number), so a €20k step is not a hairline under a €1.4M bar; otherwise at zero.
+ * Never a broken axis: the start is said once, as the axis' first tick.
  */
-export function waterfallBreak(steps: WaterfallStep[]): { start: number; end: number } | null {
+export function waterfallBase(steps: WaterfallStep[]): number {
   const levels = steps.flatMap((s) => (s.type === 'total' ? [s.end] : [s.start, s.end]));
   const lo = Math.min(...levels);
   const hi = Math.max(...levels);
-  if (lo <= 0 || (hi - lo) / hi > 0.4) return null;
-  const unit = 10 ** Math.floor(Math.log10(Math.max(1, lo / 4)));
-  const start = Math.round((lo * 0.08) / unit) * unit;
-  const end = Math.floor((lo - (hi - lo) * 0.35) / unit) * unit;
-  return end > start ? { start, end } : null;
+  if (lo <= 0 || (hi - lo) / hi > 0.4) return Math.min(0, lo);
+  // A round start (€500k, €1.15M), so it is also where the axis' ticks begin.
+  const unit = 10 ** Math.floor(Math.log10(Math.max(1, hi - lo))) / 2;
+  const base = Math.floor((lo - (hi - lo) * 0.35) / unit) * unit;
+  return base > 0 ? base : 0;
+}
+
+/** A bridge narrower than this lies down: one row per step, so names stay whole and numbers never collide. */
+export const WATERFALL_ROWS_BELOW = 560;
+/** The pitch of a lying bridge: one row per step. */
+const WATERFALL_ROW = 28;
+
+/** "€886k" for a total; "+€8.4k" / "−€21.6k" for a step. */
+function stepText(s: WaterfallStep, col: EvidenceColumn): string {
+  // Compact from 1,000 up (€8.4k), as on an axis: a bridge's labels sit side by side.
+  const amount = formatValue(Math.abs(s.value), col, { axis: true });
+  return s.type === 'total' ? formatValue(s.value, col, { axis: true }) : `${s.value >= 0 ? '+' : '−'}${amount}`;
+}
+
+/** A category name in at most two lines of `chars` characters, ending in "…" when it is longer (the tooltip has it whole). */
+function twoLines(name: string, chars: number): string {
+  const words = name.split(/\s+/);
+  const lines: string[] = [];
+  let line = '';
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (next.length <= chars) line = next;
+    else {
+      if (line) lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  const cut = (t: string) => (t.length > chars ? `${t.slice(0, Math.max(1, chars - 1))}…` : t);
+  if (lines.length <= 2) return lines.map(cut).join('\n');
+  const rest = lines.slice(1).join(' ');
+  return [cut(lines[0]), `${rest.slice(0, Math.max(1, chars - 1))}…`].join('\n');
 }
 
 export function buildWaterfall(c: Ctx): Built {
@@ -646,57 +681,124 @@ export function buildWaterfall(c: Ctx): Built {
   if (!steps.length) return empty(c, 'No steps to show.');
   const col = valueColumn(c, pickValueKey(c));
   const color = (s: WaterfallStep) => (s.type === 'total' ? c.t.series : s.type === 'up' ? c.t.pos : c.t.neg);
-  const text = (s: WaterfallStep) => (s.type === 'total' ? formatValue(s.value, col, { compact: true }) : `${s.value >= 0 ? '▲' : '▼'} ${formatValue(Math.abs(s.value), col, { compact: true })}`);
+  const ink = (s: WaterfallStep) => (s.type === 'total' ? c.t.text : s.type === 'up' ? c.t.pos : c.t.neg);
+  const texts = steps.map((s) => stepText(s, col));
+  const base = waterfallBase(steps);
+  const top = Math.max(...steps.map((s) => Math.max(s.start, s.end)));
+  // The axis says where it starts once, as its first tick, when that is not zero.
+  const baseTick = (v: number) => (base > 0 && Math.abs(v - base) < 1e-6 ? formatValue(v, col, { axis: true }) : '');
+  const lying = c.width < WATERFALL_ROWS_BELOW;
+  const tooltipOf = bandTip(c, (i) => {
+    const s = steps[i];
+    if (!s) return '';
+    return s.type === 'total' ? tip(c, s.name, [{ label: col.label, value: formatValue(s.value, col) }]) : tip(c, s.name, [{ label: s.value >= 0 ? 'Adds' : 'Takes away', value: formatValue(Math.abs(s.value), col), color: color(s) }, { label: 'Running total', value: formatValue(s.end, col), muted: true }]);
+  });
+  const legend: LegendItem[] = [
+    { label: 'Total', color: c.t.series, mark: 'solid' },
+    ...(steps.some((s) => s.type === 'up') ? [{ label: '+ Adds', color: c.t.pos, mark: 'solid' as const }] : []),
+    ...(steps.some((s) => s.type === 'down') ? [{ label: '− Takes away', color: c.t.neg, mark: 'solid' as const }] : []),
+  ];
+  const common = {
+    render: 'echarts' as const,
+    kind: 'waterfall' as const,
+    points: steps.map((s, i) => ({ seriesIndex: 0, dataIndex: i, text: s.type === 'total' ? `${s.name}: ${formatValue(s.value, col)}` : `${s.name}: ${s.value >= 0 ? 'adds' : 'takes away'} ${formatValue(Math.abs(s.value), col)}, running total ${formatValue(s.end, col)}` })),
+    legend,
+    table: tableModel(c, specKeys(c.spec)),
+    summary: summary(c, `Waterfall chart with ${steps.length} steps${base > 0 ? `, its axis starting at ${formatValue(base, col, { compact: true })}` : ''}.`, steps.map((s) => (s.type === 'total' ? `${s.name} ${formatValue(s.value, col, { compact: true })}` : `${s.name} ${s.value >= 0 ? 'up' : 'down'} ${formatValue(Math.abs(s.value), col, { compact: true })}`)).join(', ') + '.'),
+  };
+  // [index, start, end]: each bar floats between the running totals.
+  const data = steps.map((s, i) => [i, s.start, s.end]);
+  /** A total stands on the axis' start; a step floats between its two levels. */
+  const from = (s: WaterfallStep, v: number) => (s.type === 'total' ? Math.max(v, base) : v);
+
+  if (lying) {
+    const names = steps.map((s) => s.name);
+    const nameW = nameWidth(c, names);
+    const valueW = Math.max(...texts.map((t) => textWidth(t, 12))) + 10;
+    const bar = c.compact ? 14 : 16;
+    const plot = steps.length * WATERFALL_ROW;
+    const bottom = base > 0 ? 20 : 4;
+    const option = {
+      ...baseOption(c),
+      grid: { left: nameW + 12, right: valueW + 6, top: 2, height: plot, containLabel: false },
+      tooltip: tooltipOf,
+      yAxis: categoryAxis(c, names, {
+        inverse: true,
+        axisLine: { show: false },
+        // The whole name, on two lines when it needs them; never turned.
+        axisLabel: { color: c.t.text, fontSize: 12, fontFamily: c.t.font, width: nameW, overflow: 'break', lineHeight: 13, interval: 0, margin: 10 },
+      }),
+      xAxis: {
+        type: 'value',
+        min: base,
+        max: top,
+        splitNumber: 2,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { show: false },
+        axisLabel: { show: base > 0, color: c.t.muted, fontSize: 11, fontFamily: c.t.font, showMinLabel: true, showMaxLabel: false, formatter: baseTick },
+      },
+      series: [
+        {
+          type: 'custom',
+          name: col.label,
+          data,
+          encode: { y: 0, x: [1, 2] },
+          renderItem: (_params: unknown, api: WaterfallApi) => {
+            const i = api.value(0);
+            const s = steps[i];
+            const a = api.coord([from(s, api.value(1)), i]);
+            const b = api.coord([api.value(2), i]);
+            const left = Math.min(a[0], b[0]);
+            const right = Math.max(a[0], b[0]);
+            const y = a[1];
+            const children: unknown[] = [
+              { type: 'rect', shape: { x: left, y: y - bar / 2, width: Math.max(right - left, 1.5), height: bar, r: markRadius(c.t, 3) }, style: { fill: color(s) } },
+              { type: 'text', style: { text: texts[i], x: right + 6, y, textAlign: 'left', textVerticalAlign: 'middle', fill: ink(s), fontSize: 12, fontFamily: c.t.font, fontWeight: s.type === 'total' ? 600 : 500 } },
+            ];
+            const next = steps[i + 1];
+            if (next) {
+              // A thin connector from where this step ends to the next row.
+              const x = b[0];
+              children.push({ type: 'line', shape: { x1: x, y1: y + bar / 2, x2: x, y2: y + WATERFALL_ROW - bar / 2 }, style: { stroke: c.t.muted, lineWidth: 1, opacity: 0.5 } });
+            }
+            return { type: 'group', children };
+          },
+        },
+      ],
+    };
+    // Its own height: a row per step, the legend above, the axis' start under it.
+    return { ...common, option, height: 25 + 2 + plot + bottom + 4 };
+  }
+
   const slot = (c.width - 60) / steps.length;
-  // On a phone there is no room for a number on every step: the totals and the biggest step keep theirs.
-  const tight = slot < 58;
-  const biggest = steps.reduce((best, s, i) => (s.type !== 'total' && Math.abs(s.value) > Math.abs(steps[best]?.type === 'total' ? 0 : (steps[best]?.value ?? 0)) ? i : best), steps.findIndex((s) => s.type !== 'total'));
-  const labelled = (s: WaterfallStep, i: number) => !tight || s.type === 'total' || i === biggest;
-  const brk = waterfallBreak(steps);
+  const chars = Math.max(4, Math.floor((slot - 4) / (11.5 * 0.53)));
+  const valueSize = Math.max(...texts.map((t) => t.length)) * 11.5 * 0.55 <= slot ? 11.5 : 10.5;
   const option = {
     ...baseOption(c),
     grid: { left: 8, right: 12, top: 24, bottom: 4, containLabel: true },
-    tooltip: tooltip(c, {
-      trigger: 'item',
-      formatter: (p: unknown) => {
-        const s = steps[(p as { dataIndex: number }).dataIndex];
-        if (!s) return '';
-        return s.type === 'total' ? tip(c, s.name, [{ label: col.label, value: formatValue(s.value, col) }]) : tip(c, s.name, [{ label: s.value >= 0 ? 'Adds' : 'Takes away', value: formatValue(Math.abs(s.value), col), color: color(s) }, { label: 'Running total', value: formatValue(s.end, col), muted: true }]);
-      },
-    }),
-    xAxis: categoryAxis(c, steps.map((s) => s.name), { axisLabel: tight ? { color: c.t.muted, fontSize: 11, fontFamily: c.t.font, interval: 0, rotate: 40, width: 76, overflow: 'truncate' } : { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, interval: 0, width: Math.max(40, slot - 6), overflow: 'break', lineHeight: 14 } }),
-    yAxis: valueAxis(
-      c,
-      col,
-      brk
-        ? {
-            scale: false,
-            breaks: [{ ...brk, gap: '5%' }],
-            breakArea: { itemStyle: { color: c.t.surface, borderColor: c.t.border, borderWidth: 1, borderType: 'solid', opacity: 1 }, zigzagAmplitude: 3 },
-            // Below the break only zero is labelled; a tick squeezed against the break would read as part of it.
-            axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, formatter: (v: number) => (v > 0 && v <= brk.end ? '' : formatValue(v, col, { axis: true })) },
-          }
-        : { scale: false },
-    ),
+    tooltip: tooltipOf,
+    // Names stay level: two lines at most, shortened with "…" past that (the tooltip has them whole).
+    xAxis: categoryAxis(c, steps.map((s) => s.name), { axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, interval: 0, lineHeight: 14, formatter: (name: string) => twoLines(name, chars) } }),
+    yAxis: valueAxis(c, col, { scale: false, min: base, axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, formatter: (v: number) => formatValue(v, col, { axis: true }) } }),
     series: [
       {
         type: 'custom',
         name: col.label,
-        // [index, start, end]: the bar floats between the running totals.
-        data: steps.map((s, i) => [i, s.start, s.end]),
+        data,
         encode: { x: 0, y: [1, 2] },
         renderItem: (_params: unknown, api: WaterfallApi) => {
           const i = api.value(0);
           const s = steps[i];
-          const a = api.coord([i, api.value(1)]);
+          const a = api.coord([i, from(s, api.value(1))]);
           const b = api.coord([i, api.value(2)]);
           const w = Math.min(api.size([1, 0])[0] * 0.58, 44);
-          const top = Math.min(a[1], b[1]);
+          const y0 = Math.min(a[1], b[1]);
           const h = Math.max(Math.abs(a[1] - b[1]), 1.5);
           const next = steps[i + 1];
           const children: unknown[] = [
-            { type: 'rect', shape: { x: a[0] - w / 2, y: top, width: w, height: h, r: 3 }, style: { fill: color(s) } },
-            { type: 'text', invisible: !labelled(s, i), style: { text: text(s), x: a[0], y: top - 6, textAlign: 'center', textVerticalAlign: 'bottom', fill: c.t.text, fontSize: slot < 62 ? 10.5 : 11.5, fontFamily: c.t.font, fontWeight: s.type === 'total' ? 600 : 500 } },
+            { type: 'rect', shape: { x: a[0] - w / 2, y: y0, width: w, height: h, r: 3 }, style: { fill: color(s) } },
+            { type: 'text', style: { text: texts[i], x: a[0], y: y0 - 6, textAlign: 'center', textVerticalAlign: 'bottom', fill: ink(s), fontSize: valueSize, fontFamily: c.t.font, fontWeight: s.type === 'total' ? 600 : 500 } },
           ];
           if (next) {
             const nx = api.coord([i + 1, 0])[0];
@@ -707,21 +809,8 @@ export function buildWaterfall(c: Ctx): Built {
       },
     ],
   };
-  const table = tableModel(c, specKeys(c.spec));
-  return {
-    render: 'echarts',
-    kind: 'waterfall',
-    option,
-    points: steps.map((s, i) => ({ seriesIndex: 0, dataIndex: i, text: s.type === 'total' ? `${s.name}: ${formatValue(s.value, col)}` : `${s.name}: ${s.value >= 0 ? 'adds' : 'takes away'} ${formatValue(Math.abs(s.value), col)}, running total ${formatValue(s.end, col)}` })),
-    legend: [
-      { label: 'Total', color: c.t.series, mark: 'solid' },
-      ...(steps.some((s) => s.type === 'up') ? [{ label: '▲ Adds', color: c.t.pos, mark: 'solid' as const }] : []),
-      ...(steps.some((s) => s.type === 'down') ? [{ label: '▼ Takes away', color: c.t.neg, mark: 'solid' as const }] : []),
-    ],
-    note: brk ? `The axis is broken between ${formatValue(brk.start, col, { compact: true })} and ${formatValue(brk.end, col, { compact: true })} so the steps are readable.` : undefined,
-    table,
-    summary: summary(c, `Waterfall chart with ${steps.length} steps.`, steps.map((s) => `${s.name} ${text(s).replace('▲', 'up').replace('▼', 'down')}`).join(', ') + '.'),
-  };
+  // A real plot: a host that asks for less than this gets this.
+  return { ...common, option, ...(c.height < 240 ? { height: 240 } : {}) };
 }
 
 interface WaterfallApi {
@@ -765,15 +854,11 @@ export function buildBullet(c: Ctx): Built {
   const option = {
     ...baseOption(c),
     grid: { left: nameW + 12, right: valueW + deltaW + 12, top: 4, height: layout.plot, containLabel: false },
-    tooltip: tooltip(c, {
-      trigger: 'item',
-      formatter: (p: unknown) => {
-        const i = (p as { dataIndex: number }).dataIndex;
-        const d = deltas[i];
-        const rowsTip: TipRow[] = [{ label: col.label, value: fmt(actual[i], col), color: c.t.series }];
-        if (targetCol) rowsTip.push({ label: targetCol.label, value: fmt(target[i], targetCol), color: c.t.cmp });
-        return tip(c, full[i] ?? '', rowsTip, d && targetCol ? `${d.text} vs ${targetCol.label.toLowerCase()}` : undefined);
-      },
+    tooltip: bandTip(c, (i) => {
+      const d = deltas[i];
+      const rowsTip: TipRow[] = [{ label: col.label, value: fmt(actual[i], col), color: c.t.series }];
+      if (targetCol) rowsTip.push({ label: targetCol.label, value: fmt(target[i], targetCol), color: c.t.cmp });
+      return tip(c, full[i] ?? '', rowsTip, d && targetCol ? `${d.text} vs ${targetCol.label.toLowerCase()}` : undefined);
     }),
     xAxis: hiddenValueAxis(c, col, { min: 0, max }),
     yAxis: [

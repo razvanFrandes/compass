@@ -779,6 +779,8 @@ textarea.field-input { height: auto; line-height: 1.5; }
 .k-thread:hover .k-thread-title, .k-thread--current .k-thread-title { color: var(--foreground); }
 .k-thread--current .k-thread-title { font-weight: 500; }
 .k-thread-summary { overflow: hidden; color: var(--muted-foreground); font-size: 12px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+/* On the current row's fill the quiet ink would fall just under 4.5:1 in the light theme: a touch more ink there. */
+.k-thread-open[aria-current='page'] .k-thread-summary { color: color-mix(in oklab, var(--muted-foreground) 85%, var(--foreground)); }
 .k-thread-actions {
   position: absolute; top: 6px; right: 6px; display: flex; gap: 2px; opacity: 0; pointer-events: none; 
   transition: opacity 120ms ease;

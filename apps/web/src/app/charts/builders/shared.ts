@@ -1,5 +1,5 @@
 import type { EChartsCoreOption } from 'echarts/core';
-import { EMPTY, type Delta, esc, formatValue, humanize, isNumericKind, num, parseDate } from '../format';
+import { EMPTY, type Delta, esc, formatValue, humanize, isCurrencyCode, isNumericKind, num, parseDate } from '../format';
 import { hotelNames } from '../hotel-names';
 import { type ChartTokens, DARK_TOKENS, markRadius } from '../tokens';
 import type { ColumnKind, EvidenceColumn, WidgetKind, WidgetRow, WidgetSpec } from '../widget-types';
@@ -33,6 +33,8 @@ export interface Ctx {
   compact: boolean;
   motion: boolean;
   narrow: boolean;
+  /** The unit of the money on the chart when no currency can be named for it ("In local currency"), said once. */
+  unitNote?: string;
 }
 
 export interface TableColumn {
@@ -106,6 +108,10 @@ interface BuiltBase {
   ramp?: RampLegend;
   /** Rows of the data the chart leaves out (a list of bars draws eight at most): "+12 more" opens the table. */
   more?: number;
+  /** The unit of the amounts, for the subtitle, when they carry none of their own ("In local currency"). */
+  unitNote?: string;
+  /** The body height this drawing needs, over the host's or the kind's (a bridge lying down: a row per step). */
+  height?: number;
 }
 export type Built =
   | (BuiltBase & { render: 'echarts'; option: EChartsCoreOption; points: PointRef[] })
@@ -159,6 +165,8 @@ export function kpiColumns(count: number, width: number): number {
  */
 export function bodyHeight(spec: Pick<WidgetSpec, 'kind' | 'y'>, compact: boolean, width: number, tiles = kpiCount(spec)): number {
   const base = (HEIGHTS[spec.kind] ?? HEIGHTS.table)[compact ? 1 : 0];
+  // On a phone the slices' names move to a legend above the round chart: it gets their room, so the chart keeps its own.
+  if ((spec.kind === 'pie' || spec.kind === 'donut') && width < NARROW) return base + 100;
   if (spec.kind !== 'kpi_row') return base;
   const rows = Math.ceil(tiles / kpiColumns(tiles, width));
   return rows * base + (rows - 1) * 8;
@@ -168,10 +176,12 @@ export function context(input: BuildInput): Ctx {
   const width = input.width ?? 640;
   const compact = input.compact ?? false;
   const rows = input.rows;
+  const money = moneyColumns(input.spec, input.columns ?? [], rows);
   return {
     spec: input.spec,
     rows,
-    columns: input.columns ?? [],
+    columns: money.columns,
+    ...(money.unitNote ? { unitNote: money.unitNote } : {}),
     t: input.tokens ?? DARK_TOKENS,
     width,
     height: input.height ?? bodyHeight(input.spec, compact, width),
@@ -179,6 +189,40 @@ export function context(input: BuildInput): Ctx {
     motion: input.motion ?? true,
     narrow: width < NARROW,
   };
+}
+
+/* ───────── Money ───────── */
+
+/**
+ * Amounts whose column names no currency ("local currency") are written in the currency of the hotel the rows are
+ * about, when they are about one (or about hotels that share one): AED 1.2k. Otherwise they stand alone, and the
+ * chart says the unit once, in its subtitle. The words are never written next to a number.
+ */
+function moneyColumns(spec: WidgetSpec, columns: readonly EvidenceColumn[], rows: readonly WidgetRow[]): { columns: readonly EvidenceColumn[]; unitNote?: string } {
+  const loose = columns.filter((col) => col.kind === 'currency' && col.unit?.trim() && !isCurrencyCode(col.unit));
+  if (!loose.length) return { columns };
+  const code = rowsCurrency(columns, rows);
+  if (code) return { columns: columns.map((col) => (loose.includes(col) ? { ...col, unit: code } : col)) };
+  const drawn = new Set(specKeys(spec));
+  const said = loose.find((col) => drawn.has(col.key)) ?? loose[0];
+  return { columns, unitNote: `In ${said.unit!.trim()}` };
+}
+
+/** The one currency of the hotels the rows name, if there is exactly one. */
+function rowsCurrency(columns: readonly EvidenceColumn[], rows: readonly WidgetRow[]): string | undefined {
+  if (!rows.length) return undefined;
+  const declared = columns.filter((col) => col.kind === 'hotel' || col.kind === 'text').map((col) => col.key);
+  const keys = [...new Set([...declared, ...Object.keys(rows[0] ?? {})])].filter((key) => rows.every((r) => hotelNames(r[key])));
+  if (!keys.length) return undefined;
+  const found = new Set<string>();
+  for (const r of rows) {
+    for (const key of keys) {
+      const currency = hotelNames(r[key])?.currency;
+      if (!currency) return undefined;
+      found.add(currency);
+    }
+  }
+  return found.size === 1 ? [...found][0] : undefined;
 }
 
 /* ───────── Columns ───────── */
@@ -289,9 +333,30 @@ export function tooltip(c: Ctx, extra: Record<string, unknown> = {}): Record<str
     padding: [8, 10],
     textStyle: { color: c.t.fg, fontSize: 12, fontFamily: c.t.font },
     extraCssText: `border-radius:${markRadius(c.t, 4) * 2}px;box-shadow:0 8px 24px -8px rgb(0 0 0 / 0.35);font-variant-numeric:tabular-nums;max-width:280px;white-space:normal;`,
-    transitionDuration: c.motion ? 0.12 : 0,
+    // It sits where the pointer is, at once. With a transition ECharts moves it in 50 ms steps and eases it after
+    // the pointer, so it trails behind and blinks between marks.
+    transitionDuration: 0,
+    // Long enough to cross the hairline gap between two slices, cells or steps without blinking; short enough to go
+    // when the pointer leaves.
+    hideDelay: 240,
     ...extra,
   };
+}
+
+/**
+ * The tooltip of a chart drawn over categories (bars, columns, steps): it answers for the whole band under the
+ * pointer, between bars and beside a short one too, not only on the mark itself. The band is shaded quietly.
+ */
+export function bandTip(c: Ctx, at: (dataIndex: number) => string, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return tooltip(c, {
+    trigger: 'axis',
+    axisPointer: { type: 'shadow', shadowStyle: { color: c.t.grid, opacity: 1 }, z: 0 },
+    formatter: (params: unknown) => {
+      const first = (Array.isArray(params) ? params[0] : params) as { dataIndex?: number } | undefined;
+      return first?.dataIndex === undefined ? '' : at(first.dataIndex);
+    },
+    ...extra,
+  });
 }
 
 export interface TipRow {

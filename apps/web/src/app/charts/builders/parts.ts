@@ -44,6 +44,10 @@ function pieLike(c: Ctx, donut: boolean): Built {
   const total = ps.reduce((s, p) => s + p.value, 0);
   const colors = ps.map((p, i) => catColor(c.t, i, p.name));
   const outside = !c.narrow;
+  // On a phone the names move to the legend, each with its share, so identity never rests on colour alone.
+  const legend: LegendItem[] = ps.map((p, i) => ({ label: outside ? p.name : `${p.name} ${share(p.value, total)}`, color: colors[i], mark: 'solid' }));
+  // The hole carries the whole: the total, and what it is a total of.
+  const center = donut ? donutCenter(c, total, col, hole(c, outside ? [] : legend)) : null;
   const option = {
     ...baseOption(c),
     tooltip: tooltip(c, {
@@ -78,25 +82,8 @@ function pieLike(c: Ctx, donut: boolean): Built {
         labelLine: { show: outside, length: 8, length2: 10, lineStyle: { color: c.t.muted, opacity: 0.6 } },
       },
     ],
-    graphic: donut
-      ? [
-          {
-            // The hole carries the whole: the total and what it is a total of.
-            type: 'text',
-            left: 'center',
-            top: 'middle',
-            silent: true,
-            style: {
-              text: `{v|${formatValue(total, col, { compact: true })}}\n{l|Total}`,
-              textAlign: 'center',
-              rich: { v: { fill: c.t.fg, fontSize: c.compact ? 18 : 22, fontWeight: 600, fontFamily: c.t.font, lineHeight: c.compact ? 24 : 28 }, l: { fill: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, lineHeight: 16 } },
-            },
-          },
-        ]
-      : undefined,
+    graphic: center ? [center] : undefined,
   };
-  // On a phone the names move to the legend, each with its share, so identity never rests on colour alone.
-  const legend: LegendItem[] = ps.map((p, i) => ({ label: outside ? p.name : `${p.name} ${share(p.value, total)}`, color: colors[i], mark: 'solid' }));
   return {
     render: 'echarts',
     kind: donut ? 'donut' : 'pie',
@@ -106,6 +93,83 @@ function pieLike(c: Ctx, donut: boolean): Built {
     table: tableModel(c, specKeys(c.spec)),
     summary: summary(c, `${donut ? 'Donut' : 'Pie'} chart with ${ps.length} parts, total ${formatValue(total, col)}.`, ps.map((p) => `${p.name} ${share(p.value, total)}`).join(', ') + '.'),
   };
+}
+
+/** The inner radius of a donut, as a share of half the plot's shorter side (ECharts' percentage radius). */
+const DONUT_INNER = 0.54;
+
+/**
+ * The diameter of the donut's hole in px. The plot is the body less the legend row above it (on a phone the names
+ * are there), estimated the way the legend wraps: 12 px text, an 8 px mark, 14 px between items, 17 px lines.
+ */
+function hole(c: Ctx, legend: LegendItem[]): number {
+  let lines = legend.length ? 1 : 0;
+  let x = 0;
+  for (const item of legend) {
+    const w = textWidth(item.label, 12) + 14;
+    if (x > 0 && x + 14 + w > c.width) {
+      lines++;
+      x = w;
+    } else x += (x > 0 ? 14 : 0) + w;
+  }
+  const plotH = c.height - (lines ? lines * 17 + (lines - 1) * 4 + 8 : 0);
+  // Less the 2 px gap the slices keep from the hole's edge.
+  return Math.max(0, DONUT_INNER * Math.min(c.width, plotH) - 4);
+}
+
+/**
+ * The label in the hole: the total in large figures, "Total room nights" small under it. It always fits inside the
+ * hole: the number is compacted (1.1k) and the type shrinks to the hole's size, down to 12 px; the unit drops out
+ * of the small line before that; a hole too small even then has no label (the total is in the tooltip and table).
+ */
+export function donutCenter(c: Ctx, total: number, col: EvidenceColumn, diameter: number): Record<string, unknown> | null {
+  // 1,114 and €1.34M as on the chart's labels; 1.1k when the hole is small.
+  const full = formatValue(total, col, { compact: true, unit: false });
+  const short = formatValue(total, col, { axis: true });
+  const withUnit = formatValue(total, col, { compact: true });
+  // The unit the number carries ("room nights"), or for a count without one, what is counted ("Room nights").
+  const unit = (withUnit.startsWith(full) ? withUnit.slice(full.length).trim() : '') || (col.kind === 'count' && col.label ? col.label.toLowerCase() : '');
+  const smalls = unit ? [`Total ${unit}`, 'Total'] : ['Total'];
+  const room = diameter * 0.92;
+  const max = Math.min(c.compact ? 20 : 24, Math.floor(diameter / 4));
+  // Inter's bold figures run about 0.62 em, its small text about 0.56 em.
+  const fits = (value: string, size: number, small: string, smallSize: number) => {
+    const w = Math.max(value.length * size * 0.62, small.length * smallSize * 0.56);
+    return Math.hypot(w, Math.round(size * 1.25) + Math.round(smallSize * 1.4)) <= room;
+  };
+  // The unit stays while the number can be 16 px or more; below that the number keeps the room.
+  const [named, bare] = [smalls[0], smalls[smalls.length - 1]];
+  const tries: [string, string, number, number][] = [
+    [full, named, max, 16],
+    [short, named, max, 16],
+    [full, bare, max, 16],
+    [short, bare, 15, 12],
+  ];
+  for (const [value, small, from, to] of tries) {
+    for (let size = from; size >= to; size--) {
+      {
+        const smallSize = Math.min(11.5, Math.max(10, Math.round(size * 0.55 * 2) / 2));
+        if (!fits(value, size, small, smallSize)) continue;
+        return {
+          type: 'text',
+          left: 'center',
+          top: 'middle',
+          silent: true,
+          // What the label was fitted into, for whoever checks it.
+          info: { hole: Math.floor(diameter * 0.92) },
+          style: {
+            text: `{v|${value}}\n{l|${small}}`,
+            textAlign: 'center',
+            rich: {
+              v: { fill: c.t.fg, fontSize: size, fontWeight: 600, fontFamily: c.t.font, lineHeight: Math.round(size * 1.25) },
+              l: { fill: c.t.muted, fontSize: smallSize, fontFamily: c.t.font, lineHeight: Math.round(smallSize * 1.4) },
+            },
+          },
+        };
+      }
+    }
+  }
+  return null;
 }
 
 export const buildPie = (c: Ctx): Built => pieLike(c, false);

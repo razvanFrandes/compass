@@ -9,6 +9,7 @@ import { readTokens } from './tokens';
 import { ViewAs } from './view-as';
 import { ViewAsMemory } from './view-memory';
 import { hotelCatalog } from './hotel-names';
+import { sameData } from './same';
 import { WidgetSkeleton } from './widget-skeleton';
 import type { EvidenceColumn, WidgetKind, WidgetRow, WidgetSpec } from './widget-types';
 
@@ -31,6 +32,18 @@ if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') 
  * - `none`: the widget itself (rows that are null or undefined still show the `title` state).
  */
 export type WidgetLoading = 'none' | 'skeleton' | 'title';
+
+/**
+ * A subtitle with the unit of the amounts said once ("… · In local currency"), for charts whose numbers carry
+ * none of their own. A subtitle that already names it is left as it is.
+ */
+export function subtitleWithUnit(subtitle: string | null | undefined, unitNote: string | null | undefined): string {
+  const text = subtitle?.trim() ?? '';
+  if (!unitNote) return text;
+  const unit = unitNote.replace(/^in\s+/i, '');
+  if (text.toLowerCase().includes(unit.toLowerCase())) return text;
+  return text ? `${text} · ${unitNote}` : unitNote;
+}
 
 let nextId = 0;
 
@@ -90,8 +103,8 @@ export class WidgetChart {
   private readonly unkeyed = linkedSignal<string, WidgetKind | null>({ source: () => this.spec().sourceCallId, computation: () => null });
   /** The kinds these rows can be shown as; empty until there are rows, or when nobody asked for the switcher. */
   readonly options = computed<KindOption[]>(() => {
-    const rows = this.rows();
-    return this.switcher() && rows ? compatibleKinds(this.spec(), rows as readonly WidgetRow[], this.columns()) : [];
+    const rows = this.data();
+    return this.switcher() && rows ? compatibleKinds(this.spec(), rows as readonly WidgetRow[], this.cols()) : [];
   });
   private readonly chosen = computed(() => (this.viewKey() ? this.memory.kind(this.viewKey()) : this.unkeyed()));
   /** The spec on screen: the widget's own, or the one for the kind chosen in "View as" when these rows still allow it. */
@@ -120,12 +133,19 @@ export class WidgetChart {
   private readonly mounted = signal(false);
   private readonly reducedMotion = signal(false);
 
-  private readonly tokens = computed(() => {
-    appTheme();
-    this.scope?.();
-    this.mounted();
-    return readTokens(this.host);
-  });
+  /* What the marks are drawn from, compared by value: the same rows, columns or colours arriving again as new
+     objects (a live conversation re-sending its turn, a class on <html> that is not the theme) draw nothing again. */
+  private readonly tokens = computed(
+    () => {
+      appTheme();
+      this.scope?.();
+      this.mounted();
+      return readTokens(this.host);
+    },
+    { equal: sameData },
+  );
+  private readonly data = computed(() => this.rows(), { equal: sameData });
+  private readonly cols = computed(() => this.columns(), { equal: sameData });
 
   /** KPI tiles: how many there are (known from the spec before the rows arrive) and how many sit in a row. */
   private readonly tiles = computed(() => {
@@ -139,7 +159,8 @@ export class WidgetChart {
     const h = this.height();
     return h && h > 0 && kind !== 'kpi' && kind !== 'kpi_row' ? Math.round(h) : null;
   });
-  protected readonly bodyH = computed(() => this.fixed() ?? bodyHeight(this.view(), this.compact(), this.width(), this.tiles()));
+  /** The drawing's own height when it needs one (a bridge lying down sizes itself by its steps); else the host's or the kind's. */
+  protected readonly bodyH = computed(() => this.built()?.height ?? this.fixed() ?? bodyHeight(this.view(), this.compact(), this.width(), this.tiles()));
   protected readonly narrow = computed(() => this.width() < 480);
   /** The state on screen: the one asked for, or `title` while there are no rows to draw. */
   protected readonly state = computed<WidgetLoading>(() => (this.loading() !== 'none' ? this.loading() : this.rows() ? 'none' : 'title'));
@@ -153,11 +174,15 @@ export class WidgetChart {
   private readonly drawn = computed(() => this.view(), { equal: sameDrawing });
 
   protected readonly built = computed<Built | null>(() => {
-    const rows = this.rows();
+    const rows = this.data();
     if (!rows || this.state() !== 'none') return null;
     hotelCatalog();
-    return buildWidget({ spec: this.drawn(), rows: rows as readonly WidgetRow[], columns: this.columns() ?? [], tokens: this.tokens(), width: this.width(), compact: this.compact(), motion: !this.reducedMotion(), ...(this.fixed() ? { height: this.fixed()! } : {}) });
+    return buildWidget({ spec: this.drawn(), rows: rows as readonly WidgetRow[], columns: this.cols() ?? [], tokens: this.tokens(), width: this.width(), compact: this.compact(), motion: !this.reducedMotion(), ...(this.fixed() ? { height: this.fixed()! } : {}) });
   });
+
+  /** The unit of the amounts when they carry none ("In local currency"); a host with its own header shows it under the title. */
+  readonly unitNote = computed(() => this.built()?.unitNote ?? null);
+  protected readonly subtitle = computed(() => subtitleWithUnit(this.view().subtitle, this.unitNote()));
 
   /** The chart's text alternative, opening with the title on screen (the marks may have been built under an earlier one). */
   protected readonly summary = computed(() => {

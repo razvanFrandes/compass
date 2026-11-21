@@ -39,7 +39,8 @@ export function buildWidget(input: BuildInput): Built {
     const table = tableModel(c, specKeys(c.spec));
     return { render: 'table', kind: 'table', table, legend: [], note: 'This kind of chart isn’t available yet, so the numbers are shown as a table.', summary: summary({ ...c, spec: { ...c.spec, kind: 'table' } }, `Table with ${table.rows.length} rows.`) };
   }
-  return builder(c);
+  const built = builder(c);
+  return c.unitNote ? { ...built, unitNote: c.unitNote } : built;
 }
 
 export { bodyHeight, context, kpiColumns, kpiCount, summaryHead, tableModel, NARROW } from './shared';
