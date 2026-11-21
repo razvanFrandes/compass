@@ -44,9 +44,15 @@ describe('fitWidget: what every kind checks', () => {
     expect(errorOf([], spec('table'))).toMatch(/no rows/);
   });
 
-  it('refuses more than 200 rows and says how to narrow the result', () => {
-    const many = Array.from({ length: 201 }, (_, i) => ({ period: `d${i}`, value: i }));
-    expect(errorOf(many, spec('table'))).toMatch(/201 rows.*at most 200.*narrower/s);
+  it('refuses more than 400 rows and says how to narrow the result', () => {
+    const many = Array.from({ length: 401 }, (_, i) => ({ period: `d${i}`, value: i }));
+    expect(errorOf(many, spec('table'))).toMatch(/401 rows.*at most 400.*narrower/s);
+  });
+
+  it('takes the 20 hotels × 14 nights of a group heatmap', () => {
+    const grid = Array.from({ length: 20 }, (_, h) => Array.from({ length: 14 }, (_, d) => ({ period: `2026-11-${String(20 + (d % 10)).padStart(2, '0')}-${d}`, key: `H${h}`, value: 60 + h + d }))).flat();
+    expect(grid).toHaveLength(280);
+    expect(fit(grid, spec('heatmap', { x: 'period', group: 'key', y: ['value'] })).ok).toBe(true);
   });
 
   it('names the columns of the result when a key is not one of them', () => {
@@ -180,6 +186,17 @@ describe('fitWidget: categories', () => {
     expect(errorOf(pace.slice(0, 5), spec('pie', { group: 'hotel_code', y: ['pace_pct'] }))).toMatch(/negative|add up/);
     const scores = [{ key: 'AMS', occupancy_pct: 71 }, { key: 'BCN', occupancy_pct: 80 }, { key: 'LIS', occupancy_pct: 64 }];
     expect(errorOf(scores, spec('donut', { group: 'key', y: ['occupancy_pct'] }))).toMatch(/adds up to 215%.*not.*whole/s);
+  });
+
+  it('treemap keeps x and group when both are named: the parts (x) sit inside their parents (group)', () => {
+    const byRegion = pace.map((row, i) => ({ ...row, region: i < 5 ? 'Europe' : 'Asia' }));
+    const fitted = fit(byRegion, spec('treemap', { x: 'hotel_code', group: 'region', y: ['rooms_otb'] }));
+    expect(fitted.ok && fitted.value).toMatchObject({ x: 'hotel_code', group: 'region', y: ['rooms_otb'] });
+  });
+
+  it('treemap with a parent still needs one row per part', () => {
+    const twice = [...pace, ...pace].map((row, i) => ({ ...row, region: i < 8 ? 'Europe' : 'Asia' }));
+    expect(errorOf(twice, spec('treemap', { x: 'hotel_code', group: 'region', y: ['rooms_otb'] }))).toMatch(/"hotel_code" repeats/);
   });
 
   it('treemap takes more parts than a pie', () => {

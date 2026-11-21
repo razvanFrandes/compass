@@ -1,5 +1,9 @@
 import { Component, DOCUMENT, DestroyRef, computed, inject, signal } from '@angular/core';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import { Live } from '../live';
+import { ASK_BY_KIND } from './ask-examples';
 import { SPECIMENS, type Specimen } from './catalog-samples';
+import { KIND_ICONS, KIND_ICON_SET } from './kind-icons';
 import { CONCEPT_ONLY } from '../theme-lab/tokens';
 import { WIDGET_THEME_SCOPE, WidgetChart, type WidgetLoading } from './widget-chart';
 
@@ -18,8 +22,8 @@ const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
  */
 @Component({
   selector: 'app-catalog',
-  imports: [WidgetChart],
-  providers: [{ provide: WIDGET_THEME_SCOPE, useValue: previewTick }],
+  imports: [WidgetChart, NgIcon],
+  providers: [{ provide: WIDGET_THEME_SCOPE, useValue: previewTick }, provideIcons(KIND_ICON_SET)],
   host: { class: 'block' },
   styles: `
     .cat-seg {
@@ -69,6 +73,7 @@ const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
     }
     .cat-seg button:focus-visible,
     .cat-play:focus-visible,
+    .cat-ask button:focus-visible,
     .cat-jump:focus-visible {
       outline: 2px solid var(--ring);
       outline-offset: 2px;
@@ -101,6 +106,37 @@ const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
     .cat-kind b {
       font-weight: 500;
       color: var(--foreground);
+    }
+    .cat-kind ng-icon {
+      margin-right: 6px;
+      vertical-align: -2px;
+      font-size: 14px;
+      color: var(--foreground);
+    }
+    .cat-ask {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 2px 6px;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--muted-foreground);
+    }
+    .cat-ask button {
+      border-radius: 4px;
+      color: var(--foreground);
+      text-align: left;
+      text-decoration: underline;
+      text-decoration-color: var(--border);
+      text-underline-offset: 4px;
+    }
+    .cat-ask button:hover {
+      text-decoration-color: currentColor;
+    }
+    @media (pointer: coarse) {
+      .cat-ask button {
+        min-height: 44px;
+      }
     }
     .cat-scope {
       height: 100%;
@@ -175,10 +211,14 @@ const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
                   @for (scope of scopes(); track scope) {
                     <div class="cat-scope" [class]="themeClass(scope)" [attr.data-theme]="themeAttr(scope)" [style]="themeReset(scope)">
                       <article class="cat-card" [attr.aria-label]="sp.spec.kind + (both() ? ', ' + themeName(scope) + ' theme' : '')">
-                        <p class="cat-kind mb-3"><b>{{ sp.spec.kind }}</b> · {{ mapping(sp) }}</p>
+                        <p class="cat-kind mb-3"><ng-icon [name]="icons[sp.spec.kind]" aria-hidden="true" /><b>{{ sp.spec.kind }}</b> · {{ mapping(sp) }}</p>
                         <juyo-widget-chart [spec]="sp.spec" [rows]="sp.rows" [columns]="sp.columns" [compact]="compact()" [loading]="loading()" />
                         @if (sp.shows) {
                           <p class="text-muted-foreground border-border mt-4 border-t pt-3 text-[12.5px]/relaxed">{{ sp.shows }}</p>
+                        }
+                        @if (question(sp); as q) {
+                          <!-- The question that makes Kassandra answer with this kind; a click asks it in a new thread -->
+                          <p class="cat-ask mt-3">Ask Kassandra: <button type="button" (click)="ask(q)">{{ q }}</button></p>
                         }
                       </article>
                     </div>
@@ -194,6 +234,8 @@ const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
 })
 export class CatalogView {
   private readonly doc = inject(DOCUMENT);
+  private readonly live = inject(Live);
+  protected readonly icons = KIND_ICONS;
   protected readonly groups = SPECIMENS;
   protected readonly kinds = new Set(SPECIMENS.flatMap((g) => g.items.map((i) => i.spec.kind))).size;
   protected readonly previews: { value: Preview; label: string }[] = [
@@ -266,6 +308,15 @@ export class CatalogView {
   protected mapping(sp: Specimen): string {
     const s = sp.spec;
     return [s.x ? `x ${s.x}` : '', s.y?.length ? `y ${s.y.join(', ')}` : '', s.group ? `group ${s.group}` : '', s.compare ? `compare ${s.compare}` : ''].filter(Boolean).join(' · ') || 'all columns';
+  }
+
+  /** The example question of a specimen's kind. The edge-case specimens repeat a kind and have none. */
+  protected question(sp: Specimen): string | null {
+    return sp.id === sp.spec.kind ? ASK_BY_KIND[sp.spec.kind] : null;
+  }
+  /** Asks it in a new conversation, at once, like every other click that stands for a question. */
+  protected ask(question: string) {
+    this.live.askAbout(question);
   }
 
   protected jump(id: string) {

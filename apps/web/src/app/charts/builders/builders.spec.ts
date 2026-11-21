@@ -386,6 +386,53 @@ describe('pie and donut', () => {
   });
 });
 
+describe('funnel from stage columns (the shape get_web_funnel returns)', () => {
+  // One row per device; the stages are columns, in the order of y.
+  const devices: WidgetRow[] = [
+    { key: 'mobile', sessions: 18_400, searches: 1_092, checkout_starts: 343, bookings: 147 },
+    { key: 'desktop', sessions: 9_071, searches: 914, checkout_starts: 282, bookings: 282 },
+  ];
+  const cols = [col('key', 'Device', 'text'), col('sessions', 'Sessions', 'count'), col('searches', 'Searches', 'count'), col('checkout_starts', 'Checkout starts', 'count'), col('bookings', 'Bookings', 'count')];
+  const y = ['sessions', 'searches', 'checkout_starts', 'bookings'];
+
+  it('one row: the stages are the y columns, named by their labels, never the rows', () => {
+    const b = chart(build(spec('funnel', { y }), [devices[0]], cols));
+    expect((series(b)[0]['data'] as Obj[]).map((d) => [d['name'], d['value']])).toEqual([
+      ['Sessions', 18_400],
+      ['Searches', 1_092],
+      ['Checkout starts', 343],
+      ['Bookings', 147],
+    ]);
+    expect(b.points[3].text).toBe('Bookings: 147, 0.8% of sessions, 42.9% of the previous stage');
+    expect(b.summary).toContain('Funnel with 4 stages');
+  });
+
+  it('several rows: one funnel per row, each with every stage, named by x', () => {
+    const b = chart(build(spec('funnel', { x: 'key', y }), devices, cols));
+    const funnels = series(b).filter((s) => s['type'] === 'funnel');
+    expect(funnels.map((s) => s['name'])).toEqual(['mobile', 'desktop']);
+    for (const f of funnels) expect((f['data'] as Obj[]).map((d) => d['name'])).toEqual(['Sessions', 'Searches', 'Checkout starts', 'Bookings']);
+    expect((funnels[1]['data'] as Obj[]).map((d) => d['value'])).toEqual([9_071, 914, 282, 282]);
+    // Each funnel's shares are of its own first stage.
+    expect(b.points).toHaveLength(8);
+    expect(b.points[3].text).toBe('mobile, Bookings: 147, 0.8% of sessions, 42.9% of the previous stage');
+    expect(b.points[7].text).toBe('desktop, Bookings: 282, 3.1% of sessions, 100.0% of the previous stage');
+    expect(b.points[7]).toMatchObject({ seriesIndex: 1, dataIndex: 3 });
+    expect(b.summary).toContain('2 funnels');
+    expect(b.summary).toContain('mobile');
+    // The funnels sit side by side and do not overlap.
+    const boxes = funnels.map((s) => [Number(s['left']), Number(s['left']) + Number(s['width'])]);
+    expect(boxes[0][1]).toBeLessThanOrEqual(boxes[1][0]);
+  });
+
+  it('several rows on a phone: the stage names move into each label', () => {
+    const b = chart(build(spec('funnel', { x: 'key', y }), devices, cols, { width: 360 }));
+    const funnels = series(b).filter((s) => s['type'] === 'funnel');
+    expect(call((funnels[0]['label'] as Obj)['formatter'], { dataIndex: 3 })).toContain('Bookings');
+    expect(Number(funnels[1]['left']) + Number(funnels[1]['width'])).toBeLessThanOrEqual(360);
+  });
+});
+
 describe('funnel, treemap and sankey', () => {
   it('labels each funnel stage with its value and its share of the first stage', () => {
     const rows = [
@@ -443,6 +490,23 @@ describe('funnel, treemap and sankey', () => {
     const b = build(spec('sankey', { x: 'from', group: 'to', y: ['v'] }), rows);
     expect(b.render).toBe('table');
     expect(b.note).toBe('These flows loop back on themselves, so they are shown as a table.');
+  });
+});
+
+describe('heatmap of the group', () => {
+  it('shows all 20 hotels over 14 nights at the regular height, without leaving any out', () => {
+    const grid: WidgetRow[] = Array.from({ length: 20 }, (_, h) => Array.from({ length: 14 }, (_, d) => ({ period: `2026-11-${String(20 + d).padStart(2, '0')}`.replace('2026-11-3', '2026-12-0'), key: `H${String(h).padStart(2, '0')}`, value: 50 + h + d }))).flat();
+    const b = chart(build(spec('heatmap', { x: 'period', group: 'key', y: ['value'] }), grid, [col('period', 'Date', 'date'), col('key', 'Hotel', 'hotel'), col('value', 'Occupancy', 'percent')]));
+    expect((axis(b, 'yAxis')['data'] as unknown[]).length).toBe(20);
+    expect(b.note).toBeUndefined();
+    expect((series(b)[0]['data'] as unknown[]).length).toBe(280);
+  });
+
+  it('shows all 20 hotels in an answer too, where widgets are compact', () => {
+    const grid: WidgetRow[] = Array.from({ length: 20 }, (_, h) => Array.from({ length: 14 }, (_, d) => ({ period: `2026-12-${String(1 + d).padStart(2, '0')}`, key: `H${String(h).padStart(2, '0')}`, value: 50 + h + d }))).flat();
+    const b = chart(build(spec('heatmap', { x: 'period', group: 'key', y: ['value'] }), grid, [col('period', 'Date', 'date'), col('key', 'Hotel', 'hotel'), col('value', 'Occupancy', 'percent')], { compact: true, width: 600 }));
+    expect((axis(b, 'yAxis')['data'] as unknown[]).length).toBe(20);
+    expect(b.note).toBeUndefined();
   });
 });
 
@@ -634,6 +698,31 @@ describe('kpi, kpi_row, sparkline_list and table', () => {
       ['Occupancy', '78.1%', '▲ 3.1 pts', null],
       ['Pickup', '61.0%', '▼ 9.0 pts', null],
     ]);
+  });
+
+  it('reads the headline KPIs of one row with last year from the _ly columns, and says "vs last year" whatever their label', () => {
+    // The row get_kpis returns for a region, with the labels its view gives the columns.
+    const row = { key: 'Asia', occupancy_pct: 77.1, occupancy_ly_pct: 72.5, adr_eur: 386.47, adr_ly_eur: 381.43, revpar_eur: 298.12, revpar_ly_eur: 276.53 };
+    const kpiCols = [
+      col('key', 'Region', 'text'),
+      col('occupancy_pct', 'Occupancy', 'percent'),
+      col('occupancy_ly_pct', 'Occupancy, last year', 'percent'),
+      col('adr_eur', 'ADR', 'currency', 'EUR'),
+      col('adr_ly_eur', 'ADR, last year', 'currency', 'EUR'),
+      col('revpar_eur', 'RevPAR', 'currency', 'EUR'),
+      col('revpar_ly_eur', 'RevPAR, last year', 'currency', 'EUR'),
+    ];
+    const b = build(spec('kpi_row', { y: ['occupancy_pct', 'adr_eur', 'revpar_eur'] }), [row], kpiCols);
+    expect(b.render === 'kpi_row' && b.tiles.map((t) => [t.label, t.value, t.delta?.text, t.versus])).toEqual([
+      ['Occupancy', '77.1%', '▲ 4.6 pts', 'vs last year'],
+      ['ADR', '€386', '▲ 1.3%', 'vs last year'],
+      ['RevPAR', '€298', '▲ 7.8%', 'vs last year'],
+    ]);
+  });
+
+  it('says "vs budget" for a budget comparison, from the column label', () => {
+    const b = build(spec('kpi', { y: ['gop_eur'], compare: 'plan' }), [{ gop_eur: 110, plan: 100 }], [col('gop_eur', 'GOP', 'currency', 'EUR'), col('plan', 'GOP budget', 'currency', 'EUR')]);
+    expect(b.render === 'kpi' && b.kpi.versus).toBe('vs budget');
   });
 
   it('falls back to the change over the period when a tile has no comparison column', () => {

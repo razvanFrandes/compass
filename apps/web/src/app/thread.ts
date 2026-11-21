@@ -5,6 +5,7 @@ import { EvidenceLayout } from './evidence';
 import { KassandraComposer } from './kassandra/kassandra-composer';
 import { KassandraConversation, type EvidenceSelection } from './kassandra/kassandra-conversation';
 import { evidenceEntries, evidenceTarget, hasEvidence, statedText } from './kassandra/evidence-target';
+import { KassandraTryAsking } from './kassandra/kassandra-try-asking';
 import { SkeletonHold, evidenceSlots } from './kassandra/live-slots';
 import { Live } from './live';
 import { CompassStore } from './store';
@@ -19,7 +20,7 @@ import * as icons from './icons';
 */
 @Component({
   selector: 'app-thread',
-  imports: [NgIcon, KassandraComposer, KassandraConversation, EvidenceLayout, HlmButtonImports],
+  imports: [NgIcon, KassandraComposer, KassandraConversation, KassandraTryAsking, EvidenceLayout, HlmButtonImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'flex h-full min-h-0' },
   template: `
@@ -71,6 +72,8 @@ import * as icons from './icons';
                 <span class="orb-mark block" style="width: 28px; height: 28px" aria-hidden="true"></span>
                 <p class="mt-3 text-[20px] font-semibold tracking-[-0.01em]">Ask Kassandra</p>
                 <p class="text-muted-foreground mt-1 text-[14px]">About any hotel, night or metric. Every number in the answer shows where it comes from.</p>
+                <!-- Examples that show off each kind of widget; a click sends the question at once -->
+                <kassandra-try-asking class="mt-8" (picked)="live.send($event)" />
               </div>
             </kassandra-conversation>
           </div>

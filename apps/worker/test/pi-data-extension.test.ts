@@ -84,6 +84,6 @@ describe('Pi data extension', () => {
     const names = agent.tools.map((t) => t.name).sort();
     expect(names).toContain('get_metric');
     expect(names).toContain('run_readonly_query');
-    expect(names).toHaveLength(24);
+    expect(names).toHaveLength(25);
   });
 });

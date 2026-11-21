@@ -87,8 +87,9 @@ wss://juyo.razvanfrandes.com/api/kassandra/ws?conversation=<id>
 - **`ask`:** pass an `id` so a resend after a dropped connection is not asked twice. Sent while busy, it is queued as a follow-up.
 - **`scope`** (optional): the hotels the answer is for. See "Hotels and scope". Send it with every question while a scope is selected; a question without it is for the whole group.
 - **`mode`** (the Quick / Thinker selector in the composer):
-  - **`quick`:** Claude Haiku 5.5, only the governed-metric tools (plus `get_pnl`, `get_forecast` and `show_widget`), at most 5 turns, three sentences. About 5–9 s and a few cents; a widget adds a few seconds.
-  - **`thinker`** (default): Claude Sonnet 5.5, all 24 data tools and `show_widget`, cross-source diagnosis. About 8–20 s.
+  - **`quick`:** Claude Haiku 5.5, only the governed-metric tools (plus `get_kpis`, `get_pnl`, `get_forecast` and `show_widget`), at most 5 turns, three sentences. About 5–10 s and a few cents; it shows one widget (two at most) from the result it already has.
+  - **`thinker`** (default): Claude Sonnet 5.5, all 25 data tools and `show_widget`, cross-source diagnosis, at most 12 turns. It may call a data tool only to feed a widget. About 10–20 s.
+  - **Visual by default (both modes):** an answer that holds a comparison, a trend, a split, a ranking or a few headline figures comes with at least one widget, and at most three; the text stays short and points at them. Only a single number, a yes or no, or an answer with nothing to draw has none.
   - The mode applies from the next question. A question sent while an answer is running keeps the current mode.
 - **Rate limit:** 6 questions per minute per client, and the daily budget (`steer` counts as a question). Over a limit, the server sends an `error` message.
 
@@ -178,7 +179,7 @@ interface WidgetSpec {
 - **The server checks the fit.** Every key must be a column of those rows, `y` and `compare` must be number columns, and the kind must suit the shape (the table below). A widget that does not fit never reaches the client: the model gets a sentence saying what is wrong and tries again or answers without it.
 - **The spec is normalised.** It holds only the fields its kind uses. `format` is filled from the kind of the first `y` column when the model leaves it out (absent for a table, and for a plain number column).
 - **`columns`** describe every column of the rows: `{ key, label, kind, unit?, hidden? }` with `kind` one of `text | hotel | date | month | number | percent | currency | count | id`. Use `label` for axis and legend names and `kind` and `unit` to format values. They come from the data tool's evidence when it names them, else they are read from the rows (key names and values).
-- **Limits:** at most 200 rows per widget, at most 4 widgets per answer (the prompt asks for at most 3; a board view may show 4).
+- **Limits:** at most 400 rows per widget (20 hotels over 20 nights), at most 4 widgets per answer (the prompt asks for at most 3; a board view may show 4).
 - **Order:** a widget belongs to the answer of its run. Show the widgets of a run under its final `assistant` entry, in the order of their entries.
 - **Skeleton:** `live.tools` shows `show_widget` as `running` while the widget is being built.
 - **Add to board:** send the widget as it is to `POST /api/boards/:id/widgets` (see "Boards").
@@ -197,7 +198,7 @@ What each kind takes. `x`, `y`, `group` and `compare` are column keys; "label" c
 | `bar` | 2–50, one per category | the category | 1 | – | optional |
 | `grouped_bar`, `stacked_bar` | one per `x` (and `group`) | the category or period | 2–8 series; exactly 1 with `group` | optional: one series per value (≤ 12) | – |
 | `pie`, `donut` | 2–7 parts of one whole | – | 1, not negative; a percent column must add up to 100 | the part's label | – |
-| `treemap` | 2–60 parts | – | 1, not negative | the part's label | – |
+| `treemap` | 2–60 parts | optional: the part's label when `group` is its parent (hotels inside regions) | 1, not negative | the part's label, or the parent when `x` is given | – |
 | `table` | any | – | optional: the columns to show, in order (any kind) | – | – |
 | `heatmap` | one per cell | across | 1: the cell value | down | – |
 | `funnel` | 1–4, one funnel per row | label of each funnel (when > 1 row) | 2–8 stage columns in order, never growing | – | – |
@@ -232,7 +233,7 @@ interface BoardWidget { id: string; spec: WidgetSpec; rows: Record<string, unkno
 - **Fields.** `name` is 1–80 characters, `description` at most 300, `hotels` at most 40 hotel codes (empty = the whole group). Unknown fields are refused.
 - **`order`** reorders the widgets: it must list every widget id of the board exactly once.
 - **Add to board.** Send a `Widget` from an answer: `spec` is the widget without `rows`, `columns` and `evidence`, which go next to it; `question` is the question that was asked (at most 2000 characters). The server checks the widget against its rows with the same rules as `show_widget`, so a widget that came from an answer always passes. The answer is the stored `BoardWidget` with its new `id`. "Undo" is `DELETE` on that id.
-- **Limits.** 50 boards, 24 widgets per board, 200 rows per widget, 256 KB per widget body.
+- **Limits.** 50 boards, 24 widgets per board, 400 rows per widget, 256 KB per widget body.
 - **Errors.** 400 with the reason (`{ "error": "name: Too small: …" }`) for an invalid body or a widget that does not fit its rows; 404 for an unknown board or widget; 409 at a limit ("A board holds at most 24 widgets. Remove one and try again."); 413 for a body over the limit; 429 from the rate limit or the daily budget.
 - **Write limits.** Writes follow the same-origin rule above, a rate limit of 60 changes per minute per client, and the daily `board_write` budget (600 per UTC day for all visitors). Reads are not limited. A body with the wrong shape is refused before it counts against the budget.
 - **Sample boards.** The first request seeds three boards from the database, so the page is never empty: `portfolio` ("Portfolio overview", 5 widgets), `dubai-business-bay` (4) and `amsterdam-web` (4). Their widgets are built by the same data tools Kassandra uses, with periods relative to the business date at the time of seeding; their `sourceCallId` starts with `seed:` and `question` is the question that gives the same view in Kassandra. That first request takes a few seconds. A sample board that is deleted stays deleted.
@@ -373,7 +374,7 @@ A run walks the chain: `trigger` and `scope` are done at once; a check is active
   - On success everyone on the draft gets a `draft` message. Nothing is added to the transcript at that moment.
   - With the next `ask` or `steer`, the transcript gets **one** `event` entry `app.edit` for all the edits since the last question, with `data: { changed, chain }` (the nodes edited and the chain as it now reads). The agent reads it, so it builds on the edits.
   - At most 30 edits per minute per client; over that you get an `error` message.
-  - `checks` may only name data tools (the 24 tools of `/mcp`), at most 8.
+  - `checks` may only name data tools (the 25 tools of `/mcp`), at most 8.
 - **`save`:** saves the draft as a workflow. Refused with an `error` while `issues` is not empty. The first save creates the workflow; you get a `draft` message with its `workflowId`. A later save updates that workflow; a field removed from the draft since the last save goes back to its default in the workflow too. If the address changed (or was added or removed), the save creates a **new** workflow, turns the old one off, and `workflowId` changes. If the old one cannot be turned off you get the `draft` message with the new id and then an `error` saying so.
 - **`test`** ("Run a test"): saves if needed, then runs the workflow once as a test and sends `run` messages. An email workflow always sends on a test, with the subject `Test run · <name> · Compass`, and the mail says whether the workflow would have fired today.
   - One test at a time: a `test` sent while a run is going gets an `error` message, and the socket stays open.
@@ -409,13 +410,20 @@ A run walks the chain: `trigger` and `scope` are done at once; a check is active
 
 ## MCP (public, read-only)
 
-`https://juyo.razvanfrandes.com/mcp` (Streamable HTTP) exposes 24 data tools. Kassandra uses the same tools.
+`https://juyo.razvanfrandes.com/mcp` (Streamable HTTP) exposes 25 data tools. Kassandra uses the same tools.
 
 - **Reference:** `list_hotels`, `list_metrics`, `get_schema`, `get_data_health`.
-- **Commercial:** `get_metric`, `get_pace`, `get_pickup`, `get_rate_position`, `get_channel_mix`, `get_mix`, `get_account_production`, `get_inventory`, `get_web_funnel`.
+- **Commercial:** `get_metric`, `get_kpis` (the headline figures in one row, with last year), `get_pace`, `get_pickup`, `get_rate_position`, `get_channel_mix`, `get_mix`, `get_account_production`, `get_inventory`, `get_web_funnel`.
 - **Finance and forecast:** `get_pnl` (USALI P&L vs budget and last year, GOP margin, flowthrough), `get_forecast` (P10–P90 range vs on the books and budget), `get_lost_business` (price regrets vs denials).
 - **F&B, M&E and guests:** `get_fnb`, `get_labor`, `get_meetings_events`, `get_review_scores`, `find_reviews` (by meaning), `search_reviews` (exact phrase).
 - **Brief and escape hatch:** `get_brief`, `run_readonly_query`.
+- **Shapes for charts.** Some tools return the same numbers in the shape a widget needs, always computed in SQL:
+  - `get_pnl` with `view: "bridge"` (and `against: "budget" | "ly"`): the steps from budget GOP to GOP for one hotel or roll-up (`step`, `kind`, `amount_eur`), which a waterfall draws. The budget plans GOP on its own, so what its lines do not add up to is the step "Unallocated in budget".
+  - `get_channel_mix` with `shape: "total"` (one row per channel over the hotels) or `"flows"` (`channel`, `lands_in`: Net revenue or Commission, `amount_eur`), which a sankey draws. Both state the gross, commission and net totals in `evidence.notes`, computed by the same query; every channel row has `commission_pct` (commission ÷ gross).
+  - `get_mix` with `rollUp: true`: one row per period and key over the hotels.
+  - `get_pace` with `from`, `to` and `grain: "day"`: rooms on the books per stay date against the same time last year (the pace curve).
+  - `get_rate_position` adds `occupancy_otb_pct` per night; `grain: "total"` gives one row per hotel (average BAR against the average comp set median).
+  - `get_kpis` per hotel adds `region` and the comp set indices, for a treemap or a scatter of ARI against MPI.
 
 Connect Claude Desktop to it under Settings → Connectors → Add custom connector. Rate limit: 60 requests per minute per client. Bodies at most 64 KB. Browser requests from other origins get 403, and responses carry no CORS headers: MCP clients are not browsers.
 

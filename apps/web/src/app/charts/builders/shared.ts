@@ -124,7 +124,8 @@ const HEIGHTS: Record<WidgetKind, [regular: number, compact: number]> = {
   pie: [280, 220],
   donut: [280, 220],
   table: [320, 240],
-  heatmap: [300, 220],
+  // Not shorter when compact: an answer's heatmap is often the group's 20 hotels, and a row needs 13 px.
+  heatmap: [300, 300],
   calendar_heatmap: [240, 200],
   funnel: [280, 220],
   waterfall: [300, 220],

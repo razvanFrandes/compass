@@ -26,7 +26,8 @@ export function buildHeatmap(c: Ctx): Built {
   const yCol = column(c, yKey);
   const col = valueColumn(c, vKey);
   const xs = distinct(c.rows.map((r) => String(cell(r, xKey) ?? '')));
-  const maxRows = Math.max(3, Math.floor((c.height - 34) / 16));
+  // Rows may be as low as 13 px, so the group's 20 hotels fit the regular height; the names shrink with them.
+  const maxRows = Math.max(3, Math.floor((c.height - 34) / 13));
   const allYs = distinct(c.rows.map((r) => String(cell(r, yKey) ?? '')));
   const ys = allYs.slice(0, maxRows);
   const cells = c.rows
@@ -37,9 +38,10 @@ export function buildHeatmap(c: Ctx): Built {
   const max = Math.max(...cells.map((p) => p.v));
   const xLabels = xs.map((x) => label(x, xCol));
   const yLabels = ys.map((y) => label(y, yCol));
-  const nameW = Math.min(Math.max(...yLabels.map((l) => textWidth(l, 12))) + 6, Math.round(c.width * (c.narrow ? 0.3 : 0.26)));
-  const cellW = (c.width - nameW - 16) / xs.length;
   const cellH = (c.height - 34) / ys.length;
+  const nameSize = cellH < 15 ? 11 : 12;
+  const nameW = Math.min(Math.max(...yLabels.map((l) => textWidth(l, nameSize))) + 10, Math.round(c.width * (c.narrow ? 0.3 : 0.26)));
+  const cellW = (c.width - nameW - 16) / xs.length;
   const short = (v: number) => formatValue(v, col, { axis: true }).replace(/\.\d+%$/, '%');
   const showValues = cellW >= Math.max(...cells.map((p) => textWidth(short(p.v), 11))) + 6 && cellH >= 16;
   const option = {
@@ -55,7 +57,7 @@ export function buildHeatmap(c: Ctx): Built {
     }),
     visualMap: fills(c, min, max, 2),
     xAxis: categoryAxis(c, xLabels, { axisLine: { show: false }, splitArea: { show: false } }),
-    yAxis: categoryAxis(c, yLabels, { inverse: true, axisLine: { show: false }, axisLabel: { color: c.t.text, fontSize: 12, fontFamily: c.t.font, width: nameW, overflow: 'truncate', interval: 0, margin: 10 } }),
+    yAxis: categoryAxis(c, yLabels, { inverse: true, axisLine: { show: false }, axisLabel: { color: c.t.text, fontSize: nameSize, fontFamily: c.t.font, width: nameW, overflow: 'truncate', interval: 0, margin: 10 } }),
     series: [
       {
         type: 'heatmap',

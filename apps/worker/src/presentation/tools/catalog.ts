@@ -45,6 +45,7 @@ const hotels = z
   .describe('Hotel codes, e.g. ["LIS", "AMS"]. Omit for the whole group. Use list_hotels for the codes.');
 const isoDate = z.iso.date().describe('ISO date, YYYY-MM-DD');
 const rollUp = z.enum(['hotel', 'region', 'brand', 'group']).default('hotel').describe('What one row is');
+const REGIONS = ['Europe', 'North America', 'South America', 'Middle East', 'Asia'] as const;
 const bucket = z.enum(['day', 'week', 'month', 'total']).describe('Bucket size; total gives one row for the whole period');
 
 /**
@@ -200,13 +201,30 @@ export const DATA_TOOLS = [
     run: async (data, args) => fromResult(await data.getMetric(args)),
   }),
   tool({
+    name: 'get_kpis',
+    description:
+      'The headline figures of a period in ONE row per hotel, region, brand or the whole group: occupancy, ADR, RevPAR, room ' +
+      'revenue and rooms sold, each next to the same period last year (the _ly columns). Per hotel the row also has its region and ' +
+      'its comp set indices (mpi, ari, rgi; actuals only). Use it for "the headline KPIs" (by group or region: one row, a kpi_row), ' +
+      'to compare hotels on two measures at once (a scatter of ari against mpi, or adr_eur against occupancy_pct) and for revenue ' +
+      'by hotel inside its region (a treemap). For a trend over time use get_metric.',
+    input: z.object({
+      hotels,
+      region: z.enum(REGIONS).optional().describe('Only the hotels of this region'),
+      by: rollUp,
+      from: isoDate,
+      to: isoDate,
+    }),
+    run: async (data, args) => fromResult(await data.getKpis(args)),
+  }),
+  tool({
     name: 'get_pickup',
     description:
       'Booking pickup: rooms added to the books in the last daysBack days for the next horizonDays nights, as a share ' +
       'of capacity, per hotel. Compare a hotel with its region to spot slow pickup.',
     input: z.object({
       hotels,
-      region: z.enum(['Europe', 'North America', 'South America', 'Middle East', 'Asia']).optional(),
+      region: z.enum(REGIONS).optional(),
       daysBack: z.number().int().min(1).max(90).default(21),
       horizonDays: z.number().int().min(1).max(180).default(44),
     }),
@@ -215,21 +233,44 @@ export const DATA_TOOLS = [
   tool({
     name: 'get_pace',
     description:
-      'Pace: room nights on the books for the next daysAhead nights against the same point last year, per hotel, with pace_pct.',
-    input: z.object({ hotels, daysAhead: z.number().int().min(7).max(365).default(90) }),
+      'Pace: room nights on the books for the next daysAhead nights against the same point last year, per hotel, with pace_pct. ' +
+      'Pass from and to for the pace of a window of stay dates (e.g. December). grain "day" gives it night by night (rooms_otb ' +
+      'next to rooms_otb_stly per stay date): the pace curve a line chart draws.',
+    input: z.object({
+      hotels,
+      daysAhead: z.number().int().min(7).max(365).default(90),
+      from: isoDate.optional().describe('First stay date of the window. Default: the business date'),
+      to: isoDate.optional().describe('Last stay date of the window. Default: daysAhead nights from the business date'),
+      grain: z.enum(['total', 'day']).default('total').describe('total: one row per hotel; day: one row per hotel and stay date'),
+    }),
     run: async (data, args) => success(await data.getPace(args)),
   }),
   tool({
     name: 'get_rate_position',
     description:
-      'Rate position: our BAR against the comp set median from the latest rate shop, per future night (bar_vs_comp 1.00 = at the median).',
-    input: z.object({ hotels, from: isoDate.optional(), to: isoDate.optional() }),
+      'Rate position: our BAR against the comp set median from the latest rate shop, per future night (bar_vs_comp 1.00 = at the ' +
+      'median), with the occupancy on the books of that night (occupancy_otb_pct): a night that is filling while priced under the ' +
+      'median is underpriced. grain "total" gives one row per hotel for the whole window (average BAR against the average median).',
+    input: z.object({
+      hotels,
+      from: isoDate.optional(),
+      to: isoDate.optional(),
+      grain: z.enum(['night', 'total']).default('night').describe('night: one row per hotel and night; total: one row per hotel for the window'),
+    }),
     run: async (data, args) => success(await data.getRatePosition(args)),
   }),
   tool({
     name: 'get_channel_mix',
-    description: 'Channel mix: room nights, gross revenue, commission and net revenue by booking channel, in EUR.',
-    input: z.object({ hotels, from: isoDate, to: isoDate }),
+    description:
+      'Channel mix: room nights, gross revenue, commission (also as a share of gross, commission_pct) and net revenue by booking channel, in EUR. shape "hotel" gives a row ' +
+      'per hotel and channel; "total" one row per channel summed over the hotels (the parts of one whole); "flows" one row per ' +
+      'channel and where its revenue lands (Net revenue or Commission), which is what a sankey draws.',
+    input: z.object({
+      hotels,
+      from: isoDate,
+      to: isoDate,
+      shape: z.enum(['hotel', 'total', 'flows']).default('hotel').describe('hotel: per hotel and channel; total: per channel over the hotels; flows: channel → Net revenue / Commission'),
+    }),
     run: async (data, args) => success(await data.getChannelMix(args)),
   }),
   tool({
@@ -247,6 +288,7 @@ export const DATA_TOOLS = [
         .enum(['stay', 'booked'])
         .default('stay')
         .describe('stay: nights staying in the period; booked: nights of reservations made in the period (where new demand comes from)'),
+      rollUp: z.boolean().default(false).describe('true: one row per period and key, summed over the hotels, for the mix of a region or the group'),
     }),
     run: async (data, args) => success(await data.getMix(args)),
   }),
@@ -348,15 +390,18 @@ export const DATA_TOOLS = [
       'Finance: the USALI P&L in EUR per month or for a whole period, per hotel or rolled up by region, brand or group. Actual for ' +
       'closed months, forecast for the current and future ones, against budget and last year: revenue and GOP with variance in EUR ' +
       'and %, GOP margin and flowthrough (Δ GOP ÷ Δ revenue). view "lines" lists every line (rooms, F&B, M&E and other revenue, ' +
-      'departmental and undistributed expenses) with favourable or unfavourable variance. Use it for budget, profit and cost questions.',
+      'departmental and undistributed expenses) with favourable or unfavourable variance. view "bridge" gives the steps from budget ' +
+      'GOP (or last year, against "ly") to GOP for one hotel or one roll-up: what each line added or took away, which is what a ' +
+      'waterfall draws and what "what drove GOP" asks for. Use it for budget, profit and cost questions.',
     input: z.object({
       hotels,
       by: rollUp,
       from: isoDate,
       to: isoDate,
       grain: z.enum(['month', 'total']).default('month').describe('month, or total for one row for the whole period (e.g. year to date)'),
-      view: z.enum(['summary', 'lines']).default('summary').describe('summary: revenue and GOP; lines: every P&L line'),
+      view: z.enum(['summary', 'lines', 'bridge']).default('summary').describe('summary: revenue and GOP; lines: every P&L line; bridge: the steps from budget GOP to GOP, for the whole period'),
       lines: z.array(z.enum(PNL_LINES)).optional().describe('With view "lines": only these lines'),
+      against: z.enum(['budget', 'ly']).default('budget').describe('With view "bridge": start from the budget or from last year'),
     }),
     run: async (data, args) => fromResult(await data.finance.getPnl(args)),
   }),

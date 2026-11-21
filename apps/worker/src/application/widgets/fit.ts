@@ -206,6 +206,18 @@ function rulesFor(spec: WidgetSpec, rows: Row[], columns: EvidenceColumn[]): Use
     case 'pie':
     case 'donut':
     case 'treemap': {
+      // A treemap with both x and group is nested: each part (x) sits inside its parent (group), e.g. hotels in regions.
+      if (kind === 'treemap' && x && group && x !== group) {
+        return (
+          first(
+            yCount(1, 1, 'the size of each part'),
+            rowCount(2, 60, 'Use table for more.'),
+            unique([x], 'Each part needs its own row: call the data tool with grain "total".'),
+            notNegative(y[0]),
+            y[0] === undefined || sum(rows, y[0]) > 0 ? null : `${quote(y[0] ?? '')} adds up to 0, so there is nothing to split.`,
+          ) ?? { x, y, group }
+        );
+      }
       // The slice label is `group`; a label passed as x is taken too.
       const label = group ?? x;
       const whole = kind === 'treemap' ? null : partsOfAWhole(rows, y[0], kindOf(y[0]));

@@ -4,6 +4,7 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { KassandraComposer } from './kassandra/kassandra-composer';
+import { KassandraTryAsking } from './kassandra/kassandra-try-asking';
 import { PickupBars, Spark } from './brief-charts';
 import { GROUP, NIGHTS, formatEur, utc } from './data';
 import { AMS_CONVERSION, BCN_OUT_OF_ORDER, DPS_KITCHEN, LIS_PACE, NYC_ACCOUNT, PULSE } from './halcyon-data';
@@ -27,7 +28,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
 */
 @Component({
   selector: 'app-inbox',
-  imports: [NgIcon, NgTemplateOutlet, KassandraComposer, PickupBars, Spark, ProposalCard, ScopeSwitcher, HlmButtonImports, HlmDropdownMenuImports],
+  imports: [NgIcon, NgTemplateOutlet, KassandraComposer, KassandraTryAsking, PickupBars, Spark, ProposalCard, ScopeSwitcher, HlmButtonImports, HlmDropdownMenuImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
@@ -63,6 +64,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
         </p>
         <div class="mt-6 hidden lg:block">
           <kassandra-composer inputId="global-ask" [shortcut]="true" placeholder="Ask about any hotel, night or metric…" [(mode)]="live.mode" (submitted)="live.askNew($event)" />
+          <kassandra-try-asking class="mt-3" [compact]="true" (picked)="live.askNew($event)" />
         </div>
       </section>
 

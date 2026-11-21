@@ -29,6 +29,122 @@ export interface Hotel {
   meeting_space_sqm: number;
 }
 
+export interface KpisInput {
+  hotels?: string[];
+  region?: string;
+  by?: 'hotel' | 'region' | 'brand' | 'group';
+  from: string;
+  to: string;
+}
+
+/** One row of getKpis. `region` and the comp set indices are there only per hotel. */
+export interface KpiRow {
+  key: string;
+  region?: string;
+  occupancy_pct: number | null;
+  occupancy_ly_pct: number | null;
+  adr_eur: number | null;
+  adr_ly_eur: number | null;
+  revpar_eur: number | null;
+  revpar_ly_eur: number | null;
+  room_revenue_eur: number | null;
+  room_revenue_ly_eur: number | null;
+  rooms_sold: number | null;
+  rooms_sold_ly: number | null;
+  mpi?: number | null;
+  ari?: number | null;
+  rgi?: number | null;
+}
+
+export interface PaceInput {
+  hotels?: string[];
+  daysAhead?: number;
+  /** Only these stay dates. */
+  from?: string;
+  to?: string;
+  grain?: 'total' | 'day';
+}
+export interface PaceRow {
+  hotel_code: string;
+  rooms_otb: number;
+  rooms_otb_stly: number;
+  pace_pct: number;
+  revenue_otb: number;
+  revenue_otb_stly: number;
+}
+export interface PaceNightRow {
+  hotel_code: string;
+  stay_date: string;
+  rooms_otb: number;
+  rooms_otb_stly: number;
+}
+
+export interface RatePositionInput {
+  hotels?: string[];
+  from?: string;
+  to?: string;
+  grain?: 'night' | 'total';
+}
+export interface RatePositionRow {
+  hotel_code: string;
+  stay_date: string;
+  bar_rate: number;
+  comp_median: number;
+  bar_vs_comp: number;
+  comps_sold_out: number;
+  occupancy_otb_pct: number | null;
+}
+export interface RatePositionTotalRow {
+  hotel_code: string;
+  nights: number;
+  bar_rate: number;
+  comp_median: number;
+  bar_vs_comp: number;
+  occupancy_otb_pct: number | null;
+}
+
+export interface ChannelMixInput {
+  hotels?: string[];
+  from: string;
+  to: string;
+  shape?: 'hotel' | 'total' | 'flows';
+}
+/** `hotel_code` is there only in the per-hotel shape. */
+export interface ChannelMixRow {
+  hotel_code?: string;
+  channel: string;
+  channel_type: string;
+  room_nights: number;
+  gross_revenue_eur: number;
+  commission_eur: number;
+  net_revenue_eur: number;
+  /** Commission ÷ gross revenue of the channel, in %. */
+  commission_pct: number | null;
+}
+/** The totals over every channel of a rolled-up result, as SQL returns them on each row. */
+interface ChannelTotals {
+  total_gross_eur: number;
+  total_commission_eur: number;
+  total_net_eur: number;
+  total_commission_pct: number | null;
+}
+export interface ChannelFlowRow {
+  channel: string;
+  lands_in: 'Net revenue' | 'Commission';
+  amount_eur: number;
+}
+
+/** `hotel_code` is absent when the mix is rolled up over the hotels. */
+export interface MixRow {
+  period: string;
+  hotel_code?: string;
+  key: string;
+  room_nights: number;
+  share_pct: number;
+  revenue_eur: number;
+  adr_eur: number;
+}
+
 const MAX_ROWS = 200;
 
 /**
@@ -185,6 +301,56 @@ export class HotelData {
     });
   }
 
+  /**
+   * The headline figures of a period in one row per hotel, region, brand or the group: occupancy, ADR, RevPAR, room
+   * revenue and rooms sold, each next to the same period last year. Per hotel the row also says its region and its
+   * comp set indices. The expressions are the governed ones of getMetric (METRIC_SQL), so the numbers are the same.
+   */
+  async getKpis(input: KpisInput): Promise<Result<DataResult<KpiRow>, DataError>> {
+    if (input.from > input.to) return err({ kind: 'invalid', message: '`from` must be on or before `to`.' });
+    const level = input.by ?? 'hotel';
+    const perHotel = level === 'hotel';
+    const keyExpr = { hotel: 'd.hotel_code', region: 'h.region', brand: 'b.name', group: "'Halcyon group'" }[level];
+    // $1 from, $2 to, $3 hotels (null = all), $4 region (null = all); SHIFT is 0 for the period and 364 for last year.
+    const where = `($3::text[] is null or d.hotel_code = any($3::text[])) and ($4::text is null or h.region = $4)`;
+    const window = `
+      select ${keyExpr} as key${perHotel ? ', max(h.region) as region' : ''},
+             ${METRIC_SQL.occupancy}::float8 as occupancy, ${METRIC_SQL.adr}::float8 as adr, ${METRIC_SQL.revpar}::float8 as revpar,
+             ${METRIC_SQL.room_revenue}::float8 as room_revenue, ${METRIC_SQL.rooms_sold}::float8 as rooms_sold
+        from hotel.v_hotel_day d join hotel.hotels h on h.hotel_code = d.hotel_code join hotel.brands b on b.brand_code = h.brand_code
+       where d.date between $1::date - SHIFT and $2::date - SHIFT and ${where}
+       group by 1`;
+    const indices = `
+      select d.hotel_code as key, ${METRIC_SQL.mpi}::float8 as mpi, ${METRIC_SQL.ari}::float8 as ari, ${METRIC_SQL.rgi}::float8 as rgi
+        from hotel.v_hotel_day d join hotel.hotels h on h.hotel_code = d.hotel_code
+        join hotel.comp_set_daily c on c.hotel_code = d.hotel_code and c.date = d.date
+       where d.date between $1::date and $2::date and ${where}
+       group by 1`;
+    const sql = `
+      with cur as (${window.replaceAll('SHIFT', '0')}), ly as (${window.replaceAll('SHIFT', '364')})${perHotel ? `, idx as (${indices})` : ''}
+      select cur.key${perHotel ? ', cur.region' : ''},
+             cur.occupancy as occupancy_pct, ly.occupancy as occupancy_ly_pct, cur.adr as adr_eur, ly.adr as adr_ly_eur,
+             cur.revpar as revpar_eur, ly.revpar as revpar_ly_eur, cur.room_revenue as room_revenue_eur, ly.room_revenue as room_revenue_ly_eur,
+             cur.rooms_sold, ly.rooms_sold as rooms_sold_ly${perHotel ? ', idx.mpi, idx.ari, idx.rgi' : ''}
+        from cur left join ly using (key)${perHotel ? ' left join idx using (key)' : ''}
+       order by 1`;
+    const definitions = Object.fromEntries(
+      (['occupancy', 'adr', 'revpar', 'room_revenue', 'rooms_sold', ...(perHotel ? (['mpi', 'ari', 'rgi'] as const) : [])] as const).map((key) => [key, metricByKey(key).definition]),
+    );
+    return this.#tryRun<KpiRow>(sql, [input.from, input.to, input.hotels?.length ? input.hotels : null, input.region ?? null], {
+      sources: ['hotel.v_hotel_day', ...(perHotel ? ['hotel.comp_set_daily'] : [])],
+      definitions,
+      period: { from: input.from, to: input.to },
+      notes: [
+        'Stay dates on or after the business date are on the books, not actuals.',
+        'The _ly columns are the same period last year, shifted 364 days so weekdays line up.',
+        ...(perHotel
+          ? ['MPI, ARI and RGI cover actuals only (stay dates before the business date); they are empty for a period in the future.']
+          : [`Rolled up by ${level} from sums over its hotels (money in EUR), not by averaging hotel ratios.`]),
+      ],
+    });
+  }
+
   /** On-the-books change over the last `daysBack` days for the next `horizonDays` nights, as a share of capacity. */
   async getPickup(input: { hotels?: string[]; region?: string; daysBack?: number; horizonDays?: number }) {
     const sql = `
@@ -217,68 +383,146 @@ export class HotelData {
     );
   }
 
-  /** On the books now vs the same time last year, for the next `daysAhead` nights. */
-  async getPace(input: { hotels?: string[]; daysAhead?: number }) {
-    const sql = `
+  /**
+   * On the books now vs the same time last year: per hotel for the next `daysAhead` nights, or only for the stay
+   * dates `from`–`to` (the window is widened to reach `to`). Grain day gives the same night by night: the pace curve.
+   */
+  getPace(input: PaceInput & { grain: 'day' }): Promise<DataResult<PaceNightRow>>;
+  getPace(input: PaceInput & { grain?: 'total' }): Promise<DataResult<PaceRow>>;
+  getPace(input: PaceInput): Promise<DataResult<PaceRow | PaceNightRow>>;
+  async getPace(input: PaceInput): Promise<DataResult<PaceRow | PaceNightRow>> {
+    // $1 days ahead, $2 hotels, $3 from, $4 to. The function reads the next N nights, so N reaches `to` when one is given.
+    const from = `
+        from hotel.pace_vs_stly(null, greatest($1::int, coalesce($4::date - hotel.business_date(), 0)))
+       where ($2::text[] is null or hotel_code = any($2::text[]))
+         and ($3::date is null or stay_date >= $3::date) and ($4::date is null or stay_date <= $4::date)`;
+    const sql =
+      input.grain === 'day'
+        ? `
+      select hotel_code, to_char(stay_date, 'YYYY-MM-DD') as stay_date, rooms_otb::int, rooms_otb_stly::int${from}
+       order by 1, 2`
+        : `
       select hotel_code, sum(rooms_otb)::int as rooms_otb, sum(rooms_otb_stly)::int as rooms_otb_stly,
              round(100.0 * (sum(rooms_otb) - sum(rooms_otb_stly)) / nullif(sum(rooms_otb_stly), 0), 1)::float8 as pace_pct,
-             round(sum(revenue_otb), 0)::float8 as revenue_otb, round(sum(revenue_otb_stly), 0)::float8 as revenue_otb_stly
-        from hotel.pace_vs_stly(null, $1::int)
-       where $2::text[] is null or hotel_code = any($2::text[])
+             round(sum(revenue_otb), 0)::float8 as revenue_otb, round(sum(revenue_otb_stly), 0)::float8 as revenue_otb_stly${from}
        group by 1 order by 1`;
     const days = input.daysAhead ?? 90;
-    return this.#run<{ hotel_code: string; rooms_otb: number; rooms_otb_stly: number; pace_pct: number; revenue_otb: number; revenue_otb_stly: number }>(
-      sql,
-      [days, input.hotels?.length ? input.hotels : null],
-      {
-        sources: ['hotel.pace_vs_stly()'],
-        definitions: {
-          pace: `Room nights on the books for the next ${days} nights vs on the books at the same time last year (364 days earlier). Revenue in local currency.`,
-        },
+    const window = input.from || input.to ? `stay dates ${input.from ?? 'from the business date'} to ${input.to ?? `${days} nights ahead`}` : `the next ${days} nights`;
+    return this.#run<PaceRow | PaceNightRow>(sql, [days, input.hotels?.length ? input.hotels : null, input.from ?? null, input.to ?? null], {
+      sources: ['hotel.pace_vs_stly()'],
+      definitions: {
+        pace: `Room nights on the books for ${window} vs on the books at the same time last year (364 days earlier). Revenue in local currency.`,
       },
-    );
+      period: input.from && input.to ? { from: input.from, to: input.to } : null,
+    });
   }
 
-  /** Our BAR against the comp set median of the latest rate shop, per future night. */
-  async getRatePosition(input: { hotels?: string[]; from?: string; to?: string }) {
-    const sql = `
-      select hotel_code, to_char(stay_date, 'YYYY-MM-DD') as stay_date, bar_rate::float8,
-             round(comp_median::numeric, 2)::float8 as comp_median, bar_vs_comp::float8, comps_sold_out::int
-        from hotel.v_rate_position
-       where ($1::text[] is null or hotel_code = any($1::text[]))
-         and ($2::date is null or stay_date >= $2::date) and ($3::date is null or stay_date <= $3::date)
-       order by hotel_code, stay_date`;
-    return this.#run<{ hotel_code: string; stay_date: string; bar_rate: number; comp_median: number; bar_vs_comp: number; comps_sold_out: number }>(
-      sql,
-      [input.hotels?.length ? input.hotels : null, input.from ?? null, input.to ?? null],
-      {
-        sources: ['hotel.v_rate_position'],
-        definitions: { bar_vs_comp: 'Our best available rate ÷ the comp set median from the latest rate shop. 1.00 is at the median.' },
-        period: input.from && input.to ? { from: input.from, to: input.to } : null,
+  /**
+   * Our BAR against the comp set median of the latest rate shop, with the occupancy on the books: per future night,
+   * or (grain total) one row per hotel for the whole window.
+   */
+  getRatePosition(input: RatePositionInput & { grain: 'total' }): Promise<DataResult<RatePositionTotalRow>>;
+  getRatePosition(input: RatePositionInput & { grain?: 'night' }): Promise<DataResult<RatePositionRow>>;
+  getRatePosition(input: RatePositionInput): Promise<DataResult<RatePositionRow | RatePositionTotalRow>>;
+  async getRatePosition(input: RatePositionInput): Promise<DataResult<RatePositionRow | RatePositionTotalRow>> {
+    // v_hotel_day holds what is on the books for a future night, so the same join gives demand next to price.
+    const from = `
+        from hotel.v_rate_position r
+        left join hotel.v_hotel_day d on d.hotel_code = r.hotel_code and d.date = r.stay_date
+       where ($1::text[] is null or r.hotel_code = any($1::text[]))
+         and ($2::date is null or r.stay_date >= $2::date) and ($3::date is null or r.stay_date <= $3::date)`;
+    const sql =
+      input.grain === 'total'
+        ? `
+      select r.hotel_code, count(*)::int as nights, round(avg(r.bar_rate)::numeric, 2)::float8 as bar_rate,
+             round(avg(r.comp_median)::numeric, 2)::float8 as comp_median,
+             round((sum(r.bar_rate) / nullif(sum(r.comp_median), 0))::numeric, 2)::float8 as bar_vs_comp,
+             round(100.0 * sum(d.rooms_sold) / nullif(sum(d.rooms_available), 0), 1)::float8 as occupancy_otb_pct${from}
+         and r.comp_median is not null
+       group by r.hotel_code order by r.hotel_code`
+        : `
+      select r.hotel_code, to_char(r.stay_date, 'YYYY-MM-DD') as stay_date, r.bar_rate::float8,
+             round(r.comp_median::numeric, 2)::float8 as comp_median, r.bar_vs_comp::float8, r.comps_sold_out::int,
+             round(100.0 * d.rooms_sold / nullif(d.rooms_available, 0), 1)::float8 as occupancy_otb_pct${from}
+       order by r.hotel_code, r.stay_date`;
+    return this.#run<RatePositionRow | RatePositionTotalRow>(sql, [input.hotels?.length ? input.hotels : null, input.from ?? null, input.to ?? null], {
+      sources: ['hotel.v_rate_position', 'hotel.v_hotel_day'],
+      definitions: {
+        bar_vs_comp: 'Our best available rate ÷ the comp set median from the latest rate shop. 1.00 is at the median.',
+        occupancy_otb: 'Rooms on the books for the night ÷ rooms available, in %.',
       },
-    );
+      period: input.from && input.to ? { from: input.from, to: input.to } : null,
+      notes:
+        input.grain === 'total'
+          ? ['One row per hotel for the whole window, over the nights the rate shop has a comp set median for: the rates are averages over those nights, and bar_vs_comp is the sum of our rates ÷ the sum of the medians.']
+          : [],
+    });
   }
 
-  /** Gross revenue, commission and net revenue by channel, in EUR. */
-  async getChannelMix(input: { hotels?: string[]; from: string; to: string }) {
-    const sql = `
-      select v.hotel_code, v.channel, v.channel_type, sum(v.room_nights)::int as room_nights,
-             round(sum(v.gross_revenue * hotel.eur_rate(h.currency, v.month)), 0)::float8 as gross_revenue_eur,
-             round(sum(v.commission * hotel.eur_rate(h.currency, v.month)), 0)::float8 as commission_eur,
-             round(sum(v.net_revenue * hotel.eur_rate(h.currency, v.month)), 0)::float8 as net_revenue_eur
+  /**
+   * Gross revenue, commission and net revenue by channel, in EUR: per hotel, summed over the hotels (shape total), or
+   * as flows from each channel to net revenue and to commission (shape flows, what a sankey draws).
+   */
+  getChannelMix(input: ChannelMixInput & { shape: 'flows' }): Promise<DataResult<ChannelFlowRow>>;
+  getChannelMix(input: ChannelMixInput & { shape?: 'hotel' | 'total' }): Promise<DataResult<ChannelMixRow>>;
+  getChannelMix(input: ChannelMixInput): Promise<DataResult<ChannelMixRow | ChannelFlowRow>>;
+  async getChannelMix(input: ChannelMixInput): Promise<DataResult<ChannelMixRow | ChannelFlowRow>> {
+    const shape = input.shape ?? 'hotel';
+    const eur = (column: string) => `sum(v.${column} * hotel.eur_rate(h.currency, v.month))`;
+    // Over all the channels of the result, on every row: read once below and said in a note, so that the reader of the
+    // rows (a model above all) never adds the channels up itself.
+    const totals = `,
+             round(sum(${eur('gross_revenue')}) over (), 0)::float8 as total_gross_eur,
+             round(sum(${eur('commission')}) over (), 0)::float8 as total_commission_eur,
+             round(sum(${eur('net_revenue')}) over (), 0)::float8 as total_net_eur,
+             round(100 * sum(${eur('commission')}) over () / nullif(sum(${eur('gross_revenue')}) over (), 0), 1)::float8 as total_commission_pct`;
+    // Each hotel's month is converted to EUR before anything is summed.
+    const channels = (perHotel: boolean) => `
+      select ${perHotel ? 'v.hotel_code, ' : ''}v.channel, v.channel_type, sum(v.room_nights)::int as room_nights,
+             round(${eur('gross_revenue')}, 0)::float8 as gross_revenue_eur,
+             round(${eur('commission')}, 0)::float8 as commission_eur,
+             round(${eur('net_revenue')}, 0)::float8 as net_revenue_eur,
+             round(100 * ${eur('commission')} / nullif(${eur('gross_revenue')}, 0), 1)::float8 as commission_pct${perHotel ? '' : totals}
         from hotel.v_channel_month v join hotel.hotels h using (hotel_code)
        where v.month between date_trunc('month', $1::date) and $2::date
          and ($3::text[] is null or v.hotel_code = any($3::text[]))
-       group by 1, 2, 3 order by 1, net_revenue_eur desc`;
-    return this.#run<{ hotel_code: string; channel: string; channel_type: string; room_nights: number; gross_revenue_eur: number; commission_eur: number; net_revenue_eur: number }>(
-      sql,
-      [input.from, input.to, input.hotels?.length ? input.hotels : null],
-      {
-        sources: ['hotel.v_channel_month', 'hotel.channels'],
-        definitions: { net_revenue: 'Room revenue after channel commission and GDS fees, in EUR.' },
-        period: { from: input.from, to: input.to },
+       group by ${perHotel ? '1, 2, 3' : '1, 2'}`;
+    const sql =
+      shape === 'flows'
+        ? `with c as (${channels(false)})
+      select c.channel, f.lands_in, f.amount_eur, c.total_gross_eur, c.total_commission_eur, c.total_net_eur, c.total_commission_pct
+        from c cross join lateral (values ('Net revenue', c.net_revenue_eur), ('Commission', c.commission_eur)) f(lands_in, amount_eur)
+       where f.amount_eur > 0
+       order by c.net_revenue_eur desc, c.channel, f.lands_in desc`
+        : shape === 'total'
+          ? `${channels(false)} order by net_revenue_eur desc`
+          : `${channels(true)} order by 1, net_revenue_eur desc`;
+    const result = await this.#run<(ChannelMixRow | ChannelFlowRow) & Partial<ChannelTotals>>(sql, [input.from, input.to, input.hotels?.length ? input.hotels : null], {
+      sources: ['hotel.v_channel_month', 'hotel.channels'],
+      definitions: {
+        net_revenue: 'Room revenue after channel commission and GDS fees, in EUR.',
+        ...(shape === 'flows' ? {} : { commission_pct: 'Commission and fees ÷ gross room revenue of the channel, in %.' }),
       },
-    );
+      period: { from: input.from, to: input.to },
+      notes:
+        shape === 'flows'
+          ? ['Each channel\'s gross room revenue, split into what the hotel keeps (Net revenue) and what the channel takes (Commission), summed over the hotels asked for.']
+          : shape === 'total'
+            ? ['Summed over the hotels asked for, after converting each to EUR.']
+            : [],
+    });
+    if (shape === 'hotel') return result;
+    // The totals leave the rows (a widget draws the channels, not a total next to them) and become a note.
+    const first = result.rows[0];
+    const rows = result.rows.map(({ total_gross_eur: _g, total_commission_eur: _c, total_net_eur: _n, total_commission_pct: _p, ...row }) => row as ChannelMixRow | ChannelFlowRow);
+    const eurText = (value: number | undefined) => `${(value ?? 0).toLocaleString('en-US')} EUR`;
+    const note = first
+      ? [
+          `Totals over these channels, computed in the same query: gross revenue ${eurText(first.total_gross_eur)}, commission ${eurText(first.total_commission_eur)} ` +
+            `(${first.total_commission_pct ?? 0}% of gross), net revenue ${eurText(first.total_net_eur)}. Quote these; do not add the rows up.`,
+        ]
+      : [];
+    return { rows, evidence: { ...result.evidence, notes: [...result.evidence.notes, ...note] } };
   }
 
   /** Last sync and status of every source system. */
@@ -303,12 +547,14 @@ export class HotelData {
     grain?: Bucket;
     by: 'segment' | 'channel' | 'channel_type';
     basis?: 'stay' | 'booked';
-  }) {
+    /** One row per period and key, summed over the hotels, instead of one per hotel. */
+    rollUp?: boolean;
+  }): Promise<DataResult<MixRow>> {
     const grain = input.grain ?? 'month';
     const booked = input.basis === 'booked';
     const dateColumn = booked ? 'r.created_at::date' : 'n.stay_date';
     const key = { segment: 'r.segment', channel: 'r.channel', channel_type: 'c.channel_type' }[input.by];
-    const sql = `
+    const perHotel = `
       with x as (
         select ${period(grain, dateColumn, '$1')} as period, n.hotel_code, ${key} as key,
                count(*) as room_nights, sum(n.room_revenue) as revenue
@@ -316,14 +562,26 @@ export class HotelData {
           join hotel.reservations r using (reservation_id)
           join hotel.channels c on c.channel = r.channel
          where ${dateColumn} between $1::date and $2::date and ($3::text[] is null or n.hotel_code = any($3::text[]))
-         group by 1, 2, 3)
+         group by 1, 2, 3)`;
+    const sql = input.rollUp
+      ? `${perHotel},
+      r as (
+        select x.period, x.key, sum(x.room_nights) as room_nights, sum(x.revenue * hotel.eur_rate(h.currency, x.period)) as revenue_eur
+          from x join hotel.hotels h using (hotel_code)
+         group by 1, 2)
+      select to_char(r.period, 'YYYY-MM-DD') as period, r.key, r.room_nights::int,
+             round(100.0 * r.room_nights / sum(r.room_nights) over (partition by r.period), 1)::float8 as share_pct,
+             round(r.revenue_eur, 0)::float8 as revenue_eur, round(r.revenue_eur / r.room_nights, 2)::float8 as adr_eur
+        from r
+       order by 1, r.room_nights desc`
+      : `${perHotel}
       select to_char(x.period, 'YYYY-MM-DD') as period, x.hotel_code, x.key, x.room_nights::int,
              round(100.0 * x.room_nights / sum(x.room_nights) over (partition by x.period, x.hotel_code), 1)::float8 as share_pct,
              round(x.revenue * hotel.eur_rate(h.currency, x.period), 0)::float8 as revenue_eur,
              round(x.revenue * hotel.eur_rate(h.currency, x.period) / x.room_nights, 2)::float8 as adr_eur
         from x join hotel.hotels h using (hotel_code)
        order by 1, 2, x.room_nights desc`;
-    return this.#run<{ period: string; hotel_code: string; key: string; room_nights: number; share_pct: number; revenue_eur: number; adr_eur: number }>(
+    return this.#run<MixRow>(
       sql,
       [input.from, input.to, input.hotels?.length ? input.hotels : null],
       {

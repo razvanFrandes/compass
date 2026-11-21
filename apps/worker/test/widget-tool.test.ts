@@ -177,8 +177,8 @@ describe('withWidgets', () => {
     expect(prompt).toMatch(/widgets: /);
     expect(prompt).toContain('show_widget');
     expect(prompt).toMatch(/title .*conclusion/i);
-    expect(prompt).toMatch(/simplest/);
-    expect(prompt).toMatch(/[Aa]t most 3 widgets/);
+    expect(prompt).toMatch(/Pick the kind by what the rows say/);
+    expect(prompt).toMatch(/Up to 3 widgets/);
     expect(prompt).toMatch(/board_view: /);
     expect(prompt).toContain('Build a board view:');
     expect(prompt).toMatch(/2 to 4/);

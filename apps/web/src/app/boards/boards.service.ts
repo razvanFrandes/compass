@@ -11,7 +11,7 @@ import type { Board, BoardWidget, WidgetPayload } from './types';
 */
 
 const LOCAL_KEY = 'compass.boards.v1';
-const LIMITS = { boards: 50, widgets: 24, rows: 200 };
+const LIMITS = { boards: 50, widgets: 24, rows: 400 };
 export type BoardsMode = 'loading' | 'server' | 'local';
 type Result<T> = { ok: true; value: T } | { ok: false; message: string };
 
