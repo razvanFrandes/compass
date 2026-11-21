@@ -77,8 +77,16 @@ describe('Sidebar', () => {
     expect(nav.querySelector('kassandra-thread-list')?.textContent).toContain('Why is Lisbon pacing behind?');
     expect(nav.querySelector('app-rail-threads')).toBeNull();
     expect(nav.querySelector('.sw-side')?.hasAttribute('data-compact')).toBe(false);
-    // The foot is two items, like the places above: Docs and Appearance. No controls, no links, no note.
-    expect([...nav.querySelectorAll('.rail-foot .rail-item')].map(name)).toEqual(['Docs', 'Appearance']);
+    // Recent, in sentence case, with a way to start a new conversation; grouped by day, no time on the rows.
+    const recent = nav.querySelector('kassandra-thread-list')!;
+    expect(recent.querySelector('h2')?.textContent?.trim()).toBe('Recent');
+    expect(recent.querySelector('.k-recent-new')?.getAttribute('aria-label')).toBe('New conversation');
+    expect([...recent.querySelectorAll('h3')].map((h) => h.textContent?.trim()).every((label) => ['Today', 'Yesterday'].includes(label!))).toBe(true);
+    expect(recent.querySelector('.k-thread-title')?.textContent).toBe('Why is Lisbon pacing behind?');
+    expect(recent.textContent).not.toMatch(/\b5 min\b|\b3 h\b/);
+    // The foot is the person: avatar, name and role, a button that opens their menu. No controls, no links, no note.
+    expect([...nav.querySelectorAll('.rail-foot button')].map(name)).toEqual(['Ana Pop, Revenue manager']);
+    expect(nav.querySelector('.rail-foot button')?.getAttribute('aria-haspopup')).toBe('menu');
     expect(nav.querySelector('app-theme-switcher, app-density-switch')).toBeNull();
     expect(nav.textContent).not.toContain('Theme lab');
     expect(nav.textContent).not.toContain('fictional');
@@ -97,20 +105,20 @@ describe('Sidebar', () => {
     expect(scope.hasAttribute('data-compact')).toBe(true);
     expect(scope.querySelector('.sw-count')?.textContent?.trim()).toBe('20');
     expect(scope.getAttribute('aria-haspopup')).toBe('dialog');
-    expect(name(scope)).toContain('All 20 hotels');
+    expect(name(scope)).toContain('20 hotels · 16 countries');
 
     const items = [...nav.querySelectorAll<HTMLButtonElement>('ul .rail-item')];
     expect(items.map((item) => item.querySelector('.rail-label')?.textContent)).toEqual(['Inbox', 'Boards', 'Agent Studio']);
-    expect(items.map((item) => item.querySelector('.rail-count')?.textContent?.trim() ?? '')).toEqual(['7', '', '1']);
+    expect(items.map((item) => item.querySelector('.rail-count')?.textContent?.replace(/\s+/g, ' ').trim() ?? '')).toEqual([', 7 waiting', '', ', 1 waiting']);
     expect(items.map((item) => item.getAttribute('aria-current'))).toEqual(['page', null, null]);
 
     expect(nav.querySelector('kassandra-thread-list')).toBeNull();
     const threads = nav.querySelector<HTMLButtonElement>('app-rail-threads button')!;
-    expect(threads.getAttribute('aria-label')).toBe('Conversations');
+    expect(threads.getAttribute('aria-label')).toBe('Recent conversations');
     expect(threads.getAttribute('aria-haspopup')).toBe('menu');
 
-    // The foot is the same two items, as icons.
-    expect([...nav.querySelectorAll('.rail-foot .rail-item')].map(name)).toEqual(['Docs', 'Appearance']);
+    // The foot is the same person, as the avatar alone.
+    expect([...nav.querySelectorAll('.rail-foot button')].map(name)).toEqual(['Ana Pop, Revenue manager']);
     expect(nav.querySelector('[popovertarget]')).toBeNull();
     expect(nav.textContent).not.toContain('fictional');
   });
@@ -194,80 +202,53 @@ describe('Sidebar', () => {
     expect(document.activeElement).toBe(toggle());
   });
 
-  describe('Appearance', () => {
-    const item = () => nav.querySelector<HTMLButtonElement>('app-appearance-flyout .rail-item')!;
-    const panel = () => document.querySelector<HTMLElement>('.cdk-overlay-container [role=dialog]');
-    const open = async () => {
-      item().focus();
-      item().click();
-      await settle();
-    };
+  describe('Recent', () => {
+    const row = (title: string) => [...nav.querySelectorAll<HTMLElement>('.k-thread')].find((r) => r.querySelector('.k-thread-title')?.textContent === title)!;
 
-    it('opens a panel beside the sidebar with Theme, Mode, Density and the theme lab; the focus goes to the chosen theme', async () => {
-      await render();
-      expect(item().getAttribute('aria-haspopup')).toBe('dialog');
-      expect(item().getAttribute('aria-expanded')).toBe('false');
-      expect(panel()).toBeNull();
-      await open();
-      expect(item().getAttribute('aria-expanded')).toBe('true');
-      expect(item().getAttribute('aria-controls')).toBe(panel()!.id);
-      expect(panel()!.getAttribute('aria-label')).toBe('Appearance');
-      expect([...panel()!.querySelectorAll('[role=radiogroup]')].map((group) => document.getElementById(group.getAttribute('aria-labelledby')!)?.textContent?.trim())).toEqual(['Theme', 'Mode', 'Density']);
-      expect([...panel()!.querySelectorAll('app-density-switch [role=radio]')].map((radio) => radio.textContent?.trim())).toEqual(['Comfortable', 'Compact']);
-      expect(document.activeElement).toBe(panel()!.querySelector('app-theme-switcher [role=radio][aria-checked=true]'));
+    it('shows the title and the takeaway the server wrote, and a small icon for the answer', async () => {
+      await render({ threads: [{ id: 'c-1', title: 'Tessera Dubai: business mix', summary: 'Corporate down 12% vs last year', kind: 'chart', named: true, at: Date.now() - 60_000 } as never] });
+      const r = row('Tessera Dubai: business mix');
+      expect(r.querySelector('.k-thread-summary')?.textContent).toBe('. Corporate down 12% vs last year');
+      expect(r.querySelector('ng-icon.k-thread-icon')?.getAttribute('data-icon')).toBe('phosphorChartBarLight');
     });
 
-    it('a choice in the panel applies, and the panel stays open', async () => {
+    it('marks the current conversation', async () => {
       await render();
-      await open();
-      const compact = panel()!.querySelector<HTMLButtonElement>('[data-density-option=compact]')!;
-      compact.click();
+      nav.querySelector<HTMLButtonElement>('.k-thread-open')!.click();
       await settle();
-      expect(document.documentElement.getAttribute('data-density')).toBe('compact');
-      expect(panel()).not.toBeNull();
-      panel()!.querySelector<HTMLButtonElement>('[data-density-option=comfortable]')!.click();
-      await settle();
+      expect(nav.querySelectorAll('.k-thread--current')).toHaveLength(1);
+      expect(nav.querySelector('.k-thread--current .k-thread-open')?.getAttribute('aria-current')).toBe('page');
     });
 
-    it('Esc closes it and gives the focus back to the item', async () => {
+    it('renames in place: Enter keeps it (on the server too), Esc leaves it', async () => {
       await render();
-      await open();
-      press({ key: 'Escape', keyCode: 27 }, document.activeElement!);
+      const http = TestBed.inject(HttpTestingController);
+      row('ADR by segment, December').querySelector<HTMLButtonElement>('[aria-label="Rename ADR by segment, December"]')!.click();
       await settle();
-      expect(panel()).toBeNull();
-      expect(item().getAttribute('aria-expanded')).toBe('false');
-      expect(document.activeElement).toBe(item());
+      const field = nav.querySelector<HTMLInputElement>('.k-thread-input')!;
+      expect(document.activeElement).toBe(field);
+      field.value = 'ADR, December';
+      field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      fixture.detectChanges();
+      expect(http.match((r) => r.method === 'PATCH').map((r) => [r.request.url, r.request.body])).toEqual([['/api/kassandra/conversations/c-2', { title: 'ADR, December' }]]);
+      await settle();
+      expect(row('ADR, December')).toBeTruthy();
     });
 
-    it('a click outside closes it; a second click on the item closes it too', async () => {
+    it('deletes with Undo, and the focus goes to New conversation', async () => {
       await render();
-      await open();
-      document.body.click();
+      row('Why is Lisbon pacing behind?').querySelector<HTMLButtonElement>('[aria-label="Delete Why is Lisbon pacing behind?"]')!.click();
       await settle();
-      expect(panel()).toBeNull();
-      await open();
-      item().click();
-      await settle();
-      expect(panel()).toBeNull();
+      expect(row('Why is Lisbon pacing behind?')).toBeUndefined();
+      expect(document.activeElement).toBe(nav.querySelector('.k-recent-new'));
     });
 
-    it('the theme lab link goes there and closes the panel', async () => {
+    it('New conversation starts an empty one', async () => {
       await render();
-      await open();
-      const link = [...panel()!.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Theme lab')!;
-      link.click();
+      nav.querySelector<HTMLButtonElement>('.k-recent-new')!.click();
       await settle();
-      expect(TestBed.inject(CompassStore).view()).toBe('theme-lab');
-      expect(panel()).toBeNull();
-    });
-
-    it('works from the rail too, and closes when the sidebar changes shape', async () => {
-      await render({ saved: 'collapsed' });
-      await open();
-      expect(panel()!.querySelectorAll('[role=radiogroup]')).toHaveLength(3);
-      press({ key: '\\', metaKey: true });
-      await settle();
-      expect(panel()).toBeNull();
+      expect(TestBed.inject(CompassStore).view()).toBe('thread');
+      expect(nav.querySelector('.k-thread--current')).toBeNull();
     });
   });
 
@@ -278,15 +259,17 @@ describe('Sidebar', () => {
     await settle();
     expect(threads.getAttribute('aria-expanded')).toBe('true');
     const items = [...document.querySelectorAll<HTMLElement>('[role=menu] [role=menuitem]')];
-    expect(items.map((item) => item.textContent?.replace(/\s+/g, ' ').trim())).toEqual(['Why is Lisbon pacing behind? 5 min', 'ADR by segment, December 3 h']);
-    items[1]!.click();
+    expect(items.map((item) => item.textContent?.replace(/\s+/g, ' ').trim())).toEqual(['New conversation', 'Why is Lisbon pacing behind?', 'ADR by segment, December']);
+    items[2]!.click();
     await settle();
     expect(TestBed.inject(CompassStore).view()).toBe('thread');
     expect(document.querySelector('[role=menu]')).toBeNull();
   });
 
-  it('shows no Threads button when there are no threads', async () => {
+  it('with no conversations yet, the rail still offers a new one', async () => {
     await render({ saved: 'collapsed', threads: [] });
-    expect(nav.querySelector('app-rail-threads button')).toBeNull();
+    nav.querySelector<HTMLButtonElement>('app-rail-threads button')!.click();
+    await settle();
+    expect([...document.querySelectorAll('[role=menu] [role=menuitem]')].map((item) => item.textContent?.trim())).toEqual(['New conversation']);
   });
 });

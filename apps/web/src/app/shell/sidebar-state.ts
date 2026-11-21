@@ -3,7 +3,7 @@ import { DOCUMENT, Service, computed, inject, signal, type Signal } from '@angul
 /** Where the choice is remembered: "collapsed" or "expanded". Nothing is stored until the person chooses. */
 export const SIDEBAR_STORAGE_KEY = 'compass.sidebar';
 /** Widths of the two states, in px. The shell's grid and the sidebar's own layout both read them. */
-export const SIDEBAR_WIDTH = 232;
+export const SIDEBAR_WIDTH = 256;
 export const RAIL_WIDTH = 64;
 /** From a rail item's edge to what opens beside it (a tooltip, the Threads menu): 12 px of rail, then 6 px of air. */
 export const RAIL_TIP_GAP = 18;

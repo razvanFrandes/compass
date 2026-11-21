@@ -79,8 +79,31 @@ export interface ChatLive {
   usage: { tokens: number; costUsd: number };
 }
 
+/** What a conversation's first answer mainly showed, for the sidebar's icon. */
+export type ThreadKind = 'chart' | 'table' | 'text';
+
+/**
+ * A conversation as the sidebar lists it, written once on the server after its first answer (the Quick model, short
+ * and plain) and kept with the conversation. `title` replaces the cut-off question ("Tessera Dubai: business mix");
+ * `summary` is the answer's takeaway ("Corporate down 12% vs last year"), null when there was none to say. A title the
+ * person gave (`renamed`) is never replaced.
+ */
+export interface ThreadMeta {
+  title: string;
+  summary: string | null;
+  kind: ThreadKind;
+  /** The hotel code when the conversation is about one hotel, else null. */
+  hotel: string | null;
+  renamed: boolean;
+}
+
+/** `GET /api/kassandra/conversations?ids=a,b`: the meta of each conversation that has one. */
+export type ThreadMetaList = Record<string, ThreadMeta>;
+
 export type ChatServerMessage =
   | { type: 'snapshot'; conversation: string; entries: ChatEntry[]; live: ChatLive }
+  /** The conversation's title and takeaway: on connect when there is one, and once the first answer has one. */
+  | { type: 'meta'; meta: ThreadMeta }
   | { type: 'entries'; entries: ChatEntry[] }
   | { type: 'live'; live: ChatLive }
   | { type: 'error'; message: string };

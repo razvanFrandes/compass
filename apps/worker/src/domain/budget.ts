@@ -4,7 +4,7 @@
  * whatever the number of clients. Pure logic: the Budget Durable Object stores the state.
  */
 
-export const BUDGET_KINDS = ['question', 'workflow_run', 'decision', 'brief_refresh', 'embedding', 'voice', 'board_write'] as const;
+export const BUDGET_KINDS = ['question', 'workflow_run', 'decision', 'brief_refresh', 'embedding', 'voice', 'board_write', 'thread_title'] as const;
 export type BudgetKind = (typeof BUDGET_KINDS)[number];
 export type DailyLimits = Record<BudgetKind, number>;
 
@@ -17,6 +17,7 @@ export const DEFAULT_DAILY_LIMITS: DailyLimits = {
   embedding: 2000, // find_reviews through the public MCP server: one Workers AI embedding each
   voice: 300, // dictations: one temporary speech-to-text key each, at most 3 minutes of audio
   board_write: 600, // creating, changing or deleting a board or a board widget: no model call, but stored state
+  thread_title: 300, // a conversation's sidebar title and takeaway: one Quick model call after its first answer
 };
 
 export const BUDGET_LABELS: Record<BudgetKind, string> = {
@@ -27,6 +28,7 @@ export const BUDGET_LABELS: Record<BudgetKind, string> = {
   embedding: 'review searches',
   voice: 'voice questions',
   board_write: 'board changes',
+  thread_title: 'conversation titles',
 };
 
 export interface BudgetState {

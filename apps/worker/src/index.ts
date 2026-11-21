@@ -14,6 +14,7 @@ import { BOARDS_NAME } from './presentation/boards.ts';
 import { BUDGET_NAME } from './presentation/budget.ts';
 import { hasAdminKey } from './presentation/http/admin.ts';
 import { boardRoutes, isBoardsPath, type BoardsApi } from './presentation/http/board-routes.ts';
+import { conversationRoutes, isConversationsPath, type ConversationsApi } from './presentation/http/conversation-routes.ts';
 import { MAX_MCP_BYTES, readJson, withBodyLimit } from './presentation/http/body.ts';
 import { budgetExceeded } from './presentation/http/budget-response.ts';
 import { groupHotels, HOTELS_UNAVAILABLE, scopeFor } from './presentation/hotels.ts';
@@ -187,6 +188,22 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     // `as object`: the RPC stub's type cannot describe the widgets' rows (unknown values), so the answer is not spreadable as typed.
     const answer = (await env.KASSANDRA.getByName(conversation).ask(question, mode, undefined, scope.value)) as object;
     return Response.json({ conversation, ...answer, scope: scope.value.map((hotel) => hotel.code) });
+  }
+
+  if (isConversationsPath(url.pathname)) {
+    // The sidebar's conversations: titles and takeaways, rename, delete. Each one is its Kassandra object; writing a
+    // missing title is budgeted inside it (thread_title).
+    const kassandra = (id: string) => env.KASSANDRA.getByName(id);
+    const threads: ConversationsApi = {
+      meta: (id) => kassandra(id).meta(),
+      // The RPC stub's type flattens the Result union; the method is the object's own.
+      rename: (id, title) => kassandra(id).rename(title) as ReturnType<ConversationsApi['rename']>,
+      forget: (id) => kassandra(id).forget(),
+    };
+    return conversationRoutes(request, url, {
+      threads,
+      rateLimited: () => rateLimited(env.CONVERSATION_RATE_LIMIT, request, 'Too many requests. Wait a minute and try again.'),
+    });
   }
 
   if (url.pathname === '/api/hotels' && request.method === 'GET') {

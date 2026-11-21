@@ -1,4 +1,4 @@
-import type { ChatClientMessage, Widget } from '@compass/contracts';
+import type { ChatClientMessage, ChatEntry, ChatServerMessage, ThreadMeta, Widget } from '@compass/contracts';
 import { DurableObject } from 'cloudflare:workers';
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context';
 import { createModels } from '@earendil-works/pi-ai/models';
@@ -10,6 +10,9 @@ import { HotelData } from '../../application/hotel-data.ts';
 import { openPostgres } from '../../infrastructure/postgres.ts';
 import { WorkersAiEmbedder } from '../../infrastructure/workers-ai-embedder.ts';
 import type { Env } from '../../env.ts';
+import { firstExchange, renameMeta, summarizeThread } from '../../application/thread-summary.ts';
+import { createClaudeThreadSummaryWriter } from '../../infrastructure/thread-summary-writer.ts';
+import type { Result } from '../../domain/result.ts';
 import { projectEntries } from './chat-projection.ts';
 import { serveChatSocket } from './chat-socket.ts';
 import { KASSANDRA_SECTIONS } from './kassandra-prompt.ts';
@@ -95,6 +98,11 @@ export class Kassandra extends DurableObject<Env> {
         conversation,
         name: 'Kassandra',
         onMessage: (raw) => this.#onClientMessage(raw, client),
+        onOpen: async (send) => {
+          const meta = await this.ctx.storage.get<ThreadMeta>('meta');
+          if (meta) send({ type: 'meta', meta });
+        },
+        onEntries: (fresh, send) => this.#afterEntries(fresh, send),
       }),
     );
     return new Response(null, { status: 101, webSocket: browser });
@@ -153,6 +161,8 @@ export class Kassandra extends DurableObject<Env> {
     await this.#useMode(mode, scope);
     const result = await this.harness.prompt(question, operationId ? { operationId } : undefined);
     const widgets = widgetsOfLastAnswer(projectEntries(await this.harness.session().messages()));
+    // The sidebar's title, once: not awaited, the answer does not wait for it.
+    if (result.status === 'done') void this.meta().catch((error: unknown) => console.warn('thread meta failed', error));
     return {
       status: result.status,
       text: result.text ?? null,
@@ -161,6 +171,74 @@ export class Kassandra extends DurableObject<Env> {
       mode,
       widgets,
     };
+  }
+
+  /* ── The sidebar's title and takeaway (application/thread-summary.ts) ── */
+
+  #summarizing: Promise<ThreadMeta | null> | null = null;
+
+  /** Once the first answer is final, its title and takeaway go to the client that is watching. */
+  async #afterEntries(fresh: readonly ChatEntry[], send: (message: ChatServerMessage) => void): Promise<void> {
+    if (!fresh.some((entry) => entry.kind === 'assistant' && entry.stopReason === 'stop')) return;
+    if (await this.ctx.storage.get<boolean>('summarized')) return;
+    const meta = await this.meta();
+    if (meta) send({ type: 'meta', meta });
+  }
+
+  /**
+   * The conversation's meta. Written once, after the first answer, with one Quick model call taken from the daily
+   * budget (`thread_title`); with no budget left, or if the call fails, the title is the cleaned question. Null for a
+   * conversation that has not been asked anything, or whose first answer is not in yet.
+   */
+  async meta(): Promise<ThreadMeta | null> {
+    const stored = (await this.ctx.storage.get<ThreadMeta>('meta')) ?? null;
+    if (await this.ctx.storage.get<boolean>('summarized')) return stored;
+    // Asked nothing yet (the scope is stored before every question): no transcript to read, nothing to open.
+    const hotels = await this.ctx.storage.get<string[]>('scope');
+    if (!hotels) return stored;
+    this.#summarizing ??= this.#summarize(hotels).finally(() => (this.#summarizing = null));
+    return this.#summarizing;
+  }
+
+  async #summarize(hotels: string[]): Promise<ThreadMeta | null> {
+    const exchange = firstExchange(projectEntries(await this.harness.session().messages()));
+    if (!exchange) return (await this.ctx.storage.get<ThreadMeta>('meta')) ?? null;
+    const budget = await this.env.BUDGET.getByName(BUDGET_NAME).take('thread_title');
+    const writer = budget.ok ? createClaudeThreadSummaryWriter(this.env.AI) : null;
+    const written = await summarizeThread(writer, exchange, hotels, await this.ctx.storage.get<ThreadMeta>('meta'));
+    // A rename may have landed while the model wrote: the person's title wins.
+    const latest = await this.ctx.storage.get<ThreadMeta>('meta');
+    const meta = latest?.renamed ? { ...written, title: latest.title, renamed: true } : written;
+    await this.ctx.storage.put({ meta, summarized: true });
+    return meta;
+  }
+
+  /** A title from the person. It is kept over the one the model writes. */
+  async rename(title: string): Promise<Result<ThreadMeta, string>> {
+    const next = renameMeta((await this.ctx.storage.get<ThreadMeta>('meta')) ?? null, title);
+    if (next.ok) await this.ctx.storage.put('meta', next.value);
+    return next;
+  }
+
+  /**
+   * Deletes the conversation: the run stops, the transcript, the scope and the meta go. The object then restarts, so
+   * nothing it held in memory outlives the delete.
+   */
+  async forget(): Promise<void> {
+    try {
+      if (await this.harness.session().busy()) await this.harness.session().abort();
+    } catch (error) {
+      console.warn('kassandra forget: abort failed', error);
+    }
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
+    setTimeout(() => {
+      try {
+        this.ctx.abort('conversation deleted');
+      } catch {
+        // Not available everywhere (local dev): the object is evicted in time anyway.
+      }
+    }, 0);
   }
 }
 

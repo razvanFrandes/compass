@@ -23,8 +23,8 @@ class Host {
   readonly items = signal<NavItem[]>(ITEMS);
 }
 
-const THREADS = [
-  { id: 'c-1', title: 'Why is Lisbon pacing behind?', at: Date.now() - 5 * 60_000 },
+const THREADS: { id: string; title: string; at: number; summary?: string; kind?: 'chart'; named?: boolean }[] = [
+  { id: 'c-1', title: 'Lisbon: pace behind', summary: 'Down 17% vs last year', kind: 'chart', named: true, at: Date.now() - 5 * 60_000 },
   { id: 'c-2', title: 'ADR by segment, December', at: Date.now() - 3 * 3_600_000 },
 ];
 
@@ -182,7 +182,7 @@ describe('MobileMenu', () => {
       expect(sheet().querySelector('app-juyo-logo, [aria-label=Juyo]')).toBeNull();
       const scope = sheet().querySelector<HTMLButtonElement>('.mm-scope button[aria-haspopup=dialog]')!;
       expect(text(scope)).toContain('Halcyon Hospitality');
-      expect(text(scope)).toContain('All 20 hotels');
+      expect(text(scope)).toContain('20 hotels · 16 countries');
     });
 
     it('lists Inbox, Boards and Agent Studio with what waits there and the current place', async () => {
@@ -205,17 +205,27 @@ describe('MobileMenu', () => {
     it('lists the recent conversations and opens one', async () => {
       await render();
       await open();
-      const threads = [...section('Conversations')!.querySelectorAll('button')];
-      expect(threads.map(text)).toEqual(['Why is Lisbon pacing behind?, 5 min', 'ADR by segment, December, 3 h']);
+      // Titled "Recent", in sentence case; each row is the title and the takeaway, no "3 h" on every row.
+      const threads = [...section('Recent')!.querySelectorAll('button')];
+      expect(threads.map(text)).toEqual(['Lisbon: pace behind. Down 17% vs last year', 'ADR by segment, December']);
       threads[0]!.click();
       await settle();
       expect(store.view()).toBe('thread');
     });
 
-    it('has no Conversations section before the first conversation', async () => {
+    it('has no Recent section before the first conversation', async () => {
       await render({ threads: [] });
       await open();
-      expect(section('Conversations')).toBeUndefined();
+      expect(section('Recent')).toBeUndefined();
+    });
+
+    it('ends with the person, as on the desktop: Ana Pop, revenue manager, and the data is fictional', async () => {
+      await render();
+      await open();
+      const foot = sheet().querySelector('.mm-foot')!;
+      expect(text(foot.querySelector('.mm-user')!)).toContain('Ana Pop');
+      expect(foot.textContent).toContain('Revenue manager');
+      expect(foot.textContent).toContain('Demo · fictional data');
     });
 
     it('ends with the appearance controls: a choice there applies and is remembered', async () => {

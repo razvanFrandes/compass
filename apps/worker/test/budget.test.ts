@@ -39,6 +39,15 @@ describe('the embedding budget', () => {
   });
 });
 
+describe('the conversation title budget', () => {
+  it('defaults to 300 a day and can be set', () => {
+    expect(DEFAULT_DAILY_LIMITS.thread_title).toBe(300);
+    expect(parseDailyLimits({ thread_title: 2 }).thread_title).toBe(2);
+    const { decision } = spend(emptyBudget(), 'thread_title', { ...DEFAULT_DAILY_LIMITS, thread_title: 0 }, new Date('2026-11-20T10:00:00Z'));
+    expect(decision.ok).toBe(false);
+  });
+});
+
 describe('the board budget', () => {
   it('allows 600 board changes a day by default, apart from the questions', () => {
     expect(DEFAULT_DAILY_LIMITS.board_write).toBe(600);

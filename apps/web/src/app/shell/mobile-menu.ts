@@ -1,16 +1,17 @@
 import { Component, ElementRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorBookOpenFill, phosphorSwatchesFill } from '@ng-icons/phosphor-icons/fill';
-import { phosphorBookOpenLight } from '@ng-icons/phosphor-icons/light';
+import { phosphorBookOpenLight, phosphorBuildingsLight, phosphorChartBarLight, phosphorChatTextLight, phosphorTableLight } from '@ng-icons/phosphor-icons/light';
 import { DocsRouter } from '../docs/docs-router';
 import { GROUP } from '../data';
 import * as icons from '../icons';
-import { agoShort } from '../kassandra/kassandra-thread-list';
 import { Live } from '../live';
 import { ScopeSwitcher } from '../scope/scope-switcher';
 import { CompassStore } from '../store';
 import { AppearanceControls } from './appearance-controls';
 import { CompassLogo } from './compass-logo';
+import { threadIcon } from './conversation-groups';
+import { PERSONA } from './user-menu';
 import { isActiveNav, type NavItem } from './nav';
 import { SidebarState } from './sidebar-state';
 
@@ -21,8 +22,8 @@ let nextId = 0;
  *
  * A phone has no tab bar: the bottom of the screen belongs to Kassandra's ask bar, and nothing that can be tapped
  * sits under it. Everything the desktop sidebar holds is in the sheet instead, top to bottom: the logo, the hotel
- * scope, Inbox / Boards / Agent Studio with what waits there, the recent conversations, the secondary links, and
- * the appearance controls at the foot. The button carries a dot while anything waits.
+ * scope, Inbox / Boards / Agent Studio with what waits there, the recent conversations (title and takeaway), the
+ * secondary links, and at the foot the person (the same persona as the desktop's user menu) with the appearance controls. The button carries a dot while anything waits.
  *
  * The sheet is a native modal `<dialog>`: the browser keeps the focus inside it, closes it on Esc and on Android's
  * back, and gives the focus back to the button. A tap on the scrim closes it too. Picking a place closes it first.
@@ -31,7 +32,7 @@ let nextId = 0;
 @Component({
   selector: 'app-mobile-menu',
   imports: [NgIcon, CompassLogo, ScopeSwitcher, AppearanceControls],
-  providers: [provideIcons({ ...icons, phosphorBookOpenFill, phosphorBookOpenLight, phosphorSwatchesFill })],
+  providers: [provideIcons({ ...icons, phosphorBookOpenFill, phosphorBookOpenLight, phosphorSwatchesFill, phosphorBuildingsLight, phosphorChartBarLight, phosphorChatTextLight, phosphorTableLight })],
   host: { class: 'block shrink-0' },
   styles: `
     /* Ink for text on the orange count: it passes 4.5:1 on --brass in every theme; white does not. */
@@ -80,7 +81,7 @@ let nextId = 0;
     }
     .mm-scope { padding: 3px; border: 1px solid var(--field-border); border-radius: var(--radius-container, 12px); background: rgb(from var(--foreground) r g b / 0.03); }
     .mm-list { display: flex; flex-direction: column; gap: 2px; }
-    .mm-heading { padding: 0 12px 6px; color: var(--muted-foreground); font-size: 12px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
+    .mm-heading { padding: 0 12px 6px; color: var(--muted-foreground); font-size: 13px; font-weight: 500; }
 
     /* A place: 48 px tall, the whole row is the target. */
     .mm-item {
@@ -91,16 +92,28 @@ let nextId = 0;
     .mm-item[aria-current='page'] { background: var(--mm-current); font-weight: 500; }
     .mm-item[aria-current='page'] ng-icon { color: var(--foreground); }
     .mm-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* What waits there: a small, quiet pill in the row's own text colour. */
     .mm-count {
-      display: grid; min-width: 24px; height: 24px; flex-shrink: 0; padding: 0 7px; place-items: center; border-radius: 9999px;
-      background: var(--brass); color: var(--mm-ink); font-size: 12.5px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums;
+      display: grid; min-width: 24px; height: 22px; flex-shrink: 0; padding: 0 8px; place-items: center; border-radius: 9999px;
+      background: rgb(from var(--foreground) r g b / 0.08); color: var(--foreground); font-size: 12.5px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums;
     }
     /* Quieter rows: a conversation, a secondary link. Still 44 px. */
     .mm-item--quiet { min-height: 44px; color: var(--muted-foreground); font-size: 15px; }
     /* A smaller icon in the same 22 px column, so every label of the sheet starts on one line. */
     .mm-item--quiet ng-icon { width: 22px; font-size: 20px; }
     .mm-item--quiet[aria-current='page'] { color: var(--foreground); }
-    .mm-time { flex-shrink: 0; color: var(--muted-foreground); font-size: 12.5px; font-weight: 400; font-variant-numeric: tabular-nums; }
+    /* A conversation: its title, and the takeaway of its answer under it. */
+    .mm-item--thread { align-items: flex-start; padding-top: 9px; padding-bottom: 9px; }
+    .mm-thread-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+    .mm-thread-text .mm-label { color: var(--foreground); }
+    .mm-summary { overflow: hidden; color: var(--muted-foreground); font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
+    .mm-user { display: flex; align-items: center; gap: 12px; padding: 0 4px; }
+    .mm-avatar {
+      display: grid; width: 36px; height: 36px; flex-shrink: 0; place-items: center; border-radius: 9999px;
+      background: color-mix(in oklab, var(--brand, var(--primary)) 22%, var(--card, var(--background)));
+      box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand, var(--primary)) 40%, transparent);
+      color: var(--foreground); font-size: 13px; font-weight: 600;
+    }
 
     .mm-foot {
       display: flex; flex-shrink: 0; flex-direction: column; gap: 12px; border-top: 1px solid var(--border);
@@ -177,13 +190,18 @@ let nextId = 0;
 
         @if (threads().length) {
           <section [attr.aria-labelledby]="uid + '-threads'">
-            <h2 class="mm-heading" [id]="uid + '-threads'">Conversations</h2>
+            <h2 class="mm-heading" [id]="uid + '-threads'">Recent</h2>
             <ul class="mm-list">
               @for (t of threads(); track t.id) {
                 <li>
-                  <button type="button" class="mm-item mm-item--quiet" [attr.aria-current]="isCurrentThread(t.id) ? 'page' : null" (click)="openThread(t.id)">
-                    <span class="mm-label">{{ t.title }}</span>
-                    <span class="mm-time"><span class="sr-only">, </span>{{ t.ago }}</span>
+                  <button type="button" class="mm-item mm-item--quiet mm-item--thread" [attr.aria-current]="isCurrentThread(t.id) ? 'page' : null" (click)="openThread(t.id)">
+                    <ng-icon [name]="t.icon" aria-hidden="true" />
+                    <span class="mm-thread-text">
+                      <span class="mm-label">{{ t.title }}</span>
+                      @if (t.summary) {
+                        <span class="mm-summary"><span class="sr-only">. </span>{{ t.summary }}</span>
+                      }
+                    </span>
                   </button>
                 </li>
               }
@@ -207,6 +225,15 @@ let nextId = 0;
       </div>
 
       <div class="mm-foot">
+        <!-- The person, as on the desktop's user menu. There is no sign-in: the data and the team are fictional. -->
+        <div class="mm-user">
+          <span class="mm-avatar" aria-hidden="true">{{ persona.initials }}</span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-[15px] font-medium">{{ persona.name }}</span>
+            <span class="text-muted-foreground block truncate text-[13.5px]">{{ persona.role }}</span>
+          </span>
+          <span class="text-muted-foreground shrink-0 text-[12.5px]">Demo · fictional data</span>
+        </div>
         <app-appearance-controls />
       </div>
     </dialog>
@@ -229,8 +256,7 @@ export class MobileMenu {
   protected readonly uid = `mobile-menu-${nextId++}`;
   protected readonly group = GROUP;
   protected readonly open = signal(false);
-  /** Read when the sheet opens: "5 min" does not need to tick while the menu is closed. */
-  private readonly now = signal(Date.now());
+  protected readonly persona = PERSONA;
 
   /** The secondary links, under the conversations: the docs hub first, then the theme lab. */
   protected readonly more: readonly NavItem[] = [
@@ -250,7 +276,7 @@ export class MobileMenu {
     this.live
       .conversations()
       .slice(0, this.threadLimit())
-      .map((c) => ({ ...c, ago: agoShort(c.at, this.now()) })),
+      .map((c) => ({ ...c, icon: threadIcon(c) })),
   );
 
   constructor() {
@@ -272,7 +298,6 @@ export class MobileMenu {
   protected show() {
     const dialog = this.sheet().nativeElement;
     if (this.isOpen(dialog)) return;
-    this.now.set(Date.now());
     if (typeof dialog.showModal === 'function') dialog.showModal();
     else dialog.setAttribute('open', '');
     this.open.set(true);

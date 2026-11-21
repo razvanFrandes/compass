@@ -28,6 +28,15 @@ const POP_WIDTH = 416;
       position: relative; display: flex; width: 100%; align-items: center; gap: 10px; overflow: hidden; padding: 6px; border-radius: var(--radius-control, 8px);
       text-align: left; white-space: nowrap; outline: none; transition: background-color 130ms ease;
     }
+    /* The group's monogram: its initial in the display face on a quiet tint of the brand, a hairline ring of the same
+       hue. Theme tokens only, so it follows Default and Concept, light and dark. */
+    .sw-mark {
+      display: grid; width: 30px; height: 30px; flex-shrink: 0; place-items: center; border-radius: 8px;
+      background: linear-gradient(160deg, color-mix(in oklab, var(--brand, var(--primary)) 26%, var(--card, var(--background))), color-mix(in oklab, var(--brand, var(--primary)) 12%, var(--card, var(--background))));
+      box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand, var(--primary)) 38%, transparent), 0 1px 2px rgb(0 0 0 / 0.12);
+      color: var(--foreground); font-family: var(--font-display, var(--font-sans)); font-size: 15px; font-weight: 600; line-height: 1; letter-spacing: -0.01em;
+    }
+    @media (forced-colors: active) { .sw-mark { border: 1px solid CanvasText; } }
     /* Compact (the icon rail): the button is 40 px wide, so only the initial shows; the names are cut off and faded. */
     .sw-text, .sw-caret { transition: opacity 120ms ease; }
     .sw-side[data-compact] :is(.sw-text, .sw-caret) { opacity: 0; }
@@ -91,10 +100,10 @@ const POP_WIDTH = 416;
         [tooltipDisabled]="!compact() || open()"
         (click)="show()"
       >
-        <span class="bg-foreground/90 text-background grid size-7 shrink-0 place-items-center rounded-md text-[12px] font-semibold" aria-hidden="true">{{ initial() }}</span>
+        <span class="sw-mark" aria-hidden="true">{{ initial() }}</span>
         <span class="sw-text min-w-0 flex-1">
-          <span class="block truncate text-[13px] font-medium">{{ group() }}</span>
-          <span class="block truncate text-[12px]" [class]="scope.isAll() ? 'text-muted-foreground' : 'text-foreground'">{{ scope.label() }}</span>
+          <span class="block truncate text-[13.5px] font-semibold tracking-[-0.005em]">{{ group() }}</span>
+          <span class="block truncate text-[12px]" [class]="scope.isAll() ? 'text-muted-foreground' : 'text-foreground'">{{ reach() }}</span>
         </span>
         <span class="sr-only">. Change hotels</span>
         <ng-icon name="phosphorCaretUpDownLight" class="sw-caret text-muted-foreground shrink-0" aria-hidden="true" />
@@ -150,6 +159,13 @@ export class ScopeSwitcher {
   protected readonly x = signal(12);
   protected readonly y = signal(64);
   protected readonly initial = computed(() => this.group().trim().charAt(0).toUpperCase());
+  /** The second line: "20 hotels · 15 countries" for the whole group, else the scope ("Lisbon, Dubai (2)"). */
+  protected readonly reach = computed(() => {
+    if (!this.scope.isAll()) return this.scope.label();
+    const hotels = this.scope.catalog();
+    const countries = new Set(hotels.map((hotel) => hotel.country).filter(Boolean)).size;
+    return countries ? `${hotels.length} hotels · ${countries} countries` : this.scope.label();
+  });
   /** What the compact form says on hover and focus: "Halcyon Hospitality · All 20 hotels". */
   protected readonly tip = computed(() => `${this.group()} · ${this.scope.label()}`);
 
