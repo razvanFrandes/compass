@@ -816,23 +816,68 @@ describe('scatter, radar and gauge', () => {
   ];
   const idxCols = [col('hotel', 'Hotel', 'hotel'), col('ari', 'ARI (rate index)', 'number', 'index'), col('mpi', 'MPI (share index)', 'number', 'index')];
 
-  it('draws index quadrants at 100 and says what each corner means', () => {
+  it('draws the comp-set quadrant in plain words: tinted corners, no jargon on the chart', () => {
     const b = build(spec('scatter', { x: 'ari', y: ['mpi'], group: 'hotel' }), idx, idxCols, { width: 640 });
     const s = series(b)[0];
     const lines = (s['markLine'] as Obj)['data'] as Obj[];
     expect(lines.map((l) => l['xAxis'] ?? l['yAxis'])).toEqual([100, 100]);
-    expect(JSON.stringify(s['markArea'])).toContain('Lower rate, more than fair share');
-    expect(axis(b, 'xAxis')['name']).toBe('ARI (rate index)');
-    expect(call((s['label'] as Obj)['formatter'], { dataIndex: 0 })).toBe('Dubai Business Bay');
-    expect(b.summary).toContain('1 of 3 are at or above 100 on both.');
+    const areas = JSON.stringify(s['markArea']);
+    for (const words of ['Pricier, still winning guests', 'Cheaper, winning guests', 'Pricier, losing guests', 'Cheaper and losing guests']) expect(areas).toContain(words);
+    expect(axis(b, 'xAxis')['name']).toBe('← Cheaper · Price vs comp set · Pricier →');
+    expect(axis(b, 'yAxis')['name']).toContain('Share of demand vs comp set');
+    expect(JSON.stringify([axis(b, 'xAxis')['name'], axis(b, 'yAxis')['name'], areas])).not.toMatch(/ARI|MPI|RGI/);
+    // 100 reads as "Comp set", the rest as a difference from it.
+    expect(call((axis(b, 'xAxis')['axisLabel'] as Obj)['formatter'], 100)).toBe('Comp set');
+    expect(call((axis(b, 'xAxis')['axisLabel'] as Obj)['formatter'], 110)).toBe('+10%');
+    expect(b.legend).toEqual([]);
+    expect(b.summary).toContain('Pricier, still winning guests: 1.');
   });
 
-  it('ends its axes on round numbers', () => {
+  it('colours and shapes each point by its corner, so colour is not the only cue', () => {
+    const b = build(spec('scatter', { x: 'ari', y: ['mpi'], group: 'hotel' }), idx, idxCols, { width: 640, tokens: LIGHT_TOKENS });
+    const data = series(b)[0]['data'] as Obj[];
+    // Dubai: cheaper, winning · Mayfair: pricier, winning · Barcelona: cheaper, losing.
+    expect(data.map((d) => d['symbol'])).toEqual(['circle', 'triangle', 'path://M0,0 L10,0 L5,9 Z']);
+    expect(data.map((d) => (d['itemStyle'] as Obj)['color'])).toEqual([LIGHT_TOKENS.series, LIGHT_TOKENS.pos, LIGHT_TOKENS.neg]);
+  });
+
+  it('keeps the jargon for the tooltip, with what it means', () => {
+    const b = build(spec('scatter', { x: 'ari', y: ['mpi'], group: 'hotel' }), [...idx.slice(0, 1), { hotel: 'London Mayfair', ari: 104.2, mpi: 96, rgi: 100 }], [...idxCols, col('rgi', 'RGI', 'number', 'index')], { width: 640 });
+    const html = tooltipHtml(b, { dataIndex: 1 });
+    expect(html).toContain('4.2% more than comp set');
+    expect(html).toContain('4% fewer than fair share');
+    expect(html).toContain('ARI 104.2');
+    expect(html).toContain('Pricier, losing guests');
+  });
+
+  it('names the hotels the title talks about and the extremes, never all of them', () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({ hotel: `Hotel ${i}`, ari: 90 + i, mpi: 110 - i * 0.7 }));
+    const rows = [...many, { hotel: 'London Mayfair', ari: 101, mpi: 100.5 }];
+    const b = build(spec('scatter', { x: 'ari', y: ['mpi'], group: 'hotel', title: 'London Mayfair sits right on its comp set' }), rows, idxCols, { width: 900 });
+    const data = series(b)[0]['data'] as Obj[];
+    const named = data.map((d, i) => ((d['label'] as Obj)['show'] ? i : -1)).filter((i) => i >= 0);
+    expect(named.length).toBeLessThanOrEqual(5);
+    expect(named).toContain(20);
+    expect(call((series(b)[0]['label'] as Obj)['formatter'], { dataIndex: 20 })).toBe('London Mayfair');
+    // Fewer on a phone.
+    const phone = series(build(spec('scatter', { x: 'ari', y: ['mpi'], group: 'hotel' }), rows, idxCols, { width: 360 }))[0]['data'] as Obj[];
+    expect(phone.filter((d) => (d['label'] as Obj)['show']).length).toBeLessThanOrEqual(3);
+  });
+
+  it('zooms the axes to the data and keeps 100 in view', () => {
     const b = build(spec('scatter', { x: 'ari', y: ['mpi'], group: 'hotel' }), idx, idxCols, { width: 640 });
-    expect([axis(b, 'xAxis')['min'], axis(b, 'xAxis')['max'], axis(b, 'xAxis')['interval']]).toEqual([70, 120, 10]);
+    const x = axis(b, 'xAxis');
+    expect(x['min']).toBeLessThanOrEqual(78);
+    expect(x['max']).toBeGreaterThanOrEqual(109);
+    expect(x['min']).toBeGreaterThan(60);
     expect(niceStep(8.4)).toBe(10);
     expect(niceStep(0.3)).toBe(0.5);
     expect(niceCeil(123)).toBe(150);
+  });
+
+  it('names the row a click lands on', () => {
+    const b = build(spec('scatter', { x: 'ari', y: ['mpi'], group: 'hotel' }), [{ hotel: 'Nowhere', ari: null, mpi: 90 }, ...idx], idxCols, { width: 640 });
+    expect(b.rows).toEqual([1, 2, 3]);
   });
 
   it('uses the medians as reference for anything that is not an index', () => {

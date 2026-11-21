@@ -109,7 +109,7 @@
         </div>
       }
       <div class="wc-plot" role="img" tabindex="0" [attr.aria-label]="summary()" [attr.aria-describedby]="b.points.length ? uid + '-k' : null" (keydown)="onKey($event)" (blur)="leave()">
-        <juyo-echart [option]="b.option" />
+        <juyo-echart [option]="b.option" (pick)="onPick($event)" />
       </div>
       @if (b.more) {
         <button type="button" class="wc-more" [attr.aria-label]="'+' + b.more + ' more: show all ' + b.table.rows.length + ' rows as a table'" (click)="showAll()">+{{ b.more }} more</button>

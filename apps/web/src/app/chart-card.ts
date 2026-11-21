@@ -4,6 +4,8 @@ import { toast } from '@spartan-ng/brain/sonner';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { EChart, palette } from './echart';
+import { WidgetChart } from './charts/widget-chart';
+import type { WidgetSpec } from './charts/widget-types';
 import { BOOKED, CHANNELS, COMPARES, Filters, RANGES, SEGMENTS, hotelLabel, rangeDates, scopeChips, tokenValue } from './filters';
 import { Cell, ChartSpec, VIEW_LABEL, View, resolve } from './portfolio';
 import { CompassStore } from './store';
@@ -35,7 +37,7 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
 
 @Component({
   selector: 'app-chart-card',
-  imports: [NgIcon, EChart, HlmButtonImports, HlmDropdownMenuImports],
+  imports: [NgIcon, EChart, WidgetChart, HlmButtonImports, HlmDropdownMenuImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block min-w-0' },
   template: `
@@ -133,6 +135,9 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
         } @else if (view() === 'kpi' && r.kpi) {
           <p class="text-[34px]/tight font-semibold tracking-[-0.02em] tabular-nums">{{ r.kpi.value }}</p>
           <p class="text-muted-foreground mt-1 text-[13px]">{{ r.kpi.delta }}</p>
+        } @else if (widget(); as w) {
+          <!-- Drawn by the one chart system: the same marks, tooltips and keyboard steps as everywhere else -->
+          <juyo-widget-chart [spec]="w.spec" [rows]="w.rows" [columns]="w.columns" [header]="false" [switcher]="true" controls="external" [height]="height()" (picked)="drillRow($event)" />
         } @else {
           <app-echart [option]="option()" [label]="r.aria" [style.height.px]="height()" (pick)="drill($event)" />
         }
@@ -225,6 +230,14 @@ export class ChartCard {
   protected readonly scopeOpen = signal(false);
   private readonly width = signal(600);
   protected readonly option = computed(() => this.resolved().option(this.view(), palette(), this.width()));
+  /** Views already drawn by <juyo-widget-chart> (the rest move over one by one). */
+  protected readonly widget = computed(() => {
+    const r = this.resolved();
+    if (this.view() !== 'quadrant' || !r.data) return null;
+    const { rows, columns, ...rest } = r.data;
+    const spec: WidgetSpec = { ...rest, title: r.title, subtitle: r.subtitle, sourceCallId: `portfolio:${this.spec().id}` };
+    return { spec, rows, columns };
+  });
   private readonly boards = inject(BoardsService);
   protected readonly savedBoards = computed(() => this.boards.boards().slice(0, 8));
   protected readonly scope = computed(() => scopeChips(this.filters.state()).join(' · '));
@@ -280,6 +293,10 @@ export class ChartCard {
     const hi = Math.max(...xs);
     const span = hi - lo || 1;
     return xs.map((x, i) => `${((i / Math.max(1, xs.length - 1)) * 70 + 1).toFixed(1)},${(18 - ((x - lo) / span) * 16).toFixed(1)}`).join(' ');
+  }
+  protected drillRow(row: Record<string, unknown>) {
+    const d = this.resolved().drillRow?.(row);
+    if (d) this.live.drill(d, this.filters.state());
   }
   protected drill(i: number) {
     const d = this.resolved().drill?.(i);

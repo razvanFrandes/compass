@@ -115,6 +115,8 @@ export interface Resolved {
   data?: WidgetData;
   /** Turns a click on a mark into a structured follow-up ({ drill: { dimension, value } }), never free text. */
   drill?: (dataIndex: number) => Drill | null;
+  /** The same for a chart drawn by <juyo-widget-chart>, which names the row that was clicked. */
+  drillRow?: (row: Record<string, unknown>) => Drill | null;
   option: (view: View, p: Palette, width: number) => EChartsCoreOption;
 }
 
@@ -1063,13 +1065,18 @@ function quadrant(s: FilterState): Resolved {
     .map((c) => ({ code: c, name: short(c), ...idx[c] }));
   const winning = pts.filter((x) => x.mpi >= 100 && x.ari >= 100).length;
   const low = pts.reduce((a, b) => (a.rgi < b.rgi ? a : b), pts[0]);
-  const title = pts.length < 2 ? `${pts[0]?.name ?? '—'}: RGI ${pts[0]?.rgi ?? '—'} (MPI ${pts[0]?.mpi}, ARI ${pts[0]?.ari})` : `${winning} of ${pts.length} hotels win share at a premium; ${low.name} has the lowest RGI (${low.rgi})`;
+  // Plain words: RGI 92.3 is "earns 8% less per room than its comp set". The indices themselves are in the tooltip and the table.
+  const perRoom = (rgi: number) => (Math.abs(rgi - 100) < 0.5 ? 'earns the same per room as its comp set' : `earns ${Math.round(Math.abs(rgi - 100))}% ${rgi < 100 ? 'less' : 'more'} per room than its comp set`);
+  const title =
+    pts.length < 2
+      ? `${pts[0]?.name ?? '—'} ${pts[0] ? perRoom(pts[0].rgi) : 'has no comp set data'}`
+      : `${winning} of ${pts.length} hotels charge more than their comp set and still win more guests; ${low.name} ${perRoom(low.rgi)}`;
   const ig = ignoredOptional(s, []);
   const cmpIg = s.compare !== 'none';
   const sorted = [...pts].sort((a, b) => Math.hypot(b.ari - 100, b.mpi - 100) - Math.hypot(a.ari - 100, a.mpi - 100));
   return {
     title,
-    subtitle: `Price (ARI) against share of demand (MPI), each hotel vs its comp set · ${hotelLabel(s.hotels)} · ${RANGES[win as keyof typeof RANGES].short}`,
+    subtitle: `Each hotel's price and share of guests against its comp set · ${hotelLabel(s.hotels)} · ${RANGES[win as keyof typeof RANGES].short}${future ? ' stayed' : ''}`,
     aria: `${title}. ${pts.map((x) => `${x.name} MPI ${x.mpi}, ARI ${x.ari}`).join('; ')}`,
     view: pts.length < 2 ? 'table' : 'quadrant',
     autoWhy: 'Relation between two indices: a quadrant with named reference lines',
@@ -1078,13 +1085,12 @@ function quadrant(s: FilterState): Resolved {
       { view: 'bars', ok: true },
       { view: 'table', ok: true },
     ],
-    badge: future
-      ? { label: 'Own dates: last 30 nights', detail: 'MPI, ARI and RGI need actuals: the comp set benchmark only covers nights already stayed.' }
-      : ig.length || cmpIg
-        ? { label: 'Comp set is the comparison', detail: 'Each index already compares a hotel with its comp set; the comparison, segment, channel and booking filters don’t apply.' }
-        : null,
+    // No chip: the period is said once, in the subtitle ("last 30 nights stayed": the benchmark only covers nights
+    // already stayed), and every point is already against its comp set, which the axes say.
+    badge: null,
     ignores: [...(future ? ['stay nights'] : []), ...ig, ...(cmpIg ? ['comparison'] : [])],
-    legend: [{ label: 'Hotel', mark: 'solid' }, { label: '100 = comp set', mark: 'line-ref' }, { label: 'RGI = 100', mark: 'dotted' }],
+    // The corners name themselves; no legend.
+    legend: [],
     table: { columns: ['Hotel', 'MPI', 'ARI', 'RGI'], rows: [...pts].sort((a, b) => a.rgi - b.rgi).map((x) => [x.name, String(x.mpi), String(x.ari), String(x.rgi)]), align: ['l', 'r', 'r', 'r'] },
     sql: PF_SQL.index,
     definitions: [
@@ -1093,18 +1099,19 @@ function quadrant(s: FilterState): Resolved {
       ['RGI', 'RevPAR ÷ comp set RevPAR × 100 = MPI × ARI ÷ 100'],
       ['Points', '+5 on an index means 5% against the comp set, not 5 pts of occupancy'],
     ],
-    computed: 'Computed from each hotel’s daily results and its comp set’s over the window. The dotted curve is RGI = 100 (MPI = 10,000 ÷ ARI): hotels above it take more than their fair share of revenue.',
+    computed: 'Computed from each hotel’s daily results and its comp set’s over the window. 100 on either axis is the comp set: right of it a hotel charges more, above it it wins more than its fair share of guests.',
     data: {
       kind: 'scatter',
       x: 'ari',
       y: ['mpi'],
       group: 'hotel',
       format: 'number',
-      rows: pts.map((x) => ({ hotel: x.name, ari: x.ari, mpi: x.mpi, rgi: x.rgi })),
-      columns: [col('hotel', 'Hotel', 'hotel'), col('ari', 'ARI', 'number'), col('mpi', 'MPI', 'number'), col('rgi', 'RGI', 'number')],
+      rows: pts.map((x) => ({ hotel: x.code, ari: x.ari, mpi: x.mpi, rgi: x.rgi })),
+      columns: [col('hotel', 'Hotel', 'hotel'), col('ari', 'ARI (price vs comp set)', 'number', 'index'), col('mpi', 'MPI (share vs comp set)', 'number', 'index'), col('rgi', 'RGI (revenue per room vs comp set)', 'number', 'index')],
     },
     height: 380,
     drill: (i) => (sorted[i] ? { dimension: 'hotel', value: sorted[i].code, label: sorted[i].name } : null),
+    drillRow: (row) => (typeof row['hotel'] === 'string' ? { dimension: 'hotel', value: row['hotel'], label: short(row['hotel']) } : null),
     option: (view, p, width) => {
       if (view === 'bars') {
         const byRgi = [...pts].sort((a, b) => a.rgi - b.rgi);

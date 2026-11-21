@@ -162,9 +162,9 @@ const bridgeRows: WidgetRow[] = [
 ];
 
 const radarRows: WidgetRow[] = [
-  { measure: 'Occupancy (MPI)', hotel_index: 92, compset_index: 100 },
-  { measure: 'Rate (ARI)', hotel_index: 108, compset_index: 100 },
-  { measure: 'RevPAR (RGI)', hotel_index: 99, compset_index: 100 },
+  { measure: 'Share of guests', hotel_index: 92, compset_index: 100 },
+  { measure: 'Price', hotel_index: 108, compset_index: 100 },
+  { measure: 'Revenue per room', hotel_index: 99, compset_index: 100 },
   { measure: 'Direct share', hotel_index: 121, compset_index: 100 },
   { measure: 'Review score', hotel_index: 104, compset_index: 100 },
   { measure: 'Length of stay', hotel_index: 88, compset_index: 100 },
@@ -383,7 +383,7 @@ export const SPECIMENS: SpecimenGroup[] = [
       },
       {
         id: 'radar',
-        spec: { kind: 'radar', title: 'Lisbon Chiado holds its rate but gives up occupancy and length of stay', subtitle: 'Arbor Lisbon Chiado vs comp set · index, 100 = parity', sourceCallId: src('radar'), x: 'measure', y: ['hotel_index'], compare: 'compset_index' },
+        spec: { kind: 'radar', title: 'Lisbon Chiado holds its price but gives up share of guests and length of stay', subtitle: 'Arbor Lisbon Chiado against its comp set (the dashed line) · outside it is better', sourceCallId: src('radar'), x: 'measure', y: ['hotel_index'], compare: 'compset_index' },
         rows: radarRows,
         columns: [col('measure', 'Measure', 'text'), col('hotel_index', 'Lisbon Chiado', 'number', 'index'), col('compset_index', 'Comp set', 'number', 'index')],
       },

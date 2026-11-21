@@ -1,7 +1,14 @@
 import { formatDelta, formatValue, isNumericKind } from '../format';
 import { catColor, mix } from '../tokens';
 import type { EvidenceColumn } from '../widget-types';
-import { type Built, type Ctx, type LegendItem, baseOption, cell, column, empty, label, numberAt, pickLabelKey, pickValueKey, specKeys, summary, tableModel, textWidth, tip, tooltip, valueAxis, valueColumn, visibleKeys } from './shared';
+import { hotelLabel } from '../hotel-names';
+import { type AxisRange, type Corner, type Rect, cornerOf, pickLabels, placeLabels, zoomRange } from './quadrant';
+import { COMP_SET_CORNERS, CORNER_GLYPH, isCompSetPair, vsCompSet, vsCompSetWords } from './scatter-words';
+import { type Built, type Ctx, type LegendItem, type TipRow, baseOption, cell, column, empty, label, numberAt, pickLabelKey, pickValueKey, specKeys, summary, tableModel, textWidth, tip, tooltip, valueAxis, valueColumn, visibleKeys } from './shared';
+
+import { niceCeil, niceStep } from './steps';
+
+export { niceCeil, niceStep };
 
 /* Scatter (the ARI × MPI quadrant), radar and gauge. */
 
@@ -12,8 +19,8 @@ function median(xs: number[]): number {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-/** What each corner means when rate index (ARI) meets share index (MPI); 100 is parity with the comp set. */
-const ARI_MPI = { topRight: 'Higher rate, more than fair share', topLeft: 'Lower rate, more than fair share', bottomRight: 'Higher rate, less than fair share', bottomLeft: 'Lower rate, less than fair share' };
+/** The ECharts symbol for each corner: ▲ for the best, ▼ for the worst, a circle and a diamond between. */
+const CORNER_SYMBOL: Record<Corner, string> = { tr: 'triangle', tl: 'circle', br: 'diamond', bl: 'path://M0,0 L10,0 L5,9 Z' };
 
 export function buildScatter(c: Ctx): Built {
   const numeric = visibleKeys(c).filter((k) => isNumericKind(column(c, k).kind));
@@ -24,9 +31,16 @@ export function buildScatter(c: Ctx): Built {
   const yCol = column(c, yKey, 'value');
   const nameKey = pickLabelKey(c, c.spec.group);
   const nameCol = nameKey ? column(c, nameKey) : null;
+  // Another index on the rows (RGI) goes into the tooltip.
+  const extraKey = visibleKeys(c).find((k) => k !== xKey && k !== yKey && /(^|_)rgi(_|$)/i.test(k));
   const pts = c.rows
-    .map((r) => ({ name: nameKey && nameCol ? label(cell(r, nameKey), nameCol) : '', x: numberAt(r, xKey), y: numberAt(r, yKey) }))
-    .filter((p): p is { name: string; x: number; y: number } => p.x !== null && p.y !== null);
+    .map((r, row) => {
+      const raw = nameKey ? cell(r, nameKey) : undefined;
+      const name = nameKey && nameCol ? label(raw, nameCol) : '';
+      const full = nameCol?.kind === 'hotel' ? hotelLabel(raw, 'full') : name;
+      return { row, name, full, aliases: [full, String(raw ?? '')], x: numberAt(r, xKey), y: numberAt(r, yKey), extra: extraKey ? numberAt(r, extraKey) : null };
+    })
+    .filter((p): p is typeof p & { x: number; y: number } => p.x !== null && p.y !== null);
   if (!pts.length) return empty(c, 'No data for this period.');
   const xs = pts.map((p) => p.x);
   const ys = pts.map((p) => p.y);
@@ -34,108 +48,180 @@ export function buildScatter(c: Ctx): Built {
   const yIndex = isIndex(yCol, ys);
   const xRef = xIndex ? 100 : median(xs);
   const yRef = yIndex ? 100 : median(ys);
-  const quadrant = /ari/i.test(xCol.key) && /mpi/i.test(yCol.key) ? ARI_MPI : null;
-  // Round the range out to whole steps, so the reference lines sit inside the plot and the axis ends on clean numbers.
-  const pad = (lo: number, hi: number, ref: number) => {
-    const a = Math.min(lo, ref);
-    const b = Math.max(hi, ref);
-    const span = b - a || Math.abs(b) || 1;
-    const step = niceStep(span / 5);
-    return { min: Math.floor((a - span * extra) / step) * step, max: Math.ceil((b + span * extra) / step) * step, interval: step };
+  const compSet = xIndex && yIndex && isCompSetPair(xCol.key, xCol.label, yCol.key, yCol.label);
+  const narrow = c.narrow;
+
+  // The plot box in px: everything below is placed in it, so the grid does not size itself around its labels.
+  const tickText = (v: number, col: EvidenceColumn, isIdx: boolean) => (isIdx ? vsCompSet(v) : formatValue(Math.round(v * 10) / 10, col, { axis: true }));
+  let xr = zoomRange(xs, xRef);
+  let yr = zoomRange(ys, yRef);
+  const top = 26;
+  const bottom = 44;
+  const right = 14;
+  const yTicks = (r: AxisRange) => Array.from({ length: Math.round((r.max - r.min) / r.interval) + 1 }, (_, i) => r.min + i * r.interval);
+  const plotH = Math.max(80, c.height - top - bottom);
+  // The corner captions get a strip of their own at the top and the bottom of the plot.
+  if (compSet) {
+    const room = ((yr.max - yr.min) * 22) / plotH;
+    yr = { ...yr, min: Math.floor((Math.min(yr.min, Math.min(...ys) - room)) / yr.interval) * yr.interval, max: Math.ceil((Math.max(yr.max, Math.max(...ys) + room)) / yr.interval) * yr.interval };
+  }
+  const left = Math.max(...yTicks(yr).map((v) => textWidth(tickText(v, yCol, yIndex), 11.5))) + 14;
+  const plotW = Math.max(120, c.width - left - right);
+  const words = (k: Corner) => (narrow ? COMP_SET_CORNERS[k].short : COMP_SET_CORNERS[k].long);
+  const capSize = 11;
+  const capWidth = (k: Corner) => textWidth(`${CORNER_GLYPH[k]} ${words(k)}`, capSize) + 4;
+  // Each side of the comp-set line is wide enough for its corner captions: the axis grows a step at a time.
+  if (compSet) {
+    const need = (ks: Corner[]) => Math.max(...ks.map(capWidth)) + 16;
+    for (let i = 0; i < 8 && ((xr.max - xRef) / (xr.max - xr.min)) * plotW < need(['tr', 'br']); i++) xr = { ...xr, max: xr.max + xr.interval };
+    for (let i = 0; i < 8 && ((xRef - xr.min) / (xr.max - xr.min)) * plotW < need(['tl', 'bl']); i++) xr = { ...xr, min: xr.min - xr.interval };
+  }
+  const box = { x: left, y: top, w: plotW, h: plotH };
+  const px = (p: { x: number; y: number }) => ({ x: left + ((p.x - xr.min) / (xr.max - xr.min)) * plotW, y: top + ((yr.max - p.y) / (yr.max - yr.min)) * plotH });
+
+  const corners = pts.map((p) => cornerOf(p.x, p.y, xRef, yRef));
+  const tone: Record<Corner, string> = { tr: c.t.pos, tl: c.t.series, br: c.t.cat[3] ?? c.t.cmp, bl: c.t.neg };
+
+  // Corner captions, and the boxes they take (names keep clear of them).
+  const capBox = (k: Corner): Rect => {
+    const w = capWidth(k);
+    return { x: k[1] === 'r' ? left + plotW - 6 - w : left + 6, y: k[0] === 't' ? top + 4 : top + plotH - 4 - 15, w, h: 15 };
   };
-  // Corner captions need air above and below the points.
-  const extra = quadrant && !c.narrow ? 0.16 : 0.06;
-  const xr = pad(Math.min(...xs), Math.max(...xs), xRef);
-  const yr = pad(Math.min(...ys), Math.max(...ys), yRef);
-  const plotW = Math.max(120, c.width - 70);
-  const roomRight = (p: { x: number }) => ((xr.max - p.x) / (xr.max - xr.min)) * plotW;
-  const refLabel = (isIdx: boolean, v: number, col: EvidenceColumn) => (isIdx ? '100' : `median ${formatValue(v, col, { compact: true })}`);
-  const caption = { color: c.t.muted, fontSize: 11, fontFamily: c.t.font, opacity: 0.9 };
+  const avoid = compSet ? (['tr', 'tl', 'br', 'bl'] as Corner[]).map(capBox) : [];
+
+  const max = narrow ? 3 : c.width < 720 ? 4 : 5;
+  const chosen = pickLabels(pts, { text: `${c.spec.title} ${c.spec.subtitle ?? ''}`, max, xRef, yRef, xSpan: xr.max - xr.min, ySpan: yr.max - yr.min });
+  const spots = placeLabels(
+    pts.map(px),
+    chosen.filter((i) => pts[i].name).map((i) => ({ index: i, width: textWidth(pts[i].name, 11.5) + 2 })),
+    box,
+    { avoid, radius: 6, height: 15 },
+  );
+
+  const xWords = compSet ? { name: narrow ? '← Cheaper · Price · Pricier →' : '← Cheaper · Price vs comp set · Pricier →' } : { name: xCol.label };
+  const yName = compSet ? (narrow ? 'Share of demand ↑' : 'Share of demand vs comp set (↑ more guests)') : yCol.label;
+  const axisText = { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font };
+  const refLabel = (isIdx: boolean, v: number, col: EvidenceColumn) => (isIdx ? 'Comp set' : `median ${formatValue(v, col, { compact: true })}`);
+  const tipRows = (p: (typeof pts)[number], k: Corner): TipRow[] => {
+    if (!compSet) return [
+      { label: xCol.label, value: formatValue(p.x, xCol), color: c.t.series },
+      { label: yCol.label, value: formatValue(p.y, yCol), color: c.t.series },
+    ];
+    return [
+      { label: 'Price', value: vsCompSetWords(p.x, 'more than comp set', 'less than comp set') },
+      { label: 'Guests', value: vsCompSetWords(p.y, 'more than fair share', 'fewer than fair share') },
+      ...(p.extra !== null ? [{ label: 'Revenue per room', value: vsCompSetWords(p.extra, 'above comp set', 'below comp set') }] : []),
+    ].map((r, i) => (i === 0 ? { ...r, color: tone[k] } : r));
+  };
+  const jargon = (p: (typeof pts)[number]) => [`ARI ${p.x.toFixed(1)}`, `MPI ${p.y.toFixed(1)}`, ...(p.extra !== null ? [`RGI ${p.extra.toFixed(1)}`] : [])].join(' · ');
+
   const option = {
     ...baseOption(c),
-    grid: { left: 10, right: 16, top: 26, bottom: 26, containLabel: true },
+    grid: { left, right, top, bottom, containLabel: false },
     tooltip: tooltip(c, {
       trigger: 'item',
-      formatter: (p: unknown) => {
-        const d = pts[(p as { dataIndex: number }).dataIndex];
-        if (!d) return '';
-        return tip(c, d.name, [
-          { label: xCol.label, value: formatValue(d.x, xCol), color: c.t.series },
-          { label: yCol.label, value: formatValue(d.y, yCol), color: c.t.series },
-        ]);
+      formatter: (prm: unknown) => {
+        const i = (prm as { dataIndex: number }).dataIndex;
+        const p = pts[i];
+        if (!p) return '';
+        const k = corners[i];
+        return tip(c, compSet ? `${p.full} · ${COMP_SET_CORNERS[k].long}` : p.full, tipRows(p, k), compSet ? jargon(p) : undefined);
       },
     }),
-    xAxis: valueAxis(c, xCol, { ...xr, name: xCol.label, nameLocation: 'middle', nameGap: 26, nameTextStyle: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font }, axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, formatter: (v: number) => formatValue(Math.round(v * 10) / 10, xCol, { axis: true }) }, splitLine: { show: false } }),
-    yAxis: valueAxis(c, yCol, { ...yr, name: yCol.label, nameLocation: 'end', nameGap: 10, nameTextStyle: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, align: 'left' }, axisLabel: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, formatter: (v: number) => formatValue(Math.round(v * 10) / 10, yCol, { axis: true }) }, splitLine: { show: false } }),
+    xAxis: valueAxis(c, xCol, { ...xr, name: xWords.name, nameLocation: 'middle', nameGap: 28, nameTextStyle: axisText, axisLabel: { ...axisText, formatter: (v: number) => tickText(v, xCol, xIndex) }, splitLine: { show: false } }),
+    yAxis: valueAxis(c, yCol, { ...yr, name: yName, nameLocation: 'end', nameGap: 10, nameTextStyle: { ...axisText, align: 'left', padding: [0, 0, 0, -left + 4] }, axisLabel: { ...axisText, formatter: (v: number) => tickText(v, yCol, yIndex) }, splitLine: { show: false } }),
     series: [
       {
         type: 'scatter',
         name: `${yCol.label} by ${xCol.label}`,
-        // A name that would run off the right edge sits on the left of its point instead.
-        data: pts.map((p) => ({ value: [p.x, p.y], label: { position: roomRight(p) < textWidth(p.name, 11.5) + 16 ? 'left' : 'right' } })),
-        symbolSize: 10,
-        // A ring in the surface colour keeps overlapping points apart.
-        itemStyle: { color: c.t.series, borderColor: c.t.surface, borderWidth: 2 },
-        emphasis: { scale: 1.3, itemStyle: { borderColor: c.t.fg, borderWidth: 1 } },
-        label: { show: pts.length <= (c.narrow ? 12 : 28), position: 'right', distance: 5, color: c.t.text, fontSize: 11.5, fontFamily: c.t.font, formatter: (p: { dataIndex: number }) => pts[p.dataIndex].name },
-        labelLayout: { hideOverlap: true },
+        data: pts.map((p, i) => {
+          const k = corners[i];
+          const spot = spots.get(i);
+          const color = compSet ? tone[k] : c.t.series;
+          return {
+            value: [p.x, p.y],
+            symbol: compSet ? CORNER_SYMBOL[k] : 'circle',
+            symbolSize: compSet && k !== 'tl' ? 12 : 10,
+            itemStyle: { color, borderColor: c.t.surface, borderWidth: 1.5 },
+            label: { show: !!spot },
+            labelLine: { show: !!spot?.leader },
+          };
+        }),
+        emphasis: { scale: 1.35, itemStyle: { borderColor: c.t.fg, borderWidth: 1.5 } },
+        label: { show: false, color: c.t.text, fontSize: 11.5, fontWeight: 500, fontFamily: c.t.font, formatter: (p: { dataIndex: number }) => pts[p.dataIndex].name },
+        labelLine: { lineStyle: { color: c.t.muted, width: 1, opacity: 0.7 } },
+        // Where each name goes was worked out above; ECharts only gets the dot's real position.
+        labelLayout: (p: { dataIndex: number; rect: { x: number; y: number; width: number; height: number } }) => {
+          const s = spots.get(p.dataIndex);
+          if (!s) return {};
+          return { x: p.rect.x + p.rect.width / 2 + s.dx, y: p.rect.y + p.rect.height / 2 + s.dy, align: s.align, verticalAlign: s.verticalAlign };
+        },
         markLine: {
           silent: true,
           symbol: 'none',
           animation: false,
-          lineStyle: { color: c.t.ref, width: 1, type: 'solid', opacity: 0.55 },
+          lineStyle: { color: c.t.ref, width: 1, type: 'solid', opacity: 0.6 },
           label: { color: c.t.muted, fontSize: 11, fontFamily: c.t.font },
           data: [
-            // An index line needs no label (the axis says 100); a median does.
+            // An index line is named by its tick ("Comp set"); a median line by its own label.
             { xAxis: xRef, label: { show: !xIndex, formatter: refLabel(xIndex, xRef, xCol), position: 'end' } },
             { yAxis: yRef, label: { show: !yIndex, formatter: refLabel(yIndex, yRef, yCol), position: 'insideEndTop' } },
           ],
         },
-        markArea:
-          quadrant && !c.narrow
-            ? {
-                silent: true,
-                animation: false,
-                itemStyle: { color: 'transparent' },
-                data: [
-                  [{ xAxis: xRef, yAxis: yr.max, label: { ...caption, show: true, position: 'insideTopRight', formatter: quadrant.topRight } }, { xAxis: xr.max, yAxis: yRef }],
-                  [{ xAxis: xr.min, yAxis: yr.max, label: { ...caption, show: true, position: 'insideTopLeft', formatter: quadrant.topLeft } }, { xAxis: xRef, yAxis: yRef }],
-                  [{ xAxis: xRef, yAxis: yRef, label: { ...caption, show: true, position: 'insideBottomRight', formatter: quadrant.bottomRight } }, { xAxis: xr.max, yAxis: yr.min }],
-                  [{ xAxis: xr.min, yAxis: yRef, label: { ...caption, show: true, position: 'insideBottomLeft', formatter: quadrant.bottomLeft } }, { xAxis: xRef, yAxis: yr.min }],
-                ],
-              }
-            : undefined,
+        markArea: compSet
+          ? {
+              silent: true,
+              animation: false,
+              data: (
+                [
+                  ['tr', [xRef, yr.max], [xr.max, yRef], 'insideTopRight'],
+                  ['tl', [xr.min, yr.max], [xRef, yRef], 'insideTopLeft'],
+                  ['br', [xRef, yRef], [xr.max, yr.min], 'insideBottomRight'],
+                  ['bl', [xr.min, yRef], [xRef, yr.min], 'insideBottomLeft'],
+                ] as const
+              ).map(([k, a, b, position]) => [
+                {
+                  xAxis: a[0],
+                  yAxis: a[1],
+                  itemStyle: { color: mix(tone[k], c.t.surface, c.t.mode === 'dark' ? 0.1 : 0.07) },
+                  label: {
+                    show: true,
+                    position,
+                    distance: 6,
+                    formatter: `{g|${CORNER_GLYPH[k]}} ${words(k)}`,
+                    color: c.t.muted,
+                    fontSize: capSize,
+                    fontFamily: c.t.font,
+                    rich: { g: { color: tone[k], fontSize: capSize - 1, fontFamily: c.t.font } },
+                  },
+                },
+                { xAxis: b[0], yAxis: b[1] },
+              ]),
+            }
+          : undefined,
       },
     ],
   };
-  const above = pts.filter((p) => p.x >= xRef && p.y >= yRef).length;
+  const count = (k: Corner) => corners.filter((x) => x === k).length;
+  const pointText = (p: (typeof pts)[number], i: number) =>
+    compSet
+      ? `${p.full}: ${COMP_SET_CORNERS[corners[i]].long.toLowerCase()}. ${tipRows(p, corners[i]).map((r) => `${r.label} ${r.value}`).join(', ')}. ${jargon(p)}.`
+      : `${p.full}: ${xCol.label} ${formatValue(p.x, xCol)}, ${yCol.label} ${formatValue(p.y, yCol)}`;
   return {
     render: 'echarts',
     kind: 'scatter',
     option,
-    points: pts.map((p, i) => ({ seriesIndex: 0, dataIndex: i, text: `${p.name}: ${xCol.label} ${formatValue(p.x, xCol)}, ${yCol.label} ${formatValue(p.y, yCol)}` })),
+    points: pts.map((p, i) => ({ seriesIndex: 0, dataIndex: i, text: pointText(p, i) })),
+    rows: pts.map((p) => p.row),
     legend: [],
     table: tableModel(c, specKeys(c.spec)),
-    summary: summary(c, `Scatter plot of ${yCol.label} against ${xCol.label} for ${pts.length} points.`, `${above} of ${pts.length} are at or above ${refLabel(xIndex, xRef, xCol)} on both.`),
+    summary: compSet
+      ? summary(c, `Each hotel's price against its share of demand, both against its comp set, for ${pts.length} hotels.`, (['tr', 'tl', 'br', 'bl'] as Corner[]).map((k) => `${COMP_SET_CORNERS[k].long}: ${count(k)}.`).join(' '))
+      : summary(c, `Scatter plot of ${yCol.label} against ${xCol.label} for ${pts.length} points.`, `${count('tr')} of ${pts.length} are at or above ${refLabel(xIndex, xRef, xCol)} on both.`),
   };
 }
 
 /* ───────── Radar ───────── */
-
-/** An axis step at or above `v`: 1, 2, 2.5, 5 or 10 times a power of ten. */
-export function niceStep(v: number): number {
-  if (v <= 0) return 1;
-  const mag = 10 ** Math.floor(Math.log10(v));
-  return Number(([1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= v - 1e-9) ?? v).toPrecision(12));
-}
-
-/** A round number at or above `v`: 1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8 or 10 times a power of ten. */
-export function niceCeil(v: number): number {
-  if (v <= 0) return 1;
-  const mag = 10 ** Math.floor(Math.log10(v));
-  const found = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((m) => m * mag).find((s) => s >= v - 1e-9) ?? v;
-  return Number(found.toPrecision(12));
-}
 
 export function buildRadar(c: Ctx): Built {
   const xKey = pickLabelKey(c, c.spec.x, c.spec.group);

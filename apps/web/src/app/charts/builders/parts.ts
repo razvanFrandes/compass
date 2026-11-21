@@ -377,6 +377,9 @@ export function buildTreemap(c: Ctx): Built {
         itemStyle: { borderColor: c.t.surface, borderWidth: 0, gapWidth: 2 },
         levels: parentKey ? [{ itemStyle: { borderWidth: 0, gapWidth: 4 }, upperLabel: { show: false } }, { itemStyle: { borderColor: c.t.surface, borderWidth: 0, gapWidth: 2 }, upperLabel: { show: true } }, { itemStyle: { gapWidth: 2 } }] : [{ itemStyle: { borderWidth: 0, gapWidth: 2 } }],
         emphasis: { itemStyle: { borderColor: c.t.fg }, upperLabel: { color: c.t.fg } },
+        // A name only goes on a tile with room for all of it: a half-word ("Amste…", "D…") says nothing. The tile is
+        // still named on hover, and in the table.
+        labelLayout: (p: { rect: { width: number; height: number }; labelRect: { width: number; height: number } }) => (p.labelRect.width + 12 <= p.rect.width && p.labelRect.height + 10 <= p.rect.height ? {} : { fontSize: 0 }),
       },
     ],
   };
