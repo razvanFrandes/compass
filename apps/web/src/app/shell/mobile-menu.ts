@@ -3,12 +3,13 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorSwatchesFill } from '@ng-icons/phosphor-icons/fill';
 import { GROUP } from '../data';
 import * as icons from '../icons';
-import { JuyoLogo } from '../juyo-logo';
 import { agoShort } from '../kassandra/kassandra-thread-list';
 import { Live } from '../live';
 import { ScopeSwitcher } from '../scope/scope-switcher';
 import { CompassStore } from '../store';
 import { AppearanceControls } from './appearance-controls';
+// One-line swap: './compass-logo' once r3/brand-compass is on main (see the placeholder's note).
+import { CompassLogo } from './compass-logo.placeholder';
 import { isActiveNav, type NavItem } from './nav';
 import { SidebarState } from './sidebar-state';
 
@@ -28,7 +29,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'app-mobile-menu',
-  imports: [NgIcon, JuyoLogo, ScopeSwitcher, AppearanceControls],
+  imports: [NgIcon, CompassLogo, ScopeSwitcher, AppearanceControls],
   providers: [provideIcons({ ...icons, phosphorSwatchesFill })],
   host: { class: 'block shrink-0' },
   styles: `
@@ -146,7 +147,7 @@ let nextId = 0;
     <!-- data-surface="inverse": in the Juyo concept theme the sheet is the night surface, like the sidebar. -->
     <dialog #sheet class="mm-sheet" data-surface="inverse" aria-label="Menu" [id]="uid" (close)="settle()" (click)="dismiss($event)">
       <div class="mm-head">
-        <app-juyo-logo [size]="22" />
+        <app-compass-logo variant="full" [size]="22" />
         <button #closeButton type="button" class="mm-close" aria-label="Close menu" (click)="close()">
           <ng-icon name="phosphorXLight" aria-hidden="true" />
         </button>

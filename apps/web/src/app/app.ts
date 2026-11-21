@@ -13,13 +13,14 @@ import { WatchersView } from './watchers';
 import { Live } from './live';
 import { WatcherPage } from './watcher-page';
 import { WorkflowBuilder } from './builder/builder-page';
-import { JuyoLogo } from './juyo-logo';
 import { NotFound } from './not-found';
 import { BUILT_IN } from './board';
 import { BoardsService } from './boards/boards.service';
 import { ScopeSwitcher } from './scope/scope-switcher';
 import { OrbLab } from './orb/orb-lab';
 import { CatalogView } from './charts/catalog';
+// One-line swap: './shell/compass-logo' once r3/brand-compass is on main (see the placeholder's note).
+import { CompassLogo } from './shell/compass-logo.placeholder';
 import { MobileMenu } from './shell/mobile-menu';
 import { Sidebar } from './shell/sidebar';
 import { RAIL_WIDTH, SIDEBAR_WIDTH, SidebarState } from './shell/sidebar-state';
@@ -31,7 +32,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, Sidebar, MobileMenu, HlmToasterImports],
+  imports: [BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, CompassLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, Sidebar, MobileMenu, HlmToasterImports],
   providers: [provideIcons({ ...icons, phosphorCompassLight }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   styles: `
@@ -71,8 +72,8 @@ import * as icons from './icons';
           <!-- Phone: the logo, the hotel scope, and the menu. There is no tab bar: the bottom edge is Kassandra's (src/app/shell/mobile-menu.ts). -->
           <header class="flex h-14 items-center justify-between gap-2 pr-[max(6px,env(safe-area-inset-right,0px))] pl-[max(16px,env(safe-area-inset-left,0px))] lg:hidden">
             <div class="flex min-w-0 items-center gap-2">
-              <a href="/" class="text-foreground flex shrink-0 items-center" aria-label="Juyo, morning brief" (click)="$event.preventDefault(); store.go('inbox')">
-                <app-juyo-logo [size]="20" />
+              <a href="/" class="text-foreground flex shrink-0 items-center" aria-label="Compass, morning brief" (click)="$event.preventDefault(); store.go('inbox')">
+                <app-compass-logo variant="full" [size]="20" />
               </a>
               <span class="text-muted-foreground text-[14px]" aria-hidden="true">/</span>
               <app-scope-switcher />

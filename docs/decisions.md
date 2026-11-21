@@ -479,8 +479,9 @@ Kassandra is drawn by the same components wherever she appears (`apps/web/src/ap
 - **Why.** The bottom tab bar sat directly under Kassandra's ask bar, so the microphone was right above the Agent Studio tab: easy to tap the wrong one, and two bars took a fifth of the screen.
 - **The bottom edge is Kassandra's.** The tab bar is gone. The ask bar docks at the bottom with 14 px of air, or the home indicator's safe area when that is larger, and nothing that can be tapped sits under it.
 - **One "Menu" button, top right of the phone header**, where the theme button was (`apps/web/src/app/shell/mobile-menu.ts`). It is 44 × 44 px. It carries an orange dot while anything waits, and its description says what ("8 in Inbox, 1 in Agent Studio waiting"). The header keeps the logo and the scope chip.
+- **The logo is Compass, not Juyo** (owner decision, 21 Nov 2026), in the phone header and in the sheet. Until `shell/compass-logo.ts` (r3/brand-compass) is on main, `shell/compass-logo.placeholder.ts` stands in with the same selector and inputs (`app-compass-logo`, `variant`, `size`): the swap is the import line in `app.ts` and `shell/mobile-menu.ts`.
 - **It opens a sheet from the right edge**, 360 px wide at most, with a strip of scrim left to tap. Top to bottom:
-  - the Juyo logo and the close button;
+  - the Compass logo and the close button;
   - the hotel scope (the sidebar's `ScopeSwitcher`; its picker opens above the sheet as its own dialog);
   - Inbox, Boards and Agent Studio, 48 px rows, with the count as an orange badge and the current place filled;
   - the five most recent conversations;

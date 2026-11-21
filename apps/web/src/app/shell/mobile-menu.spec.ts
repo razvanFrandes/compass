@@ -169,10 +169,14 @@ describe('MobileMenu', () => {
   });
 
   describe('what the sheet holds', () => {
-    it('leads with the Juyo logo and the hotel scope', async () => {
+    it('leads with the Compass logo, not the Juyo one, and the hotel scope', async () => {
       await render();
       await open();
-      expect(sheet().querySelector('.mm-head svg[aria-label=Juyo]')).not.toBeNull();
+      const logo = sheet().querySelector('.mm-head app-compass-logo')!;
+      expect(logo.getAttribute('role')).toBe('img');
+      expect(logo.getAttribute('aria-label')).toBe('Compass');
+      expect(text(logo)).toBe('Compass');
+      expect(sheet().querySelector('app-juyo-logo, [aria-label=Juyo]')).toBeNull();
       const scope = sheet().querySelector<HTMLButtonElement>('.mm-scope button[aria-haspopup=dialog]')!;
       expect(text(scope)).toContain('Halcyon Hospitality');
       expect(text(scope)).toContain('All 20 hotels');
