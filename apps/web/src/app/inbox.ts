@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ViewEncapsulation, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, ElementRef, ViewEncapsulation, afterNextRender, computed, effect, inject, linkedSignal, signal, untracked, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import type { BriefFeed } from '@compass/contracts';
@@ -31,11 +31,9 @@ import { WidgetChart } from './charts/widget-chart';
 import { BUSINESS_DAY } from './data';
 import * as icons from './icons';
 import { KassandraComposer } from './kassandra/kassandra-composer';
-import { KassandraTryAsking } from './kassandra/kassandra-try-asking';
 import { Live, ago } from './live';
 import { ProposalCard } from './proposal-card';
 import { plainText } from './proposal-text';
-import { ScopeSwitcher } from './scope/scope-switcher';
 import { ScopeService } from './scope/scope.service';
 import { BriefRow, CompassStore, PORTFOLIO_BOARD, shortHotel } from './store';
 
@@ -59,71 +57,76 @@ const TOP_FINDINGS = 3;
 */
 @Component({
   selector: 'app-inbox',
-  imports: [NgIcon, KassandraComposer, KassandraTryAsking, ProposalCard, ScopeSwitcher, HlmButtonImports, PulseRail, FindingCard, BriefSection, NightsCalendar, DataHealth, AgentsOvernight, WidgetChart],
+  imports: [NgIcon, KassandraComposer, ProposalCard, HlmButtonImports, PulseRail, FindingCard, BriefSection, NightsCalendar, DataHealth, AgentsOvernight, WidgetChart],
   providers: [provideIcons({ ...icons })],
   encapsulation: ViewEncapsulation.None,
   styleUrl: './brief/brief.css',
-  host: { class: 'block' },
+  host: { class: 'block', '[style.--dock-h.px]': 'dockHeight()', '[style.--dock-left.px]': 'dockBox().left', '[style.--dock-width.px]': 'dockBox().width' },
   template: `
     <div class="brief-shell">
       <div class="brief">
         <!-- Above the fold: what needs the reader and the money in it, the scope's numbers, the top findings -->
+        <!-- The start page: the brief's sentence is the greeting, the composer sits under it, then the money in it -->
         <header class="brief-hero">
-          <div class="brief-hero-text">
-            <div class="brief-hero-meta">
-              <p class="brief-eyebrow">{{ today() }} · Morning brief</p>
-              <!-- The hotel scope; on phones it sits in the top bar -->
-              <app-scope-switcher class="max-lg:hidden" />
-            </div>
-            <h1 id="brief-title" class="brief-headline">{{ headline() }}</h1>
-            @if (leadLine(); as l) {
-              <p class="brief-lead">{{ l }}</p>
-            }
-            @if (st().findings || st().decisions) {
-              <div class="brief-chips" role="group" aria-label="What is at stake">
-                @if (st().atRisk) {
-                  <button type="button" class="brief-chip" data-tone="risk" [attr.aria-pressed]="filter() === 'risk'" (click)="toggleFilter('risk')">
-                    <span class="brief-chip-arrow" aria-hidden="true">▼</span>{{ eur(st().atRisk) }} at risk<span class="brief-chip-sub">{{ plural(st().atRiskHotels, 'hotel') }}</span>
-                  </button>
-                }
-                @if (st().upside) {
-                  <button type="button" class="brief-chip" data-tone="upside" [attr.aria-pressed]="filter() === 'upside'" (click)="toggleFilter('upside')">
-                    <span class="brief-chip-arrow" aria-hidden="true">▲</span>{{ eur(st().upside) }} upside<span class="brief-chip-sub">{{ plural(st().upsideHotels, 'hotel') }}</span>
-                  </button>
-                }
-                @if (st().decisions) {
-                  <button type="button" class="brief-chip" data-tone="decision" (click)="jump('brief-decisions', true)">
-                    <i class="brief-chip-dot" aria-hidden="true"></i>{{ st().decisions }} {{ st().decisions === 1 ? 'needs' : 'need' }} your decision
-                  </button>
-                }
-                @if (st().feeds) {
-                  <button type="button" class="brief-chip" data-tone="feed" (click)="jump('brief-health', true)"><i class="brief-chip-dot" aria-hidden="true"></i>{{ plural(st().feeds, 'data feed') }} behind</button>
-                }
+          <p class="brief-eyebrow">{{ today() }} · Morning brief<span class="brief-eyebrow-scope"> · {{ scope.label() }}</span></p>
+          <h1 id="brief-title" class="brief-headline">{{ headline() }}</h1>
+          @if (leadLine(); as l) {
+            <p class="brief-lead">{{ l }}</p>
+          }
+          <!-- The slot keeps the composer's height while the composer is docked at the bottom, so nothing jumps -->
+          <div #askSlot class="brief-ask-slot" [style.height.px]="docked() ? slotHeight() : null">
+            <div #askDock class="brief-ask" [class.brief-ask--docked]="docked()" [class.k-dock]="docked()">
+              <div [class.k-dock-inner]="docked()">
+                <kassandra-composer
+                  inputId="global-ask"
+                  [shortcut]="true"
+                  [size]="docked() ? 'regular' : 'large'"
+                  [docked]="docked()"
+                  [briefPrompts]="store.briefPrompts()"
+                  placeholder="Ask about any hotel, night or number…"
+                  [(mode)]="live.mode"
+                  (submitted)="live.askNew($event)"
+                />
               </div>
-            }
-          </div>
-          <div class="brief-hero-ask">
-            <div class="brief-ask">
-              <kassandra-composer inputId="global-ask" [shortcut]="true" placeholder="Ask about any hotel, night or number…" [(mode)]="live.mode" (submitted)="live.askNew($event)" />
-              <!-- "Try asking": three example questions, and the whole gallery one click away, opened in place -->
-              <kassandra-try-asking class="brief-try" [compact]="true" (picked)="live.askNew($event)" />
             </div>
-            <p class="brief-status" role="status">
-              @switch (live.briefState()) {
-                @case ('live') {
-                  <span>Brief written at {{ live.briefMeta()?.generated }}@if (live.briefMeta()?.model) {<span>. Numbers from SQL; the sentence on each finding by AI.</span>}</span>
-                  <button type="button" class="brief-link brief-link--quiet" title="Writes a new brief now (counts against today’s budget)" [disabled]="live.refreshing()" (click)="live.refreshBrief()">{{ live.refreshing() ? 'Refreshing…' : 'Refresh' }}</button>
-                }
-                @case ('loading') {
-                  <span>Reading this morning’s brief…</span>
-                }
-                @default {
-                  <span><span class="text-foreground">The live brief didn’t load{{ live.briefError() ? ' (' + live.briefError() + ')' : '' }}.</span> These are the findings saved on {{ today() }}, 07:00.</span>
-                  <button type="button" class="brief-link" (click)="live.briefApi.brief.reload()">Try again</button>
-                }
-              }
-            </p>
           </div>
+          @if (st().findings || st().decisions) {
+            <div class="brief-chips" role="group" aria-label="What is at stake">
+              @if (st().atRisk) {
+                <button type="button" class="brief-chip" data-tone="risk" [attr.aria-pressed]="filter() === 'risk'" (click)="toggleFilter('risk')">
+                  <span class="brief-chip-arrow" aria-hidden="true">▼</span>{{ eur(st().atRisk) }} at risk<span class="brief-chip-sub">{{ plural(st().atRiskHotels, 'hotel') }}</span>
+                </button>
+              }
+              @if (st().upside) {
+                <button type="button" class="brief-chip" data-tone="upside" [attr.aria-pressed]="filter() === 'upside'" (click)="toggleFilter('upside')">
+                  <span class="brief-chip-arrow" aria-hidden="true">▲</span>{{ eur(st().upside) }} upside<span class="brief-chip-sub">{{ plural(st().upsideHotels, 'hotel') }}</span>
+                </button>
+              }
+              @if (st().decisions) {
+                <button type="button" class="brief-chip" data-tone="decision" (click)="jump('brief-decisions', true)">
+                  <i class="brief-chip-dot" aria-hidden="true"></i>{{ st().decisions }} {{ st().decisions === 1 ? 'needs' : 'need' }} your decision
+                </button>
+              }
+              @if (st().feeds) {
+                <button type="button" class="brief-chip" data-tone="feed" (click)="jump('brief-health', true)"><i class="brief-chip-dot" aria-hidden="true"></i>{{ plural(st().feeds, 'data feed') }} behind</button>
+              }
+            </div>
+          }
+          <p class="brief-status" role="status">
+            @switch (live.briefState()) {
+              @case ('live') {
+                <span>Brief written at {{ live.briefMeta()?.generated }}@if (live.briefMeta()?.model) {<span>. Numbers from SQL; the sentence on each finding by AI.</span>}</span>
+                <button type="button" class="brief-link brief-link--quiet" title="Writes a new brief now (counts against today’s budget)" [disabled]="live.refreshing()" (click)="live.refreshBrief()">{{ live.refreshing() ? 'Refreshing…' : 'Refresh' }}</button>
+              }
+              @case ('loading') {
+                <span>Reading this morning’s brief…</span>
+              }
+              @default {
+                <span><span class="text-foreground">The live brief didn’t load{{ live.briefError() ? ' (' + live.briefError() + ')' : '' }}.</span> These are the findings saved on {{ today() }}, 07:00.</span>
+                <button type="button" class="brief-link" (click)="live.briefApi.brief.reload()">Try again</button>
+              }
+            }
+          </p>
         </header>
 
         <app-pulse-rail [pulse]="overview()?.pulse ?? null" [state]="api.part('pulse')" [error]="api.error()" [scopeLabel]="scope.label()" (ask)="live.askAbout($event)" (retry)="api.retry()" />
@@ -346,14 +349,11 @@ const TOP_FINDINGS = 3;
       </div>
     </div>
 
-    <!-- Phones and tablets: the ask bar docks at the bottom edge, clear of the home indicator. Nothing sits under it. -->
-    <div class="dock-fade fixed inset-x-0 bottom-0 z-20 pt-6 pr-[max(12px,env(safe-area-inset-right,0px))] pb-[max(14px,env(safe-area-inset-bottom,0px))] pl-[max(12px,env(safe-area-inset-left,0px))] lg:hidden">
-      <kassandra-composer inputId="global-ask-m" placeholder="Ask about any hotel" [showMode]="false" (submitted)="live.askNew($event)" />
-    </div>
   `,
 })
 export class InboxView {
   protected readonly store = inject(CompassStore);
+  private readonly destroyRef = inject(DestroyRef);
   protected readonly live = inject(Live);
   protected readonly scope = inject(ScopeService);
   protected readonly api = inject(BriefOverviewApi);
@@ -514,7 +514,21 @@ export class InboxView {
     return this.agents().length ? 'ready' : 'empty';
   });
 
+  /* ── The composer: under the headline, docked at the bottom of the column once it is scrolled past ── */
+  protected readonly docked = signal(false);
+  /** The hero composer's height, kept by its slot while it is docked. */
+  protected readonly slotHeight = signal(0);
+  private readonly dockMeasured = signal(0);
+  /** The page's bottom padding: the docked composer and its fade, so the last section scrolls clear of it. */
+  protected readonly dockHeight = computed(() => (this.dockMeasured() || this.slotHeight() + 24) + 28);
+  /** Where the content column is on screen: the docked composer is centred in it, not in the window. */
+  protected readonly dockBox = signal({ left: 0, width: 0 });
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly askSlot = viewChild.required<ElementRef<HTMLElement>>('askSlot');
+  private readonly askDock = viewChild.required<ElementRef<HTMLElement>>('askDock');
+
   constructor() {
+    afterNextRender(() => this.watchDock());
     const narrow = typeof matchMedia === 'function' ? matchMedia('(max-width: 599.98px)') : null;
     if (narrow) {
       const onChange = () => this.phone.set(narrow.matches);
@@ -538,6 +552,32 @@ export class InboxView {
         });
       }
       untracked(() => this.now.set(Date.now()));
+    });
+  }
+
+  private watchDock() {
+    if (typeof IntersectionObserver !== 'function' || typeof ResizeObserver !== 'function') return;
+    const slot = this.askSlot().nativeElement;
+    const dock = this.askDock().nativeElement;
+    const host = this.host.nativeElement;
+    // Docked once the slot has scrolled up out of view; back in place as soon as any of it shows again.
+    const seen = new IntersectionObserver(([entry]) => {
+      if (!entry) return;
+      this.docked.set(!entry.isIntersecting && entry.boundingClientRect.bottom <= (entry.rootBounds?.top ?? 0) + 1);
+    });
+    seen.observe(slot);
+    const sizes = new ResizeObserver(() => {
+      const h = Math.round(dock.getBoundingClientRect().height);
+      if (this.docked()) this.dockMeasured.set(h);
+      else this.slotHeight.set(h);
+      const box = host.getBoundingClientRect();
+      this.dockBox.set({ left: Math.round(box.left), width: Math.round(box.width) });
+    });
+    sizes.observe(dock);
+    sizes.observe(host);
+    this.destroyRef.onDestroy(() => {
+      seen.disconnect();
+      sizes.disconnect();
     });
   }
 

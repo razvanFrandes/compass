@@ -57,13 +57,15 @@ function type(fixture: ComponentFixture<unknown>, value: string) {
 const key = (target: EventTarget, name: string, init: KeyboardEventInit = {}) => target.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true, ...init }));
 
 describe('KassandraComposer: text', () => {
-  it('labels its field and shows Send only when there is text', () => {
-    const { fixture } = render({ label: 'Ask Kassandra', inputId: 'ask-1' });
+  it('labels its field; Send is always in place and enabled only when there is text', () => {
+    const { fixture, sent } = render({ label: 'Ask Kassandra', inputId: 'ask-1' });
     expect(text(el(fixture).querySelector('label[for=ask-1]'))).toBe('Ask Kassandra');
-    expect(byLabel(fixture, 'Send')).toBeNull();
+    expect(byLabel(fixture, 'Send')!.getAttribute('aria-disabled')).toBe('true');
+    byLabel(fixture, 'Send')!.click();
+    expect(sent).toEqual([]);
     expect(byLabel(fixture, 'Ask with your voice')).not.toBeNull();
     type(fixture, 'Why is Lisbon behind?');
-    expect(byLabel(fixture, 'Send')).not.toBeNull();
+    expect(byLabel(fixture, 'Send')!.getAttribute('aria-disabled')).toBeNull();
   });
 
   it('sends on Enter, trimmed, and empties the field; Shift+Enter is a new line', () => {
@@ -106,51 +108,196 @@ describe('KassandraComposer: text', () => {
   });
 });
 
-describe('KassandraComposer: Quick or Thinker', () => {
-  const radios = (fixture: ComponentFixture<unknown>) => [...el(fixture).querySelectorAll<HTMLElement>('[role=radio]')];
+/** The composer in the page, so the CDK menus (an overlay on <body>) can open and take focus. */
+async function mount(inputs: Record<string, unknown> = {}) {
+  // jsdom has no matchMedia; the orb asks it about reduced motion once it is in the page.
+  window.matchMedia ??= ((query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+  const rendered = render(inputs);
+  document.body.appendChild(el(rendered.fixture));
+  await settle(rendered.fixture);
+  return rendered;
+}
+/* Not whenStable: the scope button's hotel list is a request that stays pending under HttpClientTesting. */
+async function settle(fixture: ComponentFixture<unknown>) {
+  fixture.detectChanges();
+  await new Promise((resolve) => setTimeout(resolve));
+  fixture.detectChanges();
+  await new Promise((resolve) => setTimeout(resolve));
+}
+const menu = () => document.querySelector<HTMLElement>('[role=menu]');
+const items = () => [...document.querySelectorAll<HTMLElement>('[role=menu] [role^=menuitem]')];
+/** A key as the CDK menus read it: they look at keyCode. */
+const KEY_CODES: Record<string, number> = { ArrowDown: 40, ArrowUp: 38, Enter: 13, Escape: 27, Home: 36, End: 35 };
+const press = (target: EventTarget, name: string) => key(target, name, { keyCode: KEY_CODES[name] } as KeyboardEventInit);
+const trigger = (fixture: ComponentFixture<unknown>, name: RegExp) => [...el(fixture).querySelectorAll<HTMLButtonElement>('button[aria-haspopup=menu]')].find((b) => name.test(b.getAttribute('aria-label') ?? text(b) ?? ''))!;
 
-  it('is a labelled radio group with one checked radio in the tab order', () => {
-    const { fixture } = render();
-    const group = el(fixture).querySelector('[role=radiogroup]')!;
-    expect(group.getAttribute('aria-label')).toBe('Answer mode');
-    // What each mode means is the radio's tooltip (and its description for a screen reader), not a line of text.
-    expect(radios(fixture).map((r) => r.getAttribute('title'))).toEqual(['A fast answer from one trusted source', 'Works across several sources; takes longer']);
-    expect(el(fixture).textContent).not.toContain('takes longer');
-    expect(radios(fixture).map((r) => [text(r), r.getAttribute('aria-checked'), r.getAttribute('tabindex')])).toEqual([
-      ['Quick', 'false', '-1'],
-      ['Thinker', 'true', '0'],
+describe('KassandraComposer: Prompts', () => {
+  it('opens grouped questions: about today’s brief first, then Try asking, then All N examples', async () => {
+    const { fixture } = await mount({ briefPrompts: ['Why did Midtown lose Vantor?', 'Why is Lisbon pacing behind?'] });
+    const button = trigger(fixture, /Prompts/);
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    button.click();
+    await settle(fixture);
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+    const groups = [...menu()!.querySelectorAll('[role=group]')].map((g) => text(document.getElementById(g.getAttribute('aria-labelledby')!)));
+    expect(groups).toEqual(['About today’s brief', 'Try asking']);
+    expect(items().map((i) => text(i))).toEqual([
+      'Why did Midtown lose Vantor?',
+      'Why is Lisbon pacing behind?',
+      expect.stringContaining('(answers with'),
+      expect.stringContaining('(answers with'),
+      expect.stringContaining('(answers with'),
+      'All 12 examples',
     ]);
+    el(fixture).remove();
+    document.body.click();
   });
 
-  it('selects on click and with the arrow keys, Home and End, wrapping at the ends', () => {
-    const { fixture } = render();
-    const mode = () => fixture.componentInstance.mode();
-    radios(fixture)[0]!.click();
-    expect(mode()).toBe('quick');
-    fixture.detectChanges();
-    expect(radios(fixture)[0]!.getAttribute('aria-checked')).toBe('true');
-    key(radios(fixture)[0]!, 'ArrowRight');
-    expect(mode()).toBe('thinker');
-    key(radios(fixture)[1]!, 'ArrowDown');
-    expect(mode()).toBe('quick');
-    key(radios(fixture)[0]!, 'ArrowLeft');
-    expect(mode()).toBe('thinker');
-    key(radios(fixture)[1]!, 'Home');
-    expect(mode()).toBe('quick');
-    key(radios(fixture)[0]!, 'End');
-    expect(mode()).toBe('thinker');
+  it('leaves out the brief group when there is no brief', async () => {
+    const { fixture } = await mount();
+    trigger(fixture, /Prompts/).click();
+    await settle(fixture);
+    expect(menu()!.querySelectorAll('[role=group]').length).toBe(1);
+    press(menu()!, 'Escape');
+    await settle(fixture);
+    el(fixture).remove();
   });
 
-  it('is left out where the host has one model only', () => {
-    expect(el(render({ showMode: false }).fixture).querySelector('[role=radiogroup]')).toBeNull();
+  it('moves with the arrow keys, fills the field on Enter and never sends', async () => {
+    const { fixture, sent } = await mount({ briefPrompts: ['Why did Midtown lose Vantor?', 'Why is Lisbon pacing behind?'] });
+    const button = trigger(fixture, /Prompts/);
+    button.focus();
+    press(button, 'ArrowDown');
+    await settle(fixture);
+    expect(menu()).not.toBeNull();
+    expect(document.activeElement).toBe(items()[0]);
+    press(document.activeElement!, 'ArrowDown');
+    await settle(fixture);
+    expect(document.activeElement).toBe(items()[1]);
+    press(document.activeElement!, 'Enter');
+    await settle(fixture);
+    expect(menu()).toBeNull();
+    expect(field(fixture).value).toBe('Why is Lisbon pacing behind?');
+    expect(sent).toEqual([]);
+    el(fixture).remove();
+  });
+
+  it('fills the field on a click, without sending', async () => {
+    const { fixture, sent } = await mount({ briefPrompts: ['Why did Midtown lose Vantor?'] });
+    trigger(fixture, /Prompts/).click();
+    await settle(fixture);
+    items()[0]!.click();
+    await settle(fixture);
+    expect(field(fixture).value).toBe('Why did Midtown lose Vantor?');
+    expect(sent).toEqual([]);
+    el(fixture).remove();
+  });
+
+  it('closes on Esc and gives the focus back to the button, leaving the field as it was', async () => {
+    const { fixture } = await mount({ briefPrompts: ['Why did Midtown lose Vantor?'] });
+    type(fixture, 'My own question');
+    const button = trigger(fixture, /Prompts/);
+    button.focus();
+    press(button, 'ArrowDown');
+    await settle(fixture);
+    press(document.activeElement!, 'Escape');
+    await settle(fixture);
+    expect(menu()).toBeNull();
+    expect(document.activeElement).toBe(button);
+    expect(field(fixture).value).toBe('My own question');
+    el(fixture).remove();
+  });
+
+  it('shows every example on “All N examples”, keeping the menu open', async () => {
+    const { fixture } = await mount();
+    trigger(fixture, /Prompts/).click();
+    await settle(fixture);
+    const all = items().find((i) => text(i) === 'All 12 examples')!;
+    expect(all.getAttribute('role')).toBe('menuitemcheckbox');
+    all.click();
+    await settle(fixture);
+    expect(menu()).not.toBeNull();
+    expect(items().length).toBe(12 + 1);
+    press(menu()!, 'Escape');
+    await settle(fixture);
+    el(fixture).remove();
+  });
+
+  it('opens upward when docked', async () => {
+    const { fixture } = await mount({ docked: true });
+    trigger(fixture, /Prompts/).click();
+    await settle(fixture);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(menu()!.getAttribute('data-side')).toBe('top');
+    press(menu()!, 'Escape');
+    await settle(fixture);
+    el(fixture).remove();
+  });
+
+  it('is left out where the host has no use for it', () => {
+    const { fixture } = render({ showPrompts: false });
+    expect(el(fixture).textContent).not.toContain('Prompts');
   });
 });
 
-describe('KassandraComposer: nothing repeated under the field', () => {
-  it('shows no scope chip: the hotel scope is in the sidebar and the page header', () => {
+describe('KassandraComposer: effort', () => {
+  it('is a menu button that says the effort in use', () => {
     const { fixture } = render();
-    expect(el(fixture).querySelector('.scope-chip')).toBeNull();
-    expect(el(fixture).textContent).not.toContain('All 20 hotels');
+    const button = trigger(fixture, /Effort/);
+    expect(button.getAttribute('aria-label')).toBe('Effort: Thinker. Change');
+    expect(text(button)).toBe('Kassandra · Thinker');
+    // What each effort means is in its menu, not under the field
+    expect(el(fixture).textContent).not.toContain('takes longer');
+  });
+
+  it('offers Quick and Thinker as radio items with what each one means, and picks one', async () => {
+    const { fixture } = await mount();
+    trigger(fixture, /Effort/).click();
+    await settle(fixture);
+    expect(items().map((i) => [i.getAttribute('role'), ...[...i.querySelectorAll('span > span')].map(text), i.getAttribute('aria-checked')])).toEqual([
+      ['menuitemradio', 'Quick', 'Answers in seconds', 'false'],
+      ['menuitemradio', 'Thinker', 'Checks more sources, takes longer', 'true'],
+    ]);
+    items()[0]!.click();
+    await settle(fixture);
+    expect(fixture.componentInstance.mode()).toBe('quick');
+    expect(menu()).toBeNull();
+    expect(trigger(fixture, /Effort/).getAttribute('aria-label')).toBe('Effort: Quick. Change');
+    el(fixture).remove();
+  });
+
+  it('moves with the arrow keys and picks with Enter', async () => {
+    const { fixture } = await mount({ mode: 'quick' });
+    const button = trigger(fixture, /Effort/);
+    button.focus();
+    press(button, 'ArrowDown');
+    await settle(fixture);
+    expect(document.activeElement).toBe(items()[0]);
+    press(document.activeElement!, 'ArrowDown');
+    press(document.activeElement!, 'Enter');
+    await settle(fixture);
+    expect(fixture.componentInstance.mode()).toBe('thinker');
+    el(fixture).remove();
+  });
+
+  it('is left out where the host has one model only', () => {
+    expect(el(render({ showMode: false }).fixture).querySelector('[aria-label^="Effort"]')).toBeNull();
+  });
+});
+
+describe('KassandraComposer: the bottom row', () => {
+  it('has the hotel scope button, which the builder leaves out', () => {
+    expect(el(render().fixture).querySelector('app-scope-switcher')).not.toBeNull();
+    expect(el(render({ showScope: false }).fixture).querySelector('app-scope-switcher')).toBeNull();
+  });
+
+  it('lights the border only while Kassandra works', () => {
+    const { fixture } = render();
+    const form = el(fixture).querySelector('form')!;
+    expect(form.hasAttribute('data-working')).toBe(false);
+    fixture.componentRef.setInput('busy', true);
+    fixture.detectChanges();
+    expect(form.hasAttribute('data-working')).toBe(true);
   });
 });
 
@@ -345,8 +492,8 @@ describe('KassandraComposer: the orb mark', () => {
     expect(orb(fixture)!.dataset['state']).toBe('idle');
   });
 
-  it('shows no mode description and no scope under the field', () => {
+  it('shows no effort description under the field', () => {
     const { fixture } = render();
-    expect(text(el(fixture))).not.toMatch(/takes longer|trusted source|hotels/);
+    expect(text(el(fixture))).not.toMatch(/takes longer|Answers in seconds/);
   });
 });

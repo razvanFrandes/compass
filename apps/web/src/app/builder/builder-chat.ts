@@ -142,7 +142,9 @@ export function richText(text: string): { text: string; bold: boolean }[] {
     <div class="shrink-0 px-page-x pt-1 pb-[max(var(--space-card-gap),env(safe-area-inset-bottom,0px))]">
       <!-- A spoken description lands in the field instead of being sent: the person adds what is theirs (an address) first -->
       <kassandra-composer
-        class="max-w-measure mx-auto block text-[14.5px]"
+        class="mx-auto block max-w-[760px] text-[14.5px]"
+        [docked]="true"
+        [showPrompts]="false"
         label="Describe the agent, or ask for a change"
         [placeholder]="items().length ? 'Ask for a change…' : 'Describe what to watch…'"
         [busy]="running()"
