@@ -23,8 +23,8 @@ export function agoShort(at: number, now: number): string {
 /**
  * "Recent" in the sidebar: the conversations with Kassandra, under Today, Yesterday and Earlier. Each has a short
  * title and, under it, the takeaway of its answer, both written on the server after the first answer (until then,
- * the question). A small icon says what the answer showed. When it was last asked is on the right of the title (the time, or the date before yesterday) and, in full, in the tooltip.
- * On hover and focus, Rename and Delete take the time's place and the text makes room for them, so nothing overlaps.
+ * the question). A small icon says what the answer showed. Like Claude's sidebar, a row is only words: the whole title (up to two lines), then the takeaway; when it was
+ * last asked is in the tooltip. On hover and focus, Rename and Delete appear and the text makes room for them.
  * Rename (in place) and Delete (with Undo) show on hover and on focus. "New" starts an empty conversation.
  *
  * The styles are global (styles.css, `.k-recent`, `.k-thread`).
@@ -61,12 +61,8 @@ export function agoShort(at: number, now: number): string {
                     [sideOffset]="gap"
                     (click)="live.openConversation(t.id)"
                   >
-                    <ng-icon [name]="t.icon" [attr.data-icon]="t.icon" class="k-thread-icon" aria-hidden="true" />
                     <span class="k-thread-text">
-                      <span class="k-thread-line">
-                        <span class="k-thread-title">{{ t.title }}</span>
-                        <span class="k-thread-time" aria-hidden="true">{{ t.stamp }}</span>
-                      </span>
+                      <span class="k-thread-title">{{ t.title }}</span>
                       @if (t.summary) {
                         <span class="k-thread-summary"><span class="sr-only">. </span>{{ t.summary }}</span>
                       }

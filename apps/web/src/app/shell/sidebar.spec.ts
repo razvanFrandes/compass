@@ -205,11 +205,12 @@ describe('Sidebar', () => {
   describe('Recent', () => {
     const row = (title: string) => [...nav.querySelectorAll<HTMLElement>('.k-thread')].find((r) => r.querySelector('.k-thread-title')?.textContent === title)!;
 
-    it('shows the title and the takeaway the server wrote, and a small icon for the answer', async () => {
+    it('shows the whole title and the takeaway the server wrote, words only (no icon, no time on the row)', async () => {
       await render({ threads: [{ id: 'c-1', title: 'Tessera Dubai: business mix', summary: 'Corporate down 12% vs last year', kind: 'chart', named: true, at: Date.now() - 60_000 } as never] });
       const r = row('Tessera Dubai: business mix');
       expect(r.querySelector('.k-thread-summary')?.textContent).toBe('. Corporate down 12% vs last year');
-      expect(r.querySelector('ng-icon.k-thread-icon')?.getAttribute('data-icon')).toBe('phosphorChartBarLight');
+      expect(r.querySelector('.k-thread-title')?.textContent).toBe('Tessera Dubai: business mix');
+      expect(r.querySelector('.k-thread-open ng-icon')).toBeNull();
     });
 
     it('marks the current conversation', async () => {
