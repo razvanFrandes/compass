@@ -50,6 +50,15 @@ describe('the Juyo concept theme, tokens.css', () => {
     expect([...dark.keys()].filter((name) => !light.has(name))).toEqual([]);
   });
 
+  it('keeps the dark mode to colour and elevation: no size, space, type, shape or motion', () => {
+    // Density is a layer of its own (`data-density`, docs/research/layout/layout-and-density.md). A mode that set a
+    // height or a padding would outrank it, so the dark block may hold colours and shadows only.
+    const notColour = /(height|padding|space|gap|size|line|leading|tracking|radius|duration|motion|ease|width|weight|font|density)/;
+    expect([...dark.keys()].filter((name) => notColour.test(name))).toEqual([]);
+    const lengths = [...dark].filter(([name, value]) => !name.startsWith('--elevation-') && /\d(px|rem|em|ms|ch)\b/.test(value));
+    expect(lengths).toEqual([]);
+  });
+
   it('gives every colour scale a complete dark column', () => {
     const steps = [...Array.from({ length: 13 }, (_, i) => `--jc-ink-${i}`), ...HUES.flatMap((hue) => Array.from({ length: 8 }, (_, i) => `--jc-${hue}-${i + 1}`))];
     for (const step of steps) {

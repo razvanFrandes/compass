@@ -835,6 +835,14 @@ Two independent choices, each remembered:
 - **Old values still work.** `compass.theme` used to hold one of `light`, `dark`, `juyo-concept`. They read as default light, default dark and concept light (the concept was a light theme), and the service rewrites them once as two values. `choiceFrom()` in `theme.ts` and the inline script hold the same rules; `theme.spec.ts` tests the first and `apps/worker/test/web-theme-script.test.ts` runs the second.
 - A dark block may only set tokens that the light block declares. A light pane nested in a dark page then gets every value back, which is how the lab and the chart catalogue show the four combinations at once.
 
+A mode holds colours and shadows and nothing else: no height, padding, gap, type size or duration. That keeps it clear of the density layer that comes next (`data-density="comfortable | compact"`, a third choice, independent of theme and mode; research in `docs/research/layout/layout-and-density.md`). `apps/worker/test/web-theme-tokens.test.ts` fails if the dark block declares a size.
+
+The theme's base block is not clear of it yet. §6 put the concept's density there (`--control-height-*`, `--row-height`, `--row-height-two-line`, `--cell-padding-x`, `--cell-padding-y` and the touch heights), before density was a choice. Three things follow for whoever lands the density layer:
+
+- **Specificity.** `:root[data-theme='juyo-concept']` outranks `[data-density='compact']`, so the theme's values would win in both densities. The eight tokens should move out of the theme into the density layer.
+- **Names.** The research names them `--control-h`, `--row-h` and `--cell-pad-x`; the theme and its bridge read `--control-height-md`, `--row-height` and `--cell-padding-x` on 19 lines. One set should alias the other.
+- **Values.** The concept's are the compact column already (32px controls, 32px rows, 12px cell padding), so under the concept theme “comfortable” would look like “compact” until the tokens move.
+
 ### 14.11 The switcher
 
 `src/app/theme/theme-switcher.ts`, selector `app-theme-switcher`. It injects `Theme`, brings its own icons and takes its colours from where it sits, so it needs nothing from the shell.
