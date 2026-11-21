@@ -331,16 +331,40 @@ Agents that watch the numbers, propose an action and act once a person approves.
 | POST | `/api/workflows/:id/run` | Run now ("Run now" button). Returns `WorkflowRun`. Rate-limited and budgeted. 409 while the workflow has a run in progress. |
 | GET | `/api/runs/:runId` | `{ run, entries: ChatEntry[] }`: the run's log, projected like the chat. |
 | GET | `/api/proposals?status=pending` | The approval inbox: `Proposal[]` with `change: { before, after, scope }`, `rationale`, `impact_eur`, `risk`. |
-| POST | `/api/proposals/:id/decision` | `{ "approved": true, "by": "Ana Pop (RM)", "note": "" }`. Wakes the parked run. Budgeted. |
-| POST | `/api/proposals/:id/undo` | `{ "by": "…" }` on an applied proposal: a compensating RMS task, audited. |
+| POST | `/api/proposals/:id/decision` | `{ "approved": true, "by": "Compass user (web)", "note": "" }` → `DecisionReceipt`: `{ proposal, handedTo, receipt }`. See "Decisions". Budgeted. |
+| POST | `/api/proposals/:id/undo` | `{ "by": "…" }` takes a decision back: a sent one gets a task to reverse it, a dismissed one waits for a decision again. Answers the `AuditEntry` it wrote. |
 | GET | `/api/audit` | `AuditEntry[]`, newest first. |
+
+### Decisions
+
+Compass is read-only. Sending a decision on changes no rate, channel or booking: it hands a task to a named person at the hotel and writes the audit log. **No email is sent for a decision.**
+
+- **`POST /api/proposals/:id/decision`** with `approved: true` ("Send to revenue manager" in the app) records the handover at once and answers:
+
+  ```json
+  { "proposal": { "id": "prop-…", "status": "applied", "decidedBy": "Compass user (web)", "decidedAt": "2026-11-21T00:49:01.000Z", "…": "…" },
+    "handedTo": { "name": "Ana Pop", "email": "ana.pop@halcyon.example.com", "role": "revenue_manager", "roleLabel": "Revenue manager", "hotel": "Arbor Lisbon Chiado", "hotel_code": "LIS" },
+    "receipt": "RMS task rms-mwpowu03-8 for Ana Pop (Revenue manager, Arbor Lisbon Chiado): Lower BAR … (BAR 145–220 EUR → Cap at about 1.2x comp median, …)." }
+  ```
+
+  - `proposal.status` is `applied` straight away (it used to be `approved` until the agent woke and applied it). The agent behind it still gets the decision as a durable signal; it is told the task is already handed over and writes nothing over it.
+  - `handedTo` is the person whose job that kind of action is: the hotel's **revenue manager** for `adjust_bar`, `close_channel`, `open_channel` and `contact_account`, its **general manager** for `create_task` and `notify`. It is `null` for a hotel the roster does not know; the receipt then names the role and the hotel code.
+  - The same entry goes to the audit log (`outcome: "sent_to_rms"`) with `handedTo` on it. Actions an agent applies on its own (`auto_low_risk`) are logged the same way.
+- **With `approved: false`** ("Dismiss") nothing is sent: the proposal becomes `denied`, the audit log gets an entry with `outcome: "dismissed"`, and the answer is `{ proposal, handedTo: null, receipt: "Dismissed. Nothing was sent." }`.
+- **`POST /api/proposals/:id/undo`** takes either back and answers the audit entry it wrote (`outcome: "undone"`):
+  - a sent one (`applied`): the same person gets a task to reverse it (`handedTo` on the entry), and the proposal becomes `undone`;
+  - a dismissed one (`denied`): the proposal is `pending` again and can be decided again. By then its agent's run has usually ended; the decision is then recorded without a signal.
+  - anything else: 409 "Only a decision that was sent or dismissed can be taken back."
+- **Errors:** 404 for an unknown proposal; 409 "This decision has already been made. Reload to see the latest." for one that is not `pending`; 409 when the agent is still waiting and the signal could not be delivered.
+- **The roster** is `DEMO_TEAM` in `@compass/contracts` (team.ts): a fictional revenue manager and general manager per hotel, with addresses on `halcyon.example.com` (a reserved domain: nothing can be delivered there). `recipientFor(hotelCode, action)` gives the `Handover` for a decision; the app uses the same constant when it talks to a server from before this change.
+- **`AuditEntry`** gained `handedTo?: Handover` and the outcome `dismissed`.
 
 **Autonomy** (per workflow) is how trust is earned gradually:
 - `suggest` only records proposals;
 - `approve` waits for a person;
 - `auto_low_risk` applies low-risk actions (tasks, notifications) alone and asks for prices or channels. `adjust_bar`, `close_channel` and `open_channel` are always high risk, whatever the agent says.
 
-**Proposal status:** `pending → approved → applied`, or `denied`, `auto_approved`, `suggested`, `undone`. `superseded` means the agent replaced the proposal with an amended one, for example to meet a condition in the approver's note.
+**Proposal status:** `pending → applied` when a person sends it on (`approved` is only seen on the agent's own path, between its approval and its `apply_action`), or `denied` (dismissed), `auto_approved`, `suggested`, `undone`. `superseded` means the agent replaced the proposal with an amended one, for example to meet a condition in the approver's note.
 
 **Run status:** `running → waiting_approval → running → done | failed`. Poll `/api/runs/:id` or `/api/proposals?status=pending` every few seconds. A run that stopped without being recorded (a deploy in the middle of it) is settled the next time it is read or its workflow is run: after 15 minutes with no live session it becomes `failed`.
 

@@ -42,7 +42,10 @@ export class MemoryWorkflowStore implements WorkflowStore {
     return this.proposals.get(id) ?? null;
   }
   async auditForProposal(proposalId: string) {
-    return this.audit.find((a) => a.proposalId === proposalId && a.outcome !== 'undone') ?? null;
+    return this.audit.findLast((a) => a.proposalId === proposalId && a.outcome !== 'undone' && a.outcome !== 'dismissed') ?? null;
+  }
+  async auditsForProposal(proposalId: string) {
+    return this.audit.filter((a) => a.proposalId === proposalId);
   }
   async appendAudit(entry: AuditEntry) {
     this.audit.push(entry);

@@ -15,7 +15,10 @@ export interface WorkflowStore {
   updateProposal(proposal: Proposal): Promise<void>;
   getProposal(id: string): Promise<Proposal | null>;
   proposalsForRun(runId: string): Promise<Proposal[]>;
+  /** The entry of the handover (or of the suggestion): the latest one that is not a dismissal or an undo. */
   auditForProposal(proposalId: string): Promise<AuditEntry | null>;
+  /** Every audit entry of a proposal, oldest first. */
+  auditsForProposal(proposalId: string): Promise<AuditEntry[]>;
   appendAudit(entry: AuditEntry): Promise<void>;
   /** The receipt of the email a run sent, or null when it sent none. One mail per run. */
   emailForRun(runId: string): Promise<string | null>;

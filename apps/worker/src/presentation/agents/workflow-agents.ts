@@ -1,4 +1,4 @@
-import { WorkflowSpec, type AuditEntry, type Brief, type ChatEntry, type Decision, type Proposal, type Workflow, type WorkflowRun, type WorkflowSpecInput } from '@compass/contracts';
+import { WorkflowSpec, type AuditEntry, type Brief, type ChatEntry, type Decision, type DecisionReceipt, type Proposal, type Workflow, type WorkflowRun, type WorkflowSpecInput } from '@compass/contracts';
 import { DurableObject } from 'cloudflare:workers';
 import { createModels } from '@earendil-works/pi-ai/models';
 import { createRegistry, Harness } from '@earendil-works/pi-durable';
@@ -7,6 +7,7 @@ import { Lifecycle } from 'agents/lifecycle';
 import { createAI } from 'agents/models/pi-ai';
 import { HotelData } from '../../application/hotel-data.ts';
 import { admitWorkflow, mayEnable } from '../../application/workflows/capacity.ts';
+import { recordDecision, undoDecision } from '../../application/workflows/decisions.ts';
 import { createEmailExtension } from '../../application/workflows/email-tool.ts';
 import { emailWorkflowBlocked, publicRun, publicWorkflow, recipientChanged } from '../../application/workflows/email.ts';
 import { duplicateOf, removeWorkflow, type WorkflowError } from '../../application/workflows/lifecycle.ts';
@@ -279,39 +280,34 @@ export class WorkflowAgents extends DurableObject<Env> {
     return (await this.store.listProposals()).filter((p) => !status || p.status === status);
   }
 
-  /** A person approves or denies: a durable signal to the parked propose_action call, which then continues. */
-  async decide(proposalId: string, decision: Decision): Promise<Proposal | WorkflowError> {
+  /**
+   * A person sends a suggestion on or dismisses it. The decision is recorded at once (the handover to the person at
+   * the hotel, or the dismissal, each with a line in the audit log) and answered with who got it and the receipt.
+   * The parked propose_action call gets a durable signal and then only learns of it.
+   */
+  async decide(proposalId: string, decision: Decision): Promise<DecisionReceipt | WorkflowError> {
     const proposal = await this.store.getProposal(proposalId);
     if (!proposal) return { error: 'That decision no longer exists.', status: 404 };
     if (proposal.status !== 'pending') return { error: 'This decision has already been made. Reload to see the latest.', status: 409 };
     const taskId = await this.store.taskForProposal(proposalId);
-    if (taskId === undefined) return { error: 'The run behind this decision has ended, so it can no longer be decided.', status: 409 };
-    const result = await this.harness.signal(taskId, DecisionSignal, 'decision', decision);
-    if (result !== 'delivered' && result !== 'duplicate') return { error: `Your decision didn't reach the agent (${result}). Try again.`, status: 409 };
+    const result = taskId === undefined ? 'no task' : await this.harness.signal(taskId, DecisionSignal, 'decision', decision);
+    if (result !== 'delivered' && result !== 'duplicate') {
+      // While the agent waits, it has to hear the decision. Once its run is over (a dismissal that was taken back,
+      // say), there is no one to tell, and the decision stands on its own.
+      const run = await this.store.getRun(proposal.runId);
+      if (run?.status === 'waiting_approval') return { error: `Your decision didn't reach the agent (${result}). Try again.`, status: 409 };
+    }
+    const receipt = await recordDecision(this.store, proposal, decision);
     this.ctx.waitUntil(this.#settle(proposal.runId));
-    return { ...proposal, status: decision.approved ? 'approved' : 'denied', decidedBy: decision.by, note: decision.note || null };
+    return receipt;
   }
 
-  /** Undo an applied action: a compensating RMS task, audited. */
+  /** Takes a decision back: a sent one gets a task to reverse it, a dismissed one waits for a decision again. Audited. */
   async undo(proposalId: string, by: string): Promise<AuditEntry | WorkflowError> {
     const proposal = await this.store.getProposal(proposalId);
     if (!proposal) return { error: 'That decision no longer exists.', status: 404 };
-    if (proposal.status !== 'applied') return { error: 'Only an action that was carried out can be undone.', status: 409 };
-    const entry: AuditEntry = {
-      id: `audit-${crypto.randomUUID().slice(0, 8)}`,
-      at: new Date().toISOString(),
-      workflowId: proposal.workflowId,
-      proposalId,
-      hotel_code: proposal.hotel_code,
-      action: proposal.action,
-      by,
-      outcome: 'undone',
-      receipt: `RMS task to revert: ${proposal.title} (${proposal.change.after} → ${proposal.change.before}, ${proposal.change.scope}).`,
-      ...(proposal.deletedWorkflowName ? { deletedWorkflowName: proposal.deletedWorkflowName } : {}),
-    };
-    await this.store.appendAudit(entry);
-    await this.store.updateProposal({ ...proposal, status: 'undone' });
-    return entry;
+    const undone = await undoDecision(this.store, proposal, by);
+    return 'error' in undone ? undone : undone.entry;
   }
 
   audit(): Promise<AuditEntry[]> {

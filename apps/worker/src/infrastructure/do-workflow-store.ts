@@ -86,8 +86,12 @@ export class DurableWorkflowStore implements WorkflowStore {
   }
 
   // ---- audit
+  /** The audit log is listed newest first, so the first match is the latest handover. */
   async auditForProposal(proposalId: string) {
-    return (await this.listAudit()).find((a) => a.proposalId === proposalId && a.outcome !== 'undone') ?? null;
+    return (await this.listAudit()).find((a) => a.proposalId === proposalId && a.outcome !== 'undone' && a.outcome !== 'dismissed') ?? null;
+  }
+  async auditsForProposal(proposalId: string) {
+    return (await this.listAudit()).filter((a) => a.proposalId === proposalId).reverse();
   }
   async appendAudit(entry: AuditEntry) {
     await this.#storage.put(`audit:${entry.at}:${entry.id}`, entry);
