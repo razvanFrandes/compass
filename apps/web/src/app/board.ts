@@ -23,6 +23,11 @@ import { tidyBoardWidget } from './widget-tidy';
 import { formatDate, formatPeriod } from './evidence/format';
 import { sourceLabel } from './evidence/labels';
 import * as icons from './icons';
+import { BoardCardVisual } from './boards/board-card-visual';
+import { boardCard, previewItems, type CardHeadline } from './boards/board-preview-model';
+import { BOARDS_ASKS, boardAsks } from './boards/board-asks';
+import { KassandraDock } from './kassandra/kassandra-dock';
+import { hotelCatalog } from './charts/hotel-names';
 
 /** Boards that come with the product, computed in the browser from the Halcyon extract (they have filters). */
 export const BUILT_IN = [
@@ -128,7 +133,7 @@ export class PerformanceWidget {
         </div>
       </header>
       <div class="mt-stack min-h-0 flex-1">
-        <juyo-widget-chart #wc [spec]="w.spec" [rows]="w.rows" [columns]="w.columns" [header]="false" [switcher]="true" controls="external" [viewKey]="'board:' + w.id" />
+        <juyo-widget-chart #wc [spec]="w.spec" [rows]="w.rows" [columns]="w.columns" [header]="false" [switcher]="true" controls="external" [viewKey]="'board:' + w.id" [today]="w.evidence.businessDate || null" />
       </div>
       @if (how()) {
         <section class="mt-card-pad text-[12.5px]" aria-label="Behind the numbers">
@@ -214,12 +219,12 @@ export class SavedWidget {
  */
 @Component({
   selector: 'app-board',
-  imports: [NgIcon, KassandraComposer, KassandraDescribeView, PerformanceWidget, ChartCard, FilterBar, ProposalCard, SavedWidget, WidgetChart, HlmButtonImports, HlmDropdownMenuImports],
+  imports: [NgIcon, KassandraComposer, KassandraDescribeView, KassandraDock, PerformanceWidget, ChartCard, FilterBar, ProposalCard, SavedWidget, WidgetChart, HlmButtonImports, HlmDropdownMenuImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
     <!-- A board is full width on a 12-column grid: sections apart by --space-section, cards by --space-card-gap -->
-    <div class="page page--wide gap-section flex flex-col pt-stack pb-28 lg:pb-section-lg">
+    <div class="page page--wide gap-section flex flex-col pt-stack pb-(--dock-h,7rem)">
       <nav aria-label="Breadcrumb" class="-mb-[calc(var(--space-section)-var(--space-stack))] flex h-14 items-center gap-1.5 text-[14px]">
         <button hlmBtn variant="ghost" size="sm" class="text-muted-foreground -ml-2" (click)="store.go('boards')"><ng-icon name="phosphorArrowLeftLight" />Boards</button>
         <span class="text-muted-foreground">/</span>
@@ -228,12 +233,9 @@ export class SavedWidget {
 
       @switch (kind()) {
         @case ('portfolio') {
-          <header class="gap-card-gap flex flex-col">
-            <div>
-              <h1 class="text-[24px] font-[560] tracking-[-0.02em]">Portfolio</h1>
-              <p class="text-muted-foreground mt-1 text-[14px]">Position, pace, pickup, mix, comp set and P&amp;L · data as of Fri 20 Nov, 07:00</p>
-            </div>
-            <kassandra-composer class="max-w-content" label="Ask Kassandra or filter" placeholder="Ask or filter, e.g. “Dubai hotels, next 90 nights vs budget”" [(mode)]="live.mode" (submitted)="onAsk($event)" />
+          <header>
+            <h1 class="text-[24px] font-[560] tracking-[-0.02em]">Portfolio</h1>
+            <p class="text-muted-foreground mt-1 text-[14px]">Position, pace, pickup, mix, comp set and P&amp;L · data as of Fri 20 Nov, 07:00</p>
           </header>
           <!-- The filters and the key figures are one group: the board's first row. The filter bar is a compact region. -->
           <div class="gap-stack flex flex-col">
@@ -318,13 +320,12 @@ export class SavedWidget {
               </div>
               <button hlmBtn variant="outline" size="sm" [hlmDropdownMenuTrigger]="boardMenu" align="end" aria-label="Board actions"><ng-icon name="phosphorDotsThreeBold" />Board</button>
             </header>
-            <kassandra-describe-view [boardId]="b.id" [boardName]="b.name" placeholder="Describe what this board should show, e.g. “channel profitability after commission for Lisbon”" />
-            <div class="grid-12">
+            <div class="grid-12 grid-flow-row-dense">
               @for (w of b.widgets; track w.id) {
                 <app-saved-widget [class]="span(w)" [widgetRef]="w" [boardRef]="b" />
               } @empty {
                 <div class="text-muted-foreground border-border col-span-full rounded-xl border border-dashed p-card-pad py-section text-center text-[14px]">
-                  No charts on this board yet. Describe what you want to see above and Kassandra builds it, or choose “Add to board” on any chart in an answer.
+                  No charts on this board yet. Describe a chart in the bar at the bottom and Kassandra adds it here, or choose “Add to board” on any chart in an answer.
                   <button type="button" class="text-foreground mt-1 block w-full underline underline-offset-2" (click)="store.openBoard(portfolioBoard)">Or add charts from the Portfolio board</button>
                 </div>
               }
@@ -341,6 +342,22 @@ export class SavedWidget {
         }
       }
     </div>
+
+    <kassandra-dock [within]="host">
+      @switch (kind()) {
+        @case ('saved') {
+          @if (board(); as b) {
+            <kassandra-describe-view #describe [docked]="true" inputId="board-ask" [boardId]="b.id" [boardName]="b.name" placeholder="Describe a chart to add to this board…" [examples]="boardExamples()" [(mode)]="live.mode" />
+          }
+        }
+        @case ('portfolio') {
+          <kassandra-composer inputId="board-ask" [docked]="true" label="Ask Kassandra or filter" placeholder="Ask or filter, e.g. “Dubai hotels, next 90 nights vs budget”" [examples]="portfolioAsks" [(mode)]="live.mode" (submitted)="onAsk($event)" />
+        }
+        @default {
+          <kassandra-composer inputId="board-ask" [docked]="true" label="Ask Kassandra" placeholder="Ask about Dubai Business Bay…" [examples]="dubaiAsks()" [(mode)]="live.mode" (submitted)="live.askNew($event)" />
+        }
+      }
+    </kassandra-dock>
 
     <ng-template #boardMenu>
       <hlm-dropdown-menu class="w-52">
@@ -363,6 +380,12 @@ export class SavedWidget {
 })
 export class BoardView {
   protected readonly store = inject(CompassStore);
+  protected readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+  protected readonly portfolioAsks = boardAsks([]);
+  protected readonly dubaiAsks = computed(() => (hotelCatalog(), boardAsks(['DXB2'])));
+  /** The Prompts menu of a saved board: charts to add, about its hotels. */
+  protected readonly boardExamples = computed(() => (hotelCatalog(), boardAsks(this.board()?.hotels ?? [])));
+  private readonly describe = viewChild<KassandraDescribeView>('describe');
   protected readonly live = inject(Live);
   protected readonly filters = inject(Filters);
   protected readonly boards = inject(BoardsService);
@@ -392,6 +415,15 @@ export class BoardView {
   protected readonly loading = signal(false);
   protected readonly renaming = signal(false);
   private readonly full = signal<Board | null>(null);
+  /** The open board and when it last changed, compared by value: the list gets a new array on every load, and reloading
+      the board for each would fetch it again and again. */
+  private readonly stamp = computed(
+    () => {
+      const id = this.store.activeBoardId();
+      return { id, stamp: this.boards.boards().find((b) => b.id === id)?.updatedAt };
+    },
+    { equal: (a, b) => a.id === b.id && a.stamp === b.stamp },
+  );
   /** The saved board with its rows (the list may hold widgets without rows on the server). */
   protected readonly board = computed(() => {
     const id = this.store.activeBoardId();
@@ -410,8 +442,7 @@ export class BoardView {
   constructor() {
     // Load the rows of a saved board when it opens or changes on the server.
     effect(() => {
-      const id = this.store.activeBoardId();
-      const stamp = this.boards.boards().find((b) => b.id === id)?.updatedAt;
+      const { id, stamp } = this.stamp();
       if (this.kind() !== 'saved' || !this.boards.loaded() || this.boards.mode() === 'local' || !stamp) return;
       this.loading.set(true);
       void this.boards.full(id).then((b) => {
@@ -422,6 +453,14 @@ export class BoardView {
     effect(() => {
       if (this.renaming()) setTimeout(() => this.nameInput()?.nativeElement.select(), 0);
     });
+    // "Ask Kassandra to add charts" on the board's card: the cursor goes to the composer once the board is drawn.
+    effect(() => {
+      const view = this.describe();
+      const b = this.board();
+      if (!view || !b || this.boards.askOnOpen() !== b.id) return;
+      this.boards.askOnOpen.set(null);
+      setTimeout(() => view.focus(), 0);
+    });
   }
 
   /** Filter requests change the page (with a receipt); anything else is a question for Kassandra. */
@@ -430,14 +469,9 @@ export class BoardView {
     if (req) this.filters.set(req.patch, 'kassandra', req.said);
     else this.live.askNew(text);
   }
-  /** Columns of the 12 a chart takes: a wide chart the row, a single figure a quarter (four to a row at most), the rest a half, or a third on a wide screen. */
+  /** Columns of the 12 a chart takes (boardSpan): wide charts the row, the rest half of it on a wide screen. */
   protected span(w: BoardWidget) {
-    if (this.wideWidget(w)) return 'col-span-12';
-    if (w.spec.kind === 'kpi') return 'col-span-12 sm:col-span-6 xl:col-span-3';
-    return 'col-span-12 lg:col-span-6 min-[1600px]:col-span-4';
-  }
-  protected wideWidget(w: BoardWidget) {
-    return ['line', 'area', 'stacked_bar', 'table', 'waterfall', 'heatmap', 'calendar_heatmap'].includes(w.spec.kind) || w.rows.length > 10;
+    return boardSpan(w);
   }
   protected updated(b: Board) {
     return ago(b.updatedAt);
@@ -477,6 +511,28 @@ export class BoardView {
   }
 }
 
+/** Kinds whose content is narrow: a figure, a round chart, a calendar of a few months. */
+const NARROW_KINDS = new Set(['kpi', 'gauge', 'pie', 'donut', 'funnel', 'radar', 'bullet', 'treemap', 'calendar_heatmap']);
+
+/**
+ * The columns of the board's 12 a widget takes. Wide charts take the row: a long time series, a table, a heatmap, a
+ * bridge, a flow, a list of many bars. Everything else takes half on a wide screen, so a KPI, a donut or a calendar never
+ * sits alone in a full-width card; the grid packs the halves densely. A narrow figure keeps its height (it does not
+ * stretch to its neighbour's).
+ */
+export function boardSpan(w: Pick<BoardWidget, 'spec' | 'rows'>): string {
+  const kind = w.spec.kind;
+  const rows = w.rows?.length ?? 0;
+  const half = 'col-span-12 lg:col-span-6';
+  if (kind === 'kpi' || kind === 'gauge') return `${half} self-start`;
+  if (kind === 'calendar_heatmap') return rows > 100 ? 'col-span-12' : half;
+  if (NARROW_KINDS.has(kind)) return half;
+  if (kind === 'kpi_row') return (w.spec.y?.length ?? 4) > 3 ? 'col-span-12' : half;
+  if (kind === 'line' || kind === 'area' || kind === 'sparkline_list' || kind === 'scatter') return rows > 16 ? 'col-span-12' : half;
+  if (kind === 'bar' || kind === 'grouped_bar' || kind === 'stacked_bar') return rows > 12 ? 'col-span-12' : half;
+  return 'col-span-12';
+}
+
 /** The widgets in the order the list has them (a reorder reaches the list first). */
 function orderLike(listed: Board, full: Board): BoardWidget[] {
   const byId = new Map(full.widgets.map((w) => [w.id, w]));
@@ -490,11 +546,11 @@ function orderLike(listed: Board, full: Board): BoardWidget[] {
  */
 @Component({
   selector: 'app-boards-list',
-  imports: [NgIcon, HlmButtonImports, HlmDropdownMenuImports],
+  imports: [NgIcon, HlmButtonImports, HlmDropdownMenuImports, BoardCardVisual, KassandraComposer, KassandraDock],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
-    <div class="page gap-section flex flex-col pt-section pb-28 lg:pb-section-lg">
+    <div class="page gap-section flex flex-col pt-section pb-(--dock-h,7rem)">
       <header class="gap-card-gap flex flex-wrap items-end justify-between">
         <div>
           <h1 class="text-[26px] font-semibold tracking-[-0.02em]">Boards</h1>
@@ -509,60 +565,59 @@ function orderLike(listed: Board, full: Board): BoardWidget[] {
 
       <ul class="chart-row" aria-label="Boards">
         @for (c of builtIns(); track c.id) {
-          <li class="min-w-0">
-            <button type="button" class="clickable-card group flex h-full w-full flex-col text-left" (click)="store.openBoard(c.id)">
-              <span class="flex items-start gap-3 p-card-pad pb-stack">
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate text-[16px] font-semibold tracking-[-0.01em]">{{ c.name }}</span>
-                  <span class="text-muted-foreground line-clamp-2 min-h-[2.75em] text-[13.5px]/snug">{{ c.description }}</span>
-                </span>
-                <span class="scope-chip shrink-0">Built in</span>
-              </span>
-              <span class="flex items-end justify-between gap-3 px-card-pad">
-                <span>
-                  <span class="text-muted-foreground block text-[12.5px]">{{ c.label }}</span>
-                  <span class="block text-[24px]/tight font-semibold tracking-[-0.02em] tabular-nums">{{ c.value }}</span>
-                </span>
-                <span class="text-muted-foreground mb-1 text-[13px] font-medium tabular-nums">{{ c.delta }}</span>
-              </span>
-              <svg viewBox="0 0 300 64" preserveAspectRatio="none" class="mt-2 block h-16 w-full" aria-hidden="true">
-                <path [attr.d]="c.paths.ly" fill="none" class="stroke-(--series-cmp)" stroke-width="1.25" stroke-dasharray="3 3" vector-effect="non-scaling-stroke" />
-                <path [attr.d]="c.paths.line" fill="none" class="stroke-(--series)" stroke-width="1.75" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
-              </svg>
-              <span class="text-muted-foreground mt-auto flex items-center justify-between gap-2 px-card-pad pt-stack pb-card-pad text-[12.5px] tabular-nums">
-                <span>Data as of 20 Nov, 07:00</span>
-                <span>{{ c.count }} charts</span>
-              </span>
-            </button>
+          <li class="clickable-card relative flex min-w-0 flex-col">
+            <div class="flex items-start gap-3 p-card-pad pb-stack">
+              <div class="min-w-0 flex-1">
+                <h2 class="board-card-title"><button type="button" class="card-link" (click)="store.openBoard(c.id)">{{ c.name }}</button></h2>
+                <p class="text-muted-foreground line-clamp-2 min-h-[2.75em] text-[13.5px]/snug">{{ c.description }}</p>
+              </div>
+              <span class="scope-chip shrink-0">Built in</span>
+            </div>
+            <app-board-card-visual [headline]="c.headline" [spark]="c.paths" />
+            <p class="sr-only">{{ c.headline.label }}: {{ c.headline.value }}{{ c.headline.delta ? ', ' + c.headline.spoken + ' ' + c.headline.versus : '' }}.</p>
+            <div class="text-muted-foreground mt-auto flex items-center justify-between gap-2 px-card-pad pt-stack pb-card-pad text-[12.5px] tabular-nums">
+              <span>Data as of 20 Nov, 07:00</span>
+              <span>{{ c.count }} charts</span>
+            </div>
           </li>
         }
-        @for (b of boards.boards(); track b.id) {
-          <li class="relative min-w-0">
-            <button type="button" class="clickable-card group flex h-full min-h-[200px] w-full flex-col text-left" (click)="store.openBoard(b.id)">
-              <span class="p-card-pad pb-stack pr-12">
-                <span class="block truncate text-[16px] font-semibold tracking-[-0.01em]">{{ b.name }}</span>
-                <span class="text-muted-foreground line-clamp-2 min-h-[2.75em] text-[13.5px]/snug">{{ b.description || 'Charts from Kassandra’s answers' }}</span>
-              </span>
-              <span class="flex flex-wrap gap-1.5 px-card-pad">
-                @for (t of titles(b); track $index) {
-                  <span class="scope-chip max-w-full truncate">{{ t }}</span>
-                } @empty {
-                  <span class="text-muted-foreground text-[13px]">No charts yet</span>
+        @for (b of cards(); track b.id) {
+          <li class="clickable-card relative flex min-w-0 flex-col">
+            <div class="p-card-pad pb-stack pr-12">
+              <h2 class="board-card-title"><button type="button" class="card-link" (click)="store.openBoard(b.id)">{{ b.name }}</button></h2>
+              <p class="text-muted-foreground line-clamp-2 min-h-[2.75em] text-[13.5px]/snug">{{ b.description || 'Charts from Kassandra’s answers' }}</p>
+            </div>
+            @if (b.widgets.length) {
+              <app-board-card-visual [headline]="b.card.headline" [tiles]="b.card.tiles" [placeholder]="!b.card.headline && !b.card.tiles.length" />
+              @if (b.card.headline; as h) {
+                <p class="sr-only">{{ h.label }}: {{ h.value }}{{ h.delta ? ', ' + h.spoken + ' ' + h.versus : '' }}.</p>
+              }
+              <ul class="sr-only" [attr.aria-label]="'Charts on ' + b.name">
+                @for (w of b.widgets; track w.id) {
+                  <li>{{ w.spec.title }}</li>
                 }
-              </span>
-              <span class="text-muted-foreground mt-auto flex items-center justify-between gap-2 px-card-pad pt-stack pb-card-pad text-[12.5px] tabular-nums">
-                <span>Updated {{ ago(b.updatedAt) }}</span>
-                <span>{{ b.widgets.length }} {{ b.widgets.length === 1 ? 'chart' : 'charts' }}</span>
-              </span>
-            </button>
-            <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground absolute top-[calc(var(--space-card-pad)-6px)] right-[calc(var(--space-card-pad)-8px)]" [attr.aria-label]="'Actions for ' + b.name" [hlmDropdownMenuTrigger]="cardMenu" [hlmDropdownMenuTriggerData]="{ $implicit: b }" align="end"><ng-icon name="phosphorDotsThreeBold" class="text-[18px]" /></button>
+              </ul>
+            } @else {
+              <div class="board-empty">
+                <app-board-card-visual [placeholder]="true" />
+                <div class="board-empty-cta">
+                  <p class="text-muted-foreground text-[13px]">No charts yet</p>
+                  <button hlmBtn variant="outline" size="sm" class="card-over bg-(--card)" (click)="askToAdd(b.id)"><span class="orb-mark size-3.5" aria-hidden="true"></span>Ask Kassandra to add charts</button>
+                </div>
+              </div>
+            }
+            <div class="text-muted-foreground mt-auto flex items-center justify-between gap-2 px-card-pad pt-stack pb-card-pad text-[12.5px] tabular-nums">
+              <span>Updated {{ ago(b.updatedAt) }}</span>
+              <span>{{ b.widgets.length }} {{ b.widgets.length === 1 ? 'chart' : 'charts' }}</span>
+            </div>
+            <button hlmBtn variant="ghost" size="icon-sm" class="card-over text-muted-foreground !absolute top-[calc(var(--space-card-pad)-6px)] right-[calc(var(--space-card-pad)-8px)]" [attr.aria-label]="'Actions for ' + b.name" [hlmDropdownMenuTrigger]="cardMenu" [hlmDropdownMenuTriggerData]="{ $implicit: b }" align="end"><ng-icon name="phosphorDotsThreeBold" class="text-[18px]" /></button>
           </li>
         }
         <li class="min-w-0">
-          <button type="button" class="border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 flex h-full min-h-[200px] w-full flex-col items-center justify-center gap-2 rounded-[12px] border border-dashed transition-colors" (click)="openNew()">
+          <button type="button" class="border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 flex h-full min-h-[200px] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-[12px] border border-dashed transition-colors" (click)="openNew()">
             <span class="bg-secondary grid size-10 place-items-center rounded-full"><ng-icon name="phosphorPlusLight" class="text-[18px]" /></span>
             <span class="text-[14px] font-medium">New board</span>
-            <span class="text-[12.5px]">Describe it to Kassandra, or add charts from an answer</span>
+            <span class="px-4 text-center text-[12.5px]">Describe it to Kassandra, or add charts from an answer</span>
           </button>
         </li>
       </ul>
@@ -570,6 +625,19 @@ function orderLike(listed: Board, full: Board): BoardWidget[] {
         <p class="text-muted-foreground text-[12.5px]">Your boards are saved in this browser only.</p>
       }
     </div>
+
+    <kassandra-dock [within]="host">
+      <kassandra-composer
+        inputId="boards-ask"
+        [docked]="true"
+        label="Ask Kassandra"
+        placeholder="Ask for a board or a chart, e.g. “Lisbon’s pace and pickup”…"
+        [examples]="boardsAsks"
+        examplesTitle="Try asking"
+        [(mode)]="live.mode"
+        (submitted)="live.askNew($event)"
+      />
+    </kassandra-dock>
 
     <ng-template #cardMenu let-b>
       <hlm-dropdown-menu class="w-48">
@@ -604,6 +672,11 @@ function orderLike(listed: Board, full: Board): BoardWidget[] {
 export class BoardsList {
   protected readonly store = inject(CompassStore);
   protected readonly boards = inject(BoardsService);
+  protected readonly live = inject(Live);
+  protected readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+  protected readonly boardsAsks = BOARDS_ASKS;
+  /** Each saved board with what its card draws: a headline figure and tiny charts from its first widgets. */
+  protected readonly cards = computed(() => this.boards.boards().map((b) => ({ ...b, card: boardCard(previewItems(b)) })));
   protected readonly ago = ago;
   protected readonly deleting = signal<Board | null>(null);
   protected readonly suggested = computed(() => this.boards.freshName());
@@ -620,14 +693,24 @@ export class BoardsList {
     const ly = metricTotal(dxb, 'occupancy', true);
     const d = ty - ly;
     const sign = (x: number) => (Math.abs(x) < 0.05 ? '±' : x > 0 ? '▲ +' : '▼ −');
+    const headline = (label: string, value: string, delta: number | null): CardHeadline => ({
+      label,
+      value,
+      delta: delta === null ? null : `${sign(delta)}${Math.abs(delta).toFixed(1)} pts`,
+      spoken: delta === null ? '' : `${Math.abs(delta) < 0.05 ? 'no change,' : delta > 0 ? 'up' : 'down'} ${Math.abs(delta).toFixed(1)} pts`,
+      versus: delta === null ? '' : 'vs last year',
+      tone: 'flat',
+    });
     return [
-      { ...BUILT_IN[0], label: 'Occupancy · next 30 nights, all hotels', value: occ.value, delta: occ.delta === null ? '' : `${sign(occ.delta)}${Math.abs(occ.delta).toFixed(1)} pts vs last year`, paths: paths(occ.spark, occ.sparkCmp ?? []), count: 9 },
-      { ...BUILT_IN[1], label: 'Occupancy · next 45 nights', value: METRICS.occupancy.format(ty), delta: `${sign(d)}${Math.abs(d).toFixed(1)} pts vs last year`, paths: paths(metricSeries(dxb, 'occupancy'), metricSeries(dxb, 'occupancy', true)), count: 2 },
+      { ...BUILT_IN[0], headline: headline('Occupancy · next 30 nights, all hotels', occ.value, occ.delta), paths: paths(occ.spark, occ.sparkCmp ?? []), count: 9 },
+      { ...BUILT_IN[1], headline: headline('Occupancy · next 45 nights', METRICS.occupancy.format(ty), d), paths: paths(metricSeries(dxb, 'occupancy'), metricSeries(dxb, 'occupancy', true)), count: 2 },
     ];
   });
 
-  protected titles(b: Board) {
-    return b.widgets.slice(0, 3).map((w) => w.spec.title);
+  /** "Ask Kassandra to add charts": the board opens with the cursor in its composer. */
+  protected askToAdd(id: string) {
+    this.boards.askOnOpen.set(id);
+    this.store.openBoard(id);
   }
   protected openNew() {
     this.newDlg().nativeElement.showModal();

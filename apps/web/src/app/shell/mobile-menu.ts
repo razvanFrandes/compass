@@ -1,7 +1,7 @@
 import { Component, ElementRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorBookOpenFill, phosphorSwatchesFill } from '@ng-icons/phosphor-icons/fill';
-import { phosphorBookOpenLight, phosphorBuildingsLight, phosphorChartBarLight, phosphorChatTextLight, phosphorTableLight } from '@ng-icons/phosphor-icons/light';
+import { phosphorBookOpenLight, phosphorCaretUpLight, phosphorBuildingsLight, phosphorChartBarLight, phosphorChatTextLight, phosphorTableLight } from '@ng-icons/phosphor-icons/light';
 import { DocsRouter } from '../docs/docs-router';
 import { GROUP } from '../data';
 import * as icons from '../icons';
@@ -32,7 +32,7 @@ let nextId = 0;
 @Component({
   selector: 'app-mobile-menu',
   imports: [NgIcon, CompassLogo, ScopeSwitcher, AppearanceControls],
-  providers: [provideIcons({ ...icons, phosphorBookOpenFill, phosphorBookOpenLight, phosphorSwatchesFill, phosphorBuildingsLight, phosphorChartBarLight, phosphorChatTextLight, phosphorTableLight })],
+  providers: [provideIcons({ ...icons, phosphorBookOpenFill, phosphorBookOpenLight, phosphorCaretUpLight, phosphorSwatchesFill, phosphorBuildingsLight, phosphorChartBarLight, phosphorChatTextLight, phosphorTableLight })],
   host: { class: 'block shrink-0' },
   styles: `
     /* Ink for text on the orange count: it passes 4.5:1 on --brass in every theme; white does not. */
@@ -76,7 +76,7 @@ let nextId = 0;
     .mm-close ng-icon { font-size: 20px; }
 
     .mm-body {
-      display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 22px; overflow-y: auto; overscroll-behavior: contain;
+      display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 14px; overflow-y: auto; overscroll-behavior: contain;
       padding: 8px max(12px, env(safe-area-inset-right, 0px)) 20px 12px;
     }
     .mm-scope { padding: 3px; border: 1px solid var(--field-border); border-radius: var(--radius-container, 12px); background: rgb(from var(--foreground) r g b / 0.03); }
@@ -85,10 +85,10 @@ let nextId = 0;
 
     /* A place: 48 px tall, the whole row is the target. */
     .mm-item {
-      display: flex; width: 100%; min-height: 48px; align-items: center; gap: 14px; padding: 0 12px; border-radius: var(--nav-item-radius, 10px);
-      color: var(--foreground); font-size: 16px; text-align: left; outline: none; transition: background-color 150ms ease;
+      display: flex; width: 100%; min-height: 44px; align-items: center; gap: 12px; padding: 0 12px; border-radius: var(--nav-item-radius, 10px);
+      color: var(--foreground); font-size: 15px; text-align: left; outline: none; transition: background-color 150ms ease;
     }
-    .mm-item ng-icon { flex-shrink: 0; color: var(--muted-foreground); font-size: 22px; }
+    .mm-item ng-icon { flex-shrink: 0; color: var(--muted-foreground); font-size: 20px; }
     .mm-item[aria-current='page'] { background: var(--mm-current); font-weight: 500; }
     .mm-item[aria-current='page'] ng-icon { color: var(--foreground); }
     .mm-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -98,26 +98,31 @@ let nextId = 0;
       background: rgb(from var(--foreground) r g b / 0.08); color: var(--foreground); font-size: 12.5px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums;
     }
     /* Quieter rows: a conversation, a secondary link. Still 44 px. */
-    .mm-item--quiet { min-height: 44px; color: var(--muted-foreground); font-size: 15px; }
+    .mm-item--quiet { min-height: 40px; color: var(--muted-foreground); font-size: 14.5px; }
     /* A smaller icon in the same 22 px column, so every label of the sheet starts on one line. */
-    .mm-item--quiet ng-icon { width: 22px; font-size: 20px; }
+    .mm-item--quiet ng-icon { width: 20px; font-size: 18px; }
     .mm-item--quiet[aria-current='page'] { color: var(--foreground); }
     /* A conversation: its title, and the takeaway of its answer under it. */
-    .mm-item--thread { align-items: flex-start; padding-top: 9px; padding-bottom: 9px; }
+    .mm-item--thread { padding-top: 8px; padding-bottom: 8px; }
+    .mm-item--thread .mm-label { color: var(--foreground); white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
     .mm-thread-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
     .mm-thread-text .mm-label { color: var(--foreground); }
     .mm-summary { overflow: hidden; color: var(--muted-foreground); font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
-    .mm-user { display: flex; align-items: center; gap: 12px; padding: 0 4px; }
+    .mm-user { display: flex; width: 100%; min-height: 44px; align-items: center; gap: 10px; padding: 0 8px; border-radius: var(--nav-item-radius, 10px); text-align: left; cursor: pointer; outline: none; }
+    .mm-user:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+    .mm-user ng-icon { color: var(--muted-foreground); font-size: 14px; transition: transform 150ms ease; }
+    .mm-user[aria-expanded='true'] ng-icon { transform: rotate(180deg); }
+    .mm-user-panel { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 2px; }
     .mm-avatar {
-      display: grid; width: 36px; height: 36px; flex-shrink: 0; place-items: center; border-radius: 9999px;
+      display: grid; width: 30px; height: 30px; flex-shrink: 0; place-items: center; border-radius: 9999px;
       background: color-mix(in oklab, var(--brand, var(--primary)) 22%, var(--card, var(--background)));
       box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand, var(--primary)) 40%, transparent);
-      color: var(--foreground); font-size: 13px; font-weight: 600;
+      color: var(--foreground); font-size: 12px; font-weight: 600;
     }
 
     .mm-foot {
-      display: flex; flex-shrink: 0; flex-direction: column; gap: 12px; border-top: 1px solid var(--border);
-      padding: 14px max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) 16px;
+      display: flex; flex-shrink: 0; flex-direction: column; gap: 8px; border-top: 1px solid var(--border);
+      padding: 8px max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) 12px;
     }
 
     .mm-trigger:focus-visible, .mm-close:focus-visible, .mm-item:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
@@ -195,13 +200,7 @@ let nextId = 0;
               @for (t of threads(); track t.id) {
                 <li>
                   <button type="button" class="mm-item mm-item--quiet mm-item--thread" [attr.aria-current]="isCurrentThread(t.id) ? 'page' : null" (click)="openThread(t.id)">
-                    <ng-icon [name]="t.icon" aria-hidden="true" />
-                    <span class="mm-thread-text">
-                      <span class="mm-label">{{ t.title }}</span>
-                      @if (t.summary) {
-                        <span class="mm-summary"><span class="sr-only">. </span>{{ t.summary }}</span>
-                      }
-                    </span>
+                    <span class="mm-label">{{ t.title }}</span>
                   </button>
                 </li>
               }
@@ -209,32 +208,30 @@ let nextId = 0;
           </section>
         }
 
-        <section [attr.aria-labelledby]="uid + '-more'">
-          <h2 class="mm-heading" [id]="uid + '-more'">More</h2>
-          <ul class="mm-list">
-            @for (n of more; track n.view) {
-              <li>
-                <button type="button" class="mm-item mm-item--quiet" [attr.aria-current]="isActive(n.view) ? 'page' : null" (click)="go(n.view)">
-                  <ng-icon [name]="isActive(n.view) ? n.iconActive : n.icon" aria-hidden="true" />
-                  <span class="mm-label">{{ n.label }}</span>
-                </button>
-              </li>
-            }
-          </ul>
-        </section>
       </div>
 
       <div class="mm-foot">
-        <!-- The person, as on the desktop's user menu. There is no sign-in: the data and the team are fictional. -->
-        <div class="mm-user">
+        <!-- The person, as on the desktop: Docs and Appearance open from it. There is no sign-in: the data and the team are fictional. -->
+        @if (userOpen()) {
+          <div class="mm-user-panel" [id]="uid + '-user'">
+            <ul class="mm-list">
+              @for (n of more; track n.view) {
+                <li>
+                  <button type="button" class="mm-item mm-item--quiet" [attr.aria-current]="isActive(n.view) ? 'page' : null" (click)="go(n.view)">
+                    <ng-icon [name]="isActive(n.view) ? n.iconActive : n.icon" aria-hidden="true" />
+                    <span class="mm-label">{{ n.label }}</span>
+                  </button>
+                </li>
+              }
+            </ul>
+            <app-appearance-controls />
+          </div>
+        }
+        <button type="button" class="mm-user mm-item--quiet" [attr.aria-expanded]="userOpen()" [attr.aria-controls]="uid + '-user'" (click)="userOpen.set(!userOpen())">
           <span class="mm-avatar" aria-hidden="true">{{ persona.initials }}</span>
-          <span class="min-w-0 flex-1">
-            <span class="block truncate text-[15px] font-medium">{{ persona.name }}</span>
-            <span class="text-muted-foreground block truncate text-[13.5px]">{{ persona.role }}</span>
-          </span>
-          <span class="text-muted-foreground shrink-0 text-[12.5px]">Demo · fictional data</span>
-        </div>
-        <app-appearance-controls />
+          <span class="min-w-0 flex-1 truncate text-[15px] font-medium text-(--foreground)">{{ persona.name }}</span>
+          <ng-icon name="phosphorCaretUpLight" aria-hidden="true" />
+        </button>
       </div>
     </dialog>
   `,
@@ -257,6 +254,8 @@ export class MobileMenu {
   protected readonly group = GROUP;
   protected readonly open = signal(false);
   protected readonly persona = PERSONA;
+  /** Docs, Theme lab and Appearance, folded under the person until asked for. */
+  protected readonly userOpen = signal(false);
 
   /** The secondary links, under the conversations: the docs hub first, then the theme lab. */
   protected readonly more: readonly NavItem[] = [

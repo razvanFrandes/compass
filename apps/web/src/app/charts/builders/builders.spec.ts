@@ -1,7 +1,6 @@
 import { SPECIMENS } from '../catalog-samples';
 import { DARK_TOKENS, LIGHT_TOKENS, contrast, inkOn } from '../tokens';
 import { WIDGET_KINDS, type EvidenceColumn, type WidgetKind, type WidgetRow, type WidgetSpec } from '../widget-types';
-import { calendarLayout } from './matrix';
 import { hasCycle } from './parts';
 import { niceCeil, niceStep } from './points';
 import { sparkPath } from './figures';
@@ -773,38 +772,84 @@ describe('heatmap and calendar', () => {
     expect(call((series(build(spec('heatmap', { x: 'weekday', group: 'hotel', y: ['occupancy_pct'] }), rows, cols))[0]['label'] as Obj)['formatter'], { dataIndex: 0 })).toBe('60%');
   });
 
-  it('fits a Monday-first calendar into the space with square cells', () => {
-    // 1 Dec 2026 is a Tuesday: December spans five Monday-first weeks.
-    const lay = calendarLayout(Date.UTC(2026, 11, 1), Date.UTC(2026, 11, 31), 600, 206);
-    expect(lay.range).toEqual(['2026-12-01', '2026-12-31']);
-    expect(lay.weeks).toBe(5);
-    expect(lay.cell).toBe(25);
-    expect(calendarLayout(Date.UTC(2026, 10, 23), Date.UTC(2027, 2, 28), 320, 206).cell).toBe(15);
+  type CalendarBuilt = Extract<Built, { render: 'calendar' }>;
+  const cal = (b: Built) => {
+    expect(b.render).toBe('calendar');
+    return b as CalendarBuilt;
+  };
+  // The rate position of one hotel for 45 nights from Fri 20 Nov 2026: 1.00 is the comp set median.
+  const position = Array.from({ length: 45 }, (_, i) => ({ stay_date: new Date(Date.UTC(2026, 10, 20 + i)).toISOString().slice(0, 10), bar_vs_comp: [0.82, 0.92, 1, 1.08, 1.18][i % 5] }));
+  const positionCols = [col('stay_date', 'Stay date', 'date'), col('bar_vs_comp', 'Our BAR vs the comp set median', 'number', '× the median')];
+  const positionSpec = spec('calendar_heatmap', { title: 'Rate position by night (1.00 is the comp-set median)', x: 'stay_date', y: ['bar_vs_comp'] });
+
+  it('lays nights out as one Monday-first month per month, with the days outside the range faint and empty', () => {
+    const b = cal(build(positionSpec, position, positionCols, { width: 1200 }));
+    expect(b.calendar.months.map((m) => m.name)).toEqual(['November 2026', 'December 2026', 'January 2027']);
+    const nov = b.calendar.months[0]!;
+    // 1 Nov 2026 is a Sunday: six cells of the first week come before it.
+    expect(nov.weeks[0]!.slice(0, 6)).toEqual([null, null, null, null, null, null]);
+    expect(nov.weeks[0]![6]!.day).toBe(1);
+    expect(nov.weeks[0]![6]!.inRange).toBe(false);
+    const friday20 = nov.weeks.flat().find((d) => d?.day === 20)!;
+    expect(friday20.inRange).toBe(true);
+    expect(friday20.value).toBe(0.82);
+    const jan = b.calendar.months[2]!;
+    expect(jan.weeks.flat().filter((d) => d?.inRange)).toHaveLength(3);
   });
 
-  it('sizes the calendar to its weeks and sets it at the left, under its legend, however wide the card', () => {
-    for (const width of [1600, 1100, 640]) {
-      const lay = calendarLayout(Date.UTC(2026, 10, 23), Date.UTC(2027, 2, 28), width, 206);
-      expect(lay.left, `left at ${width}`).toBe(34);
-      expect(lay.top, `top at ${width}`).toBe(24);
-      expect(lay.left + lay.cell * lay.weeks, `within ${width}`).toBeLessThanOrEqual(width);
+  it('places the months side by side when there is room, and wraps them when there is not', () => {
+    const wide = cal(build(positionSpec, position, positionCols, { width: 1200 }));
+    expect(wide.calendar.perRow).toBe(3);
+    expect(wide.calendar.cell).toBeGreaterThanOrEqual(32);
+    expect(wide.calendar.cell).toBeLessThanOrEqual(64);
+    const half = cal(build(positionSpec, position, positionCols, { width: 600 }));
+    expect(half.calendar.perRow).toBe(2);
+    const phone = cal(build(positionSpec, position, positionCols, { width: 360 }));
+    expect(phone.calendar.perRow).toBe(1);
+    expect(phone.calendar.cell).toBeGreaterThanOrEqual(32);
+    // A wider card gets larger cells, up to 64 px, and the calendar's height follows them.
+    expect(cal(build(positionSpec, position, positionCols, { width: 2400 })).calendar.cell).toBe(64);
+    expect(wide.height).toBeGreaterThan(wide.calendar.cell * 5);
+  });
+
+  it('colours a ratio around 1.00 on a diverging scale: under one hue, over another, neutral at the median', () => {
+    const b = cal(build(positionSpec, position, positionCols, { width: 1200, tokens: LIGHT_TOKENS }));
+    expect(b.calendar.scale).toMatchObject({ kind: 'diverging', midText: '1.00', lowLabel: 'Under the comp set', highLabel: 'Over the comp set' });
+    const days = b.calendar.months.flatMap((m) => m.weeks.flat()).filter((d) => d?.inRange) as NonNullable<CalendarBuilt['calendar']['months'][number]['weeks'][number][number]>[];
+    const under = days.find((d) => d.value === 0.82)!;
+    const at = days.find((d) => d.value === 1)!;
+    const over = days.find((d) => d.value === 1.18)!;
+    expect(new Set([under.fill, at.fill, over.fill]).size).toBe(3);
+    expect(contrast(at.fill, LIGHT_TOKENS.surface)).toBeLessThan(1.4);
+    // The cell says the distance from the median; the tooltip says what it means.
+    expect(under.text).toBe('−18%');
+    expect(over.text).toBe('+18%');
+    expect(at.text).toBe('±0%');
+    expect(under.meaning).toBe('18% under the comp set median');
+    expect(at.meaning).toBe('At the comp set median');
+    for (const t of [LIGHT_TOKENS, DARK_TOKENS]) {
+      for (const d of cal(build(positionSpec, position, positionCols, { width: 1200, tokens: t })).calendar.months.flatMap((m) => m.weeks.flat())) {
+        if (d?.inRange) expect(contrast(d.ink, d.fill), `${t.mode} ${d.iso}`).toBeGreaterThanOrEqual(4.5);
+      }
     }
-    // A month in a wide card is a month of square cells, not a band across the card.
-    const month = calendarLayout(Date.UTC(2026, 11, 1), Date.UTC(2026, 11, 31), 1600, 206);
-    expect(month.cell * month.weeks).toBeLessThan(260);
   });
 
-  it('draws nights on a calendar with the day of the month and a full-date tooltip', () => {
+  it('colours other values on a one-hue scale from low to high', () => {
     const nights = Array.from({ length: 31 }, (_, i) => ({ stay_date: `2026-12-${String(i + 1).padStart(2, '0')}`, occupancy_pct: 50 + i }));
-    const b = chart(build(spec('calendar_heatmap', { x: 'stay_date', y: ['occupancy_pct'] }), nights, [col('stay_date', 'Night', 'date'), col('occupancy_pct', 'Occupancy', 'percent')]));
-    const cal = opt(b)['calendar'] as Obj;
-    expect(cal['range']).toEqual(['2026-12-01', '2026-12-31']);
-    expect((cal['dayLabel'] as Obj)['firstDay']).toBe(1);
-    expect(series(b)[0]['coordinateSystem']).toBe('calendar');
-    expect(((series(b)[0]['data'] as Obj[])[15]['value'] as unknown[])[0]).toBe('2026-12-16');
-    expect(call((series(b)[0]['label'] as Obj)['formatter'], { dataIndex: 15 })).toBe('16');
-    expect(tooltipHtml(b, { dataIndex: 15 })).toContain('Wed 16 Dec 2026');
-    expect(b.points[15].text).toBe('Wed 16 Dec 2026: 65.0%');
+    const b = cal(build(spec('calendar_heatmap', { x: 'stay_date', y: ['occupancy_pct'] }), nights, [col('stay_date', 'Night', 'date'), col('occupancy_pct', 'Occupancy', 'percent')], { width: 900 }));
+    expect(b.calendar.scale).toMatchObject({ kind: 'sequential', lowLabel: 'Lower', highLabel: 'Higher', minText: '50%', maxText: '80%' });
+    expect(b.calendar.months).toHaveLength(1);
+    const d16 = b.calendar.months[0]!.weeks.flat().find((d) => d?.day === 16)!;
+    expect(d16.text).toBe('65%');
+    expect(d16.label).toBe('Wed 16 Dec 2026: 65.0%');
+  });
+
+  it('marks today, and says the extremes in its text alternative', () => {
+    const b = cal(build(positionSpec, position, positionCols, { width: 1200, today: '2026-11-21' }));
+    const days = b.calendar.months.flatMap((m) => m.weeks.flat());
+    expect(days.filter((d) => d?.today).map((d) => d!.iso)).toEqual(['2026-11-21']);
+    expect(b.summary).toContain('45 nights');
+    expect(b.calendar.days).toHaveLength(45);
   });
 });
 

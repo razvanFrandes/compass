@@ -40,10 +40,22 @@ export interface Board {
   updatedAt: string;
 }
 
+export { BOARD_PREVIEW } from './widget-limits.ts';
+
+/** A widget in a board's preview: its spec, and the rows and columns that spec draws, cut to `BOARD_PREVIEW`. */
+export interface BoardWidgetPreview {
+  id: string;
+  spec: WidgetSpec;
+  columns: EvidenceColumn[];
+  rows: Record<string, unknown>[];
+}
+
 /** A widget in `GET /api/boards`: its spec (with the title), no rows. */
 export type BoardWidgetSummary = Pick<BoardWidget, 'id' | 'spec' | 'question' | 'addedAt'>;
 /** A board in `GET /api/boards`. */
 export type BoardSummary = Omit<Board, 'widgets'> & { widgets: BoardWidgetSummary[] };
+/** A board as `GET /api/boards` lists it: the summary, and the preview of its first widgets (absent from older servers). */
+export type BoardListItem = BoardSummary & { preview?: BoardWidgetPreview[] };
 
 const name = z.string().trim().min(1).max(BOARD_LIMITS.nameChars);
 const description = z.string().trim().max(BOARD_LIMITS.descriptionChars);

@@ -375,3 +375,4 @@ function partsOfAWhole(rows: Row[], key: string | undefined, kind: EvidenceColum
 }
 
 export { WIDGET_MAX_ROWS };
+export { BOARD_PREVIEW } from './widget-limits.ts';

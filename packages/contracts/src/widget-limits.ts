@@ -10,3 +10,9 @@ export const WIDGET_FORMATS = ['number', 'percent', 'currency', 'count'] as cons
  * 20 nights (a heatmap of the group's next two weeks is 280 cells).
  */
 export const WIDGET_MAX_ROWS = 400;
+
+/**
+ * What a board's card on the Boards page draws (`GET /api/boards` → `preview`): its first widgets, each with only the
+ * columns it uses and a few rows (a long series thinned evenly, a calendar whole up to three months, a table's first rows).
+ */
+export const BOARD_PREVIEW = { widgets: 4, rows: 40, calendarDays: 92, tableRows: 5 } as const;

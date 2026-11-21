@@ -205,9 +205,9 @@ describe('MobileMenu', () => {
     it('lists the recent conversations and opens one', async () => {
       await render();
       await open();
-      // Titled "Recent", in sentence case; each row is the title and the takeaway, no "3 h" on every row.
+      // Titled "Recent"; compact on a phone: each row is only the title.
       const threads = [...section('Recent')!.querySelectorAll('button')];
-      expect(threads.map(text)).toEqual(['Lisbon: pace behind. Down 17% vs last year', 'ADR by segment, December']);
+      expect(threads.map(text)).toEqual(['Lisbon: pace behind', 'ADR by segment, December']);
       threads[0]!.click();
       await settle();
       expect(store.view()).toBe('thread');
@@ -219,18 +219,26 @@ describe('MobileMenu', () => {
       expect(section('Recent')).toBeUndefined();
     });
 
-    it('ends with the person, as on the desktop: Ana Pop, revenue manager, and the data is fictional', async () => {
+    it('ends with the person, as on the desktop: only Ana Pop, with Docs and Appearance folded under it', async () => {
       await render();
       await open();
       const foot = sheet().querySelector('.mm-foot')!;
-      expect(text(foot.querySelector('.mm-user')!)).toContain('Ana Pop');
-      expect(foot.textContent).toContain('Revenue manager');
-      expect(foot.textContent).toContain('Demo · fictional data');
+      const user = foot.querySelector<HTMLButtonElement>('.mm-user')!;
+      expect(text(user)).toContain('Ana Pop');
+      expect(user.getAttribute('aria-expanded')).toBe('false');
+      expect(foot.querySelector('app-appearance-controls')).toBeNull();
+      user.click();
+      await settle();
+      expect(user.getAttribute('aria-expanded')).toBe('true');
+      expect(foot.textContent).toContain('Docs');
+      expect(foot.querySelector('app-appearance-controls')).not.toBeNull();
     });
 
     it('ends with the appearance controls: a choice there applies and is remembered', async () => {
       await render();
       await open();
+      sheet().querySelector<HTMLButtonElement>('.mm-user')!.click();
+      await settle();
       // The same switchers as the desktop sidebar: Theme (2) and Mode (3), then Density (2).
       const radios = [...sheet().querySelectorAll<HTMLButtonElement>('.mm-foot app-theme-switcher [role=radiogroup] [role=radio]')];
       expect(radios.map((radio) => radio.getAttribute('aria-label') ?? radio.textContent?.trim())).toEqual(['Default', 'Concept', 'Light', 'Dark', 'System: follows your device']);
@@ -250,6 +258,8 @@ describe('MobileMenu', () => {
     it('keeps every control inside the dialog, so a modal dialog holds the focus there', async () => {
       await render();
       await open();
+      sheet().querySelector<HTMLButtonElement>('.mm-user')!.click();
+      await settle();
       const inside = [...sheet().querySelectorAll<HTMLElement>('button, a[href], input')];
       expect(inside.length).toBeGreaterThanOrEqual(10);
       expect(inside[0]).toBe(closeButton());
