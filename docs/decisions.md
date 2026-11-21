@@ -130,6 +130,9 @@ The feedback on the Round 3 orb: "a dot that inflates and that's it". The first 
   - Speaking: rings leave the equator in the rhythm of speech. It follows `level` if one is given.
   - Changing state cross-fades every parameter in about 0.4 s. Nothing jumps.
 - **Raw WebGL2, no three.js.** One program and one draw call of 2,600 points (1,100 on orbs of 120 px or less). There is no geometry to upload: the vertex shader places each point on a Fibonacci spiral from its index. The renderer loads on demand, outside the main bundle.
+- **It is the composer's mark everywhere (2026-11-21).** Every Kassandra composer (Inbox ask bar and phone dock, Thread, builder chat, Agent Studio, board, "Describe a view") shows a 32 px Lattice at rest instead of the flat CSS ball: an 18 px sphere of 280 fuller dots, idle at 30 fps. It thinks while Kassandra runs, speaks while the answer is written (`phase === 'writing'`), and grows into the 104 px voice orb (200 px on the phone sheet) while listening.
+  - **One WebGL context for all orbs** (`orb/orb-stage.ts`, lazy): each orb is drawn into a corner of one hidden canvas and copied into its own 2D canvas, all in one animation loop. Off-screen, hidden-tab and reduced-motion orbs are skipped.
+  - Without WebGL2 a mark-sized orb falls back to the plain gradient mark; larger ones to the CSS disc of dots.
 - **Light theme:** the same hues drawn deeper and opaque, so the dots read on a light page. On dark they add up to a glow where they overlap.
 - **Microphone:** `orb/mic-analyser.ts` turns a `MediaStream` into `level` and `bands` signals (RMS → dBFS, 60 ms attack, 300 ms release, eight log-spaced bands from 80 Hz to 8 kHz). Sound is measured in the page and never leaves it.
 - **Behaviour at the edges.**

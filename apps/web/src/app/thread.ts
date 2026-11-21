@@ -100,6 +100,7 @@ import * as icons from './icons';
               label="Ask Kassandra"
               [placeholder]="chat.running() ? 'Add to your question…' : chat.turns().length ? 'Ask a follow-up…' : 'Ask about any hotel, night or metric…'"
               [busy]="chat.running()"
+              [phase]="chat.live()?.phase"
               [steerable]="true"
               [prefill]="live.composer()"
               [(mode)]="live.mode"

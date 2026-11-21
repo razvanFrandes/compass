@@ -26,6 +26,7 @@ export const BOARD_VIEW_PREFIX = 'Build a board view: ';
       label="Describe this board to Kassandra"
       [placeholder]="placeholder()"
       [busy]="chat.running()"
+      [phase]="chat.live()?.phase"
       [showMode]="false"
       (submitted)="describe($event)"
       (stopped)="chat.abort()"

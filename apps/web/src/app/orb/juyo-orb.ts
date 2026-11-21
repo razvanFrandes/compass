@@ -1,7 +1,7 @@
 import { Component, DestroyRef, ElementRef, afterNextRender, effect, inject, input, signal, viewChild } from '@angular/core';
 import { pointCount } from './lattice';
 import { OrbMotion, type OrbState } from './orb-motion';
-import type { OrbRenderer } from './orb-renderer';
+import type { OrbStage, OrbView } from './orb-stage';
 
 export type { OrbState } from './orb-motion';
 
@@ -23,9 +23,12 @@ const STILL_LEVEL: Record<OrbState, number> = { idle: 0, listening: 0.5, thinkin
   speaking   rings leave the equator in the rhythm of speech; follows `level` if given
 
   Decorative: aria-hidden, no focus, no pointer events. Say the state in text next to it.
-  It stops drawing when off-screen or when the tab is hidden, frees its GL objects on destroy, comes back
-  after a lost context, shows a still frame with a gentle opacity pulse under prefers-reduced-motion, and
-  falls back to a CSS orb where WebGL2 is missing. The renderer is loaded on demand, outside the main bundle.
+  Every orb on the page shares one WebGL2 context and one animation loop (orb-stage.ts) and copies its frame
+  into a 2D canvas of its own, so a composer can show one at rest everywhere. It stops drawing when
+  off-screen or when the tab is hidden, caps the pixel ratio at 2, draws a small resting orb at 30 fps, comes
+  back after a lost context, shows a still frame with a gentle opacity pulse under prefers-reduced-motion,
+  and falls back to a CSS orb where WebGL2 is missing. The renderer is loaded on demand, outside the main
+  bundle.
 */
 @Component({
   selector: 'juyo-orb',
@@ -37,6 +40,7 @@ const STILL_LEVEL: Record<OrbState, number> = { idle: 0, listening: 0.5, thinkin
     '[attr.data-state]': 'state()',
     '[class.juyo-orb--live]': 'live()',
     '[class.juyo-orb--still]': 'still()',
+    '[class.juyo-orb--small]': 'size() <= 48',
     '[style.--orb-level]': 'live() ? null : level()',
   },
   template: `
@@ -90,6 +94,14 @@ const STILL_LEVEL: Record<OrbState, number> = { idle: 0, listening: 0.5, thinkin
       clip-path: circle(50%);
       animation: orb-breathe 6s ease-in-out infinite;
     }
+    /* A mark-sized orb has too little room for dots: the fallback is the plain gradient mark. */
+    :host(.juyo-orb--small) .fallback-orb {
+      background:
+        radial-gradient(circle at 32% 28%, rgb(255 255 255 / 0.75) 0 12%, transparent 42%),
+        linear-gradient(135deg, #6fa0fb, #a78cfb 55%, #eb75be);
+      -webkit-mask: none;
+      mask: none;
+    }
     @keyframes orb-breathe {
       50% {
         transform: scale(1.035);
@@ -142,29 +154,28 @@ export class JuyoOrb {
   private readonly ready = signal(false);
   /** The page behind is light (the app sets `.light` on <html>): dots are drawn deeper and opaque. */
   private readonly light = signal(false);
-  private rendererType: typeof OrbRenderer | null = null;
-  private renderer: OrbRenderer | null = null;
+  private stage: OrbStage | null = null;
   private motion = new OrbMotion();
-  private raf = 0;
-  private last = 0;
   private onScreen = true;
-  private destroyed = false;
+  private view: OrbView | null = null;
 
   constructor() {
     const destroy = inject(DestroyRef);
+    let destroyed = false;
+    destroy.onDestroy(() => (destroyed = true));
 
     afterNextRender(() => {
       const canvas = this.canvas().nativeElement;
       const doc = canvas.ownerDocument;
-      const view = doc.defaultView;
-      if (!view) return;
+      const win = doc.defaultView;
+      if (!win) return;
 
-      const reduced = view.matchMedia('(prefers-reduced-motion: reduce)');
+      const reduced = win.matchMedia('(prefers-reduced-motion: reduce)');
       const onReduced = () => this.still.set(reduced.matches);
       onReduced();
       reduced.addEventListener('change', onReduced);
 
-      const onVisibility = () => this.kick();
+      const onVisibility = () => this.stage?.kick();
       doc.addEventListener('visibilitychange', onVisibility);
 
       const root = doc.documentElement;
@@ -175,109 +186,62 @@ export class JuyoOrb {
 
       const observer = new IntersectionObserver((entries) => {
         this.onScreen = entries[entries.length - 1].isIntersecting;
-        this.kick();
+        this.stage?.kick();
       });
       observer.observe(this.host);
 
-      // The GPU can take the context away (driver reset, too many contexts). Show the CSS orb meanwhile
-      // and rebuild when it comes back; the old objects died with the old context.
-      const onLost = (e: Event) => {
-        e.preventDefault();
-        this.stop();
-        this.renderer = null;
-        this.ready.set(false);
-        this.live.set(false);
+      // What the shared stage needs from this orb.
+      this.view = {
+        canvas,
+        // Device pixels, with the pixel ratio capped at 2: beyond that the orb only costs more.
+        pixels: () => this.size() * Math.min(win.devicePixelRatio || 1, 2),
+        count: () => pointCount(this.size()),
+        light: () => this.light(),
+        running: () => !this.still() && this.onScreen && !doc.hidden,
+        // A small resting orb only breathes: 30 frames a second are plenty, at half the cost.
+        interval: () => (this.size() <= 48 && this.state() === 'idle' ? 1 / 30 : 0),
+        step: (dt) => this.motion.step(dt, { state: this.state(), level: this.level(), bands: this.bands() }),
+        live: (on) => this.live.set(on),
       };
-      const onRestored = () => this.build();
-      canvas.addEventListener('webglcontextlost', onLost);
-      canvas.addEventListener('webglcontextrestored', onRestored);
 
-      void import('./orb-renderer').then((m) => {
-        if (this.destroyed) return;
-        this.rendererType = m.OrbRenderer;
-        this.build();
+      void import('./orb-stage').then((m) => {
+        if (destroyed || !this.view) return;
+        const stage = m.orbStage(doc);
+        this.motion = new OrbMotion(this.state());
+        if (!stage?.add(this.view)) return; // no WebGL2: the CSS orb stays
+        this.stage = stage;
+        this.ready.set(true);
       });
 
       destroy.onDestroy(() => {
-        this.destroyed = true;
-        this.stop();
         observer.disconnect();
         theme.disconnect();
         reduced.removeEventListener('change', onReduced);
         doc.removeEventListener('visibilitychange', onVisibility);
-        canvas.removeEventListener('webglcontextlost', onLost);
-        canvas.removeEventListener('webglcontextrestored', onRestored);
-        this.renderer?.dispose();
-        this.renderer = null;
+        if (this.view) this.stage?.remove(this.view);
+        this.stage = null;
       });
     });
 
-    // Moving: (re)start the loop when something that gates it changes. Still: redraw the one frame
-    // whenever the state or the size changes.
+    // Moving: (re)start the shared loop when something that gates it changes. Still: redraw the one
+    // frame whenever the state, the size or the theme changes.
     effect(() => {
       if (!this.ready()) return;
-      const size = this.size();
       const state = this.state();
-      const light = this.light();
-      if (this.still()) this.drawStill(state, size, light);
-      else this.kick();
+      void [this.size(), this.light()];
+      if (this.still()) this.drawStill(state);
+      else this.stage?.kick();
     });
   }
 
-  private build() {
-    const canvas = this.canvas().nativeElement;
-    if (!this.rendererType || this.destroyed) return;
-    this.renderer = this.rendererType.create(canvas, pointCount(this.size()));
-    if (!this.renderer) return; // no WebGL2: the CSS orb stays
-    this.motion = new OrbMotion(this.state());
-    this.ready.set(true);
-  }
-
-  private get running() {
-    return !!this.renderer && !this.still() && this.onScreen && !this.host.ownerDocument.hidden;
-  }
-
-  private kick() {
-    if (this.raf || !this.running) return;
-    this.last = performance.now();
-    this.raf = requestAnimationFrame(this.frame);
-  }
-
-  private stop() {
-    cancelAnimationFrame(this.raf);
-    this.raf = 0;
-  }
-
-  private readonly frame = (now: number) => {
-    this.raf = 0;
-    if (!this.running || !this.renderer) return;
-    // A long gap (a stalled tab) is treated as one 50 ms step, so nothing lurches.
-    const dt = Math.min(0.05, Math.max(0, (now - this.last) / 1000));
-    this.last = now;
-    this.fit(this.size());
-    this.renderer.render(this.motion.step(dt, { state: this.state(), level: this.level(), bands: this.bands() }), this.light());
-    if (!this.live()) this.live.set(true);
-    this.raf = requestAnimationFrame(this.frame);
-  };
-
-  /** Device pixels, with the pixel ratio capped at 2: beyond that the orb only costs more. */
-  private fit(size: number) {
-    const dpr = Math.min(this.host.ownerDocument.defaultView?.devicePixelRatio || 1, 2);
-    this.renderer?.resize(size * dpr, size * dpr);
-  }
-
   /** One settled frame: run the motion forward so the state has taken hold, draw it, and leave it. */
-  private drawStill(state: OrbState, size: number, light: boolean) {
-    const renderer = this.renderer;
-    if (!renderer) return;
-    this.stop();
-    this.fit(size);
+  private drawStill(state: OrbState) {
+    if (!this.stage || !this.view) return;
     const motion = new OrbMotion(state);
     const input = { state, level: STILL_LEVEL[state], bands: null };
     let frame = motion.step(1 / 24, input);
     for (let i = 0; i < 40; i++) frame = motion.step(1 / 24, input);
-    renderer.render(frame, light);
+    this.stage.draw(this.view, frame);
     this.motion = motion;
-    this.live.set(true);
   }
 }

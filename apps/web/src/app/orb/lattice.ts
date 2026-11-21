@@ -30,5 +30,6 @@ export function silhouetteRadius(radius: number) {
   return (LATTICE_FOCAL * radius) / Math.sqrt(LATTICE_DIST * LATTICE_DIST - radius * radius);
 }
 
-/** Fewer points on a small orb, so they stay separate dots instead of filling in. */
-export const pointCount = (sizePx: number) => (sizePx <= 120 ? 1100 : 2600);
+/** Fewer points on a small orb, so they stay separate dots instead of filling in; the composer's 32 px mark has a few hundred. */
+export const MARK_COUNT = 280;
+export const pointCount = (sizePx: number) => (sizePx <= 48 ? MARK_COUNT : sizePx <= 120 ? 1100 : 2600);

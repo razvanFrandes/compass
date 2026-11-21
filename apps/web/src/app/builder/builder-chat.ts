@@ -146,6 +146,7 @@ export function richText(text: string): { text: string; bold: boolean }[] {
         label="Describe the agent, or ask for a change"
         [placeholder]="items().length ? 'Ask for a change…' : 'Describe what to watch…'"
         [busy]="running()"
+        [phase]="writing() ? 'writing' : null"
         [steerable]="true"
         [online]="online()"
         [prefill]="prefill()"
@@ -182,6 +183,12 @@ export class BuilderChat {
     if (!this.running()) return false;
     const last = this.items().at(-1);
     return !(last && ((last.kind === 'steps' && last.running) || (last.kind === 'assistant' && last.streaming)));
+  });
+
+  /** Kassandra's answer is being written: the composer's orb speaks. */
+  protected readonly writing = computed(() => {
+    const last = this.items().at(-1);
+    return this.running() && last?.kind === 'assistant' && !!last.streaming;
   });
 
   constructor() {
