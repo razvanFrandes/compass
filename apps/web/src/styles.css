@@ -809,3 +809,5 @@ textarea.field-input { height: auto; line-height: 1.5; }
 
 /* Menu items: words start on the left, and every item reads as clickable. */
 hlm-dropdown-menu [role^='menuitem'] { cursor: pointer; text-align: left; }
+/* A menu item's hover/focus fill: visible on the menu's own surface in every theme (--accent equals the popover in dark). */
+hlm-dropdown-menu { --menu-hover: color-mix(in srgb, var(--foreground) 9%, var(--popover)); }

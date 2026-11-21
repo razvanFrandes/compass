@@ -45,7 +45,7 @@ export class HlmDropdownMenuRadio {
   constructor() {
     classes(
       () =>
-        "hover:bg-accent focus:bg-accent hover:text-accent-foreground focus:text-accent-foreground hover:**:text-accent-foreground focus:**:text-accent-foreground min-h-7 gap-2 rounded-md py-1.5 ps-2 pe-8 text-xs data-inset:ps-7.5 [&_ng-icon:not([class*='text-'])]:text-[length:--spacing(3.5)] group/dropdown-menu-radio relative flex w-full cursor-pointer items-center text-left outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_ng-icon]:pointer-events-none [&_ng-icon]:shrink-0",
+        "hover:bg-(--menu-hover) focus:bg-(--menu-hover) hover:text-accent-foreground focus:text-accent-foreground hover:**:text-accent-foreground focus:**:text-accent-foreground min-h-7 gap-2 rounded-md py-1.5 ps-2 pe-8 text-xs data-inset:ps-7.5 [&_ng-icon:not([class*='text-'])]:text-[length:--spacing(3.5)] group/dropdown-menu-radio relative flex w-full cursor-pointer items-center text-left outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_ng-icon]:pointer-events-none [&_ng-icon]:shrink-0",
     );
   }
 }
