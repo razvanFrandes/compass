@@ -4,7 +4,7 @@ import { phosphorBuildingsLight, phosphorChartBarLight, phosphorChatTextLight, p
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { Live, type ConversationRef } from '../live';
-import { groupByDay, threadIcon, threadTime } from '../shell/conversation-groups';
+import { groupByDay, threadIcon, threadStamp, threadTime } from '../shell/conversation-groups';
 import { RAIL_TIP_GAP } from '../shell/sidebar-state';
 import { CompassStore } from '../store';
 
@@ -23,7 +23,8 @@ export function agoShort(at: number, now: number): string {
 /**
  * "Recent" in the sidebar: the conversations with Kassandra, under Today, Yesterday and Earlier. Each has a short
  * title and, under it, the takeaway of its answer, both written on the server after the first answer (until then,
- * the question). A small icon says what the answer showed. When it was last asked is in the tooltip, not on the row.
+ * the question). A small icon says what the answer showed. When it was last asked is on the right of the title (the time, or the date before yesterday) and, in full, in the tooltip.
+ * On hover and focus, Rename and Delete take the time's place and the text makes room for them, so nothing overlaps.
  * Rename (in place) and Delete (with Undo) show on hover and on focus. "New" starts an empty conversation.
  *
  * The styles are global (styles.css, `.k-recent`, `.k-thread`).
@@ -44,7 +45,7 @@ export function agoShort(at: number, now: number): string {
       <div class="-mx-1 flex min-h-0 flex-col overflow-y-auto px-1 pb-1" role="group" [attr.aria-labelledby]="uid + '-head'">
         @for (g of groups(); track g.label) {
           <h3 class="k-day" [id]="uid + '-' + g.label">{{ g.label }}</h3>
-          <ul class="flex flex-col gap-px" [attr.aria-labelledby]="uid + '-' + g.label">
+          <ul class="flex flex-col gap-0.5" [attr.aria-labelledby]="uid + '-' + g.label">
             @for (t of g.items; track t.id) {
               <li class="k-thread" [class.k-thread--current]="isCurrent(t.id)" [attr.data-thread]="t.id">
                 @if (editing() === t.id) {
@@ -62,7 +63,10 @@ export function agoShort(at: number, now: number): string {
                   >
                     <ng-icon [name]="t.icon" [attr.data-icon]="t.icon" class="k-thread-icon" aria-hidden="true" />
                     <span class="k-thread-text">
-                      <span class="k-thread-title">{{ t.title }}</span>
+                      <span class="k-thread-line">
+                        <span class="k-thread-title">{{ t.title }}</span>
+                        <span class="k-thread-time" aria-hidden="true">{{ t.stamp }}</span>
+                      </span>
                       @if (t.summary) {
                         <span class="k-thread-summary"><span class="sr-only">. </span>{{ t.summary }}</span>
                       }
@@ -107,7 +111,7 @@ export class KassandraThreadList {
       this.live
         .conversations()
         .slice(0, this.limit())
-        .map((c) => ({ ...c, icon: threadIcon(c), time: threadTime(c.at, this.now()) })),
+        .map((c) => ({ ...c, icon: threadIcon(c), time: threadTime(c.at, this.now()), stamp: threadStamp(c.at, this.now()) })),
       this.now(),
     ),
   );

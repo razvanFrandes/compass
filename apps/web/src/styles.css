@@ -758,17 +758,23 @@ textarea.field-input { height: auto; line-height: 1.5; }
 @media (hover: hover) { .k-thread--current:hover { --k-row: var(--k-row-current); } }
 /* The current conversation also carries a short bar of the brand colour at its left edge: it reads without colour too (the fill). */
 .k-thread--current::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 2px; border-radius: 2px; background: var(--brand, var(--primary)); }
-.k-thread-open { display: flex; min-width: 0; flex: 1; align-items: flex-start; gap: 9px; padding: 6px 8px 6px 11px; border-radius: 8px; text-align: left; outline: none; }
+.k-thread-open { display: flex; min-width: 0; flex: 1; align-items: flex-start; gap: 10px; padding: 8px 10px 8px 11px; border-radius: 8px; text-align: left; outline: none; }
+/* Rename and Delete need ~56px: the text makes room for them instead of running under them. */
+.k-thread:hover .k-thread-open, .k-thread:focus-within .k-thread-open { padding-right: 62px; }
+@media (hover: none) { .k-thread-open { padding-right: 62px; } .k-thread-time { display: none; } }
+.k-thread-line { display: flex; min-width: 0; align-items: baseline; gap: 8px; }
+.k-thread-time { flex-shrink: 0; margin-left: auto; color: var(--muted-foreground); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.k-thread:hover .k-thread-time, .k-thread:focus-within .k-thread-time { visibility: hidden; width: 0; }
 .k-thread-icon { flex-shrink: 0; margin-top: 1.5px; font-size: 15px; color: var(--muted-foreground); }
 .k-thread--current .k-thread-icon { color: var(--foreground); }
-.k-thread-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }
-.k-thread-title { overflow: hidden; color: inherit; font-size: 13px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.k-thread-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.k-thread-title { min-width: 0; overflow: hidden; color: inherit; font-size: 13px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .k-thread:hover .k-thread-title, .k-thread--current .k-thread-title { color: var(--foreground); }
 .k-thread--current .k-thread-title { font-weight: 500; }
 .k-thread-summary { overflow: hidden; color: var(--muted-foreground); font-size: 12px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .k-thread-actions {
-  position: absolute; top: 50%; right: 4px; display: flex; gap: 1px; padding-left: 18px; opacity: 0; pointer-events: none; transform: translateY(-50%);
-  background: linear-gradient(to right, transparent, var(--k-row) 16px); transition: opacity 120ms ease;
+  position: absolute; top: 50%; right: 6px; display: flex; gap: 2px; opacity: 0; pointer-events: none; transform: translateY(-50%);
+  transition: opacity 120ms ease;
 }
 .k-thread:hover .k-thread-actions, .k-thread:focus-within .k-thread-actions { opacity: 1; pointer-events: auto; }
 @media (hover: none) { .k-thread-actions { opacity: 1; pointer-events: auto; } }
