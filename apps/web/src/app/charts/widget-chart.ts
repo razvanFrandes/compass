@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ElementRef, InjectionToken, type Signal, ViewEncapsulation, afterNextRender, afterRenderEffect, computed, inject, input, linkedSignal, signal, untracked, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, InjectionToken, type Signal, ViewEncapsulation, afterNextRender, afterRenderEffect, computed, inject, input, linkedSignal, output, signal, untracked, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorArrowsDownUpLight, phosphorCaretDownLight, phosphorCaretUpLight, phosphorChartBarLight, phosphorTableLight } from '@ng-icons/phosphor-icons/light';
 import { type Built, type TableModel, bodyHeight, buildWidget, kpiColumns, kpiCount, summaryHead } from './builders';
@@ -123,6 +123,8 @@ export class WidgetChart {
    * featured chart). Null keeps the catalogue's height for the kind. KPI tiles size themselves and ignore it.
    */
   readonly height = input<number | null>(null);
+  /** A click on a mark: the row it stands for (a host turns it into a drill). */
+  readonly picked = output<WidgetRow>();
 
   protected readonly uid = `wc${nextId++}`;
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
@@ -316,6 +318,14 @@ export class WidgetChart {
     this.cursor.set(next);
     this.announce.set(p.text);
     this.echart()?.showTip(p.seriesIndex, p.dataIndex);
+  }
+
+  protected onPick(e: { seriesIndex: number; dataIndex: number }) {
+    const b = this.built();
+    const rows = this.data();
+    if (!b || !rows || e.seriesIndex !== 0) return;
+    const row = rows[b.rows?.[e.dataIndex] ?? e.dataIndex];
+    if (row) this.picked.emit(row as WidgetRow);
   }
 
   protected leave() {

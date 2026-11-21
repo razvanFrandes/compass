@@ -112,6 +112,8 @@ interface BuiltBase {
   unitNote?: string;
   /** The body height this drawing needs, over the host's or the kind's (a bridge lying down: a row per step). */
   height?: number;
+  /** The row each mark of the first series stands for, when they differ from the rows' order (a click names the row). */
+  rows?: number[];
 }
 export type Built =
   | (BuiltBase & { render: 'echarts'; option: EChartsCoreOption; points: PointRef[] })

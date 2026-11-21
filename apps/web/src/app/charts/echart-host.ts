@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ElementRef, afterNextRender, effect, inject, input, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, afterNextRender, effect, inject, input, output, viewChild } from '@angular/core';
 import * as echarts from 'echarts/core';
 import type { EChartsCoreOption, EChartsType } from 'echarts/core';
 import { BarChart, CustomChart, FunnelChart, GaugeChart, HeatmapChart, LineChart, PieChart, RadarChart, SankeyChart, ScatterChart, TreemapChart } from 'echarts/charts';
@@ -20,6 +20,8 @@ echarts.use([BarChart, CustomChart, FunnelChart, GaugeChart, HeatmapChart, LineC
 })
 export class EChartHost {
   readonly option = input.required<EChartsCoreOption>();
+  /** A click on a data mark: which series and which point. */
+  readonly pick = output<{ seriesIndex: number; dataIndex: number }>();
   private readonly el = viewChild.required<ElementRef<HTMLDivElement>>('el');
   private chart?: EChartsType;
   private applied?: EChartsCoreOption;
@@ -33,6 +35,9 @@ export class EChartHost {
         if (!node.clientWidth || !node.clientHeight) return;
         if (this.chart) return this.chart.resize();
         this.chart = echarts.init(node, null, { renderer: 'svg' });
+        this.chart.on('click', (e) => {
+          if (e.componentType === 'series' && typeof e.dataIndex === 'number') this.pick.emit({ seriesIndex: e.seriesIndex ?? 0, dataIndex: e.dataIndex });
+        });
         this.applied = this.option();
         this.chart.setOption(this.applied, true);
       };
