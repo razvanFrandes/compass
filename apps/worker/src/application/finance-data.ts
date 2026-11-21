@@ -516,13 +516,16 @@ export class FinanceData {
     const by = input.by ?? 'hotel';
     const grain = input.grain ?? 'month';
     const dateColumn = input.basis === 'request' ? 'l.request_date' : 'l.arrival_date';
-    const detail = { none: 'null::text', segment: 'l.segment', channel: 'l.channel' }[input.detail ?? 'none'];
+    // The segment's or channel's name, never its code.
+    const detail = { none: 'null::text', segment: 's.name', channel: 'ch.name' }[input.detail ?? 'none'];
     const sql = `
       with x as (
         select ${period(grain, dateColumn, '$1')} as period, l.hotel_code, l.reason, ${detail} as detail,
                sum(l.requests) as requests, sum(l.room_nights) as room_nights, sum(l.room_nights * r.bar_rate) as value_local
           from hotel.lost_business l
           left join hotel.rates_daily r on r.hotel_code = l.hotel_code and r.stay_date = l.arrival_date
+          left join hotel.segments s on s.segment = l.segment
+          left join hotel.channels ch on ch.channel = l.channel
          where ${dateColumn} between $1::date and $2::date and ($3::text[] is null or l.hotel_code = any($3::text[]))
          group by 1, 2, 3, 4),
       y as (
@@ -535,7 +538,7 @@ export class FinanceData {
              round(value)::float8 as est_revenue_eur
         from y order by 1, 2, room_nights desc`;
     return this.#run<LostBusinessRow>(sql, [input.from, input.to, hotelsParam(input.hotels)], {
-      sources: ['hotel.lost_business', 'hotel.rates_daily'],
+      sources: ['hotel.lost_business', 'hotel.rates_daily', ...({ none: [], segment: ['hotel.segments'], channel: ['hotel.channels'] } as const)[input.detail ?? 'none']],
       definitions: {
         reason: 'price: the guest saw the rate and did not book (a regret); no_availability: the hotel or room type was full (a denial).',
         est_revenue_eur:

@@ -2,6 +2,7 @@ import { signal, type Signal } from '@angular/core';
 import type { ChatLive } from '@compass/contracts';
 import type { ChatStep, ChatTurn, ChatWidget, WidgetKind, WidgetSpec } from '../api';
 import { toolTitle } from '../evidence/labels';
+import { tidyChatWidget } from '../widget-tidy';
 import { isPreviewTool, previewWidget, readingOf, widgetFromArgs } from './preview';
 import { stepDetail, stepTitle } from './turn-text';
 
@@ -121,7 +122,11 @@ function specOfArgs(args: Record<string, unknown> | undefined): WidgetSpec | nul
   return described.get(args) ?? null;
 }
 
-const ready = (callId: string, widget: ChatWidget, preview = false): WidgetSlot => ({ callId, phase: 'ready', preview, spec: specOf(widget), title: widget.title, subtitle: widget.subtitle ?? null, widget });
+/** A finished widget, tidied (widget-tidy.ts): no column that says the same on every row, no unit said twice. */
+const ready = (callId: string, shown: ChatWidget, preview = false): WidgetSlot => {
+  const widget = tidyChatWidget(shown);
+  return { callId, phase: 'ready', preview, spec: specOf(widget), title: widget.title, subtitle: widget.subtitle ?? null, widget };
+};
 
 function slotFor(callId: string, widget: ChatWidget | undefined, args: Record<string, unknown> | undefined): WidgetSlot {
   if (widget) return ready(callId, widget);

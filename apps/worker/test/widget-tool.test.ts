@@ -130,6 +130,26 @@ describe('show_widget', () => {
     expect(seen[1]!.details!.widget!.columns).toEqual(columns);
   });
 
+  it('hides a column that is the same on every row, says it once in the subtitle, and never repeats a unit', async () => {
+    const mix = [
+      { period: '2026-08-22', key: 'Transient retail', room_nights: 115311 },
+      { period: '2026-08-22', key: 'Corporate negotiated', room_nights: 59661 },
+    ];
+    const columns = [
+      { key: 'period', label: 'Period from', kind: 'date' },
+      { key: 'key', label: 'Segment', kind: 'text' },
+      { key: 'room_nights', label: 'Room nights', kind: 'count', unit: 'room nights' },
+    ];
+    const table = (id: string) => ['show_widget', { kind: 'table', title: 'Corporate is losing share', subtitle: 'All 20 hotels', sourceCallId: id }] as Call;
+    const { seen } = await run(cannedData(mix, { ...EVIDENCE, columns }), [['get_rows', {}], (ids) => table(ids[0]!)]);
+    const widget = seen[1]!.details!.widget!;
+    expect(widget.columns.find((c) => c.key === 'period')).toMatchObject({ hidden: true });
+    expect(widget.subtitle).toBe('All 20 hotels · Period from Sat 22 Aug 2026');
+    expect(widget.columns.find((c) => c.key === 'room_nights')).toEqual({ key: 'room_nights', label: 'Room nights', kind: 'count' });
+    // The rows stay the tool's own.
+    expect(widget.rows).toEqual(mix);
+  });
+
   it('answers an unknown result id with the ids it can use', async () => {
     const { seen, status } = await run(cannedData(PACE), [['get_rows', {}], () => bar('made-up-id')]);
     expect(status).toBe('done');

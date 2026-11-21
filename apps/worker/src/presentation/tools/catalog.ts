@@ -277,7 +277,7 @@ export const DATA_TOOLS = [
   tool({
     name: 'get_mix',
     description:
-      'Business mix: room nights, share of room nights, revenue and ADR in EUR by segment (RET, ADV, COR corporate, GRP, WHL, PKG), ' +
+      'Business mix: room nights, share of room nights, revenue and ADR in EUR by segment (transient retail, advance purchase, corporate, group, wholesale, leisure package), ' +
       'by channel or by channel type (direct, OTA, GDS, wholesale). Compare two periods to see a shift, e.g. corporate replaced by OTA.',
     input: z.object({
       hotels,

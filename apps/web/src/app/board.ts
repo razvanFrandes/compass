@@ -19,6 +19,7 @@ import { BoardsService } from './boards/boards.service';
 import type { Board, BoardWidget } from './boards/types';
 import { ViewAs } from './charts/view-as';
 import { WidgetChart } from './charts/widget-chart';
+import { tidyBoardWidget } from './widget-tidy';
 import { formatDate, formatPeriod } from './evidence/format';
 import { sourceLabel } from './evidence/labels';
 import * as icons from './icons';
@@ -153,7 +154,8 @@ export class PerformanceWidget {
   `,
 })
 export class SavedWidget {
-  readonly widget = input.required<BoardWidget>({ alias: 'widgetRef' });
+  /** Tidied as it arrives (widget-tidy.ts): a board may hold widgets saved before the server tidied them. */
+  readonly widget = input.required<BoardWidget, BoardWidget>({ alias: 'widgetRef', transform: tidyBoardWidget });
   readonly board = input.required<Board>({ alias: 'boardRef' });
   private readonly boards = inject(BoardsService);
   protected readonly how = signal(false);

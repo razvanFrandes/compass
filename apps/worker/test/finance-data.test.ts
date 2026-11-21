@@ -238,7 +238,7 @@ describe('getLostBusiness', () => {
       `select sum(room_nights)::int as rn from hotel.lost_business
         where hotel_code = 'LIS' and reason = 'price' and segment = 'RET' and request_date between '2026-10-30' and '2026-11-19'`,
     );
-    const row = result.rows.find((r) => r.reason === 'price' && r.detail === 'RET')!;
+    const row = result.rows.find((r) => r.reason === 'price' && r.detail === 'Transient retail')!;
     expect(row.room_nights).toBe(o.rn);
   });
 });

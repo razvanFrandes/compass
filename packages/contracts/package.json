@@ -2,7 +2,7 @@
   "name": "@compass/contracts",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts", "./widget-fit": "./src/widget-fit.ts" },
+  "exports": { ".": "./src/index.ts", "./widget-fit": "./src/widget-fit.ts", "./widget-tidy": "./src/widget-tidy.ts" },
   "sideEffects": false,
   "scripts": { "typecheck": "tsc -p ." },
   "dependencies": { "zod": "4.6.7" },

@@ -99,6 +99,14 @@ describe('the answer style', () => {
     expect(style).toMatch(/widget/);
   });
 
+  it('never prints a code for a hotel, segment, channel or rate plan, not even in brackets', () => {
+    const voice = KASSANDRA_SECTIONS.find((section) => section.key === 'voice')!.render() as string;
+    expect(voice).toMatch(/never by its code/i);
+    expect(voice).toMatch(/not even in brackets/i);
+    for (const example of ['London (LON2)', 'RET', 'BDC']) expect(voice).toContain(example);
+    expect(voice).toMatch(/segment.*channel.*rate plan/i);
+  });
+
   it('keeps tool and column names out of what the reader sees', () => {
     const style = KASSANDRA_SECTIONS.find((section) => section.key === 'answer_style')!.render() as string;
     expect(style).toMatch(/never name a tool/i);

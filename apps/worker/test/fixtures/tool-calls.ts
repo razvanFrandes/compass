@@ -29,6 +29,7 @@ export const TOOL_CALLS: Record<string, Record<string, unknown>[]> = {
     { hotels: ['LIS'], by: 'segment', ...period },
     { by: 'segment', rollUp: true, ...period },
     { hotels: ['LIS'], by: 'channel_type', grain: 'total', basis: 'booked', ...period },
+    { by: 'channel', grain: 'total', rollUp: true, ...period },
   ],
   get_account_production: [{ hotels: ['MIA'], from: '2026-05-01', to: '2026-10-31' }],
   get_fnb: [{ hotels: ['DPS'], ...period }],
@@ -50,6 +51,7 @@ export const TOOL_CALLS: Record<string, Record<string, unknown>[]> = {
   get_lost_business: [
     { hotels: ['LIS'], ...period },
     { by: 'group', detail: 'segment', basis: 'request', grain: 'week', ...period },
+    { hotels: ['LIS'], detail: 'channel', grain: 'total', ...period },
   ],
   get_brief: [{}],
   get_data_health: [{ hotels: ['BER'] }],
