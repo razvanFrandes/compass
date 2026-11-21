@@ -2,7 +2,7 @@ import { fitWidget } from '@compass/contracts/widget-fit';
 import type { ChatStep, ChatWidget, WidgetSpec } from '../api';
 import { type KindHint, recommendSpec } from '../charts/kinds';
 import { humanizeText } from '../text';
-import { stepTitle } from './turn-text';
+import { named as hotelName, stepTitle } from './turn-text';
 
 /*
   The instant preview: a chart drawn from a data tool's rows the moment they arrive, before Kassandra has taken
@@ -52,11 +52,11 @@ const TOOL_HINTS: Record<string, KindHint> = {
   get_lost_business: { y: ['room_nights'] },
 };
 
-/** The scope line of a preview: the hotels the call named and the period its rows cover. "LIS, AMS · 1 Dec – 31 Dec". */
+/** The scope line of a preview: the hotels the call named and the period its rows cover. "Lisbon Chiado, Amsterdam Centraal · 1 Dec – 31 Dec": hotels by name, as everywhere a hotelier reads. */
 function scopeLine(step: Pick<ChatStep, 'args' | 'evidence'>): string {
   const named = step.args['hotels'];
   const hotels = Array.isArray(named) ? named.filter((code): code is string => typeof code === 'string') : [];
-  const who = hotels.length === 0 ? '' : hotels.length <= 4 ? hotels.join(', ') : `${hotels.length} hotels`;
+  const who = hotels.length === 0 ? '' : hotels.length <= 4 ? hotels.map(hotelName).join(', ') : `${hotels.length} hotels`;
   const period = step.evidence?.period;
   const when = period ? humanizeText(period.from === period.to ? period.from : `${period.from} – ${period.to}`) : '';
   return [who, when].filter(Boolean).join(' · ').slice(0, 140);

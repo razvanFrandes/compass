@@ -46,7 +46,7 @@ export function stepTitle(step: Pick<ChatStep, 'name' | 'evidence' | 'widget'>):
 
 /** A hotel code as the hotel's name ("LIS" → "Lisbon Chiado"); anything else as it is. */
 const HOTEL_NAMES = new Map(HALCYON_HOTELS.map((hotel) => [hotel.code, shortName(hotel)]));
-const named = (value: string) => (value === 'ALL' ? 'All hotels' : (HOTEL_NAMES.get(value) ?? value));
+export const named = (value: string): string => (value === 'ALL' ? 'All hotels' : (HOTEL_NAMES.get(value) ?? value));
 
 /** The few arguments worth reading, e.g. "Lisbon Chiado, Dubai Business Bay · 21 Nov · 20 Dec". Objects and internal ids are left out. */
 export function stepDetail(step: Pick<ChatStep, 'name' | 'args'>): string {

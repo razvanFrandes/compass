@@ -111,6 +111,9 @@ export function groupTurns(entries: readonly ChatEntry[], live?: ChatLive | null
   const turns: ReturnType<typeof emptyTurn>[] = [];
   const steps = new Map<string, ChatStep>();
   let current: ReturnType<typeof emptyTurn> | undefined;
+  // What was written in a message that only draws charts: the answer, if the run then ends without saying more.
+  // Asked to answer visually, a model often writes its sentences beside `show_widget` and stops with an empty message.
+  let beside: { turn: ReturnType<typeof emptyTurn>; step: ChatStep; text: string } | undefined;
 
   const turn = (): ReturnType<typeof emptyTurn> => {
     if (!current) {
@@ -133,13 +136,21 @@ export function groupTurns(entries: readonly ChatEntry[], live?: ChatLive | null
       into.model = entry.model;
       into.usage = { tokens: into.usage.tokens + entry.usage.tokens, costUsd: into.usage.costUsd + entry.usage.costUsd };
       if (isStepTurn(entry)) {
+        const first = into.steps.length;
         entry.toolCalls.forEach((call, index) => {
           const step: ChatStep = { ...call, status: 'pending', narration: index === 0 ? entry.text : '' };
           steps.set(call.callId, step);
           into.steps.push(step);
         });
+        const drawsOnly = entry.toolCalls.length > 0 && entry.toolCalls.every((call) => call.name === 'show_widget');
+        const step = into.steps[first];
+        beside = drawsOnly && entry.text.trim() && step ? { turn: into, step, text: entry.text } : undefined;
       } else if (entry.text) {
         into.answer = entry.text;
+      } else if (beside?.turn === into && into.answer === null) {
+        // The run ended here with nothing more to say: it is said once, as the answer, not as the chart's narration.
+        into.answer = beside.text;
+        beside.step.narration = '';
       }
     } else if (entry.kind === 'tool_result') {
       let step = steps.get(entry.callId);

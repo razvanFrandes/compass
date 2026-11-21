@@ -82,8 +82,8 @@ describe('widgetSlots with previews: a chart from the moment the data is asked f
 
   it('(b) the moment the rows are in, the slot is a preview chart: the kind a first look suggests, the tool’s rows untouched', () => {
     const [slot] = widgetSlots(turn({ running: true, steps: [pace()] }), [call('c1', 'get_pace', 'done')], ON);
-    expect(slot).toMatchObject({ callId: 'c1', phase: 'ready', preview: true, title: 'Pace vs last year', subtitle: 'LIS, AMS, PAR · 21 Nov – 20 Dec' });
-    expect(slot!.spec).toEqual({ kind: 'bar', title: 'Pace vs last year', subtitle: 'LIS, AMS, PAR · 21 Nov – 20 Dec', sourceCallId: 'c1', x: 'hotel_code', y: ['rooms_otb'], compare: 'rooms_otb_stly', format: 'count' });
+    expect(slot).toMatchObject({ callId: 'c1', phase: 'ready', preview: true, title: 'Pace vs last year', subtitle: 'Lisbon Chiado, Amsterdam Centraal, Paris Opera · 21 Nov – 20 Dec' });
+    expect(slot!.spec).toEqual({ kind: 'bar', title: 'Pace vs last year', subtitle: 'Lisbon Chiado, Amsterdam Centraal, Paris Opera · 21 Nov – 20 Dec', sourceCallId: 'c1', x: 'hotel_code', y: ['rooms_otb'], compare: 'rooms_otb_stly', format: 'count' });
     expect(slot!.widget!.rows).toBe(paceRows); // the same rows, by reference: nothing is computed on the way
     expect(slot!.widget!.evidence.sources).toEqual(['hotel.pace_vs_stly()']);
   });
@@ -209,7 +209,7 @@ describe('widgetSlots with previews: a chart from the moment the data is asked f
     // Its rows land: the same card, the new rows.
     const redrawn = widgetSlots(turn({ running: true, steps: [all, again()] }), [], ON);
     expect(shown(redrawn)).toEqual(['c1:ready:preview:bar']);
-    expect(redrawn[0]!.widget).toMatchObject({ sourceCallId: 'c2', rows: narrow, subtitle: 'LIS, AMS · 21 Nov – 20 Dec' });
+    expect(redrawn[0]!.widget).toMatchObject({ sourceCallId: 'c2', rows: narrow, subtitle: 'Lisbon Chiado, Amsterdam Centraal · 21 Nov – 20 Dec' });
     // Her chart names the second result, and takes the card the first one opened.
     const hers = widget({ ...HER, sourceCallId: 'c2', rows: narrow, columns: paceEvidence().columns! });
     const done = widgetSlots(turn({ answer: 'Lisbon is behind.', steps: [all, again(), step({ callId: 'w1', name: 'show_widget', widget: hers })] }), null, ON);

@@ -6,7 +6,7 @@ const pace = (patch = {}) => step({ callId: 'c1', name: 'get_pace', args: { hote
 describe('previewWidget: a chart from a data result, with no model', () => {
   it('draws the rows as the kind a first look suggests, titled by the tool and scoped by the call', () => {
     const widget = previewWidget(pace())!;
-    expect(widget).toMatchObject({ kind: 'bar', x: 'hotel_code', y: ['rooms_otb'], compare: 'rooms_otb_stly', title: 'Pace vs last year', subtitle: 'LIS, AMS, PAR · 21 Nov – 20 Dec', sourceCallId: 'c1' });
+    expect(widget).toMatchObject({ kind: 'bar', x: 'hotel_code', y: ['rooms_otb'], compare: 'rooms_otb_stly', title: 'Pace vs last year', subtitle: 'Lisbon Chiado, Amsterdam Centraal, Paris Opera · 21 Nov – 20 Dec', sourceCallId: 'c1' });
     expect(widget.rows).toBe(paceRows);
     expect(widget.columns.map((column) => column.key)).toEqual(['hotel_code', 'rooms_otb', 'rooms_otb_stly', 'pace_pct']);
     expect(widget.evidence.title).toBe('Pace vs last year');

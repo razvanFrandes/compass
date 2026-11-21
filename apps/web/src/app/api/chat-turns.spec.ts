@@ -42,6 +42,34 @@ describe('groupTurns', () => {
     expect(turn!.steps[0]!.narration).toBe('Let me look.');
   });
 
+  it('takes what was written beside the chart as the answer when nothing follows it', () => {
+    // Asked to answer visually, a model often writes its sentences in the message that calls show_widget, then stops.
+    const [turn] = groupTurns([
+      user(1, 'How is Lisbon pacing?'),
+      steps(2, [{ callId: 'a', name: 'get_pace' }], 'Let me look.'),
+      result(3, 'a'),
+      steps(4, [{ callId: 'w', name: 'show_widget' }], 'Lisbon is 15.9% behind last year.'),
+      result(5, 'w', { name: 'show_widget' }),
+      answer(6, ''),
+    ]);
+    expect(turn!.answer).toBe('Lisbon is 15.9% behind last year.');
+    // It is said once: not again as the narration of the chart's step.
+    expect(turn!.steps.map((step) => step.narration)).toEqual(['Let me look.', '']);
+  });
+
+  it('keeps it as narration when an answer follows, while the run goes on, and beside a data tool', () => {
+    const followed = groupTurns([user(1, 'Q'), steps(2, [{ callId: 'w', name: 'show_widget' }], 'Drawing it.'), result(3, 'w', { name: 'show_widget' }), answer(4, 'Lisbon is behind.')]);
+    expect(followed[0]!.answer).toBe('Lisbon is behind.');
+    expect(followed[0]!.steps[0]!.narration).toBe('Drawing it.');
+
+    const running = groupTurns([user(1, 'Q'), steps(2, [{ callId: 'w', name: 'show_widget' }], 'Lisbon is behind.'), result(3, 'w', { name: 'show_widget' })]);
+    expect(running[0]!.answer).toBeNull();
+
+    const data = groupTurns([user(1, 'Q'), steps(2, [{ callId: 'a', name: 'get_pace' }], 'Let me look.'), result(3, 'a'), answer(4, '')]);
+    expect(data[0]!.answer).toBeNull();
+    expect(data[0]!.steps[0]!.narration).toBe('Let me look.');
+  });
+
   it('starts a new turn at every question', () => {
     const turns = groupTurns([user(1, 'first'), answer(2, 'one'), user(3, 'second'), answer(4, 'two')]);
     expect(turns.map((turn) => [turn.question, turn.answer])).toEqual([['first', 'one'], ['second', 'two']]);

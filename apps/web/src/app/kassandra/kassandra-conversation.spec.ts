@@ -259,7 +259,7 @@ describe('KassandraConversation: instant previews and "View as"', () => {
     expect(card(fixture).getAttribute('data-phase')).toBe('ready');
     expect(card(fixture).hasAttribute('data-preview')).toBe(true);
     expect(text(card(fixture).querySelector('h3'))).toBe('Pace vs last year');
-    expect(text(card(fixture).querySelector('figcaption .text-muted-foreground'))).toBe('LIS, AMS, PAR · 21 Nov – 20 Dec');
+    expect(text(card(fixture).querySelector('figcaption .text-muted-foreground'))).toBe('Lisbon Chiado, Amsterdam Centraal, Paris Opera · 21 Nov – 20 Dec');
     expect(text(card(fixture).querySelector('.k-preview'))).toBe('Preview: drawn from the data as it arrived. Kassandra may still choose another chart.');
     expect(chart(fixture).getAttribute('data-kind')).toBe('bar');
     expect([...card(fixture).querySelectorAll('[role=radio]')].map((b) => b.getAttribute('data-kind'))).toEqual(['kpi_row', 'bullet', 'bar', 'grouped_bar', 'donut', 'pie', 'treemap', 'table']);
