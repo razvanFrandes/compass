@@ -271,7 +271,10 @@
   content: ''; position: absolute; inset: -28px 0 calc(100% - 1px) 0; pointer-events: none;
   background: linear-gradient(to top, var(--background), transparent);
 }
+/* The thread and its composer share one column: it grows with the room the evidence panel leaves (drag the divider),
+   up to a width where answers still read comfortably and charts get space. */
 .k-dock-inner { max-width: 760px; margin-inline: auto; }
+.k-thread-col, .k-dock-inner.k-thread-dock { width: 100%; max-width: var(--thread-width, 880px); margin-inline: auto; }
 /* The 18 px Kassandra mark: the only place the brand gradient lives at rest. */
 .orb-mark {
   width: 18px;

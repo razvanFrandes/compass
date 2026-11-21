@@ -44,7 +44,7 @@ import * as icons from './icons';
         </header>
 
         <div #scroller class="min-h-0 flex-1 overflow-y-auto px-page-x pb-section" tabindex="0" role="group" aria-label="Conversation with Kassandra" (scroll)="onScroll()">
-          <div class="max-w-measure mx-auto flex flex-col text-[14.5px]">
+          <div class="k-thread-col mx-auto flex flex-col text-[14.5px]">
             <h2 class="sr-only">Conversation</h2>
             @if (live.scope(); as sc) {
               <div class="flex flex-wrap items-center gap-1.5 pt-stack" role="group" aria-label="What this conversation covers">
@@ -97,7 +97,7 @@ import * as icons from './icons';
         </div>
 
         <footer class="k-dock shrink-0 pt-1 pr-[max(var(--space-page-x),env(safe-area-inset-right,0px))] pb-[max(var(--space-stack),env(safe-area-inset-bottom,0px))] pl-[max(var(--space-page-x),env(safe-area-inset-left,0px))]">
-          <div class="k-dock-inner text-[14.5px]">
+          <div class="k-dock-inner k-thread-dock text-[14.5px]">
             <kassandra-composer
               inputId="thread-ask"
               [docked]="true"
