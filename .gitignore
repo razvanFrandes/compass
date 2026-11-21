@@ -14,3 +14,6 @@ dist/
 # Cloudflare local secrets
 .dev.vars
 .dev.vars.*
+
+# Private drafts
+.private/
