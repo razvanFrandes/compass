@@ -27,7 +27,7 @@ const FIXED: readonly (readonly string[])[] = [
   ['`nested-interactive`', 'The rows of an agent’s run history', 'A control sat inside a control. Rows became plain buttons with `aria-pressed`.', '20 Nov, `7730a8e`'],
   ['`label-content-name-mismatch`', 'The KPI tiles on the Inbox', 'The accessible name did not contain the visible text. It is now the visible text plus a hidden tail.', '20 Nov, `7730a8e`'],
   ['Heading order', 'Chart cards on a board', 'Chart titles became `h2` under the board’s `h1`.', '20 Nov, `7730a8e`'],
-  ['`color-contrast`', 'The Approve button, light theme', 'Its label was 3.65:1 on the light theme’s orange. It passes now.', '21 Nov, `e4e8e5c`'],
+  ['`color-contrast`', 'The decision button (then “Approve”, now “Send to revenue manager”), light theme', 'Its label was 3.65:1 on the light theme’s orange. It passes now.', '21 Nov, `e4e8e5c`'],
   ['`color-contrast`', 'The count on the sidebar’s current row, light theme', 'It was 4.3:1. It passes now.', '21 Nov, sidebar branch'],
   ['`empty-table-header`', 'A comparison table in these docs', 'The first column had no header text. It has one now.', '21 Nov, this branch'],
   ['`color-contrast`', 'The colour samples on this page', 'The “before” colours were shown as text, which failed as it should. They are drawings now.', '21 Nov, this branch'],

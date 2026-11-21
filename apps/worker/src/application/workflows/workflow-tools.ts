@@ -4,6 +4,7 @@ import { defineSignal, type Extension, type ToolExecutionApi, type ToolRegistrat
 import { bool, obj, str } from '@earendil-works/pi-schema';
 import { z } from 'zod';
 import { proposalRisk, proposalStatus } from '../../domain/action-risk.ts';
+import { decisionOnRecord, handOver } from './decisions.ts';
 import type { WorkflowStore } from './store.ts';
 
 /**
@@ -74,6 +75,15 @@ export function createWorkflowExtension(store: WorkflowStore, now: () => Date = 
         const decision = await api.readSignal(DecisionSignal, 'decision', context);
         if (!decision || !('value' in decision)) return { sleep: { signals: [DecisionSignal.key('decision')] } };
         const { approved, by, note } = decision.value;
+        // The app records a decision when the person makes it (decisions.ts): it is then already handed over or
+        // dismissed, and may even have been taken back since. The agent only learns of it and never writes over it.
+        if (await decisionOnRecord(store, existing.id)) {
+          await store.updateRun(run.id, { status: 'running' });
+          const text = approved
+            ? `Approved by ${by}${note ? ` ("${note}")` : ''} and already handed over as a task. Do not call apply_action for proposal ${existing.id}; report what was sent.`
+            : `Declined by ${by}${note ? `: "${note}"` : ''}. Do not apply proposal ${existing.id}; report the decision.`;
+          return { output: [{ type: 'text', text }], details: { proposal: existing } };
+        }
         const decided: Proposal = { ...existing, status: approved ? 'approved' : 'denied', decidedBy: by, decidedAt: now().toISOString(), note: note || null };
         await store.saveProposal(decided, api.taskId);
         await store.updateRun(run.id, { status: 'running' });
@@ -146,13 +156,8 @@ export function createWorkflowExtension(store: WorkflowStore, now: () => Date = 
       if (proposal.status !== 'approved' && proposal.status !== 'auto_approved') {
         throw new Error(`Proposal ${proposal_id} is ${proposal.status}; only approved proposals can be applied.`);
       }
-      const receipt = `RMS task ${newId('rms')} for ${proposal.hotel_code}: ${proposal.title} (${proposal.change.before} → ${proposal.change.after}, ${proposal.change.scope}).`;
-      await store.appendAudit({
-        id: newId('audit'), at: now().toISOString(), workflowId: proposal.workflowId, proposalId: proposal.id, hotel_code: proposal.hotel_code,
-        action: proposal.action, by: proposal.decidedBy ?? 'unknown', outcome: 'sent_to_rms', receipt,
-      });
-      const applied: Proposal = { ...proposal, status: 'applied' };
-      await store.updateProposal(applied);
+      // Handed to the person at the hotel whose job it is (the demo roster), and logged with their name.
+      const { proposal: applied, receipt } = await handOver(store, proposal, proposal.decidedBy ?? 'unknown', now);
       return { output: [{ type: 'text', text: receipt }], details: { proposal: applied, receipt } };
     },
   } as unknown as ToolRegistration;

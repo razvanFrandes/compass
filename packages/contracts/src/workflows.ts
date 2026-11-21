@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Handover } from './team.ts';
 
 /**
  * Workflows (Juyo's "Act"): agents that watch the numbers, propose an action and act once a person approves.
@@ -138,9 +139,12 @@ export interface AuditEntry {
   hotel_code: string;
   action: ActionType;
   by: string;
-  outcome: 'sent_to_rms' | 'suggested' | 'undone' | 'emailed';
+  /** `dismissed`: a person dismissed the suggestion, and nothing was sent. `undone`: a sent suggestion or a dismissal was taken back. */
+  outcome: 'sent_to_rms' | 'suggested' | 'undone' | 'emailed' | 'dismissed';
   /** The task handed to the RMS / revenue manager (mocked: nothing is written to source systems). */
   receipt: string;
+  /** Who it was handed to (the demo roster, team.ts). Absent on a dismissal and on entries written before the roster. */
+  handedTo?: Handover;
   /** Set when its workflow was deleted: the name it had, since `workflowId` no longer resolves. */
   deletedWorkflowName?: string;
 }
@@ -152,3 +156,13 @@ export const Decision = z.object({
   note: z.string().max(400).default(''),
 });
 export type Decision = z.infer<typeof Decision>;
+
+/**
+ * What `POST /api/proposals/:id/decision` answers: the proposal as it now stands, who it was handed to (null for a
+ * dismissal, and for a hotel without a roster), and the receipt written to the audit log.
+ */
+export interface DecisionReceipt {
+  proposal: Proposal;
+  handedTo: Handover | null;
+  receipt: string;
+}

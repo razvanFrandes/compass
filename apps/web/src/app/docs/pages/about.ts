@@ -10,8 +10,8 @@ const SHIFTS: readonly (readonly string[])[] = [
 const REAL: readonly DocsCell[] = [
   { title: 'The backend', text: 'One Worker with six Durable Objects, 25 data tools, a cron, and the public MCP server. Every screen in this app talks to it.' },
   { title: 'Kassandra', text: 'Both modes, streaming over a WebSocket, with steps, evidence and the real SQL. Charts, tables and KPIs in answers come from tool rows.' },
-  { title: 'The morning brief', text: 'Eight SQL detectors run at 05:00 UTC against the database. The Inbox reads the result live.' },
-  { title: 'Workflows', text: 'Runs, proposals, approvals, undo and an audit log. A run really waits for a person, across deploys.' },
+  { title: 'The morning brief', text: 'Eight SQL detectors run at 05:00 UTC against the database. The Inbox reads the result live, with the numbers around it (Pulse, the next 14 nights, pickup, revenue on the books, data health) computed in SQL for the hotels in scope.' },
+  { title: 'Workflows', text: 'Runs, proposals, decisions (“Send to revenue manager” or “Dismiss”), undo and an audit log. A run really waits for a person, across deploys.' },
   { title: 'The agent builder', text: 'End to end: describe a workflow, watch the chain fill in, edit a node by hand, send a test. The test sends a real email; delivery to an outside address is confirmed.' },
   { title: 'Boards', text: 'Saved on the server. “Add to board” and “Describe a view” store widgets with their rows and evidence.' },
   { title: 'Voice', text: 'Real-time transcription through Soniox with temporary keys, with a browser fallback.' },
@@ -20,8 +20,8 @@ const REAL: readonly DocsCell[] = [
 
 const MOCKED: readonly DocsCell[] = [
   { title: 'All data is fictional', text: 'The hotels, 1.2 million reservations, accounts, reviews and the seven planted stories come from a generator in a repository of its own, `compass-datagen`. The business date is fixed at 20 Nov 2026.' },
-  { title: 'Nothing is written to a hotel system', text: 'There is no PMS, RMS or POS integration. An “applied” action is a logged task plus an audit entry.' },
-  { title: 'There is no login', text: 'An approval is recorded under a role name, not a person. The flow is real; the control is not.' },
+  { title: 'Nothing is written to a hotel system', text: 'There is no PMS, RMS or POS integration. A decision sent to the revenue manager is a logged task plus an audit entry; no rate changes and no email is sent. The people it names (the demo team) are fictional.' },
+  { title: 'There is no login', text: 'A decision is recorded as made by “Compass user (web)”, not by a person. The flow is real; the control is not.' },
   { title: 'Two boards are computed in the browser', text: 'Portfolio and Dubai Business Bay are drawn from a snapshot extracted from the same database. Saved boards come from the server.' },
   { title: 'A board widget is a copy', text: 'It shows what the answer showed, with its evidence. It does not re-run its query against today’s data.' },
   { title: 'The review corpus is templated', text: '203,791 reviews contain only 51 distinct sentences, so this data does not stress the search.' },
@@ -59,7 +59,7 @@ const HOW: readonly DocsCell[] = [
       <docs-head
         eyebrow="Docs · About this build"
         title="A hotel analytics app that tells you first"
-        lede="Compass is a concept by Razvan Frandes, built in November 2026 for Juyo’s design lead assignment. It is not a Juyo product. You open it and it tells you what changed overnight, ranked by money. You can ask Kassandra why, and every answer shows where its numbers came from. You can then describe a workflow in one sentence."
+        lede="Compass is a concept by Razvan Frandes, built in November 2026 for Juyo’s design lead assignment. It is not a Juyo product. You open it and it tells you what changed overnight and how much money is at stake. You can ask Kassandra why, and every answer shows where its numbers came from. You can then describe a workflow in one sentence."
       />
 
       <docs-section heading="The idea" anchor="idea" note="Juyo’s introduction describes three shifts. They became the product spec. Most time went into Act, because that is where a take-home can show an opinion of its own.">

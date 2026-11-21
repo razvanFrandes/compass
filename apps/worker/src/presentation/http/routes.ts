@@ -24,3 +24,12 @@ export const isDraftId = (id: string): boolean => /^[A-Za-z0-9_-]{16,64}$/.test(
 
 /** A workflow id as the server makes them (`wf-1a2b3c4d`, `tpl-pace-guard`): 1–64 letters, digits, - or _. */
 export const isWorkflowId = (id: string): boolean => /^[A-Za-z0-9_-]{1,64}$/.test(id);
+
+/**
+ * `?hotels=LIS,AMS` as the scope a question would carry (`{ hotels }`), or undefined for the whole group. Only the
+ * form is read here; `resolveScope` checks the codes against the group's hotels.
+ */
+export function hotelsParam(value: string | null): { hotels: string[] } | undefined {
+  const codes = [...new Set((value ?? '').split(',').map((code) => code.trim().toUpperCase()).filter(Boolean))];
+  return codes.length ? { hotels: codes } : undefined;
+}

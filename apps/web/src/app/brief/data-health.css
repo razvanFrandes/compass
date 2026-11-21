@@ -1,0 +1,18 @@
+/* Data health (the brief). No style encapsulation, like brief.css, which holds the density tokens these rules use. Loaded with app-data-health. */
+/* ── Data health: a small table, so it may have rules ── */
+.health-sum { display: flex; align-items: center; gap: var(--space-inline); font-size: var(--text-body); color: var(--muted-foreground); }
+.health-sum strong { font-weight: 600; color: var(--foreground); font-variant-numeric: tabular-nums; }
+.health-dot { flex-shrink: 0; width: 0.5rem; height: 0.5rem; border-radius: 9999px; background: var(--positive); }
+.health-sum[data-ok='no'] .health-dot { background: var(--negative); }
+.health-stale { display: flex; flex-direction: column; align-items: flex-start; gap: 0.375rem; margin-top: var(--space-stack); padding: var(--space-stack) var(--space-card-gap); border-radius: 8px; background: color-mix(in srgb, var(--negative) 9%, var(--card)); }
+.health-stale-title { font-size: var(--text-body); font-weight: 600; }
+.health-stale-body { font-size: 0.8125rem; line-height: 1.25rem; color: var(--muted-foreground); }
+.health-table { width: 100%; margin-top: var(--space-stack); border-collapse: collapse; font-size: 0.8125rem; }
+.health-table tr + tr > * { border-top: 1px solid var(--card-border, var(--border)); }
+.health-table :is(th, td) { height: var(--row-h); padding: 0; text-align: left; font-weight: 400; vertical-align: middle; }
+.health-table th { width: 40%; padding-right: var(--space-inline); color: var(--foreground); }
+.health-marks { line-height: 0; }
+.health-marks i { display: inline-block; width: 3px; height: 0.75rem; margin-right: 2px; border-radius: 1px; background: var(--series-muted); opacity: 0.55; }
+.health-marks i.health-mark--stale { height: 1rem; background: var(--negative); opacity: 1; vertical-align: -2px; }
+.health-table td.health-count, .health-table td.health-time { padding-left: var(--space-inline); text-align: right; white-space: nowrap; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.health-table td.health-count--bad { font-weight: 600; color: var(--negative); }

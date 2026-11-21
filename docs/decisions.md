@@ -657,3 +657,86 @@ Seven branches merged into `r3/int2` in this order: visual-answers, chart-switch
   - The preview of a result with a local-currency column reads "local currency 220k" for the few seconds it shows.
   - On a wide Thread the Docs button floats over the bottom right corner of Behind the numbers; the panel scrolls under it.
   - zod's probe for `eval` is reported by the CSP on every load (it is caught, and was there before this round).
+
+## The morning brief, redesigned (21 Nov 2026)
+
+The owner's verdict on the Round 3 brief: far too minimal, "ranked by money" means nothing to a hotelier, and the KPI rail showed the whole portfolio under an "Asia · 3 hotels" scope. Then, on the first redesign: it must feel spacious like Google Analytics 4 while keeping the data. **This section replaces "Inbox becomes a morning brief" in Round 3 and the Inbox notes in "Real data and a quieter UI".** The layout rules come from `docs/research/layout/layout-and-density.md`.
+
+- **Airy means less chrome, not less data.** Flat cards on one hairline, no shadows, no hover lift, rules only inside tables, colour only where it means something (this period, a decision, a fall or a rise next to its arrow). Whitespace separates groups: a section from the next by 32 px, a card from the next by 16, a card's content from its edge by 24, a title from its content by 12.
+- **Above the fold, three things only.**
+  1. The headline: one sentence with what needs the reader and the money in it ("8 things need you today: €1.62M at risk, €43k upside."), a line naming the largest finding, and chips for what is at risk, the upside, the decisions that wait and the feeds that are behind. The two money chips filter the findings.
+  2. Pulse: four tiles in one card, for the scope.
+  3. The top three findings, each with one chart. The first card is cut by the fold, so the page reads as continuing.
+- **Below, six labelled sections,** 2/3 + 1/3 per row, each with "View all" where something is capped: Decisions waiting | Agents overnight, Next 14 nights | Pickup (last 7 days), Where the money is | Data health. Lists show five rows. Detail is one step away (a thread, Agent Studio, the portfolio board): never more than two levels.
+- **The headline is assembled, not generated.** It is a template over sums of the open findings' own EUR impacts; no model writes it or computes anything in it. The model's part of the brief stays what it was: one sentence per finding, labelled AI. "Ranked by money" became "largest in money first; a broken data feed leads".
+- **Pulse follows the scope** (the bug). Every number comes from `GET /api/brief/overview?hotels=`, computed in SQL for the hotels in scope.
+  - A tile is three rows: label and period, one value (three figures at most, no decimals it does not need) with an 80 × 24 sparkline, and at most two comparisons that each name their base ("▲ +4.2% vs STLY", "▼ −20.6% vs budget").
+  - One period at a time, four tiles at most: on the books for the next 30 nights (Occupancy, ADR, RevPAR, Room revenue), or the last closed month (Total revenue, TRevPAR, GOP, GOP margin), which is read against a year earlier and against budget. Pace (room nights on the books against STLY) is a sentence under the row instead of a fifth tile.
+  - A tile is a button: "Ask why" sends its question to Kassandra at once, under the scope.
+  - On a phone: 2 × 2, a 24 px value, one comparison, no sparkline.
+- **Each finding has a chart of its own kind from the catalogue,** chosen on the server per kind of finding (`BriefChart`: the widget contract without `sourceCallId`) with rows from SQL: a booking curve against the same point last year (pace), a bullet per night against the comp set's median (rate), bars per month (account), a funnel (website), hours needed against hours worked (staffing), a calendar heatmap (rooms out of order), a budget-to-actual bridge (GOP), covers per day (a stale POS feed). A new detector gets a chart by adding one entry on the server; the page needs no change. A worker test holds every chart to the fit rules of `show_widget`.
+  - A card says what happened, the money in it ("▼ €38k at risk", "▲ €43k upside", "Not priced"), the model's sentence, the chart, how the money was priced and what was read, and four actions: Explore (opens the thread and asks), Watch this, Snooze, Not useful.
+  - **"Watch this" opens the agent builder with a description for that finding in the field** (`/workflows/new?describe=`). It is never sent: the person edits it and adds the address.
+  - On a phone the first card keeps its chart; the rest are rows, with the chart one tap away in Explore.
+- **`<juyo-widget-chart>` gained `[height]`** so a host with a rhythm of its own can set the body: 180 px in an overview row, 320 px for the one chart that is a section's subject. It holds in every loading state; KPI tiles ignore it. Nothing else in the catalogue changed, and `/catalog` is as it was.
+- **Next 14 nights is a table, not a chart:** a column per night, a row for the scope and one per hotel, occupancy as one hue in five steps, ✦ for a city event, an orange dot for a rate to check. The scope's row carries the number; a number never sits on the two strongest steps, so it reads in all three themes. A night of the scope and a flagged night of a hotel are buttons that ask Kassandra. A long scope opens with the eight hotels that have something to look at. Events and flags are also said in words under the table.
+  - "A rate to check" is deterministic: under 0.85× the comp set's median on a busy night (the brief detector's rule), or over 1.25× on a night with under 85% of last year's rooms. It is not a proposal; proposals live in "Decisions waiting".
+- **Agents overnight follows the scope too.** A group-wide agent reports on every hotel: under a narrower scope its proposals for other hotels do not count, and a run summary that names no hotel in scope is replaced by "Nothing for these hotels".
+- **Every part has three honest states.** A skeleton at its final size (charts use the catalogue's own skeleton for their kind), an error with Retry for that part only (the server names the parts it could not read in `failed`), and a sentence when there is nothing ("No findings for Arbor Paris Opera this morning…", "Nothing waits for your approval.").
+- **Spacing is density tokens.** `brief.css` uses `--space-page-x`, `--space-section`, `--space-card-gap`, `--space-card-pad`, `--space-stack`, `--space-inline` and `--row-h` from `apps/web/src/density.css` and declares none of its own (it carried a zero-specificity copy until the density layer was merged). Chart heights and the sparkline size are constants, not density.
+- **Checks:** unit tests for the data shaping, the scope filtering, the API client and the parts; worker tests against the Halcyon database for every part of the overview; axe (WCAG 2.2 AA plus best practice) with no violations in Light, Dark and the concept theme, at 1440 and 390 px, for the whole group, a region and one hotel, with every "View all" open; no horizontal overflow at 390 px.
+- **Limits and open points:**
+  - The content column is capped at 1280 px, as the research asks for a reading page.
+  - The decision card is the shared `ProposalCard`; its own eyebrow repeats the section's title.
+  - "Brief written at 19:01" is the demo's truth (the brief was last regenerated then); in production it is the 05:00 UTC cron.
+  - The 20 Nov snapshot in `halcyon-data.ts` still backs the findings when `GET /api/brief` fails; the numbers around them have no snapshot and show their error state.
+  - `brief-charts.ts` (the hand-drawn SVG charts of Round 3) is deleted: nothing used it any more.
+
+## The decision card says what it does (21 Nov 2026)
+
+The owner's reading of the card ("Waiting for your decision · Lower BAR … to 1.2x comp median", a struck-through "BAR 145–220 EUR, 1.10x–1.89x comp median", "LIS", ISO dates, "Change the rate · high risk", Approve / Decline): it looks as if Compass changes the hotel's rates. It does not. Compass is read-only: the button hands the action to the revenue manager as a task and writes the audit log. **This replaces what earlier sections say about Approve / Deny on the proposal card.**
+
+- **One card, everywhere.** `app-proposal-card` is the card in the brief, in Agent Studio, on an agent's page and on a board, so the rewrite reaches all four with no change to those pages.
+- **The card is written for the person who decides, not for a rate desk.**
+  - "Waiting for your decision · Arbor Lisbon Chiado": the hotel by name.
+  - "Suggestion: lower rates on Lisbon's most overpriced nights": a suggestion, not a change under way.
+  - One or two sentences of why, then what it could be worth: "… This could win back about €38k."
+  - "This goes to your revenue manager as a task. Compass never changes your rates." For a channel: "… never closes or opens a channel."
+  - Buttons: **Send to revenue manager** and **Dismiss**. No "Approve".
+  - A small label for the kind and who it needs: "Price change · needs a person", in place of "high risk".
+  - After: "Sent to the revenue manager" with "Logged · 3 min ago" and Undo; or "Dismissed · Nothing was sent".
+- **Before → after moved one step down,** behind "See the reasoning": Today / Suggested as two labelled values (no strikethrough), the nights it covers with human dates ("Fri 20 Nov – Sun 3 Jan"), the agent's full reasoning, and which agent suggested it.
+- **The agent's wording is turned into plain words by rule, on the client** (`proposal-text.ts`), so the decision already waiting reads right without a new run: hotel codes become places ("LIS" → "Lisbon"; "DXB1" → "Dubai Marina", where a city has two hotels), ISO dates become days, "BAR" becomes "rates" or "the rate", "comp median" becomes "the competition", "1.10x–1.89x" becomes "up to 1.9×", "145–220 EUR" becomes "€145–220", a hyphen before a figure becomes a minus. No number is computed: figures are re-worded and rounded to one decimal, and the exact ones stay in the thread and in Agent Studio's run log.
+  - The two sentences the card leads with are the agent's first and, for a price change, the one about the rate against the competition.
+  - "Win back" is used when the money was there before or a lower price would bring it back; otherwise "bring in".
+- **"The competition" on this card, "comp set" elsewhere.** The glossary keeps "comp set" for the revenue manager's screens; the decision card follows the owner's wording for the person who signs off. The glossary says so.
+- **The toasts follow:** "Sent to the revenue manager" (with Undo) and "Dismissed · Nothing was sent."
+- **The brief's wording follows the copy glossary** that landed on main meanwhile: "last year", never "STLY"; "Try again" for a retry; "comp set", never "the market".
+- **Not changed, and worth a follow-up:** Agent Studio's autonomy levels still say an agent "acts once you approve", and the server's own words (`ACTION_LABELS`, the agent prompts, `approved` in the API) are as they were. The agents still write "BAR" and "comp median"; the card translates. Asking the agents to write the plain version themselves is a prompt change for a later pass.
+
+## A decision is handed to a named person (21 Nov 2026)
+
+The owner's request: pressing "Send to revenue manager" must say clearly what happened and to whom, with the message itself one tap away and Undo beside it; the same for Dismiss.
+
+- **A roster for the demo** (`DEMO_TEAM` in `@compass/contracts`): one revenue manager and one general manager per hotel, invented, with addresses on `halcyon.example.com`. A worker test holds it to the hotels in the database. Rates, channels and accounts go to the revenue manager; a task for the house or a note to the team goes to the general manager, and the card's button says which ("Send to general manager").
+- **The server records the decision when the person makes it,** not when the agent wakes (`application/workflows/decisions.ts`). The answer is `{ proposal, handedTo, receipt }`, and the audit entry carries the recipient. Before, the handover waited for a model turn: the toast could only promise, and Undo right after sending was refused because nothing was applied yet. The agent still gets the decision as a signal; it is told the task is already handed over and never writes over the record (a test covers a dismissal that is taken back before the agent wakes).
+- **Dismiss is logged too** (`outcome: "dismissed"`), and can be taken back: the suggestion waits for a decision again. A sent one that is taken back gives the same person a task to reverse it.
+- **The toast:** "Sent to Ana Pop, Revenue manager · Arbor Lisbon Chiado" / "Task created for the rate change · logged in the audit trail", with **View message** and **Undo**. A dismissal: "Dismissed · Arbor Lisbon Chiado" / "Nothing was sent · logged in the audit trail", with Undo. Its text takes the toast's full width and the buttons a row of their own. It uses the app's toaster, which already sits where no composer is: top on a phone, bottom right on a desktop (a browser check finds no composer under it).
+- **"View message"** opens a small modal (a sheet from the bottom on a phone) with the message as it was handed over: subject, the recipient with role, hotel and address, when, the task's reference, the suggestion, today → suggested, the nights it covers, the agent's reasoning with its numbers in plain words, and a link to the agent's run as the evidence. A sent card in Agent Studio has the same link next to Undo.
+- **It says what the demo is.** The sheet ends: "Demo: Compass hands this to your RMS and revenue manager as a task. Compass never changes your rates. No email is sent, and the people in the demo team are fictional."
+- **Agent Studio, minimal:** the shared card gained "View message" and Undo for a dismissal; the audit log names the recipient ("Sent to Ana Pop, Revenue manager") and knows "Dismissed". Nothing else on those pages changed.
+- **The person deciding is "Compass user (web)"** in the audit log (it used to read "Revenue manager (web)", which made a decision look sent by its own recipient). There is still no sign-in.
+- **Until the worker is deployed** the live server answers with the proposal alone; the app then names the recipient from the same roster, shows no task reference, and Undo of a dismissal is refused with the server's message.
+
+## The brief joins the Round 3 integration (21 Nov 2026)
+
+`r3/brief` merged into `r3/int2` after the seven branches above. What the merge decided:
+
+- **The brief's layout and the new decision card win** over the Inbox and the card the other branches had only touched (a padding class, the gallery, the docked ask bar).
+- **One set of density tokens.** `brief.css` no longer declares the spacing tokens; the brief follows the density switch like every other page. The decision card and the handover sheet already read the same names.
+- **"Try asking" stays in the Inbox**, under the ask bar in the hero: three questions, and "All 12 examples" opens the gallery in place. A click sends at once. On phones the ask bar is docked and the gallery shows in the empty Thread, as before.
+- **"View as" on the two section charts** (Pickup, Where the money is), remembered per view (`brief:pickup:day`, `brief:money:books:treemap`…). A finding's chart has none: three cards share a row, and its kind is the server's choice for that kind of finding. `[height]` and "View as" work together: the host's height holds for every kind chosen (a table scrolls inside it), except KPI tiles, which size themselves.
+- **The ask bar on phones docks at the bottom edge** (the tab bar is gone), and the page's bottom padding is shorter by the tab bar's height.
+- **`<app-handover-sheet>` sits in the shell next to the Docs button and the toaster;** the logo is `<app-compass-logo>`.
+- **Agent Studio's table keeps density's layout;** its audit log names the recipient ("Sent to Ana Pop, Revenue manager") and knows "Dismissed".
+- **The docs pages say what is now true:** "Send to revenue manager" and "Dismiss", no rate changes, the toast with View message and Undo, a fictional demo team, a brief that follows the scope.

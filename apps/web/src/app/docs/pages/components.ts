@@ -154,7 +154,7 @@ const RUN_LABEL: Record<string, string> = { none: 'nothing found', finding: 'a f
           </article>
           <div inert><app-proposal-card [proposal]="proposal" /></div>
         </div>
-        <p class="text-muted-foreground mt-3 text-[13px]">The decision card is the real component, shown inert: on the Inbox, Approve and Deny act on a real proposal. The small “AI” tag marks the one sentence a model wrote.</p>
+        <p class="text-muted-foreground mt-3 text-[13px]">The decision card is the real component, shown inert: on the Inbox, “Send to revenue manager” and “Dismiss” act on a real proposal. Sending hands a task to a named person at the hotel and writes the audit log; no rate changes. A toast says who got it, with “View message” and “Undo”. The people in the demo team are fictional. The small “AI” tag marks the one sentence a model wrote.</p>
       </docs-section>
 
       <docs-section heading="Evidence panel and data table" anchor="evidence" note="Use the panel wherever an answer quotes a number. It leads with the figures the answer used, then the sources, the definitions, the period and the SQL. The table hides plumbing columns, shows hotels by name and formats each value from its column’s kind.">

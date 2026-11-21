@@ -27,7 +27,7 @@ const FACTS = [
       <docs-head
         eyebrow="Docs"
         title="How Compass is designed and built"
-        lede="Compass is a concept for Juyo: a hotel analytics app that tells you what changed overnight, lets you ask Kassandra why, and lets an agent act once you approve. These pages show the system from the inside: the architecture, the components, the design tokens and the decisions behind them. The examples on them are the app’s own components."
+        lede="Compass is a concept for Juyo: a hotel analytics app that tells you what changed overnight, lets you ask Kassandra why, and lets an agent suggest what to do, for you to send to the revenue manager or dismiss. These pages show the system from the inside: the architecture, the components, the design tokens and the decisions behind them. The examples on them are the app’s own components."
       />
       </div>
 

@@ -18,7 +18,7 @@ const GROUPS: readonly { id: string; heading: string; note: string; items: reado
     items: [
       {
         title: 'The home screen is a brief',
-        chose: 'Inbox → Thread → Board: findings ranked by money, a conversation that explains one, a board that keeps what matters.',
+        chose: 'Inbox → Thread → Board: a morning brief for the hotels in scope with the money at stake in its headline and the largest finding first, a conversation that explains one, a board that keeps what matters.',
         over: 'A dashboard with an assistant docked beside it, which is the version the earlier prototype built.',
         why: 'A chat panel beside a dashboard is “SaaS with AI added”. If the answer should come to you, the first screen has to be the answer.',
       },
@@ -42,9 +42,9 @@ const GROUPS: readonly { id: string; heading: string; note: string; items: reado
       },
       {
         title: 'Compass only reads',
-        chose: 'An approved action becomes an RMS task for the revenue manager and an audit entry.',
+        chose: '“Send to revenue manager” hands the suggestion to a named person as an RMS task and writes the audit log. The card says that Compass never changes your rates.',
         over: 'Writing rates or closing channels in a source system.',
-        why: 'Juyo states that Kassandra runs on an isolated analytics database. An approval is still real: it is logged, attributed and can be undone.',
+        why: 'Juyo states that Kassandra runs on an isolated analytics database. A decision is still real: it is logged, names who got it (a fictional demo team), shows the message as it was handed over and can be undone.',
       },
     ],
   },

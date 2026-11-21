@@ -9,7 +9,7 @@ type BudgetUsage = Record<string, { used: number; limit: number }>;
 const BUDGET_KINDS: readonly { key: string; label: string; what: string }[] = [
   { key: 'question', label: 'Questions', what: 'Kassandra questions and steers' },
   { key: 'workflow_run', label: 'Workflow runs', what: '“Run now” and builder tests' },
-  { key: 'decision', label: 'Decisions', what: 'Approve or deny a proposal' },
+  { key: 'decision', label: 'Decisions', what: 'Send a proposal to the revenue manager, or dismiss it' },
   { key: 'brief_refresh', label: 'Brief refreshes', what: 'Regenerate the morning brief' },
   { key: 'embedding', label: 'Embeddings', what: '`find_reviews` calls over MCP' },
   { key: 'voice', label: 'Voice dictations', what: 'Temporary speech-to-text keys' },
@@ -52,7 +52,7 @@ const EMAIL: readonly (readonly string[])[] = [
 ];
 
 const ACCEPTED: readonly DocsCell[] = [
-  { title: 'A visitor can change demo state', text: 'There is no login, so anyone can approve a proposal, edit a workflow or delete a board. Nothing outside Compass changes, and the audit log records each decision.' },
+  { title: 'A visitor can change demo state', text: 'There is no login, so anyone can send or dismiss a proposal, edit a workflow or delete a board. Nothing outside Compass changes, and the audit log records each decision.' },
   { title: 'A visitor can spend the day’s budget', text: 'Others then get a clear message until midnight UTC. The cost of a bad day is capped.' },
   { title: 'The hotel scope is not access control', text: 'It is a working mode, checked and enforced in code on every tool. Anyone may pick any scope: the data is the same fictional data for everyone.' },
   { title: 'Board widgets trust the client for their rows', text: 'A script could store invented rows. A stricter API would copy the widget from the conversation on the server.' },

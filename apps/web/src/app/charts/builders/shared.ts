@@ -18,6 +18,8 @@ export interface BuildInput {
   compact?: boolean;
   /** False under prefers-reduced-motion. */
   motion?: boolean;
+  /** The height of the body in px, when the host sets it (an overview card, a featured chart). Default: by kind. */
+  height?: number;
 }
 
 export interface Ctx {
@@ -169,7 +171,7 @@ export function context(input: BuildInput): Ctx {
     columns: input.columns ?? [],
     t: input.tokens ?? DARK_TOKENS,
     width,
-    height: bodyHeight(input.spec, compact, width),
+    height: input.height ?? bodyHeight(input.spec, compact, width),
     compact,
     motion: input.motion ?? true,
     narrow: width < NARROW,

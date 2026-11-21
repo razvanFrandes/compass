@@ -1,0 +1,37 @@
+/*
+  The decision card (app-proposal-card). No style encapsulation: it sits in the brief, in Agent Studio, on an agent's
+  page and on a board, and takes its surface from .decision-card (waiting: the one orange object on a page) or
+  .insight-card (decided), which the themes already style. Distances are the density tokens, with the comfortable
+  values as fallbacks where the brief's sheet is not loaded.
+*/
+.dcard { display: flex; flex-direction: column; height: 100%; min-width: 0; padding: var(--space-card-pad, 1.5rem); }
+.dcard-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.125rem var(--space-card-gap, 1rem); }
+.dcard-status { font-size: 0.8125rem; line-height: 1.25rem; color: var(--muted-foreground); }
+.dcard-state { font-weight: 600; color: var(--foreground); }
+.dcard-status--waiting .dcard-state { color: var(--decision); }
+.dcard-kind { font-size: 0.75rem; line-height: 1.25rem; color: var(--muted-foreground); white-space: nowrap; }
+.dcard-title { margin-top: var(--space-inline, 0.5rem); font-size: 1.0625rem; line-height: 1.5rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: pretty; }
+.dcard-summary { margin-top: var(--space-inline, 0.5rem); max-width: 68ch; font-size: 0.875rem; line-height: 1.375rem; text-wrap: pretty; }
+.dcard-promise { display: flex; align-items: flex-start; gap: var(--space-inline, 0.5rem); margin-top: var(--space-stack, 0.75rem); max-width: 68ch; font-size: 0.8125rem; line-height: 1.25rem; color: var(--muted-foreground); }
+.dcard-promise ng-icon { flex-shrink: 0; margin-top: 0.125rem; font-size: 1rem; }
+.dcard-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-inline, 0.5rem); margin-top: auto; padding-top: var(--space-card-gap, 1rem); }
+.dcard-done { font-size: 0.8125rem; line-height: 1.25rem; color: var(--muted-foreground); }
+.dcard-why { display: inline-flex; align-items: center; gap: 0.25rem; min-height: 2rem; margin-left: auto; border-radius: 4px; font-size: 0.8125rem; color: var(--muted-foreground); text-decoration: underline; text-underline-offset: 2px; }
+.dcard-why ng-icon { font-size: 0.875rem; transition: transform 110ms ease; }
+.dcard-why:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+@media (hover: hover) { .dcard-why:hover { color: var(--foreground); } }
+@media (pointer: coarse) { .dcard-why { min-height: 2.75rem; } }
+.dcard-reasoning { margin-top: var(--space-stack, 0.75rem); padding-top: var(--space-stack, 0.75rem); border-top: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); font-size: 0.8125rem; line-height: 1.25rem; }
+.dcard-reasoning[hidden] { display: none; }
+.dcard-reasoning dl { display: grid; gap: var(--space-stack, 0.75rem); }
+.dcard-reasoning dt { font-size: 0.75rem; line-height: 1rem; color: var(--muted-foreground); }
+.dcard-reasoning dd { margin: 0; max-width: 72ch; font-variant-numeric: tabular-nums; text-wrap: pretty; }
+/* Today → Suggested, side by side where there is room. */
+.dcard-plan { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 var(--space-card-gap, 1rem); }
+@container (min-width: 520px) { .dcard-plan { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: column; grid-template-rows: auto auto; } }
+.dcard-plan dd { font-weight: 500; }
+.dcard-plan dd + dt { margin-top: var(--space-inline, 0.5rem); }
+@container (min-width: 520px) { .dcard-plan dd + dt { margin-top: 0; } }
+.dcard-from { margin-top: var(--space-stack, 0.75rem); font-size: 0.75rem; color: var(--muted-foreground); }
+app-proposal-card { container-type: inline-size; }
+@media (prefers-reduced-motion: reduce) { .dcard-why ng-icon { transition: none; } }

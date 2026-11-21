@@ -1,423 +1,595 @@
-import { Component, computed, inject, signal } from '@angular/core';
-import { NgTemplateOutlet } from '@angular/common';
+import { Component, DestroyRef, ViewEncapsulation, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
+import type { BriefFeed } from '@compass/contracts';
+import type { WorkflowDetail } from './api';
+import { AgentsOvernight } from './brief/agents-overnight';
+import {
+  type FindingFilter,
+  agentRows,
+  agentsSummary,
+  eurShort,
+  headline,
+  hotelMentions,
+  matchesFilter,
+  moneyAtStake,
+  moneyMovers,
+  moneyOnTheBooks,
+  pickupByDay,
+  pickupByHotel,
+  placeholderSpec,
+  stakes,
+  watchPrompt,
+} from './brief/brief-model';
+import { BriefOverviewApi } from './brief/brief-overview-api';
+import { BriefSection } from './brief/brief-section';
+import { DataHealth } from './brief/data-health';
+import { CHART_H, FindingCard, type FindingView } from './brief/finding-card';
+import { NIGHTS_OPEN_WITH, NightsCalendar } from './brief/nights-calendar';
+import { PulseRail } from './brief/pulse-rail';
+import { WidgetChart } from './charts/widget-chart';
+import { BUSINESS_DAY } from './data';
+import * as icons from './icons';
 import { KassandraComposer } from './kassandra/kassandra-composer';
 import { KassandraTryAsking } from './kassandra/kassandra-try-asking';
-import { PickupBars, Spark } from './brief-charts';
-import { GROUP, NIGHTS, formatEur, utc } from './data';
-import { AMS_CONVERSION, BCN_OUT_OF_ORDER, DPS_KITCHEN, LIS_PACE, NYC_ACCOUNT, PULSE } from './halcyon-data';
-import { BriefRow, CompassStore, PORTFOLIO_BOARD, InboxItem, briefTitle, gopMonths, isoDay, shortHotel } from './store';
-import { Live } from './live';
+import { Live, ago } from './live';
 import { ProposalCard } from './proposal-card';
+import { plainText } from './proposal-text';
 import { ScopeSwitcher } from './scope/scope-switcher';
 import { ScopeService } from './scope/scope.service';
-import * as icons from './icons';
+import { BriefRow, CompassStore, PORTFOLIO_BOARD, shortHotel } from './store';
 
-function spark(values: number[], w = 120, h = 40) {
-  return values.map((v, i) => `${i ? 'L' : 'M'}${((i / (values.length - 1)) * w).toFixed(1)},${(h - 2 - v * (h - 4)).toFixed(1)}`).join('');
-}
-const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: 'UTC' }).format(utc(`${ym}-01`));
+const dayLabel = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+type Seg<T extends string> = readonly { key: T; label: string }[];
+/** How many findings sit above the fold, one row of cards. */
+const TOP_FINDINGS = 3;
 
 /*
-  Home: the morning brief on real data (compass_hotels, Halcyon Hospitality Group, Fri 20 Nov 2026).
-  Same order as the backend's brief: a broken data feed first, then by money. Quiet by design:
-  one data hue (blue), grey for last year, orange only for the one decision, no money in red or green.
-  Text is cut to a title and one fact per card; the reasoning lives in the thread ("Ask about this").
+  Home: the morning brief for the hotels in scope, laid out as docs/research/layout/layout-and-density.md asks:
+  airy by having little chrome, not by having little data.
+
+  Above the fold: what needs the reader and the money in it, the scope's numbers (Pulse, four tiles), and the top
+  three findings, each with one chart. Below, as labelled sections with "View all": the decisions that wait on a
+  person, what the agents did overnight, the next 14 nights, the last 7 days of pickup, where the revenue is, and
+  the data feeds behind it all. Detail is at most one step away (a thread, a board, Agent Studio).
+
+  Two reads feed it: the brief itself (GET /api/brief: SQL detectors, with the model's sentence per finding) and
+  the overview (GET /api/brief/overview?hotels=: every other number, computed in SQL for the scope). Each part
+  has a skeleton at its final size, says so when it could not load, and says so when it has nothing to show.
 */
 @Component({
   selector: 'app-inbox',
-  imports: [NgIcon, NgTemplateOutlet, KassandraComposer, KassandraTryAsking, PickupBars, Spark, ProposalCard, ScopeSwitcher, HlmButtonImports, HlmDropdownMenuImports],
+  imports: [NgIcon, KassandraComposer, KassandraTryAsking, ProposalCard, ScopeSwitcher, HlmButtonImports, PulseRail, FindingCard, BriefSection, NightsCalendar, DataHealth, AgentsOvernight, WidgetChart],
   providers: [provideIcons({ ...icons })],
+  encapsulation: ViewEncapsulation.None,
+  styleUrl: './brief/brief.css',
   host: { class: 'block' },
   template: `
-    <div class="mx-auto grid max-w-[1240px] gap-x-8 gap-y-6 px-[max(16px,env(safe-area-inset-left,0px))] pt-5 pb-36 sm:px-8 lg:grid-cols-12 lg:pt-8 lg:pb-16">
-      <!-- Hero brief -->
-      <section class="relative lg:col-span-8" aria-labelledby="brief-title">
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <p class="text-muted-foreground text-[12px] font-medium tracking-[0.06em] uppercase">Fri 20 Nov · Morning brief</p>
-          <!-- The hotel scope; on phones it sits in the top bar -->
-          <app-scope-switcher class="max-lg:hidden" />
-        </div>
-        <h1 id="brief-title" class="mt-3 max-w-[30ch] text-[26px]/[1.2] font-semibold tracking-[-0.015em] text-balance sm:text-[30px]/[1.2]">{{ headline() }}</h1>
-        <div class="text-muted-foreground mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[14px]">
-          <span>{{ open().length }} {{ open().length === 1 ? 'finding' : 'findings' }} {{ scope.count() === 1 ? 'at' : 'across' }} {{ scope.phrase() }}, ranked by money</span>
-          @if (decisionCount()) {
-            <button type="button" class="stake-chip stake-chip--decision" (click)="focusDecision()">● {{ decisionCount() }} {{ decisionCount() === 1 ? 'needs' : 'need' }} your decision</button>
-          }
-        </div>
-        <p class="text-muted-foreground mt-2 text-[12.5px]" role="status">
-          @switch (live.briefState()) {
-            @case ('live') {
-              Live brief · generated {{ live.briefMeta()?.generated }}@if (live.briefMeta()?.model) {<span> · summaries by AI</span>}
-              <button hlmBtn variant="ghost" size="sm" class="ml-1 h-7 px-2" title="Writes a new brief now (counts against today’s budget)" [disabled]="live.refreshing()" (click)="live.refreshBrief()">{{ live.refreshing() ? 'Refreshing…' : 'Refresh' }}</button>
+    <div class="brief-shell">
+      <div class="brief">
+        <!-- Above the fold: what needs the reader and the money in it, the scope's numbers, the top findings -->
+        <header class="brief-hero">
+          <div class="brief-hero-text">
+            <div class="brief-hero-meta">
+              <p class="brief-eyebrow">{{ today() }} · Morning brief</p>
+              <!-- The hotel scope; on phones it sits in the top bar -->
+              <app-scope-switcher class="max-lg:hidden" />
+            </div>
+            <h1 id="brief-title" class="brief-headline">{{ headline() }}</h1>
+            @if (leadLine(); as l) {
+              <p class="brief-lead">{{ l }}</p>
             }
-            @case ('loading') {
-              Reading this morning’s brief…
+            @if (st().findings || st().decisions) {
+              <div class="brief-chips" role="group" aria-label="What is at stake">
+                @if (st().atRisk) {
+                  <button type="button" class="brief-chip" data-tone="risk" [attr.aria-pressed]="filter() === 'risk'" (click)="toggleFilter('risk')">
+                    <span class="brief-chip-arrow" aria-hidden="true">▼</span>{{ eur(st().atRisk) }} at risk<span class="brief-chip-sub">{{ plural(st().atRiskHotels, 'hotel') }}</span>
+                  </button>
+                }
+                @if (st().upside) {
+                  <button type="button" class="brief-chip" data-tone="upside" [attr.aria-pressed]="filter() === 'upside'" (click)="toggleFilter('upside')">
+                    <span class="brief-chip-arrow" aria-hidden="true">▲</span>{{ eur(st().upside) }} upside<span class="brief-chip-sub">{{ plural(st().upsideHotels, 'hotel') }}</span>
+                  </button>
+                }
+                @if (st().decisions) {
+                  <button type="button" class="brief-chip" data-tone="decision" (click)="jump('brief-decisions', true)">
+                    <i class="brief-chip-dot" aria-hidden="true"></i>{{ st().decisions }} {{ st().decisions === 1 ? 'needs' : 'need' }} your decision
+                  </button>
+                }
+                @if (st().feeds) {
+                  <button type="button" class="brief-chip" data-tone="feed" (click)="jump('brief-health', true)"><i class="brief-chip-dot" aria-hidden="true"></i>{{ plural(st().feeds, 'data feed') }} behind</button>
+                }
+              </div>
             }
-            @default {
-              <span class="text-foreground">The live brief didn’t load{{ live.briefError() ? ' (' + live.briefError() + ')' : '' }}.</span> Showing the saved copy from Fri 20 Nov, 07:00.
-              <button hlmBtn variant="outline" size="sm" class="ml-1 h-7" (click)="live.briefApi.brief.reload()">Retry</button>
-            }
-          }
-        </p>
-        <div class="mt-6 hidden lg:block">
-          <kassandra-composer inputId="global-ask" [shortcut]="true" placeholder="Ask about any hotel, night or metric…" [(mode)]="live.mode" (submitted)="live.askNew($event)" />
-          <kassandra-try-asking class="mt-3" [compact]="true" (picked)="live.askNew($event)" />
-        </div>
-      </section>
-
-      <!-- Pulse: the portfolio's next 30 nights against the same time last year -->
-      <aside class="max-lg:order-3 lg:col-span-4 lg:row-span-2" aria-labelledby="pulse-title">
-        <div class="lg:sticky lg:top-6">
-          <h2 id="pulse-title" class="text-muted-foreground mb-2 text-[12px] font-medium tracking-[0.06em] uppercase">Portfolio · next 30 nights</h2>
-          <ul class="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-2">
-            @for (m of pulse; track m.key) {
-              <li>
-                <button type="button" class="clickable-card grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 p-3 text-left sm:flex sm:flex-col sm:items-stretch sm:gap-1 sm:p-3.5" (click)="live.askAbout('What drove the portfolio’s ' + m.label.toLowerCase() + ' for the next 30 nights?')">
-                  <span class="text-muted-foreground col-span-2 text-[12px]">{{ m.label }}</span>
-                  <span class="text-[20px]/tight font-semibold tracking-[-0.02em] tabular-nums sm:text-[24px]/tight">{{ m.value }}</span>
-                  <svg viewBox="0 0 120 40" preserveAspectRatio="none" class="row-span-2 h-8 w-14 sm:order-last sm:mt-1 sm:h-10 sm:w-full" aria-hidden="true">
-                    <path [attr.d]="m.ly" fill="none" class="stroke-(--series-muted)" stroke-width="1.25" stroke-dasharray="3 3" vector-effect="non-scaling-stroke" />
-                    <path [attr.d]="m.ty" fill="none" class="stroke-(--series)" stroke-width="1.75" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
-                  </svg>
-                  <span class="text-muted-foreground text-[12px] tabular-nums">{{ m.arrow }} {{ m.deltaText }}</span>
-                  <span class="text-muted-foreground col-span-2 flex items-center gap-1 text-[12px] group-hover:text-foreground"><span class="sr-only">versus last year.</span>Ask why <span aria-hidden="true">→</span></span>
-                </button>
-              </li>
-            }
-          </ul>
-          <p class="text-muted-foreground mt-2.5 text-[12px]">On the books vs last year · <button type="button" class="hover:text-foreground underline underline-offset-2" (click)="store.openBoard(portfolioBoard)">Open the portfolio →</button></p>
-        </div>
-      </aside>
-
-      <!-- The brief -->
-      <section class="grid min-w-0 gap-4 max-lg:order-2 sm:grid-cols-2 lg:col-span-8" aria-label="Morning brief">
-        @if (feed(); as f) {
-          <div class="feed-banner sm:col-span-2" role="status">
-            <i class="feed-dot" aria-hidden="true"></i>
-            <p class="min-w-0 flex-1 text-[14px]">
-              @if (f.item.summary) {
-                <span>{{ f.item.summary }}</span> <span class="ai-tag">AI</span>
-              } @else {
-                <span class="font-medium">{{ f.item.title }}.</span>
+          </div>
+          <div class="brief-hero-ask">
+            <div class="brief-ask">
+              <kassandra-composer inputId="global-ask" [shortcut]="true" placeholder="Ask about any hotel, night or number…" [(mode)]="live.mode" (submitted)="live.askNew($event)" />
+              <!-- "Try asking": three example questions, and the whole gallery one click away, opened in place -->
+              <kassandra-try-asking class="brief-try" [compact]="true" (picked)="live.askNew($event)" />
+            </div>
+            <p class="brief-status" role="status">
+              @switch (live.briefState()) {
+                @case ('live') {
+                  <span>Brief written at {{ live.briefMeta()?.generated }}@if (live.briefMeta()?.model) {<span>. Numbers from SQL; the sentence on each finding by AI.</span>}</span>
+                  <button type="button" class="brief-link brief-link--quiet" title="Writes a new brief now (counts against today’s budget)" [disabled]="live.refreshing()" (click)="live.refreshBrief()">{{ live.refreshing() ? 'Refreshing…' : 'Refresh' }}</button>
+                }
+                @case ('loading') {
+                  <span>Reading this morning’s brief…</span>
+                }
+                @default {
+                  <span><span class="text-foreground">The live brief didn’t load{{ live.briefError() ? ' (' + live.briefError() + ')' : '' }}.</span> These are the findings saved on {{ today() }}, 07:00.</span>
+                  <button type="button" class="brief-link" (click)="live.briefApi.brief.reload()">Try again</button>
+                }
               }
             </p>
-            <button hlmBtn variant="ghost" size="sm" (click)="explore(f.item)">Explore</button>
           </div>
-        }
+        </header>
 
-        @if (lead(); as c) {
-          <article class="insight-card relative grid gap-5 p-5 sm:col-span-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-            <div class="flex min-w-0 flex-col">
-              <div class="flex items-start justify-between gap-3">
-                <h3 class="text-[17px]/[1.35] font-semibold tracking-[-0.01em]">
-                  <button type="button" class="text-left after:absolute after:inset-0 after:rounded-[inherit] after:content-['']" (click)="explore(c.item)">{{ c.item.title }}</button>
-                </h3>
-                <span class="money-chip shrink-0">{{ c.item.impact }}</span>
-              </div>
-              <p class="text-muted-foreground mt-2 text-[14px]">{{ c.item.summary ?? c.fact }}@if (c.item.summary) {<span class="ai-tag ml-1.5">AI</span>}</p>
-              <div class="relative z-10 mt-auto flex items-center gap-2 pt-4">
-                <button hlmBtn variant="secondary" size="sm" (click)="explore(c.item)">Explore</button>
-                <ng-container *ngTemplateOutlet="more; context: { $implicit: c.item }" />
-              </div>
-            </div>
-            <app-pickup-bars class="self-end" [bars]="c.bars" [highlight]="[]" [startLabel]="c.start" [endLabel]="c.end" [caption]="c.caption" [height]="112" />
-          </article>
-        }
+        <app-pulse-rail [pulse]="overview()?.pulse ?? null" [state]="api.part('pulse')" [error]="api.error()" [scopeLabel]="scope.label()" (ask)="live.askAbout($event)" (retry)="api.retry()" />
 
-        <!-- Decisions: proposals from the workflows, waiting on a person (WorkflowsApi, polled) -->
-        @for (p of live.pendingList(); track p.id; let first = $first) {
-          <app-proposal-card [id]="first ? 'decision-card' : null" tabindex="-1" class="outline-none" [proposal]="p" />
-        }
-
-        @if (third(); as c) {
-          <article class="insight-card relative flex flex-col p-5" [class]="live.pendingList().length ? '' : 'sm:col-span-2'">
-            <div class="flex items-start justify-between gap-3">
-              <h3 class="text-[17px]/[1.35] font-semibold tracking-[-0.01em]">
-                <button type="button" class="text-left after:absolute after:inset-0 after:rounded-[inherit] after:content-['']" (click)="explore(c.item)">{{ c.item.title }}</button>
-              </h3>
-              <span class="money-chip shrink-0">{{ c.item.impact }}</span>
-            </div>
-            @if (c.line.length) {
-              <app-spark class="mt-6 block h-24" [values]="c.line" [compare]="c.compare" />
-              <div class="text-muted-foreground mt-1.5 flex justify-between text-[11.5px]"><span>{{ c.start }}</span><span>{{ c.caption }}</span><span>{{ c.end }}</span></div>
-            } @else {
-              <app-pickup-bars class="mt-7" [bars]="c.bars" [highlight]="c.highlight" [bandLabel]="c.band" [startLabel]="c.start" [endLabel]="c.end" [caption]="c.caption" [height]="96" />
-            }
-            <p class="text-muted-foreground mt-4 text-[13.5px]">{{ c.item.summary ?? c.fact }}@if (c.item.summary) {<span class="ai-tag ml-1.5">AI</span>}</p>
-            <div class="relative z-10 mt-auto flex items-center gap-2 pt-4">
-              <button hlmBtn variant="secondary" size="sm" (click)="explore(c.item)">Explore</button>
-              <ng-container *ngTemplateOutlet="more; context: { $implicit: c.item }" />
-            </div>
-          </article>
-        }
-
-        <!-- The rest of the brief: compact tiles, one line and a trend each -->
-        @if (rest().length) {
-          <h2 class="text-muted-foreground mt-2 text-[12px] font-medium tracking-[0.06em] uppercase sm:col-span-2">Also in today’s brief</h2>
-          <ul class="grid gap-3 sm:col-span-2 sm:grid-cols-2">
-            @for (t of rest(); track t.item.id) {
-              <li class="min-w-0">
-                <button type="button" class="clickable-card brief-tile h-full w-full text-left" (click)="explore(t.item)">
-                  <span class="flex items-center justify-between gap-2">
-                    <span class="text-muted-foreground truncate text-[12px]">{{ t.hotel }}</span>
-                    <span class="text-[12.5px] font-semibold tabular-nums">{{ t.item.impact }}</span>
-                  </span>
-                  <span class="text-[14px]/snug font-medium">{{ t.label }}</span>
-                  @if (t.values.length) {
-                    <app-spark class="mt-auto h-8 pt-1" [values]="t.values" [compare]="t.compare" />
-                  }
-                </button>
-              </li>
-            }
-          </ul>
-        }
-
-        @if (live.briefState() === 'loading') {
-          <div class="sm:col-span-2 grid gap-4 sm:grid-cols-2" aria-hidden="true">
-            <div class="skeleton h-[220px] rounded-[14px] sm:col-span-2"></div>
-            <div class="skeleton h-[200px] rounded-[14px]"></div>
-            <div class="skeleton h-[200px] rounded-[14px]"></div>
-          </div>
-        }
-        @if (live.briefState() !== 'loading' && !lead() && !live.pendingList().length && !third() && !rest().length && !feed()) {
-          <div class="insight-card text-muted-foreground flex items-center gap-2 p-6 text-[14px] sm:col-span-2"><ng-icon name="phosphorCheckLight" />You’re up to date. New findings land here every morning.</div>
-        }
-
-        <!-- Resolved -->
-        @if (store.earlier().length) {
-          <div class="border-border rounded-[12px] border sm:col-span-2">
-            <button type="button" class="text-muted-foreground hover:text-foreground flex w-full items-center gap-2 px-4 py-3 text-left text-[13.5px]" [attr.aria-expanded]="showResolved()" (click)="showResolved.set(!showResolved())">
-              <ng-icon name="phosphorCheckLight" />{{ store.earlier().length }} resolved today
-              <span class="ml-auto inline-flex items-center gap-1">{{ showResolved() ? 'Hide' : 'Show' }}<ng-icon name="phosphorCaretDownLight" class="transition-transform" [class.rotate-180]="showResolved()" /></span>
+        <app-brief-section id="brief-findings" tabindex="-1" class="outline-none" heading="Findings" [count]="open().length || null" [hint]="findingsHint()" [bare]="true">
+          @if (filter() !== 'all') {
+            <button sectionActions type="button" class="brief-link brief-link--quiet" (click)="filter.set('all')">Show all {{ open().length }}</button>
+          } @else if (more() > 0 || showAllFindings()) {
+            <button sectionActions type="button" class="brief-link brief-link--quiet" [attr.aria-expanded]="showAllFindings()" (click)="showAllFindings.set(!showAllFindings())">
+              {{ showAllFindings() ? 'Show the top ' + topCount : 'View all ' + findings().length }}
             </button>
-            @if (showResolved()) {
-              <ul class="border-border divide-border gen-in divide-y border-t">
-                @for (r of store.earlier(); track r.id) {
-                  <li class="flex items-start gap-3 px-4 py-3">
-                    <span class="min-w-0 flex-1">
-                      <span class="block text-[13.5px]">{{ r.title }}</span>
-                      <span class="text-muted-foreground block text-[12.5px]">{{ r.resolution }}</span>
-                    </span>
-                    <button hlmBtn variant="ghost" size="sm" (click)="undo(r)">Undo</button>
-                  </li>
+          }
+
+          @if (api.state() === 'error' && findings().length) {
+            <div class="brief-notice" role="alert">
+              <p>The charts and the numbers around the brief didn’t load{{ api.error() ? ' (' + api.error() + ')' : '' }}.</p>
+              <button hlmBtn variant="outline" size="sm" (click)="api.retry()">Try again</button>
+            </div>
+          }
+
+          <div class="brief-cards">
+            @for (f of shown(); track f.id; let i = $index) {
+              <app-finding-card
+                [finding]="f"
+                [chart]="chartOf(f.id)"
+                [chartState]="chartState(f.id)"
+                [showChart]="!phone() || i === 0"
+                (explore)="explore(f.id)"
+                (watch)="watch(f.id)"
+                (snooze)="store.snoozeItem(f.id)"
+                (dismiss)="store.dismissItem(f.id)"
+                (retry)="api.retry()"
+              />
+            }
+            @if (live.briefState() === 'loading') {
+              <div class="skeleton brief-card-skel" role="status"><span class="sr-only">Loading the findings</span></div>
+              <div class="skeleton brief-card-skel" aria-hidden="true"></div>
+              <div class="skeleton brief-card-skel" aria-hidden="true"></div>
+            } @else if (!findings().length) {
+              <div class="brief-card brief-empty">
+                <ng-icon name="phosphorCheckCircleLight" aria-hidden="true" />
+                @if (open().length) {
+                  <p>No finding on that side of the money. <button type="button" class="brief-link" (click)="filter.set('all')">Show all {{ open().length }}</button></p>
+                } @else {
+                  <p>No findings for {{ scope.phrase() }} this morning. The detectors run again with tomorrow’s brief, at 07:00.</p>
                 }
-              </ul>
+              </div>
             }
           </div>
-        }
-      </section>
+
+          @if (more() > 0 && !showAllFindings()) {
+            <button type="button" class="brief-more" (click)="showAllFindings.set(true)">
+              View all {{ findings().length }} findings<span class="brief-more-sub">{{ more() }} more, smaller in money</span>
+            </button>
+          }
+
+          @if (store.earlier().length) {
+            <div class="brief-resolved">
+              <button type="button" class="brief-resolved-toggle" [attr.aria-expanded]="showResolved()" (click)="showResolved.set(!showResolved())">
+                <ng-icon name="phosphorCheckLight" aria-hidden="true" />{{ store.earlier().length }} set aside today
+                <span class="ml-auto inline-flex items-center gap-1">{{ showResolved() ? 'Hide' : 'Show' }}<ng-icon name="phosphorCaretDownLight" class="transition-transform" [class.rotate-180]="showResolved()" aria-hidden="true" /></span>
+              </button>
+              @if (showResolved()) {
+                <ul class="brief-resolved-list gen-in">
+                  @for (r of store.earlier(); track r.id) {
+                    <li>
+                      <span class="min-w-0 flex-1">
+                        <span class="block">{{ r.title }}</span>
+                        <span class="brief-resolved-why">{{ r.resolution }}</span>
+                      </span>
+                      <button hlmBtn variant="ghost" size="sm" (click)="store.restoreItem(r.id)">Put back<span class="sr-only">: {{ r.title }}</span></button>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          }
+        </app-brief-section>
+
+        <!-- Below the fold: the rest of the morning, as labelled sections -->
+        <div class="brief-below">
+          <!-- Decisions: proposals from the agents, waiting on a person -->
+          <app-brief-section
+            id="brief-decisions"
+            tabindex="-1"
+            class="brief-wide outline-none"
+            heading="Decisions waiting"
+            [count]="live.pendingList().length || null"
+            tone="decision"
+            hint="What an agent suggests, and why. You send it to the revenue manager or dismiss it."
+            [state]="decisionsState()"
+            [height]="280"
+            error="The decisions didn’t load."
+            [bare]="true"
+            (retry)="live.pending.reload()"
+          >
+            @if (live.pendingList().length > decisionsShown) {
+              <button sectionActions type="button" class="brief-link brief-link--quiet" (click)="store.go('watchers')">View all {{ live.pendingList().length }}</button>
+            }
+            @for (p of live.pendingList().slice(0, decisionsShown); track p.id) {
+              <app-proposal-card class="brief-decision" [proposal]="p" />
+            } @empty {
+              <div class="brief-card brief-decision-empty">
+                <ng-icon name="phosphorCheckCircleLight" class="brief-decision-ok" aria-hidden="true" />
+                <div>
+                  <p class="brief-decision-none">Nothing waits for your decision.</p>
+                  <p class="brief-decision-how">When an agent suggests a change to a rate or a channel at {{ scope.phrase() }}, it shows here for you to send to the revenue manager or dismiss. Compass never changes them itself.</p>
+                </div>
+              </div>
+            }
+          </app-brief-section>
+
+          <app-brief-section
+            class="brief-narrow"
+            heading="Agents overnight"
+            [hint]="agentsHint()"
+            [state]="agentsState()"
+            [height]="280"
+            error="The agents didn’t load."
+            [empty]="'No agent watches ' + scope.phrase() + ' yet. “Watch this” on a finding sets one up.'"
+            (retry)="live.workflows.reload()"
+          >
+            <button sectionActions type="button" class="brief-link brief-link--quiet" (click)="store.go('watchers')">View all<span class="sr-only"> agents in Agent Studio</span></button>
+            <app-agents-overnight sectionBody [rows]="agents().slice(0, listCap)" [nameOf]="nameOf" [ago]="agoText" (open)="store.openWatcher($event)" />
+          </app-brief-section>
+
+          <!-- The next 14 nights -->
+          <app-brief-section class="brief-wide" heading="Next 14 nights" hint="Occupancy on the books, with city events and rates to check" [state]="api.part('nights')" [height]="nightsHeight()" error="The next 14 nights didn’t load." (retry)="api.retry()">
+            @if (scope.count() > nightsOpenWith) {
+              <button sectionActions type="button" class="brief-link brief-link--quiet" [attr.aria-expanded]="allHotels()" (click)="allHotels.set(!allHotels())">{{ allHotels() ? 'Show fewer' : 'View all ' + scope.count() + ' hotels' }}</button>
+            }
+            @if (overview()?.nights; as nights) {
+              <app-nights-calendar sectionBody [nights]="nights" [hotels]="scope.catalog()" [scopeLabel]="scope.label()" [showAll]="allHotels()" (ask)="live.askAbout($event)" />
+            }
+          </app-brief-section>
+
+          <app-brief-section class="brief-narrow" heading="Pickup, last 7 days" [hint]="pickupHint()" [state]="api.part('pickup') === 'error' ? 'error' : 'ready'" [height]="chartBlock" error="Pickup didn’t load." (retry)="api.retry()">
+            @if (pickupDay() && pickupHotel()) {
+              <div sectionActions class="seg" role="radiogroup" aria-label="Pickup by">
+                @for (o of pickupViews; track o.key) {
+                  <button type="button" role="radio" [attr.aria-checked]="pickupView() === o.key" [attr.tabindex]="pickupView() === o.key ? 0 : -1" (click)="pickupView.set(o.key)" (keydown)="segKey($event, pickupViews, pickupView)">{{ o.label }}</button>
+                }
+              </div>
+            }
+            <div sectionBody>
+              @if (pickupShown(); as v) {
+                <p class="brief-figure">
+                  <strong>{{ number(pickupDay()!.net) }}</strong> room nights net
+                  @if (pickupDay()!.change) {
+                    <span class="brief-figure-delta" [attr.data-tone]="pickupDay()!.net >= pickupDay()!.netLy ? 'up' : 'down'"><span aria-hidden="true">{{ pickupDay()!.net >= pickupDay()!.netLy ? '▲' : '▼' }}</span> {{ pickupDay()!.change }}</span>
+                    <span>vs the same days last year</span>
+                  }
+                </p>
+                <juyo-widget-chart [spec]="v.spec" [rows]="v.rows" [columns]="v.columns" [compact]="true" [header]="false" [height]="chartH" [switcher]="true" [viewKey]="'brief:pickup:' + pickupView()" />
+              } @else {
+                <p class="brief-figure" aria-hidden="true"><span class="skeleton brief-figure-skel"></span></p>
+                <juyo-widget-chart [spec]="barPlaceholder" [rows]="null" loading="skeleton" [compact]="true" [header]="false" [height]="chartH" [switcher]="true" />
+              }
+            </div>
+          </app-brief-section>
+
+          <!-- Where the money is -->
+          <app-brief-section class="brief-wide" heading="Where the money is" [hint]="moneyHint()" [state]="api.part('money') === 'error' ? 'error' : 'ready'" [height]="heroBlock" error="The revenue on the books didn’t load." (retry)="api.retry()">
+            <div sectionActions class="brief-sec-tools">
+              @if (moneyBooks() && moneyStake()) {
+                <div class="seg" role="radiogroup" aria-label="Money">
+                  @for (o of moneyViews; track o.key) {
+                    <button type="button" role="radio" [attr.aria-checked]="moneyView() === o.key" [attr.tabindex]="moneyView() === o.key ? 0 : -1" (click)="moneyView.set(o.key)" (keydown)="segKey($event, moneyViews, moneyView)">{{ o.label }}</button>
+                  }
+                </div>
+              }
+              <button type="button" class="brief-link brief-link--quiet" (click)="store.openBoard(portfolioBoard)">View all<span class="sr-only"> hotels on the portfolio board</span></button>
+            </div>
+            <div sectionBody>
+              @if (moneyBooks(); as books) {
+                @if (moneyShown(); as v) {
+                  <p class="brief-figure">
+                    @if (moneyView() === 'stake' && moneyStake()) {
+                      <strong>{{ eur(st().atRisk + st().upside) }}</strong> in today’s findings <span>· {{ eur(st().atRisk) }} at risk, {{ eur(st().upside) }} upside</span>
+                    } @else {
+                      <strong>{{ eur(books.total) }}</strong> room revenue on the books
+                      @if (books.change) {
+                        <span class="brief-figure-delta" [attr.data-tone]="books.change.startsWith('+') ? 'up' : 'down'"><span aria-hidden="true">{{ books.change.startsWith('+') ? '▲' : '▼' }}</span> {{ books.change }}</span>
+                        <span>vs last year</span>
+                      }
+                    }
+                  </p>
+                  <juyo-widget-chart [spec]="v.spec" [rows]="v.rows" [columns]="v.columns" [header]="false" [height]="heroH" [switcher]="true" [viewKey]="'brief:money:' + moneyView() + ':' + v.spec.kind" />
+                }
+                @if (movers().length) {
+                  <div class="brief-movers">
+                    <p class="brief-movers-label">Furthest from last year</p>
+                    <ul>
+                      @for (h of movers(); track h.code) {
+                        <li>
+                          <button type="button" class="brief-mover" [attr.data-tone]="h.tone" (click)="askMover(h.code)">
+                            <span>{{ h.name }}</span><span class="brief-mover-value"><span aria-hidden="true">{{ h.tone === 'up' ? '▲' : '▼' }}</span> {{ h.change }}</span><span class="sr-only">. Ask why.</span>
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  </div>
+                }
+              } @else {
+                <p class="brief-figure" aria-hidden="true"><span class="skeleton brief-figure-skel"></span></p>
+                <juyo-widget-chart [spec]="treemapPlaceholder" [rows]="null" loading="skeleton" [header]="false" [height]="heroH" [switcher]="true" />
+              }
+            </div>
+          </app-brief-section>
+
+          <app-brief-section id="brief-health" tabindex="-1" class="brief-narrow outline-none" heading="Data health" hint="The feeds behind every number on this page" [state]="healthState()" [height]="280" error="The data feeds didn’t load." empty="No data feeds are set up for these hotels." (retry)="api.retry()">
+            @if (systemCount() > listCap) {
+              <button sectionActions type="button" class="brief-link brief-link--quiet" [attr.aria-expanded]="allSystems()" (click)="allSystems.set(!allSystems())">{{ allSystems() ? 'Show fewer' : 'View all ' + systemCount() }}</button>
+            }
+            @if (overview()?.health; as feeds) {
+              <app-data-health sectionBody [feeds]="feeds" [limit]="allSystems() ? null : listCap" [nameOf]="shortNameOf" (explore)="exploreFeed($event)" />
+            }
+          </app-brief-section>
+        </div>
+      </div>
     </div>
 
     <!-- Phones and tablets: the ask bar docks at the bottom edge, clear of the home indicator. Nothing sits under it. -->
     <div class="dock-fade fixed inset-x-0 bottom-0 z-20 pt-6 pr-[max(12px,env(safe-area-inset-right,0px))] pb-[max(14px,env(safe-area-inset-bottom,0px))] pl-[max(12px,env(safe-area-inset-left,0px))] lg:hidden">
       <kassandra-composer inputId="global-ask-m" placeholder="Ask about any hotel" [showMode]="false" [showScope]="false" (submitted)="live.askNew($event)" />
     </div>
-
-    <ng-template #more let-item>
-      <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground ml-auto" [attr.aria-label]="'More for ' + item.title" [hlmDropdownMenuTrigger]="moreMenu" [hlmDropdownMenuTriggerData]="{ $implicit: item }" align="end">
-        <ng-icon name="phosphorDotsThreeBold" class="text-[18px]" />
-      </button>
-    </ng-template>
-    <ng-template #moreMenu let-item>
-      <hlm-dropdown-menu class="w-52">
-        <button hlmDropdownMenuItem (triggered)="store.snoozeItem(item.id)"><ng-icon name="phosphorClockLight" />Snooze until tomorrow</button>
-        <button hlmDropdownMenuItem (triggered)="store.dismissItem(item.id)"><ng-icon name="phosphorThumbsDownLight" />Not useful</button>
-      </hlm-dropdown-menu>
-    </ng-template>
   `,
 })
 export class InboxView {
   protected readonly store = inject(CompassStore);
-  protected readonly portfolioBoard = PORTFOLIO_BOARD;
   protected readonly live = inject(Live);
   protected readonly scope = inject(ScopeService);
-  protected readonly group = GROUP;
+  protected readonly api = inject(BriefOverviewApi);
+  protected readonly overview = this.api.value;
   protected readonly showResolved = signal(false);
+  protected readonly filter = signal<FindingFilter>('all');
+  protected readonly portfolioBoard = PORTFOLIO_BOARD;
+  /** Above the fold: the top findings, three to a row. The rest are one "View all" away. */
+  protected readonly topCount = TOP_FINDINGS;
+  protected readonly showAllFindings = signal(false);
+  /** A list inside a section shows five rows; the section's "View all" has the rest. */
+  protected readonly listCap = 5;
+  protected readonly decisionsShown = 2;
+  protected readonly nightsOpenWith = NIGHTS_OPEN_WITH;
+  protected readonly allHotels = linkedSignal({ source: () => this.scope.hotels().join(','), computation: () => false });
+  protected readonly allSystems = signal(false);
+  /** Charts: 180 px in a row of the overview, 320 px for the one that is the section's subject. */
+  protected readonly chartH = CHART_H;
+  protected readonly heroH = 320;
+  /** The body of a chart section before it loads: the figure line, the chart and its toolbar. */
+  protected readonly chartBlock = CHART_H + 70;
+  protected readonly heroBlock = 320 + 70;
+  /** On a phone the findings after the first are rows; their chart is one tap away, in Explore. */
+  protected readonly phone = signal(false);
+  protected readonly eur = eurShort;
+  protected readonly number = (n: number) => n.toLocaleString('en-GB');
+  protected readonly plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  protected readonly nameOf = (code: string) => this.scope.nameOf(code);
+  protected readonly shortNameOf = (code: string) => shortHotel(this.scope.nameOf(code));
 
-  /** The brief's rows (live, or the snapshot when the API is down), by id. */
+  /** The brief's rows (live, or the saved copy when the API is down), by id. */
   private readonly rows = computed(() => new Map(this.store.briefRows().map((r) => [r.id, r])));
-  private readonly kindOf = (i: InboxItem) => this.rows().get(i.id)?.kind ?? '';
-  protected readonly open = computed(() => this.store.needsYou());
+  /** Findings in scope that the reader has not set aside, in the brief's order. */
+  protected readonly open = computed(() => this.store.needsYou().filter((i) => this.rows().has(i.id)));
+  private readonly openRows = computed(() => this.open().map((i) => this.rows().get(i.id)!));
 
-  /** One sentence for the top of the page, from the first two items of the ranked brief. */
-  protected readonly headline = computed(() => {
-    const [a, b] = this.store.briefRows();
-    if (!a) return this.live.briefState() === 'loading' ? 'This morning’s brief' : 'Nothing needs you this morning.';
-    const first = a.kind === 'data_stale' ? `${shortHotel(a.hotel_name)}’s ${a.facts['system']} feed is down` : `${shortHotel(a.hotel_name)} needs attention`;
-    const second = b?.kind === 'account_loss' ? `${shortHotel(b.hotel_name)} has lost its biggest corporate account` : b ? `${shortHotel(b.hotel_name)} needs attention` : '';
-    return second ? `${first}, and ${second}.` : `${first}.`;
+  protected readonly today = computed(() => {
+    const iso = this.overview()?.businessDate || (this.live.briefApi.brief.hasValue() ? this.live.briefApi.brief.value().businessDate : '');
+    return dayLabel.format(iso ? Date.parse(`${iso}T00:00:00Z`) : BUSINESS_DAY);
   });
 
-  protected readonly feed = computed(() => {
-    const item = this.open().find((i) => this.kindOf(i) === 'data_stale');
-    return item ? { item } : null;
+  protected readonly st = computed(() => stakes(this.openRows(), this.live.pendingList().length));
+  protected readonly headline = computed(() => headline(this.st(), this.live.briefState() === 'loading' ? 'loading' : 'ready'));
+  /** Under the headline: the largest priced finding, by name. */
+  protected readonly leadLine = computed(() => {
+    const top = this.open().find((i) => this.rows().get(i.id)?.impact_eur);
+    if (!top || this.open().length < 2) return '';
+    const r = this.rows().get(top.id)!;
+    return `The largest: ${top.title} (${eurShort(r.impact_eur!)} ${r.impact_eur! < 0 ? 'at risk' : 'upside'}).`;
   });
-  private readonly money = computed(() => this.open().filter((i) => this.kindOf(i) !== 'data_stale'));
 
-  protected readonly lead = computed(() => {
-    const item = this.money()[0];
-    if (!item) return null;
-    return { item, ...this.evidence(this.rows().get(item.id)!) };
-  });
-  protected readonly third = computed(() => {
-    const item = this.money()[1];
-    if (!item) return null;
-    return { item, ...this.evidence(this.rows().get(item.id)!) };
-  });
-  protected readonly rest = computed(() =>
-    this.money()
-      .slice(2)
-      .map((item) => ({ item, ...this.tile(this.rows().get(item.id)!) })),
+  protected readonly findings = computed<FindingView[]>(() =>
+    this.open()
+      .map((item) => ({ item, row: this.rows().get(item.id)! }))
+      .filter(({ row }) => matchesFilter(row.impact_eur, this.filter()))
+      .map(({ item, row }) => ({
+        id: item.id,
+        kind: row.kind,
+        hotel: shortHotel(row.hotel_name),
+        title: item.title,
+        summary: item.summary,
+        impact_eur: row.impact_eur,
+        impact_basis: row.impact_basis,
+        sources: row.sources,
+        seen: item.status !== 'new',
+      })),
   );
-  protected readonly decisionCount = computed(() => this.live.pendingList().length);
 
-  /** "Explore": the item's thread opens and its question is sent; a second click reopens the same thread. */
-  protected explore(item: InboxItem) {
-    this.store.markSeen(item.id);
-    const row = this.rows().get(item.id);
-    if (row) this.live.exploreRow({ ...row, question: item.question });
-    else this.live.explore(item.question, undefined, `brief:${item.id}`);
+  protected readonly shown = computed(() => (this.showAllFindings() || this.filter() !== 'all' ? this.findings() : this.findings().slice(0, TOP_FINDINGS)));
+  protected readonly more = computed(() => this.findings().length - this.shown().length);
+  protected readonly findingsHint = computed(() => {
+    if (this.filter() !== 'all') return this.filter() === 'risk' ? 'Only what is at risk' : 'Only the upside';
+    const n = this.findings().length;
+    if (!n) return '';
+    return n > TOP_FINDINGS && !this.showAllFindings() ? `The top ${TOP_FINDINGS} of ${n}, largest in money first; a broken data feed leads` : 'Largest in money first; a broken data feed leads';
+  });
+  protected readonly systemCount = computed(() => new Set((this.overview()?.health ?? []).map((f) => f.system)).size);
+
+  protected readonly decisionsState = computed<'loading' | 'ready' | 'error'>(() => {
+    if (this.live.pending.error()) return 'error';
+    return this.live.pending.isLoading() && !this.live.pendingList().length && !this.pendingLoaded() ? 'loading' : 'ready';
+  });
+  /** True once the approval inbox has answered: later polls must not flash a skeleton. */
+  private readonly pendingLoaded = signal(false);
+
+  /* ── Charts of the findings ── */
+  protected chartOf(id: string) {
+    return this.overview()?.charts[id] ?? null;
+  }
+  protected chartState(id: string): 'loading' | 'ready' | 'error' {
+    const o = this.overview();
+    // When the whole overview failed, one notice above the cards says so; the cards keep their text.
+    if (!o) return this.api.state() === 'loading' ? 'loading' : 'ready';
+    return o.failed.includes(`chart:${id}`) ? 'error' : 'ready';
   }
 
-  /** Chart and one fact for a full card. */
-  private evidence(r: BriefRow) {
-    switch (r.kind) {
-      case 'account_loss': {
-        const m = NYC_ACCOUNT as readonly { month: string; nights: number }[];
-        return {
-          line: [] as number[],
-          compare: null as number[] | null,
-          bars: m.map((x) => x.nights),
-          highlight: [] as number[],
-          band: '',
-          start: `${month(m[0].month)} 2025`,
-          end: month(m[m.length - 1].month),
-          caption: `${r.facts['account']} · room nights a month`,
-          fact: `${Number(r.facts['room_nights_previous_6m']).toLocaleString('en-GB')} room nights in the six months before, ${r.facts['room_nights_last_6m']} since.`,
-        };
-      }
-      case 'rooms_out_of_order': {
-        const w = BCN_OUT_OF_ORDER as readonly { week: string; rooms_out: number }[];
-        return {
-          line: [] as number[],
-          compare: null as number[] | null,
-          bars: w.map((x) => x.rooms_out),
-          highlight: w.map((x, i) => (x.rooms_out >= 10 ? i : -1)).filter((i) => i >= 0),
-          band: 'Renovation',
-          start: isoDay(w[0].week).slice(4),
-          end: isoDay(w[w.length - 1].week).slice(4),
-          caption: 'rooms out of order, weekly',
-          fact: `${Number(r.facts['out_of_order_nights']).toLocaleString('en-GB')} room nights it can’t sell in the next 30 days.`,
-        };
-      }
-      case 'gop_miss': {
-        const g = gopMonths(r.hotel_code);
-        return {
-          line: g.map((x) => x.gop),
-          compare: g.map((x) => x.gop_budget),
-          bars: [] as number[],
-          highlight: [] as number[],
-          band: '',
-          start: g.length ? `${month(g[0].month)} 2025` : '',
-          end: g.length ? month(g[g.length - 1].month) : '',
-          caption: 'GOP per month · budget dashed',
-          fact: `${r.facts['gop_margin_pct']}% GOP margin against ${r.facts['gop_margin_budget_pct']}% budgeted; revenue ${Math.abs(Number(r.facts['revenue_var_pct']))}% under.`,
-        };
-      }
-      case 'underpriced_demand': {
-        const n = NIGHTS.forward.filter((x) => x.date >= utc('2026-12-09') && x.date <= utc('2026-12-23'));
-        return {
-          line: n.map((x) => x.barLocal),
-          compare: n.map((x) => x.compLocal ?? x.barLocal),
-          bars: [] as number[],
-          highlight: [] as number[],
-          band: '',
-          start: '9 Dec',
-          end: '23 Dec',
-          caption: 'BAR · comp-set median dashed',
-          fact: r.impact_basis,
-        };
-      }
-      default:
-        return { line: [] as number[], compare: null as number[] | null, bars: [] as number[], highlight: [] as number[], band: '', start: '', end: '', caption: '', fact: r.impact_basis };
+  /* ── Pickup ── */
+  protected readonly pickupViews: Seg<'day' | 'hotel'> = [
+    { key: 'day', label: 'By day' },
+    { key: 'hotel', label: 'By hotel' },
+  ];
+  protected readonly pickupView = signal<'day' | 'hotel'>('day');
+  protected readonly pickupDay = computed(() => {
+    const p = this.overview()?.pickup;
+    return p ? pickupByDay(p) : null;
+  });
+  protected readonly pickupHotel = computed(() => {
+    const p = this.overview()?.pickup;
+    return p ? pickupByHotel(p, this.scope.catalog()) : null;
+  });
+  protected readonly pickupShown = computed(() => (this.pickupView() === 'hotel' ? (this.pickupHotel() ?? this.pickupDay()) : this.pickupDay()));
+  protected readonly pickupHint = computed(() => (this.pickupView() === 'hotel' && this.pickupHotel() ? 'Room nights booked less cancelled, per hotel' : 'Room nights booked less cancelled, per booking day'));
+  protected readonly barPlaceholder = placeholderSpec('bar', 'pickup');
+  protected readonly treemapPlaceholder = placeholderSpec('treemap', 'money');
+
+  /* ── Money ── */
+  protected readonly moneyViews: Seg<'books' | 'stake'> = [
+    { key: 'books', label: 'On the books' },
+    { key: 'stake', label: 'In the findings' },
+  ];
+  protected readonly moneyView = signal<'books' | 'stake'>('books');
+  protected readonly moneyBooks = computed(() => {
+    const m = this.overview()?.money;
+    return m ? moneyOnTheBooks(m, this.scope.catalog()) : null;
+  });
+  protected readonly moneyStake = computed(() => moneyAtStake(this.openRows(), this.scope.catalog()));
+  protected readonly moneyShown = computed(() => (this.moneyView() === 'stake' ? (this.moneyStake() ?? this.moneyBooks()) : this.moneyBooks()));
+  protected readonly moneyHint = computed(() =>
+    this.moneyView() === 'stake' && this.moneyStake() ? 'The money in today’s findings, per hotel' : this.scope.count() === 1 ? 'Room revenue on the books for the next 30 nights, per stay week' : 'Room revenue on the books for the next 30 nights, per hotel',
+  );
+  protected readonly movers = computed(() => {
+    const m = this.overview()?.money;
+    return m && m.byHotel.length > 2 ? moneyMovers(m, this.scope.catalog()) : [];
+  });
+
+  /* ── Nights, health ── */
+  /** The calendar's height before it loads: its header, the scope's row, and up to eight hotel rows. */
+  protected readonly nightsHeight = computed(() => 150 + (this.scope.count() > 1 ? Math.min(this.scope.count(), NIGHTS_OPEN_WITH) * 26 : 0));
+  protected readonly healthState = computed<'loading' | 'error' | 'empty' | 'ready'>(() => {
+    const part = this.api.part('health');
+    return part === 'ready' && !this.overview()?.health?.length ? 'empty' : part;
+  });
+
+  /* ── Agents ── */
+  private readonly details = signal<Record<string, WorkflowDetail>>({});
+  private readonly asked = new Map<string, string>();
+  private readonly now = signal(Date.now());
+  protected readonly agoText = (iso: string) => ago(iso, this.now());
+  /** What an agent found, in the same plain words as the decision card beside it (no hotel codes, no ISO dates). */
+  protected readonly agents = computed(() => this.agentList().map((row) => (row.finding ? { ...row, finding: plainText(row.finding, this.scope.catalog()) } : row)));
+  private readonly agentList = computed(() =>
+    agentRows(this.live.workflowList(), this.details(), this.live.audit.hasValue() ? this.live.audit.value() : [], (code) => this.scope.includes(code), this.scope.isAll() ? undefined : hotelMentions(this.scope.catalog().filter((h) => this.scope.includes(h.code)))),
+  );
+  protected readonly agentsHint = computed(() => agentsSummary(this.agents()) || 'What Agent Studio ran since the last brief');
+  protected readonly agentsState = computed<'loading' | 'error' | 'empty' | 'ready'>(() => {
+    if (this.live.workflowsError()) return 'error';
+    if (this.live.workflows.isLoading() && !this.live.workflowList().length) return 'loading';
+    return this.agents().length ? 'ready' : 'empty';
+  });
+
+  constructor() {
+    const narrow = typeof matchMedia === 'function' ? matchMedia('(max-width: 599.98px)') : null;
+    if (narrow) {
+      const onChange = () => this.phone.set(narrow.matches);
+      onChange();
+      narrow.addEventListener?.('change', onChange);
+      inject(DestroyRef).onDestroy(() => narrow.removeEventListener?.('change', onChange));
     }
-  }
-
-  /** A short label and a trend for a compact tile. */
-  private tile(r: BriefRow) {
-    const hotel = shortHotel(r.hotel_name);
-    switch (r.kind) {
-      case 'web_conversion_drop': {
-        const w = AMS_CONVERSION as readonly { mobile: number; desktop: number }[];
-        return { hotel, label: `Mobile conversion ${r.facts['conversion_pct_previous_60d']}% → ${r.facts['conversion_pct_last_30d']}%`, values: w.map((x) => x.mobile), compare: null };
-      }
-      case 'staffing_gap': {
-        const w = DPS_KITCHEN as readonly { pct: number }[];
-        return { hotel, label: `Kitchen at ${Math.round(Number(r.facts['staffing_pct']))}% of the hours needed`, values: w.map((x) => x.pct), compare: null };
-      }
-      case 'pace_behind': {
-        const n = LIS_PACE as readonly { rooms: number; rooms_stly: number }[];
-        return { hotel, label: `${Math.abs(Number(r.facts['pace_pct']))}% behind last year, next 45 nights`, values: n.map((x) => x.rooms), compare: n.map((x) => x.rooms_stly) };
-      }
-      case 'rooms_out_of_order': {
-        const w = BCN_OUT_OF_ORDER as readonly { rooms_out: number }[];
-        return { hotel, label: `${Math.round(Number(r.facts['avg_rooms_out']))} rooms out of order`, values: w.map((x) => x.rooms_out), compare: null };
-      }
-      case 'account_loss': {
-        const m = NYC_ACCOUNT as readonly { nights: number }[];
-        return { hotel, label: `Lost most of ${r.facts['account']}`, values: m.map((x) => x.nights), compare: null };
-      }
-      case 'gop_miss': {
-        const g = gopMonths(r.hotel_code);
-        return { hotel, label: `GOP ${Math.abs(Number(r.facts['gop_var_pct']))}% under budget in ${month(String(r.facts['month']))}`, values: g.map((x) => x.gop), compare: g.map((x) => x.gop_budget) };
-      }
-      default:
-        return { hotel, label: briefTitle(r), values: [] as number[], compare: null };
-    }
-  }
-
-  /** Portfolio Pulse: the 30 nights after today, all 20 hotels, in EUR. */
-  protected readonly pulse = (() => {
-    const p = (PULSE as readonly { rooms: number; rooms_stly: number; avail: number; rev: number; rev_stly: number }[]).slice(1);
-    const sum = (f: (x: (typeof p)[number]) => number) => p.reduce((s, x) => s + f(x), 0);
-    const rooms = sum((x) => x.rooms);
-    const roomsLy = sum((x) => x.rooms_stly);
-    const avail = sum((x) => x.avail);
-    const rev = sum((x) => x.rev);
-    const revLy = sum((x) => x.rev_stly);
-    const series = {
-      occupancy: [p.map((x) => (x.rooms / x.avail) * 100), p.map((x) => (x.rooms_stly / x.avail) * 100)],
-      adr: [p.map((x) => x.rev / x.rooms), p.map((x) => x.rev_stly / x.rooms_stly)],
-      revpar: [p.map((x) => x.rev / x.avail), p.map((x) => x.rev_stly / x.avail)],
-      revenue: [p.map((x) => x.rev), p.map((x) => x.rev_stly)],
-    };
-    const tiles = [
-      { key: 'occupancy', label: 'Occupancy', value: `${((rooms / avail) * 100).toFixed(1)}%`, delta: ((rooms - roomsLy) / avail) * 100, unit: ' pp' },
-      { key: 'adr', label: 'ADR', value: formatEur(rev / rooms), delta: ((rev / rooms) / (revLy / roomsLy) - 1) * 100, unit: '%' },
-      { key: 'revpar', label: 'RevPAR', value: formatEur(rev / avail), delta: (rev / revLy - 1) * 100, unit: '%' },
-      { key: 'revenue', label: 'Room revenue', value: `€${(rev / 1e6).toFixed(1)}M`, delta: (rev / revLy - 1) * 100, unit: '%' },
-    ] as const;
-    return tiles.map((t) => {
-      const [ty, ly] = series[t.key];
-      const all = [...ty, ...ly];
-      const min = Math.min(...all);
-      const max = Math.max(...all);
-      const norm = (v: number[]) => spark(v.map((x) => (x - min) / (max - min || 1)));
-      const flat = Math.abs(t.delta) < 0.05;
-      return { ...t, arrow: flat ? '' : t.delta > 0 ? '▲' : '▼', deltaText: flat ? `±0.0${t.unit}` : `${t.delta > 0 ? '+' : '−'}${Math.abs(t.delta).toFixed(1)}${t.unit}`, ty: norm(ty), ly: norm(ly) };
+    effect(() => {
+      if (!this.live.pending.isLoading() && (this.live.pending.hasValue() || this.live.pending.error())) untracked(() => this.pendingLoaded.set(true));
     });
-  })();
-
-  protected focusDecision() {
-    const el = document.getElementById('decision-card');
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el?.focus({ preventScroll: true });
+    // Each agent's runs and proposals, read once per run: what it found is in them, not in the list.
+    effect(() => {
+      const pending = this.live.pendingList();
+      for (const w of this.live.workflowList()) {
+        const key = `${w.lastRun?.runId ?? ''}|${w.lastRun?.status ?? ''}|${pending.filter((p) => p.workflowId === w.id).length}`;
+        if (!w.lastRun || this.asked.get(w.id) === key) continue;
+        this.asked.set(w.id, key);
+        void this.live.workflowsApi.get(w.id).then((result) => {
+          if (result.ok) this.details.update((details) => ({ ...details, [w.id]: result.value }));
+          else this.asked.delete(w.id);
+        });
+      }
+      untracked(() => this.now.set(Date.now()));
+    });
   }
 
-  protected undo(r: InboxItem) {
-    this.store.restoreItem(r.id);
+  /* ── Actions ── */
+  /** "Explore": the finding's thread opens and its question is sent; a second click reopens the same thread. */
+  protected explore(id: string) {
+    const item = this.store.items().find((i) => i.id === id);
+    const row = this.rows().get(id);
+    if (!item) return;
+    this.store.markSeen(id);
+    if (row) this.live.exploreRow({ ...row, question: item.question });
+    else this.live.explore(item.question, undefined, `brief:${id}`);
+  }
+  /** "Watch this": the agent builder opens with a description for this finding, ready to edit. Nothing is sent. */
+  protected watch(id: string) {
+    const row = this.rows().get(id);
+    if (!row) return;
+    this.store.markSeen(id);
+    this.store.openBuilder(undefined, watchPrompt(row));
+  }
+  protected exploreFeed(feed: BriefFeed) {
+    const row = this.store.briefRows().find((r: BriefRow) => r.kind === 'data_stale' && r.hotel_code === feed.hotel_code && r.facts['system'] === feed.system);
+    const question = `Is anything wrong with the data at ${this.scope.nameOf(feed.hotel_code)}? What does the stale ${feed.system} feed affect?`;
+    if (row) this.live.exploreRow({ ...row, question: row.question ?? question });
+    else this.live.askAbout(question);
+  }
+  protected askMover(code: string) {
+    this.live.askAbout(`Why is ${this.scope.nameOf(code)}'s room revenue on the books for the next 30 nights different from the same time last year?`);
+  }
+
+  protected toggleFilter(side: 'risk' | 'upside') {
+    this.filter.update((now) => (now === side ? 'all' : side));
+    this.jump('brief-findings');
+  }
+  /** Scrolls to a section of the page; with `focus`, moves the keyboard there too. */
+  protected jump(id: string, focus = false) {
+    const el = document.getElementById(id);
+    const calm = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+    if (focus) el?.focus({ preventScroll: true });
+  }
+
+  /** A radio group moves with the arrow keys, Home and End. */
+  protected segKey<T extends string>(event: KeyboardEvent, options: Seg<T>, value: { (): T; set(v: T): void }) {
+    const i = options.findIndex((o) => o.key === value());
+    const next = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? i + 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? i - 1 : event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1 : -1;
+    if (next === -1 && event.key !== 'ArrowLeft' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    const target = options[(next + options.length) % options.length]!;
+    value.set(target.key);
+    const group = (event.currentTarget as HTMLElement).parentElement;
+    queueMicrotask(() => group?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus());
   }
 }
+

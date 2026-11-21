@@ -214,7 +214,7 @@ export const FLOWS: readonly Flow[] = [
       'Claude is called through **AI Gateway** `compass` with a stored key (BYOK), so the key is in neither the Worker nor the browser. **Workers AI** embeds the question for `find_reviews`.',
       'Three more objects hold shared state: **Briefs** has the morning brief, **Boards** the saved boards and **Budget** the demo’s daily usage. The Worker and the agents ask Budget before they spend a model call.',
       'Voice goes around the Worker. It mints a temporary **Soniox** key, and the browser streams the microphone to Soniox itself.',
-      'Compass only reads. The database role is `compass_ro`, and an approved action becomes an RMS task and an audit entry.',
+      'Compass only reads. The database role is `compass_ro`, and a decision sent on becomes an RMS task for a named person and an audit entry.',
     ],
   },
   {
@@ -284,18 +284,18 @@ export const FLOWS: readonly Flow[] = [
   },
   {
     id: 'approve',
-    tab: 'Approve an action',
+    tab: 'Send a decision',
     hint: 'Act',
     tag: 'Act · durable approval',
-    title: 'Approve an action',
+    title: 'Send a decision to the revenue manager',
     note: 'The run waits on a durable signal and holds no compute while it waits.',
     steps: [
       'A run starts from the morning cron, a brief finding or `POST /api/workflows/:id/run`. Each run is a durable Pi session inside **WorkflowAgents**.',
       'The agent runs the workflow’s checks through the data tools and Sonnet 5.5 explains what it found.',
       '`propose_action` records a proposal with the change (before, after, scope), the rationale, the EUR impact and the risk. Price and channel actions are high risk in code.',
       'Under `approve` autonomy the tool call parks on a durable signal. The run shows `waiting_approval`, and the wait survives deploys.',
-      'The app lists `GET /api/proposals?status=pending`. `POST /api/proposals/:id/decision` delivers the signal and counts against the daily decision budget.',
-      'On approval, `apply_action` hands the action to the revenue manager as an RMS task and writes the audit log (`GET /api/audit`). `/undo` adds a compensating task. Nothing is written to the hotel data.',
+      'The app lists `GET /api/proposals?status=pending`. “Send to revenue manager” or “Dismiss” calls `POST /api/proposals/:id/decision`, which records the decision at once, answers `{ proposal, handedTo, receipt }`, delivers the signal and counts against the daily decision budget.',
+      'The action is handed to a named person as an RMS task (the roster, `DEMO_TEAM`, is fictional) and the audit log is written (`GET /api/audit`). The app shows a toast with who got it, “View message” and “Undo”; `/undo` adds a compensating task. No rate changes and nothing is written to the hotel data.',
     ],
   },
 ];

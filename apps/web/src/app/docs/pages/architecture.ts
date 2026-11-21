@@ -13,7 +13,7 @@ const PRINCIPLES: readonly DocsCell[] = [
   { title: 'Evidence travels with every result', text: 'Each tool result carries its SQL, parameters, period, sources and metric definitions. The chat sends them to the app as `evidence`.' },
   { title: 'One door to the data', text: 'Kassandra, the agent builder, workflow runs and outside MCP clients all use the same catalog of 25 tools, with the same guard.' },
   { title: 'Durable by construction', text: 'The three agents run on Pi Durable. A conversation, a draft or a run survives a deploy or an eviction, and a run that waits for approval holds no compute.' },
-  { title: 'Compass only reads', text: 'The database role can only `SELECT`. An approved action becomes an RMS task for the revenue manager and an audit entry. Nothing is written to a source system.' },
+  { title: 'Compass only reads', text: 'The database role can only `SELECT`. A decision sent on becomes an RMS task for the revenue manager and an audit entry. Nothing is written to a source system.' },
   { title: 'A person decides on prices and channels', text: '`adjust_bar`, `close_channel` and `open_channel` are high risk in code, whatever the model says. No autonomy level applies them alone.' },
   { title: 'One spec for people and AI', text: 'The builder agent and a person editing by hand change the same `WorkflowSpec` draft. The graph is derived from it, so every graph can run.' },
   { title: 'The answer comes to you', text: 'A cron runs fixed SQL detectors at 05:00 UTC, before anyone opens the app. The model only writes the sentence that summarises each finding.' },

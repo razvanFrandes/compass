@@ -1,0 +1,23 @@
+/* A finding card (the brief). No style encapsulation, like brief.css, which holds the density tokens these rules use. Loaded with app-finding-card. */
+.finding { display: flex; flex-direction: column; gap: var(--space-card-gap); height: 100%; }
+.finding-text { flex: 1 0 auto; min-width: 0; }
+.finding-eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.375rem; font-size: var(--text-label); line-height: 1rem; color: var(--muted-foreground); }
+.finding-kind { font-weight: 500; color: var(--foreground); }
+.finding-new { width: 0.375rem; height: 0.375rem; border-radius: 9999px; background: var(--series); }
+.finding-title { margin-top: var(--space-inline); font-size: var(--text-card-title); line-height: 1.5rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: pretty; }
+.finding-stake { margin-top: var(--space-inline); font-size: var(--text-body); line-height: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.finding-stake[data-tone='none'] { font-weight: 400; color: var(--muted-foreground); }
+.finding-arrow { margin-right: 0.125rem; font-size: 0.625rem; vertical-align: 0.1em; }
+.finding-stake[data-tone='risk'] .finding-arrow { color: var(--negative); }
+.finding-stake[data-tone='upside'] .finding-arrow { color: var(--positive); }
+.finding-summary { margin-top: var(--space-inline); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; font-size: 0.8125rem; line-height: 1.25rem; color: var(--muted-foreground); }
+.finding-chart { min-width: 0; }
+/* The chart's own title is its caption here: the card's title already carries the conclusion. */
+.finding-chart .wc-head { align-items: center; margin-bottom: var(--space-inline); }
+.finding-chart .wc-title { font-size: var(--text-label); line-height: 1rem; font-weight: 400; letter-spacing: 0; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.finding-nochart { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: var(--space-stack); min-height: calc(var(--chart-h) + 2.25rem); font-size: var(--text-body); color: var(--muted-foreground); }
+.finding-evidence { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: var(--text-label); line-height: 1rem; color: var(--muted-foreground); }
+.finding-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-inline); margin-top: var(--space-stack); }
+.finding-quiet { display: flex; margin-left: auto; color: var(--muted-foreground); }
+.finding-quiet button { color: var(--muted-foreground); }
+@media (hover: hover) { .finding-quiet button:hover { color: var(--foreground); } }

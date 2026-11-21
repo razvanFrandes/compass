@@ -1,0 +1,39 @@
+/* The next 14 nights (the brief). No style encapsulation, like brief.css, which holds the density tokens these rules use. Loaded with app-nights-calendar. */
+/* ── Next 14 nights: one hue in five steps; a number never sits on the two strongest ── */
+/* The table may be wider than a phone: it scrolls inside its card and never widens the page. */
+.nights-scroll { position: relative; contain: inline-size; overflow-x: auto; margin-inline: -4px; padding: 0 4px 4px; border-radius: 6px; outline: none; }
+.nights-scroll:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+.nights { width: 100%; min-width: 37.5rem; border-collapse: separate; border-spacing: 3px; table-layout: fixed; }
+.nights-corner { width: 7.5rem; }
+.nights th { font-weight: 400; }
+.nights-day { padding-bottom: var(--space-inline); text-align: center; font-size: 0.6875rem; line-height: 0.875rem; color: var(--muted-foreground); }
+.nights-day > span { display: block; }
+.nights-date { font-size: 0.8125rem; line-height: 1.125rem; font-weight: 600; color: var(--foreground); font-variant-numeric: tabular-nums; }
+.nights-day--weekend .nights-dow { color: var(--foreground); }
+.nights-name { position: sticky; left: 0; z-index: 1; padding-right: var(--space-inline); background: var(--card); text-align: left; font-size: 0.8125rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nights-name--hotel { font-weight: 400; color: var(--muted-foreground); }
+.nights td { padding: 0; }
+.nights-cell { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 1.5rem; border-radius: 4px; background: color-mix(in srgb, var(--series) var(--nights-mix, 8%), var(--card)); }
+.nights-cell--big { flex-direction: column; gap: 1px; height: 3rem; border-radius: 6px; --nights-scale: 0.5; }
+:is(.nights-cell, .nights-ramp-bar i)[data-step='0'] { --nights-mix: calc(10% * var(--nights-scale, 1)); }
+:is(.nights-cell, .nights-ramp-bar i)[data-step='1'] { --nights-mix: calc(28% * var(--nights-scale, 1)); }
+:is(.nights-cell, .nights-ramp-bar i)[data-step='2'] { --nights-mix: calc(48% * var(--nights-scale, 1)); }
+:is(.nights-cell, .nights-ramp-bar i)[data-step='3'] { --nights-mix: calc(70% * var(--nights-scale, 1)); }
+:is(.nights-cell, .nights-ramp-bar i)[data-step='4'] { --nights-mix: calc(92% * var(--nights-scale, 1)); }
+.nights-occ { font-size: 0.875rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; color: var(--foreground); }
+.nights-marks { display: flex; align-items: center; gap: 3px; height: 0.625rem; }
+.nights-event { font-style: normal; font-size: 0.625rem; line-height: 1; color: var(--foreground); }
+.nights-flag { display: block; width: 0.5rem; height: 0.5rem; border-radius: 9999px; background: var(--decision); box-shadow: 0 0 0 1.5px var(--card); }
+button.nights-cell { cursor: pointer; transition: box-shadow 110ms ease; }
+@media (hover: hover) { button.nights-cell:hover { box-shadow: inset 0 0 0 1.5px var(--foreground); } }
+.nights-legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-inline) var(--space-card-gap); margin-top: var(--space-stack); font-size: var(--text-label); color: var(--muted-foreground); }
+.nights-ramp, .nights-key { display: flex; align-items: center; gap: 0.375rem; }
+.nights-ramp-bar { display: flex; gap: 2px; }
+.nights-ramp-bar i { width: 1rem; height: 0.625rem; border-radius: 2px; background: color-mix(in srgb, var(--series) var(--nights-mix), var(--card)); }
+.nights-notes { display: grid; gap: 0.375rem; margin-top: var(--space-card-gap); font-size: 0.8125rem; line-height: 1.25rem; }
+.nights-notes li { display: flex; align-items: flex-start; gap: var(--space-inline); }
+.nights-notes li > i { flex-shrink: 0; margin-top: 0.375rem; }
+.nights-notes .nights-event { margin-top: 0.3125rem; width: 0.5rem; text-align: center; }
+.nights-notes li[data-kind='event'] { color: var(--muted-foreground); }
+.nights-none { margin-top: var(--space-card-gap); font-size: 0.8125rem; color: var(--muted-foreground); }
+@media (prefers-reduced-motion: reduce) { button.nights-cell { transition: none; } }

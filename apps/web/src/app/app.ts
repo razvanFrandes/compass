@@ -13,6 +13,7 @@ import { WatchersView } from './watchers';
 import { Live } from './live';
 import { WatcherPage } from './watcher-page';
 import { WorkflowBuilder } from './builder/builder-page';
+import { HandoverSheet } from './handover-sheet';
 import { CompassLogo } from './shell/compass-logo';
 import { NotFound } from './not-found';
 import { BUILT_IN } from './board';
@@ -34,7 +35,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, CompassLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, DocsHub, DocsFab, Sidebar, MobileMenu, HlmToasterImports],
+  imports: [BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, HandoverSheet, CompassLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, DocsHub, DocsFab, Sidebar, MobileMenu, HlmToasterImports],
   providers: [provideIcons({ ...icons, phosphorCompassLight }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   styles: `
@@ -142,6 +143,8 @@ import * as icons from './icons';
     <!-- Docs: a floating button on every screen; it moves above a composer or a toast (src/app/docs) -->
     <app-docs-fab />
     <!-- Toasts sit where no composer is: top on phones (the ask bar is at the bottom), bottom right on desktop -->
+    <!-- "View message" on a sent decision: the message as it was handed over. One for the whole app. -->
+    <app-handover-sheet />
     <hlm-toaster [theme]="theme.dark() ? 'dark' : 'light'" [position]="phone() ? 'top-center' : 'bottom-right'" [offset]="phone() ? '12px' : '24px'" />
   `,
 })

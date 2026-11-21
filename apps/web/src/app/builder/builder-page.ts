@@ -10,6 +10,7 @@ import { BuilderSocket, BuilderSocketOptions, builderSocketUrl, ensureDraftId, w
 import { issueText, maskAddress, toConversation } from './builder-steps';
 import { scopeLabel, shortName, type HotelRef } from '../scope/hotels';
 import { ScopeService } from '../scope/scope.service';
+import { BUILDER_DESCRIBE } from '../store';
 
 /** Overrides for the socket (a fake one in a preview or a test). */
 export const BUILDER_SOCKET_OPTIONS = new InjectionToken<Partial<BuilderSocketOptions>>('BUILDER_SOCKET_OPTIONS');
@@ -42,7 +43,7 @@ export function statusChip(state: {
 /** How a finished test reads under the canvas; nothing while it runs. `summary` is the run's own last word. */
 export function testResult(run: BuilderRun | null, draft: WorkflowDraft, labelOf: (id: string) => string, summary: string | null): CanvasResult | null {
   if (!run || run.status === 'running') return null;
-  if (run.status === 'waiting_approval') return { tone: 'warn', text: 'The test run needs your decision', detail: 'Approve or decline it in Agent Studio to let it finish.' };
+  if (run.status === 'waiting_approval') return { tone: 'warn', text: 'The test run needs your decision', detail: 'Send it to the revenue manager or dismiss it in Agent Studio to let it finish.' };
   if (run.status === 'failed') {
     const where = run.failed ? labelOf(run.failed) : '';
     return { tone: 'fail', text: where ? `The test run stopped at “${where}”` : 'The test run couldn’t finish', detail: summary ?? 'Open the agent in Agent Studio to read its run log.' };
@@ -177,7 +178,7 @@ export function namedScope(graph: WorkflowGraph, hotels: readonly string[] | und
 
     <main class="grid grid-cols-[minmax(0,1fr)] lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(320px,400px)_minmax(0,1fr)]">
       <section class="border-border/70 flex min-w-0 flex-col lg:min-h-0 lg:border-r" aria-label="Chat">
-        <app-builder-chat class="lg:min-h-0 lg:flex-1" [items]="conversation()" [running]="socket.live().running" [online]="!offline()" (ask)="socket.ask($event)" (stop)="socket.abort()" />
+        <app-builder-chat class="lg:min-h-0 lg:flex-1" [describe]="describe" [items]="conversation()" [running]="socket.live().running" [online]="!offline()" (ask)="socket.ask($event)" (stop)="socket.abort()" />
       </section>
       <section class="min-w-0 lg:min-h-0" aria-label="Agent">
         <app-workflow-canvas
@@ -200,6 +201,8 @@ export class WorkflowBuilder {
   private readonly scope = inject(ScopeService);
   /** The workflow being edited (`/workflows/<id>/edit`), or null for a new one. */
   protected readonly editId = workflowToEdit(this.doc.defaultView!.location);
+  /** `?describe=…` (from "Watch this" on a brief finding): what the chat's field opens with on a new agent. */
+  protected readonly describe = this.editId ? null : (new URLSearchParams(this.doc.defaultView!.location.search).get(BUILDER_DESCRIBE)?.slice(0, 600) ?? null);
   protected readonly backHref = this.editId ? `/studio/${encodeURIComponent(this.editId)}` : '/studio';
   protected readonly socket = this.connect();
   private static next = 0;

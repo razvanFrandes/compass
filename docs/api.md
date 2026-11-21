@@ -32,7 +32,7 @@ The types live in `packages/contracts` (`@compass/contracts`). Import them inste
 - **Roll-ups.** With `by: region | brand | group`, a row is the roll-up of the scope's hotels only, under the region's, brand's or group's name. The scope note says so.
 - **When it applies.** The scope goes with a question. A question sent while an answer is running keeps the scope (and mode) of that answer, like `mode`. `steer` has no scope.
 - **Not access control.** There is no login: the scope is the person's working mode, not a permission. The public `/mcp` server has no scope.
-- **The brief** is not scoped on the server: filter `GET /api/brief` by `hotel_code` on the client.
+- **The brief** is not scoped on the server: filter `GET /api/brief` by `hotel_code` on the client. The numbers around it are: `GET /api/brief/overview?hotels=` (see "Morning brief").
 
 ## Kassandra chat: WebSocket
 
@@ -310,6 +310,61 @@ The description is the person's own text; send it only on their action, like any
 - **"Explore":** open Kassandra with `item.question`.
 - **Regeneration:** a cron regenerates the brief every morning at 05:00 UTC. `POST /api/brief/refresh` regenerates it now (rate-limited).
 
+### The numbers around the brief: `GET /api/brief/overview?hotels=LIS,AMS`
+
+Everything the brief page shows besides the findings, for a hotel scope, in one read: `BriefOverview` (`@compass/contracts` brief-overview.ts). About fifteen read-only queries, no model: every number is computed in SQL.
+
+- **`hotels`** (optional): hotel codes separated by commas, in any letter case. Left out, empty, or naming every hotel: the whole group. A code the group does not have gets 400 with the scope's own message ("The scope names a hotel the group does not have: XXX.").
+- **Limits:** 30 reads per minute per client (429 `{ error }`). The answer is kept for a minute per scope and carries `Cache-Control: private, max-age=60`.
+- **Conventions:** ratios come from sums over the scope's hotels, never from averaging hotel ratios. Money is in EUR at the business date's rate, for this year and for last year alike, so a move in a currency does not read as a move in trade. "Last year" for nights on the books is the same weekday 364 days earlier at the same lead time (STLY).
+
+```ts
+interface BriefOverview {
+  businessDate: string;             // the data's "today"
+  hotels: string[];                 // the scope applied; [] is the whole group
+  pulse: BriefPulse | null;
+  nights: BriefNights | null;
+  pickup: BriefPickup | null;
+  money: BriefMoney | null;
+  health: BriefFeed[] | null;
+  charts: Record<string, BriefChart>; // by brief item id
+  failed: string[];                 // parts that could not be read
+}
+```
+
+- **A part that fails is `null` and named in `failed`** (`pulse`, `nights`, `pickup`, `money`, `health`, or `chart:<item id>`); the rest still answers with 200. Show an error with Retry for that part only. If the database cannot be reached at all, every part is failed and `businessDate` is `""`.
+- **`pulse.tiles`** (`PulseTile[]`), in this order:
+
+  | `key` | What | `unit` | Period | Compared with |
+  |---|---|---|---|---|
+  | `occupancy` | rooms on the books ÷ rooms available | `percent` | next 30 nights | same time last year, in points (`deltaUnit: 'pp'`) |
+  | `adr`, `revpar`, `room_revenue` | on the books | `eur` | next 30 nights | same time last year, in % |
+  | `pace` | room nights on the books | `count` | next 30 nights | same time last year, in % |
+  | `total_revenue`, `trevpar`, `gop` | the P&L | `eur` | the last closed month | the same month a year earlier, and `also` the month's budget |
+  | `gop_margin` | GOP ÷ total revenue | `percent` | the last closed month | a year earlier and `also` budget, in points |
+
+  Each tile has `value`, `compare`, `delta` with its `deltaUnit`, `period` ("Next 30 nights", "Oct 2026"), `basis` ("same time last year", "Oct 2025"), a one-sentence `definition`, and `series` (a point per night, or per month for the last twelve closed months, each `{ x, value, compare }`). The P&L tiles are left out when the scope has no closed month. A percentage is already in percent (`53` is 53%).
+- **`nights`**: the next 14 nights. `total` has a row per night for the scope (`rooms_available`, `rooms_otb`, `rooms_otb_stly`, `occupancy_pct`, `occupancy_stly_pct`, and how many hotels have an event or a flagged rate: `events`, `rate_flags`). `hotels` has a row per hotel and night, with `bar_rate` in the hotel's `currency`, `bar_vs_comp` (1.00 = at the comp set's median), `comps_sold_out`, the city `event` if there is one, and `rate_flag`:
+  - `underpriced`: under 0.85× the median while two or more competitors are sold out or the night is over 70% full (the brief detector's own rule);
+  - `overpriced`: over 1.25× the median while the night has under 85% of last year's rooms on the books.
+- **`pickup`**: the 7 days up to the business date. `byDay` has room nights `booked` and `cancelled` on each booking day, `net`, and `net_ly` (the same weekday last year). `byHotel` has the same for the 7 days per hotel, with `revenue_eur` booked.
+- **`money`**: room revenue on the books for the next 30 nights. `byHotel` has `revenue_eur`, `revenue_stly_eur`, `change_eur`, `change_pct` and the hotel's `region`; `byWeek` has the scope's revenue per stay week (weeks start on Monday).
+- **`health`**: every source system of the scope's hotels (`system`, `vendor`, `status`, `last_sync_at`, `days_behind`), the ones that are not `ok` first.
+- **`charts`**: one chart per brief finding in scope, by the finding's `id`. A `BriefChart` is a widget of the catalogue without `sourceCallId`: `{ kind, title, subtitle?, x?, y?, group?, compare?, format?, rows, columns, sources }`. Draw it with `<juyo-widget-chart>` like any other widget; every chart passes the fit rules of "Widgets in answers" (a test checks this).
+
+  | Finding | `kind` | Rows |
+  |---|---|---|
+  | `pace_behind` | `line` | room nights on the books for the next 45 nights as of each of the last 57 days, with the same point last year as `compare` |
+  | `underpriced_demand` | `bullet` | our rate against the comp set's median per flagged night (and a night either side), in the hotel's currency |
+  | `account_loss` | `bar` | the account's room nights per month, for the last twelve full months |
+  | `web_conversion_drop` | `funnel` | sessions → searches → checkout starts → bookings on that device for the last 30 days; the 30 days before are in the rows (`visits_before`) and in the `subtitle` |
+  | `staffing_gap` | `grouped_bar` | hours needed and hours worked per week, for the last eight whole weeks |
+  | `rooms_out_of_order` | `calendar_heatmap` | rooms out of order per day, from two weeks back to eleven weeks ahead |
+  | `gop_miss` | `waterfall` | budgeted GOP → each revenue line against budget → all costs → actual GOP (`kind` marks the totals; an `Unallocated` step holds what the budget does not split by line) |
+  | `data_stale` | `bar` | for a POS feed, F&B covers per day for the last 14 days; other feeds have no chart |
+
+  The findings come from the stored brief (`GET /api/brief`), so the ids match the items the page shows. A finding with fewer than two rows to draw has no chart.
+
 ## Workflows (Act)
 
 Agents that watch the numbers, propose an action and act once a person approves. Each run is a durable Pi session. While it waits for approval it holds no compute, and the wait survives deploys. Compass is read-only: an approved action is handed to the revenue manager as an RMS task and written to the audit log.
@@ -325,16 +380,40 @@ Agents that watch the numbers, propose an action and act once a person approves.
 | POST | `/api/workflows/:id/run` | Run now ("Run now" button). Returns `WorkflowRun`. Rate-limited and budgeted. 409 while the workflow has a run in progress. |
 | GET | `/api/runs/:runId` | `{ run, entries: ChatEntry[] }`: the run's log, projected like the chat. |
 | GET | `/api/proposals?status=pending` | The approval inbox: `Proposal[]` with `change: { before, after, scope }`, `rationale`, `impact_eur`, `risk`. |
-| POST | `/api/proposals/:id/decision` | `{ "approved": true, "by": "Ana Pop (RM)", "note": "" }`. Wakes the parked run. Budgeted. |
-| POST | `/api/proposals/:id/undo` | `{ "by": "…" }` on an applied proposal: a compensating RMS task, audited. |
+| POST | `/api/proposals/:id/decision` | `{ "approved": true, "by": "Compass user (web)", "note": "" }` → `DecisionReceipt`: `{ proposal, handedTo, receipt }`. See "Decisions". Budgeted. |
+| POST | `/api/proposals/:id/undo` | `{ "by": "…" }` takes a decision back: a sent one gets a task to reverse it, a dismissed one waits for a decision again. Answers the `AuditEntry` it wrote. |
 | GET | `/api/audit` | `AuditEntry[]`, newest first. |
+
+### Decisions
+
+Compass is read-only. Sending a decision on changes no rate, channel or booking: it hands a task to a named person at the hotel and writes the audit log. **No email is sent for a decision.**
+
+- **`POST /api/proposals/:id/decision`** with `approved: true` ("Send to revenue manager" in the app) records the handover at once and answers:
+
+  ```json
+  { "proposal": { "id": "prop-…", "status": "applied", "decidedBy": "Compass user (web)", "decidedAt": "2026-11-21T00:49:01.000Z", "…": "…" },
+    "handedTo": { "name": "Ana Pop", "email": "ana.pop@halcyon.example.com", "role": "revenue_manager", "roleLabel": "Revenue manager", "hotel": "Arbor Lisbon Chiado", "hotel_code": "LIS" },
+    "receipt": "RMS task rms-mwpowu03-8 for Ana Pop (Revenue manager, Arbor Lisbon Chiado): Lower BAR … (BAR 145–220 EUR → Cap at about 1.2x comp median, …)." }
+  ```
+
+  - `proposal.status` is `applied` straight away (it used to be `approved` until the agent woke and applied it). The agent behind it still gets the decision as a durable signal; it is told the task is already handed over and writes nothing over it.
+  - `handedTo` is the person whose job that kind of action is: the hotel's **revenue manager** for `adjust_bar`, `close_channel`, `open_channel` and `contact_account`, its **general manager** for `create_task` and `notify`. It is `null` for a hotel the roster does not know; the receipt then names the role and the hotel code.
+  - The same entry goes to the audit log (`outcome: "sent_to_rms"`) with `handedTo` on it. Actions an agent applies on its own (`auto_low_risk`) are logged the same way.
+- **With `approved: false`** ("Dismiss") nothing is sent: the proposal becomes `denied`, the audit log gets an entry with `outcome: "dismissed"`, and the answer is `{ proposal, handedTo: null, receipt: "Dismissed. Nothing was sent." }`.
+- **`POST /api/proposals/:id/undo`** takes either back and answers the audit entry it wrote (`outcome: "undone"`):
+  - a sent one (`applied`): the same person gets a task to reverse it (`handedTo` on the entry), and the proposal becomes `undone`;
+  - a dismissed one (`denied`): the proposal is `pending` again and can be decided again. By then its agent's run has usually ended; the decision is then recorded without a signal.
+  - anything else: 409 "Only a decision that was sent or dismissed can be taken back."
+- **Errors:** 404 for an unknown proposal; 409 "This decision has already been made. Reload to see the latest." for one that is not `pending`; 409 when the agent is still waiting and the signal could not be delivered.
+- **The roster** is `DEMO_TEAM` in `@compass/contracts` (team.ts): a fictional revenue manager and general manager per hotel, with addresses on `halcyon.example.com` (a reserved domain: nothing can be delivered there). `recipientFor(hotelCode, action)` gives the `Handover` for a decision; the app uses the same constant when it talks to a server from before this change.
+- **`AuditEntry`** gained `handedTo?: Handover` and the outcome `dismissed`.
 
 **Autonomy** (per workflow) is how trust is earned gradually:
 - `suggest` only records proposals;
 - `approve` waits for a person;
 - `auto_low_risk` applies low-risk actions (tasks, notifications) alone and asks for prices or channels. `adjust_bar`, `close_channel` and `open_channel` are always high risk, whatever the agent says.
 
-**Proposal status:** `pending → approved → applied`, or `denied`, `auto_approved`, `suggested`, `undone`. `superseded` means the agent replaced the proposal with an amended one, for example to meet a condition in the approver's note.
+**Proposal status:** `pending → applied` when a person sends it on (`approved` is only seen on the agent's own path, between its approval and its `apply_action`), or `denied` (dismissed), `auto_approved`, `suggested`, `undone`. `superseded` means the agent replaced the proposal with an amended one, for example to meet a condition in the approver's note.
 
 **Run status:** `running → waiting_approval → running → done | failed`. Poll `/api/runs/:id` or `/api/proposals?status=pending` every few seconds. A run that stopped without being recorded (a deploy in the middle of it) is settled the next time it is read or its workflow is run: after 15 minutes with no live session it becomes `failed`.
 
@@ -435,6 +514,7 @@ A run walks the chain: `trigger` and `scope` are done at once; a check is active
 - **Fixed template:** the model writes the summary (at most 500 characters) and picks the facts; it never chooses the recipient, the subject or the layout. The subject is always `<name> · Compass` (the name cut to 60 characters). Every link and domain in the name and in what the model wrote is replaced by `[link removed]`; only links to the app itself stay. The channel names written like a domain (`Booking.com`, `Expedia.com`, `Hotels.com`) stay as plain words, in any letter case; with a scheme, `www.`, a subdomain, a port, a path or an `@` they are removed like any link.
 - **Limits:** 3 emails per hour and 6 per UTC day per address, 10 per hour per client, 50 per UTC day for the whole demo. "Run now" and a test count for the client that asked; the morning cron's runs have no per-client limit. Over a limit, the run ends `done`, sends nothing and says so in its summary.
 - **Lifetime:** a scheduled email workflow turns itself off after 7 days or 5 emails, whichever comes first. The last mail says so, also when the 7 days will be over before the workflow's next run. The next run is the next 05:00 UTC cron for a daily workflow and for one on a brief finding, also when a person started this run. For a weekly workflow it is the first 05:00 UTC cron at least 6.5 days after this run started: 7 days after a morning run, up to 8 after a run started later in the day. So a weekly email workflow that nobody runs by hand sends one mail, the morning after it was created, and that mail says it is the last: the next weekly run would fall after the 7 days. When a person runs it first, the cron's run about a week later can still fall inside the 7 days, and then that one is the last. Test runs are not counted, only the hourly and daily limits.
+- **`/workflows/new?describe=<text>`** opens the builder on a new draft with `describe` in the chat's field (at most 600 characters). Like `/ask?q=`, it only fills the field: the person edits it, adds what is theirs (an address) and presses send. "Watch this" on a brief finding uses it.
 - **"Ask Kassandra about this"** in the mail links to `https://juyo.razvanfrandes.com/ask?q=<question, URL-encoded>`. This is a contract for the app: the route `/ask` must open Kassandra and **pre-fill** the composer with the question from `q`. It must not send it: the person reads the question and presses send. (Anyone can make such a link, so opening one must never spend a question or act on its own.)
 
 ## Voice input (Soniox)

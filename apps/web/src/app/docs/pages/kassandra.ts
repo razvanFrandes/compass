@@ -40,15 +40,15 @@ const AGENTS: readonly (readonly string[])[] = [
 
 const AUTONOMY: readonly DocsCell[] = [
   { k: 'suggest', title: 'Suggest only', text: 'The agent records a proposal and stops. Nothing waits for anyone.' },
-  { k: 'approve', title: 'Wait for approval', text: 'The run parks on a durable signal until a person approves or denies. It holds no compute while it waits, and the wait survives a deploy.' },
+  { k: 'approve', title: 'Wait for approval', text: 'The run parks on a durable signal until a person sends the suggestion on or dismisses it. It holds no compute while it waits, and the wait survives a deploy.' },
   { k: 'auto_low_risk', title: 'Act alone on low risk', text: 'Tasks and notifications are applied without asking. Prices and channels still wait for a person.' },
 ];
 
 const PROPOSAL = [
   { title: 'pending', text: 'The agent proposed a change: before, after, scope, the reason and the EUR impact.' },
-  { title: 'approved', text: 'A person said yes. The decision wakes the parked run.' },
-  { title: 'applied', text: 'The action became an RMS task for the revenue manager and an audit entry.' },
-  { title: 'undone', text: 'Undo adds a compensating task. The audit log keeps both.' },
+  { title: 'approved', text: 'A person chose “Send to revenue manager”. The server records the handover at once, with the name of the person who gets the task, and the decision wakes the parked run.' },
+  { title: 'applied', text: 'The action is an RMS task for the revenue manager (or the general manager, for a task for the house) and an audit entry. No rate or channel changes.' },
+  { title: 'undone', text: 'Undo, from the toast or the card, gives the same person a task to reverse it. A dismissal can be taken back too. The audit log keeps both.' },
 ] as const;
 
 const DETECTORS: readonly (readonly string[])[] = [
@@ -113,7 +113,7 @@ const VOICE: readonly DocsCell[] = [
         <docs-cells [items]="autonomy" [min]="260" />
       </docs-section>
 
-      <docs-section heading="The life of a proposal" anchor="proposal" note="Compass never writes to a hotel system. “Applied” means a task for a person and a line in the audit log. A proposal can also end as \`denied\`, \`suggested\`, \`auto_approved\` or \`superseded\`, when the agent replaces it with an amended one.">
+      <docs-section heading="The life of a proposal" anchor="proposal" note="Compass never writes to a hotel system. “Applied” means a task for a person and a line in the audit log. The answer to a decision is \`{ proposal, handedTo, receipt }\`; the recipient comes from \`DEMO_TEAM\`, a fictional roster, and no email is sent. A proposal can also end as \`denied\` (“Dismiss”), \`suggested\`, \`auto_approved\` or \`superseded\`, when the agent replaces it with an amended one.">
         <ol class="docs-flow">
           @for (s of proposal; track s.title) {
             <li>
@@ -124,7 +124,7 @@ const VOICE: readonly DocsCell[] = [
         </ol>
       </docs-section>
 
-      <docs-section heading="The morning brief: detect with rules, explain with a model" anchor="brief" note="Eight fixed SQL detectors run at 05:00 UTC, so the brief is the same every time you load it. Haiku writes one summary sentence per item from that item’s facts; the summary carries an AI label. Items are ranked by euro impact.">
+      <docs-section heading="The morning brief: detect with rules, explain with a model" anchor="brief" note="Eight fixed SQL detectors run at 05:00 UTC, so the brief is the same every time you load it. Haiku writes one summary sentence per item from that item’s facts; the summary carries an AI label. The largest in money comes first, and a broken data feed leads. The numbers around the findings (Pulse, the next 14 nights, pickup, revenue on the books, data health) come from \`GET /api/brief/overview\`, computed in SQL for the hotels in scope.">
         <docs-table caption="The eight brief detectors" [head]="['Detector', 'Fires when', 'Impact is']" [rows]="detectors" [minWidth]="640" />
       </docs-section>
 

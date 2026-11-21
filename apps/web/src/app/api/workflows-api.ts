@@ -4,6 +4,7 @@ import type {
   AuditEntry,
   ChatEntry,
   Decision,
+  DecisionReceipt,
   Proposal,
   ProposalStatus,
   Workflow,
@@ -80,13 +81,16 @@ export class WorkflowsApi {
     return this.api.get('proposals', { status });
   }
 
-  /** Approve or deny. Wakes the parked run, so the proposal moves on a moment later: reload the inbox. */
-  decide(proposalId: string, decision: DecisionInput): Promise<ApiResult<Proposal>> {
+  /**
+   * Send on or dismiss. The answer says who it was handed to and the receipt (`DecisionReceipt`); a server from
+   * before the roster answers with the proposal alone.
+   */
+  decide(proposalId: string, decision: DecisionInput): Promise<ApiResult<DecisionReceipt | Proposal>> {
     return this.api.post(`proposals/${encodeURIComponent(proposalId)}/decision`, { note: '', ...decision });
   }
 
-  /** Undo an applied proposal: a compensating RMS task, audited. */
-  undo(proposalId: string, by: string): Promise<ApiResult<Proposal>> {
+  /** Take a decision back: a sent one gets a task to reverse it, a dismissed one waits again. Answers the audit entry. */
+  undo(proposalId: string, by: string): Promise<ApiResult<AuditEntry>> {
     return this.api.post(`proposals/${encodeURIComponent(proposalId)}/undo`, { by });
   }
 

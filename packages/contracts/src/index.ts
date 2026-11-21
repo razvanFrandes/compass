@@ -10,3 +10,5 @@ export * from './voice.ts';
 export * from './widgets.ts';
 export * from './boards.ts';
 export * from './widget-fit.ts';
+export * from './brief-overview.ts';
+export * from './team.ts';
