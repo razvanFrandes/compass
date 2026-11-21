@@ -89,7 +89,7 @@ let nextId = 0;
           }
           <span class="min-w-0 flex-1"></span>
           @if (showMode()) {
-            <button type="button" class="ask-tool ask-effort" [hlmDropdownMenuTrigger]="effortMenu" [side]="menuSide()" align="end" aria-haspopup="menu" [attr.aria-label]="'Effort: ' + effort().label + '. Change'">
+            <button type="button" class="ask-tool ask-effort" [hlmDropdownMenuTrigger]="effortMenu" [side]="menuSide()" align="end" aria-haspopup="menu" [attr.aria-label]="'Kassandra · ' + effort().label + '. Effort: change'">
               <span class="text-muted-foreground max-sm:hidden" aria-hidden="true">Kassandra · </span>
               <span aria-hidden="true">{{ effort().label }}</span>
               <ng-icon name="phosphorCaretDownLight" class="ask-caret text-[11px]" aria-hidden="true" />

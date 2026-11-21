@@ -244,7 +244,7 @@ describe('KassandraComposer: effort', () => {
   it('is a menu button that says the effort in use', () => {
     const { fixture } = render();
     const button = trigger(fixture, /Effort/);
-    expect(button.getAttribute('aria-label')).toBe('Effort: Thinker. Change');
+    expect(button.getAttribute('aria-label')).toBe('Kassandra · Thinker. Effort: change');
     expect(text(button)).toBe('Kassandra · Thinker');
     // What each effort means is in its menu, not under the field
     expect(el(fixture).textContent).not.toContain('takes longer');
@@ -262,7 +262,7 @@ describe('KassandraComposer: effort', () => {
     await settle(fixture);
     expect(fixture.componentInstance.mode()).toBe('quick');
     expect(menu()).toBeNull();
-    expect(trigger(fixture, /Effort/).getAttribute('aria-label')).toBe('Effort: Quick. Change');
+    expect(trigger(fixture, /Effort/).getAttribute('aria-label')).toBe('Kassandra · Quick. Effort: change');
     el(fixture).remove();
   });
 

@@ -3,11 +3,11 @@ import * as echarts from 'echarts/core';
 import type { EChartsCoreOption, EChartsType } from 'echarts/core';
 import { BarChart, CustomChart, FunnelChart, GaugeChart, HeatmapChart, LineChart, PieChart, RadarChart, SankeyChart, ScatterChart, TreemapChart } from 'echarts/charts';
 import { CalendarComponent, GraphicComponent, GridComponent, MarkAreaComponent, MarkLineComponent, TooltipComponent, VisualMapContinuousComponent } from 'echarts/components';
-import { AxisBreak, LabelLayout } from 'echarts/features';
+import { LabelLayout } from 'echarts/features';
 import { SVGRenderer } from 'echarts/renderers';
 
 // Only what the widget catalogue draws. SVG keeps text crisp and lets the page's font features apply.
-echarts.use([BarChart, CustomChart, FunnelChart, GaugeChart, HeatmapChart, LineChart, PieChart, RadarChart, SankeyChart, ScatterChart, TreemapChart, CalendarComponent, GraphicComponent, GridComponent, MarkAreaComponent, MarkLineComponent, TooltipComponent, VisualMapContinuousComponent, AxisBreak, LabelLayout, SVGRenderer]);
+echarts.use([BarChart, CustomChart, FunnelChart, GaugeChart, HeatmapChart, LineChart, PieChart, RadarChart, SankeyChart, ScatterChart, TreemapChart, CalendarComponent, GraphicComponent, GridComponent, MarkAreaComponent, MarkLineComponent, TooltipComponent, VisualMapContinuousComponent, LabelLayout, SVGRenderer]);
 
 /**
  * A thin ECharts host for the widget catalogue. Colours and fonts arrive in the option (built from the design

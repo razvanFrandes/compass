@@ -63,9 +63,12 @@ describe('UserMenu', () => {
   });
 
   it('shows the avatar, the name and the role, and says it opens a menu', () => {
-    expect(trigger().querySelector('.um-avatar')?.textContent?.trim()).toBe('AP');
+    expect(trigger().querySelector('.um-avatar')?.getAttribute('data-initials')).toBe('AP');
     expect(trigger().textContent).toContain('Ana Pop');
     expect(trigger().textContent).toContain('Revenue manager');
+    // Open, the words on screen are its name (label in name); only the rail's avatar needs a label.
+    expect(trigger().getAttribute('aria-label')).toBeNull();
+    expect(trigger().querySelector('.um-text')?.getAttribute('aria-hidden')).toBeNull();
     expect(trigger().getAttribute('aria-haspopup')).toBe('menu');
     expect(trigger().getAttribute('aria-expanded')).toBe('false');
   });
