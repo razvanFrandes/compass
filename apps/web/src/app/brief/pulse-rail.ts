@@ -22,7 +22,8 @@ type PulseTab = 'forward' | 'month';
     <section class="brief-sec" aria-labelledby="pulse-title">
       <header class="brief-sec-head">
         <div class="brief-sec-titles">
-          <h2 id="pulse-title" class="brief-sec-title">Pulse · {{ scopeLabel() }}</h2>
+          <!-- The scope is in the sidebar and in the page header: the title does not repeat it -->
+          <h2 id="pulse-title" class="brief-sec-title">Pulse</h2>
           <p class="brief-sec-hint">
             @if (state() !== 'ready') {
               The numbers for the hotels you are working on
@@ -68,9 +69,9 @@ type PulseTab = 'forward' | 'month';
           <ul class="brief-card pulse-row">
             @for (t of tiles(); track t.key) {
               <li class="pulse-cell">
-                <!-- Its name is its own text: label, value, then each comparison in words. The period is in the section's line. -->
+                <!-- Its name is its own text: label, value, then each comparison in words. The period is in the section's line and on the switch, so a tile only says it to a screen reader. -->
                 <button type="button" class="pulse-tile" [attr.title]="t.definition" (click)="ask.emit(t.question)">
-                  <span class="pulse-label">{{ t.label }}<span class="pulse-period" aria-hidden="true"> · {{ t.period }}</span><span class="sr-only">, {{ t.period }}:</span></span>
+                  <span class="pulse-label">{{ t.label }}<span class="sr-only">, {{ t.period }}:</span></span>
                   <span class="pulse-main">
                     <span class="pulse-value">{{ t.value }}<span class="sr-only">.</span></span>
                     <span class="pulse-spark" aria-hidden="true">

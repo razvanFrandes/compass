@@ -1,7 +1,7 @@
 import { Component, DOCUMENT, ElementRef, Injector, ViewEncapsulation, afterNextRender, computed, inject, input, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { phosphorBookOpenFill, phosphorSwatchesFill } from '@ng-icons/phosphor-icons/fill';
-import { phosphorBookOpenLight, phosphorCompassLight, phosphorInfoLight, phosphorSidebarSimpleLight } from '@ng-icons/phosphor-icons/light';
+import { phosphorBookOpenFill } from '@ng-icons/phosphor-icons/fill';
+import { phosphorBookOpenLight, phosphorSidebarSimpleLight } from '@ng-icons/phosphor-icons/light';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { GROUP } from '../data';
 import * as icons from '../icons';
@@ -9,12 +9,11 @@ import { KassandraThreadList } from '../kassandra/kassandra-thread-list';
 import { ScopeSwitcher } from '../scope/scope-switcher';
 import { DocsRouter } from '../docs/docs-router';
 import { CompassStore } from '../store';
-import { DensitySwitch } from '../theme/density-switch';
-import { ThemeSwitcher } from '../theme/theme-switcher';
+import { AppearanceFlyout } from './appearance-flyout';
 import { isActiveNav, type NavItem } from './nav';
 import { CompassLogo } from './compass-logo';
 import { RailThreads } from './rail-threads';
-import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sidebar-state';
+import { RAIL_TIP_GAP, SidebarState, isSidebarShortcut } from './sidebar-state';
 
 /**
  * The main sidebar, on `<nav appSidebar>`. It has two states: the full panel, and a 64 px rail of icons that
@@ -30,8 +29,8 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
  */
 @Component({
   selector: 'nav[appSidebar]',
-  imports: [NgIcon, CompassLogo, ScopeSwitcher, KassandraThreadList, RailThreads, ThemeSwitcher, DensitySwitch, HlmTooltipImports],
-  providers: [provideIcons({ ...icons, phosphorBookOpenFill, phosphorBookOpenLight, phosphorCompassLight, phosphorInfoLight, phosphorSidebarSimpleLight, phosphorSwatchesFill })],
+  imports: [NgIcon, CompassLogo, ScopeSwitcher, KassandraThreadList, RailThreads, AppearanceFlyout, HlmTooltipImports],
+  providers: [provideIcons({ ...icons, phosphorBookOpenFill, phosphorBookOpenLight, phosphorSidebarSimpleLight })],
   encapsulation: ViewEncapsulation.None,
   host: {
     id: 'main-nav',
@@ -79,19 +78,6 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
     .rail-logo:focus-visible, .rail-toggle:focus-visible, .rail-item:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
 
     .rail-foot { display: flex; flex-direction: column; gap: 1px; margin-top: auto; }
-    .rail-theme { padding: 0 8px 6px; }
-    .rail[data-collapsed] .rail-theme { padding: 0 0 6px; justify-content: center; }
-    .rail[data-collapsed] .rail-theme > button { width: 100%; }
-    .rail-density { padding: 0 8px 6px; }
-    .rail[data-collapsed] .rail-density { padding: 0 0 6px; }
-
-    /* The note about the demo data: a paragraph in the panel, a popover beside the rail. */
-    .rail-note { padding: 12px 8px 0; color: var(--muted-foreground); }
-    .rail-note[popover] {
-      position: fixed; inset: auto auto 16px ${RAIL_WIDTH + 8}px; width: 264px; margin: 0; padding: 10px 12px;
-      border: 1px solid var(--field-border); border-radius: var(--popover-radius, 10px); background: var(--popover); color: var(--popover-foreground);
-      box-shadow: var(--popover-shadow, 0 12px 32px -12px rgb(0 0 0 / 0.45), 0 2px 6px rgb(0 0 0 / 0.16));
-    }
 
     /* The key in the tooltip of the collapse button; the tooltip is drawn outside the nav. */
     .rail-kbd {
@@ -160,37 +146,23 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
       <kassandra-thread-list />
     }
 
+    <!-- The foot: two quiet items. Docs opens the hub; Appearance opens its panel beside the sidebar (appearance-flyout.ts). -->
     <div class="rail-foot text-muted-foreground text-[14px]">
-      <!-- Theme and mode (src/app/theme/theme-switcher): two rows in the panel, one button with a menu in the rail -->
-      @if (collapsed()) {
-        <app-theme-switcher class="rail-theme" variant="menu" side="right" align="end" />
-      } @else {
-        <app-theme-switcher class="rail-theme" />
-      }
-      <!-- Comfortable or Compact (src/app/theme/density-switch.ts): beside the theme, and separate from it -->
-      <app-density-switch class="rail-density" [collapsed]="collapsed()" [tipGap]="tipGap + 2" />
-      @for (n of foot; track n.view) {
-        <button
-          type="button"
-          class="rail-item rounded-md"
-          [class.rail-item--active]="isActive(n.view)"
-          [attr.aria-current]="isActive(n.view) ? 'page' : null"
-          [hlmTooltip]="n.label"
-          position="right"
-          [sideOffset]="tipGap"
-          [tooltipDisabled]="!collapsed()"
-          (click)="go(n.view)"
-        >
-          <ng-icon [name]="isActive(n.view) ? n.iconActive : n.icon" class="rail-icon" aria-hidden="true" />
-          <span class="rail-label">{{ n.label }}</span>
-        </button>
-      }
-      @if (collapsed()) {
-        <button type="button" class="rail-item rounded-md" popovertarget="rail-note" aria-label="About this demo" hlmTooltip="About this demo" position="right" [sideOffset]="tipGap">
-          <ng-icon name="phosphorInfoLight" class="rail-icon" aria-hidden="true" />
-        </button>
-      }
-      <p id="rail-note" class="rail-note text-[12px]/relaxed" [attr.popover]="collapsed() ? 'auto' : null">Halcyon Hospitality is a fictional group. All figures are generated, as of Fri 20 Nov 2026.</p>
+      <button
+        type="button"
+        class="rail-item rounded-md"
+        [class.rail-item--active]="isActive('docs')"
+        [attr.aria-current]="isActive('docs') ? 'page' : null"
+        hlmTooltip="Docs"
+        position="right"
+        [sideOffset]="tipGap"
+        [tooltipDisabled]="!collapsed()"
+        (click)="docs.open('index')"
+      >
+        <ng-icon [name]="isActive('docs') ? 'phosphorBookOpenFill' : 'phosphorBookOpenLight'" class="rail-icon" aria-hidden="true" />
+        <span class="rail-label">Docs</span>
+      </button>
+      <app-appearance-flyout [collapsed]="collapsed()" />
     </div>
   `,
 })
@@ -199,7 +171,7 @@ export class Sidebar {
   readonly items = input.required<readonly NavItem[]>();
 
   protected readonly store = inject(CompassStore);
-  private readonly docs = inject(DocsRouter);
+  protected readonly docs = inject(DocsRouter);
   private readonly state = inject(SidebarState);
   private readonly doc = inject(DOCUMENT);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -211,18 +183,6 @@ export class Sidebar {
   /** A tooltip starts 6 px outside the rail: the item ends 12 px before the rail's edge. */
   protected readonly tipGap = RAIL_TIP_GAP;
   protected readonly toggleLabel = computed(() => (this.collapsed() ? 'Expand sidebar' : 'Collapse sidebar'));
-
-  /** The links at the foot, above the note: the theme lab and the docs hub (src/app/docs). In the panel and in the rail. */
-  protected readonly foot: readonly NavItem[] = [
-    { view: 'theme-lab', label: 'Theme lab', icon: 'phosphorSwatchesLight', iconActive: 'phosphorSwatchesFill', count: 0 },
-    { view: 'docs', label: 'Docs', icon: 'phosphorBookOpenLight', iconActive: 'phosphorBookOpenFill', count: 0 },
-  ];
-
-  /** The docs hub keeps its own page and address (DocsRouter); every other place is the store's. */
-  protected go(view: NavItem['view']) {
-    if (view === 'docs') this.docs.open('index');
-    else this.store.go(view);
-  }
 
   protected isActive(view: NavItem['view']) {
     return isActiveNav(this.store.view(), view);

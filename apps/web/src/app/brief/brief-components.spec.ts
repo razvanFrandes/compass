@@ -51,8 +51,8 @@ describe('PulseRail', () => {
     const { el } = render({ pulse: PULSE, state: 'ready', scopeLabel: 'Asia · 3 hotels' });
     const tiles = [...el.querySelectorAll('button.pulse-tile')];
     expect(tiles).toHaveLength(4);
-    expect(text(el.querySelector('#pulse-title'))).toBe('Pulse · Asia · 3 hotels');
-    expect(text(tiles[0]!.querySelector('.pulse-period'))).toBe('· next 30 nights');
+    expect(text(el.querySelector('#pulse-title'))).toBe('Pulse');
+    expect(tiles[0]!.querySelector('.pulse-period')).toBeNull();
     expect(text(tiles[0]!.querySelector('.pulse-value'))).toBe('53%.');
     expect(text(tiles[0]!.querySelector('.pulse-delta'))).toBe('▲ +0.4 pts vs last year');
     // What a screen reader says is the tile's own text, with the symbols replaced by words.

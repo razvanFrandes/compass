@@ -1,7 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
-import { ScopeService } from '../scope/scope.service';
 import { KassandraComposer } from './kassandra-composer';
 import { VoiceInput, type VoiceEvents } from './voice/voice-input';
 
@@ -114,7 +113,9 @@ describe('KassandraComposer: Quick or Thinker', () => {
     const { fixture } = render();
     const group = el(fixture).querySelector('[role=radiogroup]')!;
     expect(group.getAttribute('aria-label')).toBe('Answer mode');
-    expect(text(el(fixture).querySelector(`#${group.getAttribute('aria-describedby')}`))).toBe('Works across several sources; takes longer');
+    // What each mode means is the radio's tooltip (and its description for a screen reader), not a line of text.
+    expect(radios(fixture).map((r) => r.getAttribute('title'))).toEqual(['A fast answer from one trusted source', 'Works across several sources; takes longer']);
+    expect(el(fixture).textContent).not.toContain('takes longer');
     expect(radios(fixture).map((r) => [text(r), r.getAttribute('aria-checked'), r.getAttribute('tabindex')])).toEqual([
       ['Quick', 'false', '-1'],
       ['Thinker', 'true', '0'],
@@ -145,24 +146,11 @@ describe('KassandraComposer: Quick or Thinker', () => {
   });
 });
 
-describe('KassandraComposer: scope chips', () => {
-  const chips = (fixture: ComponentFixture<unknown>) => [...el(fixture).querySelectorAll('.scope-chip')].map(text);
-
-  it('shows the global hotel scope and follows it', () => {
+describe('KassandraComposer: nothing repeated under the field', () => {
+  it('shows no scope chip: the hotel scope is in the sidebar and the page header', () => {
     const { fixture } = render();
-    expect(chips(fixture)).toEqual(['All 20 hotels']);
-    TestBed.inject(ScopeService).set(['LIS']);
-    fixture.detectChanges();
-    expect(chips(fixture)).toEqual(['Arbor Lisbon Chiado']);
-    TestBed.inject(ScopeService).set(['LIS', 'AMS', 'NYC']);
-    fixture.detectChanges();
-    // The label is the scope switcher's own (ScopeService.label): one chip, in the catalog's order.
-    expect(chips(fixture)).toEqual(['Amsterdam Centraal + 2 more']);
-  });
-
-  it('shows the host’s own subject instead, or nothing', () => {
-    expect(chips(render({ scope: ['Lisbon pace', 'LIS'] }).fixture)).toEqual(['Lisbon pace', 'LIS']);
-    expect(chips(render({ showScope: false }).fixture)).toEqual([]);
+    expect(el(fixture).querySelector('.scope-chip')).toBeNull();
+    expect(el(fixture).textContent).not.toContain('All 20 hotels');
   });
 });
 

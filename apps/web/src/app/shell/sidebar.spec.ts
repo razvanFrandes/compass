@@ -65,7 +65,7 @@ describe('Sidebar', () => {
     document.querySelector('.cdk-overlay-container')?.replaceChildren();
   });
 
-  it('is the Main navigation landmark, expanded: the wordmark, labels, the thread list and the note in place', async () => {
+  it('is the Main navigation landmark, expanded: the wordmark, labels, the thread list and a two-item foot', async () => {
     await render();
     expect(nav.getAttribute('aria-label')).toBe('Main');
     expect(nav.hasAttribute('data-collapsed')).toBe(false);
@@ -77,12 +77,11 @@ describe('Sidebar', () => {
     expect(nav.querySelector('kassandra-thread-list')?.textContent).toContain('Why is Lisbon pacing behind?');
     expect(nav.querySelector('app-rail-threads')).toBeNull();
     expect(nav.querySelector('.sw-side')?.hasAttribute('data-compact')).toBe(false);
-    // Theme (two radios) and Mode (three), from the theme switcher's rows.
-    expect([...nav.querySelectorAll('app-theme-switcher [role=radio]')].map((radio) => radio.textContent?.trim())).toEqual(['Default', 'Concept', 'Light', 'Dark', 'System']);
-    // The density switch sits under the theme, and is its own group.
-    expect([...nav.querySelectorAll('app-density-switch [role=radio]')].map((radio) => radio.textContent?.trim())).toEqual(['Comfortable', 'Compact']);
-    expect(nav.querySelector('#rail-note')?.hasAttribute('popover')).toBe(false);
-    expect(nav.querySelector('[popovertarget]')).toBeNull();
+    // The foot is two items, like the places above: Docs and Appearance. No controls, no links, no note.
+    expect([...nav.querySelectorAll('.rail-foot .rail-item')].map(name)).toEqual(['Docs', 'Appearance']);
+    expect(nav.querySelector('app-theme-switcher, app-density-switch')).toBeNull();
+    expect(nav.textContent).not.toContain('Theme lab');
+    expect(nav.textContent).not.toContain('fictional');
   });
 
   it('collapsed, is a rail of icons: the mark, the scope with its hotel count, badges, one Threads button', async () => {
@@ -110,25 +109,16 @@ describe('Sidebar', () => {
     expect(threads.getAttribute('aria-label')).toBe('Conversations');
     expect(threads.getAttribute('aria-haspopup')).toBe('menu');
 
-    // Theme and mode are one button with a menu (the theme switcher's "menu" shape); the two rows are for the panel.
-    expect(nav.querySelectorAll('app-theme-switcher [role=radio]').length).toBe(0);
-    // The density switch is two icons, named.
-    const densities = [...nav.querySelectorAll('app-density-switch [role=radio]')];
-    expect(densities.map((radio) => radio.getAttribute('aria-label'))).toEqual(['Comfortable', 'Compact']);
-    expect(densities.every((radio) => radio.querySelector('ng-icon') !== null)).toBe(true);
-    const themeButton = nav.querySelector<HTMLButtonElement>('app-theme-switcher button')!;
-    expect(themeButton.getAttribute('aria-label')).toMatch(/^Theme: .+\. Change theme or mode$/);
-    expect(themeButton.querySelector('ng-icon')).not.toBeNull();
-
-    // The note about the demo data moves into a popover, behind its own button.
-    expect(nav.querySelector('#rail-note')?.getAttribute('popover')).toBe('auto');
-    expect(nav.querySelector('[popovertarget="rail-note"]')?.getAttribute('aria-label')).toBe('About this demo');
+    // The foot is the same two items, as icons.
+    expect([...nav.querySelectorAll('.rail-foot .rail-item')].map(name)).toEqual(['Docs', 'Appearance']);
+    expect(nav.querySelector('[popovertarget]')).toBeNull();
+    expect(nav.textContent).not.toContain('fictional');
   });
 
   it('gives every control in the rail a name', async () => {
     await render({ saved: 'collapsed' });
     const controls = [...nav.querySelectorAll('a, button')];
-    expect(controls.length).toBeGreaterThanOrEqual(11);
+    expect(controls.length).toBeGreaterThanOrEqual(9);
     for (const control of controls) expect(name(control), control.outerHTML.slice(0, 80)).not.toBe('');
     expect(controls.map(name).slice(0, 2)).toEqual(['Compass, morning brief', 'Expand sidebar']);
   });
@@ -141,9 +131,6 @@ describe('Sidebar', () => {
     expect(current).toHaveLength(1);
     expect(current[0]!.classList.contains('rail-item--active')).toBe(true);
     expect(current[0]!.textContent).toContain('Boards');
-    TestBed.inject(CompassStore).go('theme-lab');
-    await settle();
-    expect(nav.querySelector('[aria-current=page]')?.textContent).toContain('Theme lab');
   });
 
   it('the button collapses and expands, and the choice is remembered', async () => {
@@ -205,6 +192,83 @@ describe('Sidebar', () => {
     await settle();
     expect(nav.querySelector('.k-thread-open')).toBeNull();
     expect(document.activeElement).toBe(toggle());
+  });
+
+  describe('Appearance', () => {
+    const item = () => nav.querySelector<HTMLButtonElement>('app-appearance-flyout .rail-item')!;
+    const panel = () => document.querySelector<HTMLElement>('.cdk-overlay-container [role=dialog]');
+    const open = async () => {
+      item().focus();
+      item().click();
+      await settle();
+    };
+
+    it('opens a panel beside the sidebar with Theme, Mode, Density and the theme lab; the focus goes to the chosen theme', async () => {
+      await render();
+      expect(item().getAttribute('aria-haspopup')).toBe('dialog');
+      expect(item().getAttribute('aria-expanded')).toBe('false');
+      expect(panel()).toBeNull();
+      await open();
+      expect(item().getAttribute('aria-expanded')).toBe('true');
+      expect(item().getAttribute('aria-controls')).toBe(panel()!.id);
+      expect(panel()!.getAttribute('aria-label')).toBe('Appearance');
+      expect([...panel()!.querySelectorAll('[role=radiogroup]')].map((group) => document.getElementById(group.getAttribute('aria-labelledby')!)?.textContent?.trim())).toEqual(['Theme', 'Mode', 'Density']);
+      expect([...panel()!.querySelectorAll('app-density-switch [role=radio]')].map((radio) => radio.textContent?.trim())).toEqual(['Comfortable', 'Compact']);
+      expect(document.activeElement).toBe(panel()!.querySelector('app-theme-switcher [role=radio][aria-checked=true]'));
+    });
+
+    it('a choice in the panel applies, and the panel stays open', async () => {
+      await render();
+      await open();
+      const compact = panel()!.querySelector<HTMLButtonElement>('[data-density-option=compact]')!;
+      compact.click();
+      await settle();
+      expect(document.documentElement.getAttribute('data-density')).toBe('compact');
+      expect(panel()).not.toBeNull();
+      panel()!.querySelector<HTMLButtonElement>('[data-density-option=comfortable]')!.click();
+      await settle();
+    });
+
+    it('Esc closes it and gives the focus back to the item', async () => {
+      await render();
+      await open();
+      press({ key: 'Escape', keyCode: 27 }, document.activeElement!);
+      await settle();
+      expect(panel()).toBeNull();
+      expect(item().getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(item());
+    });
+
+    it('a click outside closes it; a second click on the item closes it too', async () => {
+      await render();
+      await open();
+      document.body.click();
+      await settle();
+      expect(panel()).toBeNull();
+      await open();
+      item().click();
+      await settle();
+      expect(panel()).toBeNull();
+    });
+
+    it('the theme lab link goes there and closes the panel', async () => {
+      await render();
+      await open();
+      const link = [...panel()!.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Theme lab')!;
+      link.click();
+      await settle();
+      expect(TestBed.inject(CompassStore).view()).toBe('theme-lab');
+      expect(panel()).toBeNull();
+    });
+
+    it('works from the rail too, and closes when the sidebar changes shape', async () => {
+      await render({ saved: 'collapsed' });
+      await open();
+      expect(panel()!.querySelectorAll('[role=radiogroup]')).toHaveLength(3);
+      press({ key: '\\', metaKey: true });
+      await settle();
+      expect(panel()).toBeNull();
+    });
   });
 
   it('Threads in the rail opens the list as a menu, and a thread opens from there', async () => {

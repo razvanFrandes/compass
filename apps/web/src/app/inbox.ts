@@ -348,7 +348,7 @@ const TOP_FINDINGS = 3;
 
     <!-- Phones and tablets: the ask bar docks at the bottom edge, clear of the home indicator. Nothing sits under it. -->
     <div class="dock-fade fixed inset-x-0 bottom-0 z-20 pt-6 pr-[max(12px,env(safe-area-inset-right,0px))] pb-[max(14px,env(safe-area-inset-bottom,0px))] pl-[max(12px,env(safe-area-inset-left,0px))] lg:hidden">
-      <kassandra-composer inputId="global-ask-m" placeholder="Ask about any hotel" [showMode]="false" [showScope]="false" (submitted)="live.askNew($event)" />
+      <kassandra-composer inputId="global-ask-m" placeholder="Ask about any hotel" [showMode]="false" (submitted)="live.askNew($event)" />
     </div>
   `,
 })

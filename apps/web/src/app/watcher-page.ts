@@ -78,7 +78,6 @@ import * as icons from './icons';
             <section class="surface" aria-labelledby="wp-goal">
               <h2 id="wp-goal" class="text-muted-foreground text-[12px]/4 font-medium">What it watches for</h2>
               <p class="max-w-measure mt-stack text-[16px]/relaxed">{{ w.goal }}</p>
-              <p class="text-muted-foreground mt-stack text-[13px]">{{ trigger(w) }} · {{ hotels(w.hotels) }}</p>
             </section>
 
             @if (proposals().length) {
@@ -170,10 +169,10 @@ import * as icons from './icons';
                     } @else {
                       <span class="op-toggle mt-1" role="radiogroup" aria-labelledby="aut-label">
                         @for (a of autonomies; track a) {
-                          <button type="button" role="radio" [attr.aria-checked]="w.autonomy === a" [attr.tabindex]="w.autonomy === a ? 0 : -1" [disabled]="!!busy()" (click)="actions.setAutonomy(w, a)" (keydown)="autonomyKey($event, w)">{{ autonomyShort(a) }}</button>
+                          <button type="button" role="radio" [attr.aria-checked]="w.autonomy === a" [attr.tabindex]="w.autonomy === a ? 0 : -1" [disabled]="!!busy()" [title]="autonomyLong(a)" (click)="actions.setAutonomy(w, a)" (keydown)="autonomyKey($event, w)">{{ autonomyShort(a) }}</button>
                         }
                       </span>
-                      <span class="text-muted-foreground mt-1 block text-[12.5px]">{{ autonomy(w) }}. Approver: the {{ w.approver === 'gm' ? 'general manager' : 'revenue manager' }}.</span>
+                      <span class="text-muted-foreground mt-1 block text-[12.5px]">Approver: the {{ w.approver === 'gm' ? 'general manager' : 'revenue manager' }}.</span>
                     }
                   </dd>
                 </div>
@@ -186,7 +185,7 @@ import * as icons from './icons';
             <!-- "Ask about this": the question opens a thread with this workflow as its subject, and is sent at once -->
             <section aria-labelledby="wp-ask">
               <h2 id="wp-ask" class="section-title mb-stack">Ask about this agent</h2>
-              <kassandra-composer label="Ask Kassandra about this agent" placeholder="Ask, e.g. “What did it find this week?”" [scope]="[w.name, hotels(w.hotels)]" [(mode)]="live.mode" (submitted)="ask(w, $event)" />
+              <kassandra-composer label="Ask Kassandra about this agent" placeholder="Ask, e.g. “What did it find this week?”" [(mode)]="live.mode" (submitted)="ask(w, $event)" />
             </section>
           </aside>
         </div>
@@ -286,8 +285,9 @@ export class WatcherPage {
   protected action(w: Workflow) {
     return ACTION_LABEL[w.action.type] ?? w.action.type;
   }
-  protected autonomy(w: Workflow) {
-    return AUTONOMY_LABEL[w.autonomy];
+  /** What a level means: the tooltip of its button, not a line under the control. */
+  protected autonomyLong(a: Workflow['autonomy']) {
+    return AUTONOMY_LABEL[a];
   }
   /** "Pace vs last year · Review scores", not tool names. */
   protected checks(w: Workflow) {

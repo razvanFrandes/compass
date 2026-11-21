@@ -150,7 +150,6 @@ export function richText(text: string): { text: string; bold: boolean }[] {
         [online]="online()"
         [prefill]="prefill()"
         [showMode]="false"
-        [showScope]="false"
         [maxLength]="4000"
         (submitted)="ask.emit($event)"
         (stopped)="stop.emit()"

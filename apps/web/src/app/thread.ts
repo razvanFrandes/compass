@@ -14,7 +14,7 @@ import * as icons from './icons';
 /*
   The thread is a live conversation with Kassandra (KassandraChat over WebSocket), drawn by the Kassandra component
   family: `kassandra-conversation` for the turns (the work collapsed to one line, the answer streaming in, charts
-  with "Add to board", next questions) and `kassandra-composer` for the ask bar (voice, Quick or Thinker, the hotel
+  with "Add to board", next questions) and `kassandra-composer` for the ask bar (voice, Quick or Thinker; the hotel
   scope). On the right, "Behind the numbers" from the evidence every data tool returns.
   Layout (docs/research/layout): the conversation is one column of 68 characters, the evidence a 400 px supporting
   pane. No rules between header, conversation and composer: the composer sits on a fade of the page.

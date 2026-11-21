@@ -740,3 +740,18 @@ The owner's request: pressing "Send to revenue manager" must say clearly what ha
 - **`<app-handover-sheet>` sits in the shell next to the Docs button and the toaster;** the logo is `<app-compass-logo>`.
 - **Agent Studio's table keeps density's layout;** its audit log names the recipient ("Sent to Ana Pop, Revenue manager") and knows "Dismissed".
 - **The docs pages say what is now true:** "Send to revenue manager" and "Dismiss", no rate changes, the toast with View message and Undo, a fictional demo team, a brief that follows the scope.
+
+## A quieter sidebar foot and no repeated helper text (21 Nov 2026)
+
+The owner's request: less text, and a calmer foot for the sidebar.
+
+- **The foot of the desktop sidebar is two items,** styled like the places above them: **Docs** (opens the hub) and **Appearance**. The inline theme rows, the density switch, the "Theme lab" link, the "About this demo" button and the note about the fictional group are gone from it. This replaces what the entries above say about the foot and about the collapsed rail.
+- **Appearance opens a panel to the right of the sidebar** (`apps/web/src/app/shell/appearance-flyout.ts`, a CDK connected overlay with `role="dialog"`): `<app-theme-switcher>` (Theme and Mode), `<app-density-switch>` and a small "Theme lab" link. Enter or Space opens it and the focus goes to the chosen theme; Tab stays inside, the arrow keys choose; Esc closes and returns the focus to the item; a click outside closes. In the rail the item is an icon with a tooltip and the panel opens beside the rail. It closes when the sidebar collapses or expands.
+- **The phone's menu sheet keeps its appearance controls in place** and loses the note. "Halcyon Hospitality is a fictional group…" is no longer in the shell; Docs → About ("All data is fictional") and the docs index say it.
+- **The composer shows one control under the field, Quick or Thinker.** The sentence that described the chosen mode is now each button's tooltip (`title`, which is also its description for a screen reader). The scope chip is gone, and with it the composer's `scope` and `showScope` inputs: the hotel scope is in the sidebar and the page header, and `Live` still sends it with every question.
+- **Other text that repeated what is already on screen was removed:**
+  - "Pulse · All 20 hotels" is "Pulse" (the scope is in the sidebar and in the brief's header);
+  - a Pulse tile no longer shows "· next 30 nights" beside its label (the section's line and the period switch say it; a screen reader still hears it);
+  - the Portfolio board's subtitle no longer starts with "All 20 hotels:" / "3 hotels selected:" (the Hotels filter says it);
+  - an agent's page: the line "When … · All 20 hotels" under "What it watches for" (the same two facts are under "How it works"), and the sentence that described the chosen autonomy level (now each level's tooltip; "Approver: …" stays).
+- **Kept on purpose:** the resolved dates under the filter bar, each chart's own scope line, and a conversation's scope chips in the Thread: they say something the controls do not, or travel with the chart.

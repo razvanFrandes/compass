@@ -209,7 +209,7 @@ export class SavedWidget {
           <header class="gap-card-gap flex flex-col">
             <div>
               <h1 class="text-[24px] font-[560] tracking-[-0.02em]">Portfolio</h1>
-              <p class="text-muted-foreground mt-1 text-[14px]">{{ portfolioSubtitle() }} · data as of Fri 20 Nov, 07:00</p>
+              <p class="text-muted-foreground mt-1 text-[14px]">Position, pace, pickup, mix, comp set and P&amp;L · data as of Fri 20 Nov, 07:00</p>
             </div>
             <kassandra-composer class="max-w-content" label="Ask Kassandra or filter" placeholder="Ask or filter, e.g. “Dubai hotels, next 90 nights vs budget”" [(mode)]="live.mode" (submitted)="onAsk($event)" />
           </header>
@@ -388,10 +388,6 @@ export class BoardView {
     return f && f.id === id ? { ...listed, widgets: orderLike(listed, f) } : null;
   });
   protected readonly title = computed(() => (this.kind() === 'portfolio' ? 'Portfolio' : this.kind() === 'dubai' ? 'Dubai Business Bay' : (this.board()?.name ?? 'Board')));
-  protected readonly portfolioSubtitle = computed(() => {
-    const h = this.filters.state().hotels;
-    return h.length ? `${h.length === 1 ? '1 hotel' : h.length + ' hotels'} selected: position, pace, pickup, mix, comp set and P&L` : 'All 20 hotels: position, pace, pickup, mix, comp set and P&L';
-  });
   private readonly allProposals = this.live.workflowsApi.proposalsResource(() => undefined);
   protected readonly dubaiProposals = computed(() => (this.allProposals.hasValue() ? this.allProposals.value() : []).filter((p) => p.hotel_code === 'DXB2').sort((a, b) => Number(b.status === 'pending') - Number(a.status === 'pending') || b.createdAt.localeCompare(a.createdAt)).slice(0, 4));
   private readonly nameInput = viewChild<ElementRef<HTMLInputElement>>('nameInput');

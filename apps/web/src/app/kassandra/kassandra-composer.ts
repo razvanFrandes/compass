@@ -7,7 +7,6 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmKbdImports } from '@spartan-ng/helm/kbd';
 import type { AnswerMode } from '@compass/contracts';
 import { JuyoOrb, type OrbState } from '../orb/juyo-orb';
-import { ScopeService } from '../scope/scope.service';
 import { canSend, initialComposer, step, transcript, type ComposerContext, type ComposerEvent } from './composer-machine';
 import { VoiceInput } from './voice/voice-input';
 
@@ -22,7 +21,8 @@ let nextId = 0;
   Kassandra's composer: the one ask bar of the app (Inbox, Thread, workflow builder, a workflow's page, a board).
   At rest it is quiet, like every composer we studied (docs/research/ui-round3/voice_and_composer.md): 56 px,
   12 px radius, hairline border, the orb as the only colour, a neutral mic, Send only when there is text. Under
-  it, one line says what the question is asked for (the hotel scope) and how (Quick or Thinker).
+  it sits one control, Quick or Thinker, and nothing else: the hotel scope is in the sidebar and goes with every
+  question (Live), so the composer does not repeat it.
   Voice grows the bar in place; on a phone it opens a full-screen sheet. The words appear while they are spoken
   (Soniox, English and Romanian) and keep adding up through any pause. Voice never sends on its own: the question
   goes when the person taps Send (or presses Enter); Stop or Esc leaves the words in the field, to edit and send.
@@ -97,25 +97,14 @@ let nextId = 0;
       <p [id]="noticeId" class="text-muted-foreground mt-1.5 px-1 text-[12.5px]" role="status">{{ notice }}</p>
     }
 
-    @if (showScope() || showMode()) {
-      <div class="mt-inline flex min-h-7 flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-        @if (showScope()) {
-          <ul class="flex min-w-0 flex-wrap items-center gap-1.5" aria-label="Hotels this question covers">
-            @for (chip of chips(); track chip) {
-              <li class="scope-chip max-w-[16rem] truncate">{{ chip }}</li>
-            }
-          </ul>
-        }
-        @if (showMode()) {
-          <div class="ml-auto flex items-center gap-2.5">
-            <span class="text-muted-foreground text-[12px] max-sm:hidden" [id]="hintId">{{ modeHint() }}</span>
-            <div class="op-toggle" role="radiogroup" aria-label="Answer mode" [attr.aria-describedby]="hintId">
-              @for (m of modes; track m.id) {
-                <button type="button" role="radio" [attr.aria-checked]="mode() === m.id" [attr.tabindex]="mode() === m.id ? 0 : -1" [title]="m.hint" (click)="mode.set(m.id)" (keydown)="modeKey($event)">{{ m.label }}</button>
-              }
-            </div>
-          </div>
-        }
+    @if (showMode()) {
+      <!-- Quick or Thinker. What each one means is the button's tooltip and its description for a screen reader. -->
+      <div class="mt-inline flex min-h-7 justify-end">
+        <div class="op-toggle" role="radiogroup" aria-label="Answer mode">
+          @for (m of modes; track m.id) {
+            <button type="button" role="radio" [attr.aria-checked]="mode() === m.id" [attr.tabindex]="mode() === m.id ? 0 : -1" [title]="m.hint" (click)="mode.set(m.id)" (keydown)="modeKey($event)">{{ m.label }}</button>
+          }
+        </div>
       </div>
     }
 
@@ -165,15 +154,11 @@ export class KassandraComposer {
   /** Quick or Thinker, two-way. Hidden with `showMode` where the host has one model only (the builder). */
   readonly mode = model<AnswerMode>('thinker');
   readonly showMode = input(true);
-  /** What the question is asked for. Null shows the global hotel scope. */
-  readonly scope = input<readonly string[] | null>(null);
-  readonly showScope = input(true);
   readonly maxLength = input<number | null>(null);
   readonly submitted = output<string>();
   readonly stopped = output<void>();
 
   protected readonly noticeId = `kassandra-notice-${nextId}`;
-  protected readonly hintId = `kassandra-mode-${nextId}`;
   protected readonly modes = MODES;
 
   protected readonly state = signal(initialComposer());
@@ -187,7 +172,6 @@ export class KassandraComposer {
   protected readonly heardAnything = computed(() => !!transcript(this.state()));
   protected readonly hasText = computed(() => !!this.state().draft.trim());
   protected readonly sendable = computed(() => canSend(this.context()));
-  protected readonly modeHint = computed(() => MODES.find((m) => m.id === this.mode())!.hint);
   /** What a screen reader hears when voice starts and stops. */
   protected readonly announcement = signal('');
   protected readonly voiceHint = computed(() => (this.state().voice === 'listening' ? 'Send when you’re done' : ''));
@@ -202,8 +186,6 @@ export class KassandraComposer {
     if (voice === 'sending') return 'Sending…';
     return engine === 'demo' ? 'No microphone found · this is a sample question' : 'Listening…';
   });
-  private readonly globalScope = inject(ScopeService);
-  protected readonly chips = computed(() => this.scope() ?? [this.globalScope.label()]);
 
   private readonly doc = inject(DOCUMENT);
   private readonly voice = inject(VoiceInput);

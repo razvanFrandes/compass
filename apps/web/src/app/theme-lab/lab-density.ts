@@ -39,7 +39,7 @@ const NIGHTS = [
   template: `
     <div class="gap-card-gap flex flex-wrap items-end">
       <app-density-switch class="w-56" />
-      <p class="text-muted-foreground max-w-measure text-[13px]" role="status">The app is {{ density.option().label.toLowerCase() }} now. The switch is also in the sidebar, under the theme; the choice is remembered in this browser.</p>
+      <p class="text-muted-foreground max-w-measure text-[13px]" role="status">The app is {{ density.option().label.toLowerCase() }} now. The switch is also in the sidebar, under Appearance; the choice is remembered in this browser.</p>
     </div>
 
     <div class="mt-card-pad grid gap-4 lg:grid-cols-2">

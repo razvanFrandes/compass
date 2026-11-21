@@ -106,7 +106,6 @@ let nextId = 0;
       display: flex; flex-shrink: 0; flex-direction: column; gap: 12px; border-top: 1px solid var(--border);
       padding: 14px max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) 16px;
     }
-    .mm-note { color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
 
     .mm-trigger:focus-visible, .mm-close:focus-visible, .mm-item:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
     .mm-trigger:active, .mm-close:active, .mm-item:active { background: var(--overlay-pressed, rgb(from var(--foreground) r g b / 0.1)); }
@@ -209,7 +208,6 @@ let nextId = 0;
 
       <div class="mm-foot">
         <app-appearance-controls />
-        <p class="mm-note">Halcyon Hospitality is a fictional group. All figures are generated, as of Fri 20 Nov 2026.</p>
       </div>
     </dialog>
   `,
@@ -234,7 +232,7 @@ export class MobileMenu {
   /** Read when the sheet opens: "5 min" does not need to tick while the menu is closed. */
   private readonly now = signal(Date.now());
 
-  /** The secondary links, under the conversations: the docs hub first, then the theme lab (the sidebar's `foot`). */
+  /** The secondary links, under the conversations: the docs hub first, then the theme lab. */
   protected readonly more: readonly NavItem[] = [
     { view: 'docs', label: 'Docs', icon: 'phosphorBookOpenLight', iconActive: 'phosphorBookOpenFill', count: 0 },
     { view: 'theme-lab', label: 'Theme lab', icon: 'phosphorSwatchesLight', iconActive: 'phosphorSwatchesFill', count: 0 },

@@ -119,7 +119,7 @@ The changes that matter most, from the pass of 21 Nov 2026 (about 570 strings).
 | Agent email | Compass alert · {name} · Would fire today · Explore in Kassandra | {name} · Compass · It would email you today · Ask Kassandra about this |
 | Server errors | No such workflow. · This workflow already has a run in progress (run-…) | That agent no longer exists. · This agent is already running. Wait for the run to finish, then try again. |
 | Daily limit | The demo's daily budget of 300 questions is used up. It resets at 00:00 UTC. | Today’s limit of 300 questions for this demo is used up. It resets at midnight UTC. |
-| Sidebar | Threads · Halcyon Hospitality is a fictional group with generated data. Business date Fri 20 Nov 2026. | Conversations · Halcyon Hospitality is a fictional group. All figures are generated, as of Fri 20 Nov 2026. |
+| Sidebar | Threads · Halcyon Hospitality is a fictional group with generated data. Business date Fri 20 Nov 2026. | Conversations · (the note is gone from the shell since 21 Nov; Docs → About says the data is fictional) |
 
 ## Not covered by this pass
 
