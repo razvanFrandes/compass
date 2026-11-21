@@ -32,7 +32,7 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
   providers: [provideIcons({ ...icons })],
   host: { class: 'block' },
   template: `
-    <div class="mx-auto grid max-w-[1240px] gap-x-8 gap-y-6 px-[max(16px,env(safe-area-inset-left,0px))] pt-5 pb-44 sm:px-8 lg:grid-cols-12 lg:pt-8 lg:pb-16">
+    <div class="mx-auto grid max-w-[1240px] gap-x-8 gap-y-6 px-[max(16px,env(safe-area-inset-left,0px))] pt-5 pb-36 sm:px-8 lg:grid-cols-12 lg:pt-8 lg:pb-16">
       <!-- Hero brief -->
       <section class="relative lg:col-span-8" aria-labelledby="brief-title">
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -211,8 +211,8 @@ const month = (ym: string) => new Intl.DateTimeFormat('en-GB', { month: 'short',
       </section>
     </div>
 
-    <!-- Phones and tablets: the ask bar docks above the tab bar -->
-    <div class="dock-fade fixed inset-x-0 bottom-[calc(57px+env(safe-area-inset-bottom,0px))] z-20 px-3 pt-6 pb-2 lg:hidden">
+    <!-- Phones and tablets: the ask bar docks at the bottom edge, clear of the home indicator. Nothing sits under it. -->
+    <div class="dock-fade fixed inset-x-0 bottom-0 z-20 pt-6 pr-[max(12px,env(safe-area-inset-right,0px))] pb-[max(14px,env(safe-area-inset-bottom,0px))] pl-[max(12px,env(safe-area-inset-left,0px))] lg:hidden">
       <kassandra-composer inputId="global-ask-m" placeholder="Ask about any hotel" [showMode]="false" [showScope]="false" (submitted)="live.askNew($event)" />
     </div>
 

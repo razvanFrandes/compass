@@ -9,7 +9,7 @@ export const RAIL_WIDTH = 64;
 export const RAIL_TIP_GAP = 18;
 /** Below 1280 px the sidebar starts as a rail, so the main area keeps at least ~1150 px. */
 const NARROW = '(max-width: 1279.98px)';
-/** The sidebar exists from Tailwind's `lg` up; a phone has the bottom tab bar instead. */
+/** The sidebar exists from Tailwind's `lg` up; a phone has the menu sheet instead (shell/mobile-menu.ts). */
 const DESKTOP = '(min-width: 1024px)';
 
 type Choice = 'collapsed' | 'expanded';
