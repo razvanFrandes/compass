@@ -72,6 +72,18 @@ import * as icons from './icons';
               (suggestionPicked)="live.send($event)"
               (stopped)="chat.abort()"
             >
+              @if (restoring()) {
+                <!-- An existing conversation while its transcript loads: its shape, not the "Ask Kassandra" start screen -->
+                <div class="flex flex-col gap-4 pt-stack" role="status" aria-label="Loading the conversation">
+                  <div class="skeleton h-9 w-[min(360px,70%)] self-end rounded-[14px]"></div>
+                  <div class="flex flex-col gap-2.5 pt-2">
+                    <div class="skeleton h-3.5 w-[92%] rounded"></div>
+                    <div class="skeleton h-3.5 w-[84%] rounded"></div>
+                    <div class="skeleton h-3.5 w-[60%] rounded"></div>
+                  </div>
+                  <div class="skeleton h-[180px] w-full rounded-[12px]"></div>
+                </div>
+              } @else {
               <div class="pt-section-lg">
                 <span class="orb-mark block" style="width: 28px; height: 28px" aria-hidden="true"></span>
                 <p class="mt-3 text-[20px] font-semibold tracking-[-0.01em]">Ask Kassandra</p>
@@ -79,6 +91,7 @@ import * as icons from './icons';
                 <!-- Examples that show off each kind of widget; a click sends the question at once -->
                 <kassandra-try-asking class="mt-8" (picked)="live.send($event)" />
               </div>
+              }
             </kassandra-conversation>
           </div>
         </div>
@@ -112,6 +125,13 @@ export class ThreadView {
   protected readonly store = inject(CompassStore);
   protected readonly live = inject(Live);
   protected readonly chat = this.live.chat;
+  /**
+   * A conversation from the list was opened and its transcript is not in yet (no snapshot): show a loading shape.
+   * A new conversation does not connect until its first question, so it goes straight to the start screen.
+   */
+  protected readonly restoring = computed(
+    () => this.chat.live() === null && this.chat.status() !== 'idle' && !this.chat.error() && this.chat.turns().length === 0 && this.live.conversations().some((c) => c.id === this.chat.conversation()),
+  );
   /** What "Behind the numbers" was asked for, and how many turns there were then: a new question lets go of it. */
   private readonly selected = signal<{ selection: EvidenceSelection; turns: number } | null>(null);
   /** The click as the panel reads it: the turn, the card of the tool result, and the chart it was asked on (if any). */

@@ -36,13 +36,13 @@ interface Call {
 
 /**
  * The results a number in the answer may be traced to, best source first: the data calls, then the checks. A
- * lookup table is left out (the 280 rooms of some hotel would "back" any 280 in the answer) unless the answer
- * read nothing else.
+ * lookup table never is, not even when it is all the answer read: the 280 rooms of some hotel would "back" any 280
+ * in the answer, and its rooms and meeting space answer no question the person asked.
  */
 export function figureSources<T extends Call>(calls: readonly T[]): T[] {
   const data = calls.filter((call) => toolRole(call.name) === 'data');
   const checks = calls.filter((call) => toolRole(call.name) === 'check');
-  return data.length || checks.length ? [...data, ...checks] : [...calls];
+  return [...data, ...checks];
 }
 
 /**

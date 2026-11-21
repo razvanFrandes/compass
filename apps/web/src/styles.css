@@ -252,6 +252,7 @@
 /* The Prompts and effort menus: questions wrap, the list scrolls when it is long. */
 .ask-menu { max-height: min(70dvh, 520px); }
 .ask-menu .ask-prompt { align-items: flex-start; gap: 10px; text-align: left; padding-block: 6px; font-size: 13px; line-height: 1.4; white-space: normal; }
+.ask-menu .ask-effort-item { align-items: center; gap: 10px; text-align: left; justify-content: flex-start; }
 .ask-prompt-icon { display: grid; flex: none; width: 22px; height: 22px; place-items: center; border-radius: 5px; background: var(--muted); font-size: 14px; }
 .ask-menu .ask-prompt-more { padding-inline-end: 8px; font-size: 13px; color: var(--muted-foreground); }
 .ask-menu .ask-prompt-more [data-slot='dropdown-menu-checkbox-item-indicator'] { display: none; }
@@ -747,6 +748,7 @@ textarea.field-input { height: auto; line-height: 1.5; }
 .k-recent { --k-row: var(--rail, var(--background)); --k-row-hover: color-mix(in srgb, var(--foreground) 4.5%, var(--rail, var(--background))); --k-row-current: color-mix(in srgb, var(--foreground) 7.5%, var(--rail, var(--background))); }
 .k-recent-head { display: flex; min-height: 28px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px 0 11px; }
 .k-recent-new {
+  cursor: pointer;
   display: grid; width: 26px; height: 26px; flex-shrink: 0; place-items: center; border-radius: 6px; color: var(--muted-foreground); outline: none;
   transition: background-color 150ms ease, color 150ms ease;
 }
@@ -756,23 +758,23 @@ textarea.field-input { height: auto; line-height: 1.5; }
 @media (hover: hover) { .k-thread:hover { --k-row: var(--k-row-hover); color: var(--foreground); } }
 .k-thread--current { --k-row: var(--k-row-current); color: var(--foreground); }
 @media (hover: hover) { .k-thread--current:hover { --k-row: var(--k-row-current); } }
-/* The current conversation also carries a short bar of the brand colour at its left edge: it reads without colour too (the fill). */
-.k-thread--current::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 2px; border-radius: 2px; background: var(--brand, var(--primary)); }
-.k-thread-open { display: flex; min-width: 0; flex: 1; align-items: flex-start; gap: 9px; padding: 6px 8px 6px 11px; border-radius: 8px; text-align: left; outline: none; }
-.k-thread-icon { flex-shrink: 0; margin-top: 1.5px; font-size: 15px; color: var(--muted-foreground); }
+.k-thread-open { cursor: pointer; display: flex; min-width: 0; flex: 1; align-items: flex-start; gap: 10px; padding: 7px 10px 7px 11px; border-radius: 8px; text-align: left; outline: none; }
+/* Rename and Delete need ~56px: the text makes room for them instead of running under them. */
+.k-thread:hover .k-thread-open, .k-thread:focus-within .k-thread-open { padding-right: 62px; }
+@media (hover: none) { .k-thread-open { padding-right: 62px; } }
 .k-thread--current .k-thread-icon { color: var(--foreground); }
-.k-thread-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }
-.k-thread-title { overflow: hidden; color: inherit; font-size: 13px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.k-thread-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.k-thread-title { display: -webkit-box; min-width: 0; overflow: hidden; color: inherit; font-size: 13.5px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 .k-thread:hover .k-thread-title, .k-thread--current .k-thread-title { color: var(--foreground); }
 .k-thread--current .k-thread-title { font-weight: 500; }
 .k-thread-summary { overflow: hidden; color: var(--muted-foreground); font-size: 12px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .k-thread-actions {
-  position: absolute; top: 50%; right: 4px; display: flex; gap: 1px; padding-left: 18px; opacity: 0; pointer-events: none; transform: translateY(-50%);
-  background: linear-gradient(to right, transparent, var(--k-row) 16px); transition: opacity 120ms ease;
+  position: absolute; top: 6px; right: 6px; display: flex; gap: 2px; opacity: 0; pointer-events: none; 
+  transition: opacity 120ms ease;
 }
 .k-thread:hover .k-thread-actions, .k-thread:focus-within .k-thread-actions { opacity: 1; pointer-events: auto; }
 @media (hover: none) { .k-thread-actions { opacity: 1; pointer-events: auto; } }
-.k-thread-action { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 6px; color: var(--muted-foreground); outline: none; font-size: 15px; }
+.k-thread-action { cursor: pointer; display: grid; width: 24px; height: 24px; place-items: center; border-radius: 6px; color: var(--muted-foreground); outline: none; font-size: 15px; }
 @media (hover: hover) {
   .k-thread-action:hover, .k-recent-new:hover { background: var(--overlay-hover, rgb(from var(--foreground) r g b / 0.06)); color: var(--foreground); }
 }

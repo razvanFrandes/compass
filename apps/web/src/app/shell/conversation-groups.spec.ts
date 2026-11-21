@@ -1,4 +1,4 @@
-import { groupByDay, threadIcon, threadTime } from './conversation-groups';
+import { groupByDay, threadIcon, threadStamp, threadTime } from './conversation-groups';
 
 // Fixed local times: Friday 21 Nov 2026, 15:30.
 const NOW = new Date(2026, 10, 21, 15, 30).getTime();
@@ -45,5 +45,14 @@ describe('threadIcon', () => {
     expect(threadIcon({ kind: 'text', hotel: 'LIS' })).toBe('phosphorBuildingsLight');
     expect(threadIcon({ kind: 'text' })).toBe('phosphorChatTextLight');
     expect(threadIcon({})).toBe('phosphorChatTextLight');
+  });
+});
+
+describe('threadStamp', () => {
+  const now = new Date(2026, 10, 21, 9, 30).getTime();
+  it('shows the time today and yesterday, the date before that', () => {
+    expect(threadStamp(new Date(2026, 10, 21, 8, 5).getTime(), now)).toBe('08:05');
+    expect(threadStamp(new Date(2026, 10, 20, 22, 40).getTime(), now)).toBe('22:40');
+    expect(threadStamp(new Date(2026, 10, 12, 10, 0).getTime(), now)).toBe('12 Nov');
   });
 });

@@ -4,7 +4,7 @@ import { HotelData } from '../src/application/hotel-data.ts';
 import type { Db, Embedder } from '../src/application/ports.ts';
 import { DEFAULT_DAILY_LIMITS, emptyBudget, spend } from '../src/domain/budget.ts';
 import { DATA_TOOLS, success, type DataTool } from '../src/presentation/tools/catalog.ts';
-import { runTool, TOOL_FAILURE } from '../src/presentation/tools/run-tool.ts';
+import { runTool, TOOL_FAILURE, TOOL_FAULT, TOOL_TIMEOUT } from '../src/presentation/tools/run-tool.ts';
 
 // What a tool tells the model (or any MCP client) when the database or the embedder fails: never hosts, ports,
 // account ids or provider URLs. Only run_readonly_query shows database error text, so the model can fix its SQL.
@@ -54,6 +54,25 @@ describe('a database failure', () => {
     }
   });
 
+  // The real reason class, so the model retries only what a retry can fix and never says "the tool is not available".
+  it.each(tools)('%s says a broken query of its own is a fault on our side, not to retry (a view or column gone after a data change)', async (name) => {
+    const outcome = await call(name, new HotelData(failingDb(sqlError('column v.channel_type does not exist on db.internal', '42703')), embedder()));
+    expect(outcome).toEqual({ ok: false, text: TOOL_FAULT });
+    expect(log).toHaveBeenCalledWith(`tool ${name} failed`, expect.objectContaining({ code: '42703' }));
+  });
+
+  it.each(tools)('%s says a statement timeout is one, to retry once with a narrower request', async (name) => {
+    const outcome = await call(name, new HotelData(failingDb(sqlError('canceling statement due to statement timeout', '57014')), embedder()));
+    expect(outcome).toEqual({ ok: false, text: TOOL_TIMEOUT });
+  });
+
+  it('says what each class means for the next step, in words a model acts on', () => {
+    expect(TOOL_FAILURE).toMatch(/^Temporary failure:.*once more with the same arguments/);
+    expect(TOOL_TIMEOUT).toMatch(/^Timeout:.*once more with a narrower/);
+    expect(TOOL_FAULT).toMatch(/^Fault on our side:.*Do not call it again/);
+    for (const text of [TOOL_FAILURE, TOOL_TIMEOUT, TOOL_FAULT]) expect(text).not.toMatch(/not available|unavailable/i);
+  });
+
   it.each([
     ['a missing column', 'column "nope" does not exist', '42703'],
     ['a statement timeout', 'canceling statement due to statement timeout', '57014'],
@@ -66,19 +85,19 @@ describe('a database failure', () => {
   });
 
   it.each([
-    ['a lost connection', new Error(DB_ERROR)],
-    ['a driver error code', sqlError(DB_ERROR, 'CONNECTION_CLOSED')],
-    ['a refused connection', sqlError('connect ECONNREFUSED db.internal:5432', 'ECONNREFUSED')],
-    ['a connection exception from the server', sqlError('connection to db.internal failed', '08006')],
-    ['a refused login', sqlError('no pg_hba.conf entry for host "db.internal", user "compass_ro", database "compass"', '28000')],
-    ['a wrong password', sqlError('password authentication failed for user "compass_ro" at db.internal', '28P01')],
-    ['a missing database', sqlError('database "compass" does not exist on db.internal', '3D000')],
-    ['too many connections', sqlError('too many connections for role "compass_ro" on db.internal', '53300')],
-    ['a server shutting down', sqlError('terminating connection due to administrator command (db.internal)', '57P01')],
-    ['a server starting up', sqlError('the database system is starting up (db.internal)', '57P03')],
-  ])('run_readonly_query hides an error that is not a SQL error (%s)', async (_what, error) => {
+    ['a lost connection', new Error(DB_ERROR), TOOL_FAILURE],
+    ['a driver error code', sqlError(DB_ERROR, 'CONNECTION_CLOSED'), TOOL_FAILURE],
+    ['a refused connection', sqlError('connect ECONNREFUSED db.internal:5432', 'ECONNREFUSED'), TOOL_FAILURE],
+    ['a connection exception from the server', sqlError('connection to db.internal failed', '08006'), TOOL_FAILURE],
+    ['a refused login', sqlError('no pg_hba.conf entry for host "db.internal", user "compass_ro", database "compass"', '28000'), TOOL_FAULT],
+    ['a wrong password', sqlError('password authentication failed for user "compass_ro" at db.internal', '28P01'), TOOL_FAULT],
+    ['a missing database', sqlError('database "compass" does not exist on db.internal', '3D000'), TOOL_FAULT],
+    ['too many connections', sqlError('too many connections for role "compass_ro" on db.internal', '53300'), TOOL_FAILURE],
+    ['a server shutting down', sqlError('terminating connection due to administrator command (db.internal)', '57P01'), TOOL_FAILURE],
+    ['a server starting up', sqlError('the database system is starting up (db.internal)', '57P03'), TOOL_FAILURE],
+  ])('run_readonly_query hides an error that is not a SQL error (%s), and says whether a retry can help', async (_what, error, text) => {
     const outcome = await call('run_readonly_query', new HotelData(failingDb(error)), { sql: 'select 1' });
-    expect(outcome).toEqual({ ok: false, text: TOOL_FAILURE });
+    expect(outcome).toEqual({ ok: false, text });
     expect(outcome.text).not.toContain('db.internal');
     expect(log).toHaveBeenCalledWith('tool run_readonly_query failed', error);
   });

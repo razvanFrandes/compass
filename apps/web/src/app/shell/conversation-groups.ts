@@ -36,6 +36,13 @@ export function threadTime(at: number, now: number): string {
   return `${day} at ${clock.format(at)}`;
 }
 
+const dayMonth = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+
+/** The time on a conversation's row, under its day heading: "09:05" today and yesterday, "12 Nov" earlier. */
+export function threadStamp(at: number, now: number): string {
+  return at >= startOfDay(now) - DAY ? clock.format(at) : dayMonth.format(at);
+}
+
 /** The small icon of a conversation: what its first answer showed, or the hotel it is about. */
 export function threadIcon(meta: { kind?: ThreadKind; hotel?: string | null }): string {
   if (meta.kind === 'chart') return 'phosphorChartBarLight';

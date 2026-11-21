@@ -5,7 +5,7 @@ import type { DataError, HotelData } from '../../application/hotel-data.ts';
 import type { Result } from '../../domain/result.ts';
 import { hotelsInScope } from '../../domain/scope.ts';
 import { escapeUntrusted, untrustedBlock } from '../../domain/untrusted.ts';
-import { TOOL_FAILURE } from './run-tool.ts';
+import { failureText } from './run-tool.ts';
 import { sourceLabelsFor, TOOL_VIEWS } from './tool-views.ts';
 
 /**
@@ -80,12 +80,13 @@ export function success(result: DataResult<object>, untrusted?: string): ToolOut
 
 /**
  * What the model reads when a tool fails. Only a failing custom query (`database`, from run_readonly_query) shows
- * database error text. Any other database or embedder failure shows a fixed message, and its cause goes to the logs.
+ * database error text. Any other database failure shows the fixed text of its class (temporary, timeout, fault: what
+ * to do next), an embedder failure its own message, and the cause goes to the logs.
  */
 export function failure(error: DataError | FinanceError): ToolOutcome {
   switch (error.kind) {
     case 'internal':
-      return { ok: false, text: TOOL_FAILURE, cause: error.cause };
+      return { ok: false, text: failureText(error.cause), cause: error.cause };
     case 'unavailable':
       return { ok: false, text: error.message, cause: error.cause };
     case 'database':

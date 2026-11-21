@@ -129,10 +129,26 @@ describe('EvidencePanel', () => {
     ]);
   });
 
-  it('falls back to key figures when the answer quotes nothing it can trace', () => {
+  it('lists no figures when the answer quotes nothing it can trace', () => {
     const { el } = render([pace], { answer: 'Lisbon is behind last year.' });
-    expect(el.querySelector('h3')!.textContent).toBe('Key figures');
-    expect(el.querySelectorAll('.ev-figure')).toHaveLength(2);
+    expect(el.querySelector('.ev-figure')).toBeNull();
+    expect(el.textContent).not.toContain('Key figures');
+    expect(el.textContent).not.toContain('Numbers in this answer');
+  });
+
+  it('never makes figures of the hotel list when the data read failed (the owner\'s channel mix answer)', () => {
+    const bali: EvidenceEntry = {
+      ...hotels,
+      rows: [
+        { hotel_code: 'DPS', name: 'Lumen Bali Uluwatu', brand: 'Lumen', city: 'Bali', country: 'ID', region: 'Asia', currency: 'IDR', rooms: 200, meeting_space_sqm: 400 },
+        { hotel_code: 'BCN', name: 'Lumen Barcelona Mar', brand: 'Lumen', city: 'Barcelona', country: 'ES', region: 'Europe', currency: 'EUR', rooms: 300, meeting_space_sqm: 1200 },
+      ],
+    };
+    const mix: EvidenceEntry = { callId: 'm1', name: 'get_mix', args: { hotels: ['BCN'], by: 'channel' }, status: 'error', error: 'The data source failed to answer.' };
+    const { el } = render([bali, mix], { answer: "I can't give you the channel mix for Lumen Barcelona Mar right now." });
+    expect(el.querySelector('.ev-figure')).toBeNull();
+    expect(el.textContent).not.toContain('Key figures');
+    for (const raw of ['200', '400', 'DPS']) expect(el.textContent).not.toContain(raw);
   });
 
   it('without an answer (a run log), shows closed cards with human titles and no raw names', () => {
