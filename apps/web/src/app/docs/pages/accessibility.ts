@@ -92,7 +92,7 @@ const CHECK: readonly string[] = [
   imports: [...DOCS_KIT, DocsColourShifts, WidgetChart],
   host: { class: 'block' },
   template: `
-    <div class="flex flex-col gap-12">
+    <div class="flex flex-col gap-section-lg">
       <docs-head
         eyebrow="Docs · Accessibility"
         title="Accessibility was a constraint from the first day"

@@ -250,7 +250,7 @@ const PANES = [
     }
   `,
   template: `
-    <div class="flex flex-col gap-12">
+    <div class="flex flex-col gap-section-lg">
       <docs-head
         eyebrow="Docs · Design system"
         title="Tokens first, read from the page"

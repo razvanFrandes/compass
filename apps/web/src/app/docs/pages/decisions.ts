@@ -167,7 +167,7 @@ const GROUPS: readonly { id: string; heading: string; note: string; items: reado
   imports: [...DOCS_KIT],
   host: { class: 'block' },
   template: `
-    <div class="flex flex-col gap-12">
+    <div class="flex flex-col gap-section-lg">
       <docs-head
         eyebrow="Docs · Decisions"
         title="Twenty decisions, each with its reason"

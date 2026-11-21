@@ -81,7 +81,7 @@ const ACCEPTED: readonly DocsCell[] = [
     }
   `,
   template: `
-    <div class="flex flex-col gap-12">
+    <div class="flex flex-col gap-section-lg">
       <docs-head
         eyebrow="Docs · Security"
         title="A public demo with no login, and a bounded bad day"

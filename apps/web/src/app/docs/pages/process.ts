@@ -332,7 +332,7 @@ const NEXT: readonly string[] = [
     }
   `,
   template: `
-    <div class="flex flex-col gap-12">
+    <div class="flex flex-col gap-section-lg">
       <div>
         <docs-head
           eyebrow="Docs · How this was built"

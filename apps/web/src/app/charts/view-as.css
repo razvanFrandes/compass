@@ -7,14 +7,15 @@
   margin-right: 2px;
   color: var(--muted-foreground);
   font-size: 12px;
-  line-height: 28px;
+  line-height: var(--control-h-xs, 28px);
   white-space: nowrap;
 }
 .wc-view-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 28px;
+  /* The smallest control of the density (src/density.css); the placeholder in widget-chart.css has the same height. */
+  height: var(--control-h-xs, 28px);
   padding: 0 9px 0 7px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control, 7px);

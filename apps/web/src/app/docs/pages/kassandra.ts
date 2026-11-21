@@ -75,7 +75,7 @@ const VOICE: readonly DocsCell[] = [
   imports: [...DOCS_KIT],
   host: { class: 'block' },
   template: `
-    <div class="flex flex-col gap-12">
+    <div class="flex flex-col gap-section-lg">
       <docs-head
         eyebrow="Docs · Kassandra & agents"
         title="The model plans and explains. SQL computes."

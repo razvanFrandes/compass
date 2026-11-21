@@ -271,7 +271,7 @@ const PRINCIPLES: readonly DocsCell[] = [
     }
   `,
   template: `
-    <div class="arch flex flex-col gap-12">
+    <div class="arch flex flex-col gap-section-lg">
       <docs-head
         eyebrow="Docs · Architecture"
         title="One Worker, three Pi Durable agents, one read-only database"

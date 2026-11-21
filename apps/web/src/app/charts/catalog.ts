@@ -218,7 +218,7 @@ const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
                         }
                         @if (question(sp); as q) {
                           <!-- The question that makes Kassandra answer with this kind; a click asks it in a new thread -->
-                          <p class="cat-ask mt-3">Ask Kassandra: <button type="button" (click)="ask(q)">{{ q }}</button></p>
+                          <p class="cat-ask mt-stack">Ask Kassandra: <button type="button" (click)="ask(q)">{{ q }}</button></p>
                         }
                       </article>
                     </div>

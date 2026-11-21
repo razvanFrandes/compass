@@ -90,7 +90,7 @@ const RUN_LABEL: Record<string, string> = { none: 'nothing found', finding: 'a f
     }
   `,
   template: `
-    <div class="flex flex-col gap-12">
+    <div class="flex flex-col gap-section-lg">
       <div>
         <docs-head
           eyebrow="Docs · Components"

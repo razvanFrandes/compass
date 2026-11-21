@@ -55,7 +55,7 @@ const HOW: readonly DocsCell[] = [
   imports: [...DOCS_KIT],
   host: { class: 'block' },
   template: `
-    <div class="flex flex-col gap-12">
+    <div class="flex flex-col gap-section-lg">
       <docs-head
         eyebrow="Docs · About this build"
         title="A hotel analytics app that tells you first"

@@ -29,8 +29,9 @@ let nextId = 0;
     }
     .try-groups {
       display: grid;
-      gap: 14px 16px;
-      margin-top: 12px;
+      /* Density tokens (src/density.css): the groups are a stack, a group's name and its questions sit a card gap apart. */
+      gap: var(--space-stack, 12px) var(--space-card-gap, 16px);
+      margin-top: var(--space-stack, 12px);
     }
     .try-group {
       display: grid;
@@ -41,7 +42,7 @@ let nextId = 0;
     @media (min-width: 560px) {
       .try-group {
         grid-template-columns: 128px minmax(0, 1fr);
-        gap: 12px;
+        gap: var(--space-stack, 12px);
       }
     }
     .try-group-name {
@@ -61,7 +62,7 @@ let nextId = 0;
       align-items: center;
       gap: 8px;
       max-width: 100%;
-      min-height: 32px;
+      min-height: var(--control-h-sm, 32px);
       padding: 4px 12px 4px 5px;
       border: 1px solid var(--field-border, var(--border));
       border-radius: var(--radius-control, 8px);
@@ -112,7 +113,7 @@ let nextId = 0;
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      min-height: 32px;
+      min-height: var(--control-h-sm, 32px);
       padding: 4px 8px;
       border-radius: var(--radius-control, 8px);
       color: var(--muted-foreground);
@@ -127,8 +128,8 @@ let nextId = 0;
       transform: rotate(180deg);
     }
     .try-panel {
-      margin-top: 14px;
-      padding-top: 14px;
+      margin-top: var(--space-stack, 12px);
+      padding-top: var(--space-stack, 12px);
       border-top: 1px solid var(--border);
     }
     @media (pointer: coarse) {

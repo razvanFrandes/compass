@@ -21,7 +21,7 @@ const FACTS = [
   imports: [NgIcon, CompassLogo, ...DOCS_KIT],
   host: { class: 'block' },
   template: `
-    <div class="flex flex-col gap-12">
+    <div class="flex flex-col gap-section-lg">
       <div>
       <app-compass-logo class="mb-5" [size]="28" />
       <docs-head

@@ -149,7 +149,8 @@ import { DocsSecurity } from './pages/security';
       align-content: start;
       gap: 6px;
       margin: 0 -1px -1px 0;
-      padding: 16px 18px;
+      /* Two thirds of a card's padding: 16 px comfortable, 11 px compact (src/density.css). */
+      padding: calc(var(--space-card-pad, 24px) * 2 / 3) calc(var(--space-card-pad, 24px) * 3 / 4);
       border-right: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
     }
@@ -166,7 +167,8 @@ import { DocsSecurity } from './pages/security';
       flex-direction: column;
       gap: 4px;
       min-width: 0;
-      padding: 16px 18px;
+      /* Two thirds of a card's padding: 16 px comfortable, 11 px compact (src/density.css). */
+      padding: calc(var(--space-card-pad, 24px) * 2 / 3) calc(var(--space-card-pad, 24px) * 3 / 4);
       border: 1px solid var(--border);
       border-radius: var(--radius-container, 14px);
       background: var(--card);
@@ -358,7 +360,7 @@ import { DocsSecurity } from './pages/security';
     }
   `,
   template: `
-    <div class="mx-auto max-w-[1640px] px-[max(16px,env(safe-area-inset-left,0px))] pt-3 pb-36 sm:px-8 lg:grid lg:grid-cols-[212px_minmax(0,1fr)] lg:gap-10 lg:pt-8 lg:pb-24">
+    <div class="mx-auto max-w-[1640px] px-[max(16px,env(safe-area-inset-left,0px))] pt-3 pb-36 sm:px-page-x lg:grid lg:grid-cols-[212px_minmax(0,1fr)] lg:gap-10 lg:pt-section lg:pb-24">
       <aside class="max-lg:hidden">
         <nav class="docs-nav sticky top-8 flex flex-col gap-5" aria-label="Docs">
           <div>
@@ -385,7 +387,7 @@ import { DocsSecurity } from './pages/security';
       </aside>
 
       <!-- Phone and tablet: one selector in place of the left navigation -->
-      <div class="bg-background border-border sticky top-0 z-20 -mx-4 mb-5 border-b px-4 py-2.5 sm:-mx-8 sm:px-8 lg:hidden">
+      <div class="bg-background border-border sticky top-0 z-20 -mx-4 mb-5 border-b px-4 py-2.5 sm:-mx-page-x sm:px-page-x lg:hidden">
         <label for="docs-page" class="sr-only">Docs page</label>
         <select id="docs-page" class="field-select w-full" [value]="router.page()" (change)="pick($event)">
           <option value="index" [selected]="router.page() === 'index'">Docs · Overview</option>

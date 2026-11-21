@@ -252,7 +252,7 @@ const MCP_RULES: readonly DocsCell[] = [
   imports: [...DOCS_KIT, WidgetChart],
   host: { class: 'block' },
   template: `
-    <div class="flex flex-col gap-12">
+    <div class="flex flex-col gap-section-lg">
       <docs-head
         eyebrow="Docs · Data & MCP"
         title="A generated hotel group, with the definitions in SQL"
