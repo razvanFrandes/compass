@@ -25,9 +25,11 @@ export function contrastOf(a: string, b: string): number {
 
 export interface ColourShift {
   role: string;
-  /** The value sampled from Juyo, and the value the app uses. */
+  /** The colour sampled from Juyo's app, and the adjusted value of the Compass token. */
   from: string;
   to: string;
+  /** The token that holds the adjusted value, and the theme it belongs to. */
+  token: string;
   /** What the colour is measured against: the text on it, or the surface under it. */
   against: string;
   /** `text` must reach 4.5:1; `graphic` (a chart mark) 3:1. */
@@ -37,7 +39,21 @@ export interface ColourShift {
   note: string;
 }
 
-/** A colour before and after: Juyo's sampled value, the value used, and the contrast of each against its pair. */
+/**
+ * The palette is inspired by Juyo's mobile app colours, then adjusted for WCAG AA. Each row is a colour sampled from
+ * Juyo's app (screenshots of the app on Google Play, and the CSS of their web app: docs/research/ui-refinement/
+ * juyo_brand.md) and the token Compass uses in its place. The ratios are computed from these values, not typed.
+ */
+export const JUYO_COLOUR_SHIFTS: readonly ColourShift[] = [
+  { role: 'Purple button', from: '#996AD5', to: '#8556C9', token: '--primary · dark', against: '#FFFFFF', kind: 'text', as: 'fill', note: 'A white label on Juyo’s purple misses 4.5:1. One step darker, it passes.' },
+  { role: 'Purple as text', from: '#996AD5', to: '#A97EE6', token: '--brand · dark', against: '#161C22', kind: 'text', as: 'text', note: 'On the dark card the same purple just misses as text, so text and focus take a lighter one.' },
+  { role: 'Chart blue, dark surfaces', from: '#477EE3', to: '#5B8DEB', token: '--series · dark', against: '#161C22', kind: 'text', as: 'mark', note: 'Both pass 3:1 as a chart mark. The lighter one also clears 4.5:1, which a thin line and its label need.' },
+  { role: 'Chart blue, light theme', from: '#477EE3', to: '#2F66D0', token: '--series · light', against: '#FFFFFF', kind: 'text', as: 'mark', note: 'On white the blue goes the other way: deeper, until it passes.' },
+  { role: 'Decision orange, light theme', from: '#FE7637', to: '#C2410C', token: '--decision · light', against: '#FFFFFF', kind: 'text', as: 'text', note: 'Juyo’s orange is fine on dark. On white it fails as text, so the light theme takes a deeper orange.' },
+  { role: 'Secondary text', from: '#5C636B', to: '#9BA3AD', token: '--muted-foreground · dark', against: '#161C22', kind: 'text', as: 'text', note: 'Juyo’s own muted grey is 2.8:1 on its dark surface. Secondary text here is a lighter grey.' },
+];
+
+/** A colour before and after: Juyo's sampled value, the Compass token, and the contrast of each against its pair. */
 @Component({
   selector: 'docs-colour-shifts',
   host: { class: 'block' },
@@ -71,7 +87,7 @@ export interface ColourShift {
     }
   `,
   template: `
-    <ul class="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+    <ul class="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
       @for (s of rows(); track s.role) {
         <li class="docs-panel flex flex-col gap-3 p-4">
           <p class="text-[14px] font-semibold">{{ s.role }}</p>
@@ -86,7 +102,7 @@ export interface ColourShift {
                     <span class="lines"><i [style.background]="s.as === 'fill' ? s.against : side.value"></i><i [style.background]="s.as === 'fill' ? s.against : side.value"></i></span>
                   }
                 </span>
-                <span class="text-muted-foreground mt-1.5 block text-[12px]">{{ side.label }}</span>
+                <span class="text-muted-foreground mt-1.5 block truncate text-[12px]" [attr.title]="side.label">{{ side.label }}</span>
                 <span class="block font-mono text-[12px]">{{ side.value }}</span>
                 <span class="flex flex-wrap gap-x-1.5 text-[12.5px] tabular-nums"><span class="font-medium">{{ side.ratio }}:1</span><span class="text-muted-foreground">{{ side.pass ? 'passes' : 'under ' + s.need + ':1' }}</span></span>
               </div>
@@ -107,7 +123,7 @@ export class DocsColourShifts {
         const ratio = contrastOf(value, s.against);
         return { label, value, ratio, pass: ratio >= need };
       };
-      return { ...s, need, sides: [side('Sampled from Juyo', s.from), side('Used in the app', s.to)] };
+      return { ...s, need, sides: [side('Juyo’s app', s.from), side(s.token, s.to)] };
     }),
   );
 }

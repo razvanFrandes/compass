@@ -286,7 +286,7 @@ const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
             }
           </ul>
         } @else {
-          <p class="text-muted-foreground max-w-[76ch] text-[13.5px]/relaxed">Light and Dark map each role straight to a value sampled from Juyo’s own product. The Juyo concept theme adds eleven primitive scales under the roles. <button type="button" class="docs-link" (click)="theme.set('juyo-concept')">Switch to the concept theme</button> to see them here.</p>
+          <p class="text-muted-foreground max-w-[76ch] text-[13.5px]/relaxed">Light and Dark map each role straight to a value: inspired by Juyo’s mobile app colours, then adjusted for WCAG AA. The Juyo concept theme adds eleven primitive scales under the roles. <button type="button" class="docs-link" (click)="theme.set('juyo-concept')">Switch to the concept theme</button> to see them here.</p>
         }
       </docs-section>
 

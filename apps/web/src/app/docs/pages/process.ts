@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { DOCS_KIT, type DocsCell } from '../docs-kit';
 import { type DocsPageId, docsPath } from '../docs-pages';
 import { DocsRouter } from '../docs-router';
-import { type ColourShift, PROCESS_VISUALS, type TimelinePhase } from './process-visuals';
+import { JUYO_COLOUR_SHIFTS, PROCESS_VISUALS, type TimelinePhase } from './process-visuals';
 
 const SECTIONS = [
   { id: 'timeline', label: 'Timeline' },
@@ -86,7 +86,7 @@ const TIMELINE: readonly TimelinePhase[] = [
   {
     when: '21 Nov, 00:37 to 01:03',
     title: 'The concept theme',
-    text: 'Light and Dark use Juyo’s palette, adjusted for contrast. The third theme is my own reading of the brand: one system for their light site and their dark product, built on a token architecture the other two can adopt.',
+    text: 'Light and Dark are inspired by Juyo’s mobile app colours, then adjusted for WCAG AA. The third theme is my own reading of the brand: one system for their light site and their dark product, built on a token architecture the other two can adopt.',
     evidence: ['“Ledger”', 'Archivo', '54 colour pairs checked'],
   },
   {
@@ -156,9 +156,9 @@ const ROUNDS: readonly Round[] = [
   {
     name: 'Juyo’s brand, colour and type',
     where: 'docs/research/ui-refinement',
-    asked: 'What does Juyo’s own product look like, and what has to change for it to pass contrast?',
+    asked: 'What do Juyo’s mobile app and web app look like, and what has to change for the colours to pass contrast?',
     found: 'Juyo runs two design systems that share no tokens: a light site and a dark product. Its own muted text is 2.84:1. Raleway’s figures do not line up in columns. Tooltip delays in Radix and Base UI are 600 to 700 ms; Spartan’s default is 0.',
-    changed: 'Dark first, in Juyo’s palette, adjusted until it passes. Inter with tabular figures. Tooltips wait 600 ms and never show on touch.',
+    changed: 'Dark first, in a palette inspired by Juyo’s mobile app colours, then adjusted for WCAG AA. Inter with tabular figures. Tooltips wait 600 ms and never show on touch.',
   },
   {
     name: 'Four things I had rejected',
@@ -213,10 +213,10 @@ const DESIGN: readonly Choice[] = [
     evidence: 'The picture below: the same four icons in both sets.',
   },
   {
-    title: 'Juyo’s colours, adjusted until they pass',
-    chose: 'Colours sampled from Juyo’s app, moved by the smallest step that meets WCAG AA.',
+    title: 'Inspired by Juyo’s mobile app colours, then adjusted for WCAG AA',
+    chose: 'The palette was taken from Juyo’s own mobile app: screenshots of the Juyo app on Google Play, plus the CSS of their web app. Each colour was then moved by the smallest step that passes.',
     why: 'I wanted the product to feel like Juyo’s, and I was not willing to ship text that fails contrast. Where the two disagreed, contrast won. Change is never colour alone: every figure that moved carries ▲ or ▼.',
-    evidence: 'The ratios below are computed on this page from the hex values.',
+    evidence: 'The sampling is in docs/research/ui-refinement/juyo_brand.md. The ratios below are computed on this page from the hex values.',
   },
   {
     title: 'Inter first, then Archivo',
@@ -238,13 +238,8 @@ const DESIGN: readonly Choice[] = [
   },
 ];
 
-/** The before and after pairs. The ratios are computed from these values by the app's contrast function. */
-export const PROCESS_SHIFTS: readonly ColourShift[] = [
-  { role: 'Purple button', from: '#996AD5', to: '#8556C9', against: '#FFFFFF', kind: 'text', as: 'fill', note: 'White label on Juyo’s purple. One step darker passes.' },
-  { role: 'Purple as small text', from: '#996AD5', to: '#B79BE4', against: '#161C22', kind: 'text', as: 'text', note: 'On the dark card the same purple just misses as text, so text takes a lighter one.' },
-  { role: 'Chart blue', from: '#477EE3', to: '#5B8DEB', against: '#161C22', kind: 'text', as: 'mark', note: 'Both pass 3:1 as a mark. The lighter one also clears 4.5:1 for a thin line and its label.' },
-  { role: 'Decision orange, light theme', from: '#FE7637', to: '#C2410C', against: '#FFFFFF', kind: 'text', as: 'text', note: 'Fine on dark, failing on white. The light theme takes a deeper orange.' },
-];
+/** The before and after pairs, shared with the accessibility page. */
+export const PROCESS_SHIFTS = JUYO_COLOUR_SHIFTS;
 
 /* ───────────── Working with Claude ───────────── */
 
@@ -431,7 +426,8 @@ const NEXT: readonly string[] = [
           }
         </ul>
 
-        <h3 class="mt-8 mb-3 text-[16px] font-semibold tracking-[-0.01em]">The palette, before and after</h3>
+        <h3 class="mt-8 mb-1 text-[16px] font-semibold tracking-[-0.01em]">The palette: Juyo’s colour → the Compass token</h3>
+        <p class="text-muted-foreground mb-3 max-w-[76ch] text-[14px]/relaxed">Inspired by Juyo’s mobile app colours, then adjusted for WCAG AA. On the left of each pair is the colour as sampled; on the right is the token that replaced it, with the contrast of both on the same background.</p>
         <docs-colour-shifts [shifts]="shifts" />
 
         <h3 class="mt-8 mb-3 text-[16px] font-semibold tracking-[-0.01em]">The icon sets, side by side</h3>

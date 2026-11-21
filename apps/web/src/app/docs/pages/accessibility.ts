@@ -3,7 +3,7 @@ import { SPECIMENS } from '../../charts/catalog-samples';
 import { WidgetChart } from '../../charts/widget-chart';
 import { CompassStore } from '../../store';
 import { DOCS_KIT, type DocsCell } from '../docs-kit';
-import { type ColourShift, DocsColourShifts } from './process-visuals';
+import { DocsColourShifts, JUYO_COLOUR_SHIFTS } from './process-visuals';
 
 const FACTS = [
   { value: 'WCAG 2.2 AA', label: 'the target', note: 'written into the project rules before the first screen' },
@@ -12,12 +12,8 @@ const FACTS = [
   { value: '44 px', label: 'touch targets', note: 'on a coarse pointer, in every theme' },
 ] as const;
 
-/** Juyo's sampled colours and the values the app uses. The ratios on the page are computed from these, not typed. */
-export const COLOUR_SHIFTS: readonly ColourShift[] = [
-  { role: 'The purple button', from: '#996AD5', to: '#8556C9', against: '#FFFFFF', kind: 'text', as: 'fill', note: 'Juyo’s purple under a white label. Darkened by one step, the label passes.' },
-  { role: 'The chart blue', from: '#477EE3', to: '#5B8DEB', against: '#161C22', kind: 'text', as: 'mark', note: 'On the dark card. Both pass 3:1 as a chart mark; the lighter one also clears 4.5:1, which a thin line and its label need.' },
-  { role: 'The decision orange, light theme', from: '#FE7637', to: '#C2410C', against: '#FFFFFF', kind: 'text', as: 'text', note: 'Juyo’s orange is fine on dark. On white it fails as text, so the light theme takes a deeper orange.' },
-];
+/** The same pairs the process page shows: Juyo's sampled colour and the Compass token that replaced it. */
+export const COLOUR_SHIFTS = JUYO_COLOUR_SHIFTS;
 
 const NOT_COLOUR_ALONE: readonly DocsCell[] = [
   { title: '▲ and ▼ with every change', text: 'A figure that moved carries an arrow and a sign as well as green or red. The real minus sign is used, so a screen reader says “minus”.' },
@@ -113,10 +109,10 @@ const CHECK: readonly string[] = [
         }
       </dl>
 
-      <docs-section heading="Colour: sampled from Juyo, then adjusted until it passes" anchor="colour" note="The palette comes from Juyo’s own product. Where a sampled colour failed for the job it had, I moved it by the smallest step that passes. The ratios below are computed on this page from the two hex values.">
+      <docs-section heading="Colour: inspired by Juyo’s mobile app colours, then adjusted for WCAG AA" anchor="colour" note="The palette was taken from Juyo’s own mobile app: screenshots of the Juyo app on Google Play, plus the CSS of their web app. Where a sampled colour failed for the job it had, I moved it by the smallest step that passes. Each pair below is the original colour and the token that replaced it, with the contrast of both on the same background. The ratios are computed on this page from the hex values.">
         <docs-colour-shifts [shifts]="shifts" />
         <p class="text-muted-foreground mt-3 max-w-[76ch] text-[13.5px]/relaxed">
-          WCAG 2.2 AA is the gate. APCA is shown beside it in the concept theme’s spec and in <a class="docs-link" href="/theme-lab" (click)="lab($event)">the theme lab</a>, because it tracks small text and dark surfaces more closely. The spec’s contrast tables are in <docs-source path="docs/research/theme/juyo-concept-spec.md" kind="blob" />.
+          WCAG 2.2 AA is the gate. APCA is shown beside it in the concept theme’s spec and in <a class="docs-link" href="/theme-lab" (click)="lab($event)">the theme lab</a>, because it tracks small text and dark surfaces more closely. The sampling of Juyo’s colours is in <docs-source path="docs/research/ui-refinement/juyo_brand.md" kind="blob" />, and the concept theme’s contrast tables are in <docs-source path="docs/research/theme/juyo-concept-spec.md" kind="blob" />.
         </p>
       </docs-section>
 

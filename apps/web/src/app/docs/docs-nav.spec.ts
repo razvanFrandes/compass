@@ -326,6 +326,24 @@ describe('the process and accessibility pages', () => {
     // The decision orange on white.
     expect(contrastOf('#FE7637', '#FFFFFF')).toBe(2.7);
     expect(contrastOf('#C2410C', '#FFFFFF')).toBe(5.2);
+    // Juyo's muted grey on the dark card, and the secondary text that replaced it.
+    expect(contrastOf('#5C636B', '#161C22')).toBe(2.8);
+    expect(contrastOf('#9BA3AD', '#161C22')).toBe(6.7);
+    // The chart blue on white, for the light theme.
+    expect(contrastOf('#477EE3', '#FFFFFF')).toBe(3.9);
+    expect(contrastOf('#2F66D0', '#FFFFFF')).toBe(5.3);
+  });
+
+  it('names the token that replaced each of Juyo’s colours', () => {
+    expect(PROCESS_SHIFTS).toBe(COLOUR_SHIFTS);
+    expect(COLOUR_SHIFTS.map((shift) => `${shift.from} → ${shift.to} ${shift.token}`)).toEqual([
+      '#996AD5 → #8556C9 --primary · dark',
+      '#996AD5 → #A97EE6 --brand · dark',
+      '#477EE3 → #5B8DEB --series · dark',
+      '#477EE3 → #2F66D0 --series · light',
+      '#FE7637 → #C2410C --decision · light',
+      '#5C636B → #9BA3AD --muted-foreground · dark',
+    ]);
   });
 
   it('shows only adjustments that end above their target', () => {
@@ -384,11 +402,10 @@ describe('the process and accessibility pages', () => {
     const root = fixture.nativeElement as HTMLElement;
     await settle(fixture);
     expect(root.querySelector('dl')!.textContent).toContain('WCAG 2.2 AA');
+    expect(root.querySelector('#colour h2')!.textContent).toBe('Colour: inspired by Juyo’s mobile app colours, then adjusted for WCAG AA');
     const purple = root.querySelector('docs-colour-shifts li')!.textContent!;
-    expect(purple).toContain('#996AD5');
-    expect(purple).toContain('3.9:1');
-    expect(purple).toContain('#8556C9');
-    expect(purple).toContain('5:1');
+    for (const part of ['Juyo’s app', '#996AD5', '3.9:1', '--primary · dark', '#8556C9', '5:1', 'passes']) expect(purple).toContain(part);
+    expect(root.querySelectorAll('docs-colour-shifts li')).toHaveLength(COLOUR_SHIFTS.length);
     const fixed = root.querySelector('#axe table')!.textContent!;
     for (const finding of ['aria-pressed', 'nested-interactive', 'label-content-name-mismatch', 'color-contrast', '3.65:1']) expect(fixed).toContain(finding);
     for (const anchor of ['colour', 'not-colour', 'axe', 'keyboard', 'screen-readers', 'motion', 'touch', 'choice', 'check', 'limits']) expect(root.querySelector(`#${anchor}`), anchor).not.toBeNull();
