@@ -1,5 +1,7 @@
 import { Decision } from '@compass/contracts';
 import { createMcpHandler } from 'agents/mcp/server';
+import type { BriefOverview } from '@compass/contracts';
+import { briefOverview, OverviewCache } from './application/brief-overview.ts';
 import { budgetedEmbedder } from './application/budgeted-embedder.ts';
 import { HotelData } from './application/hotel-data.ts';
 import { issueVoiceToken, VOICE_UNAVAILABLE } from './application/voice.ts';
@@ -18,7 +20,7 @@ import { groupHotels, HOTELS_UNAVAILABLE, scopeFor } from './presentation/hotels
 import { preflight, withCors, withoutCors } from './presentation/http/cors.ts';
 import { internalError } from './presentation/http/errors.ts';
 import { isAllowedOrigin, PUBLIC_HOST, rejectCrossSite } from './presentation/http/origin.ts';
-import { isDraftId, isWorkflowId, routeOf } from './presentation/http/routes.ts';
+import { hotelsParam, isDraftId, isWorkflowId, routeOf } from './presentation/http/routes.ts';
 import { voiceTokenResponse } from './presentation/http/voice.ts';
 import { createCompassMcpServer } from './presentation/mcp/server.ts';
 
@@ -58,6 +60,9 @@ async function withData(
   ctx.waitUntil(response.body.pipeTo(writable).finally(() => db.close()));
   return new Response(readable, response);
 }
+
+/** One per isolate: the overview of a scope for a minute (it changes when the data or the brief does). */
+const overviews = new OverviewCache<BriefOverview>();
 
 const clientOf = (request: Request) => request.headers.get('cf-connecting-ip') ?? 'local';
 const error = (status: number, message: string) => Response.json({ error: message }, { status });
@@ -197,6 +202,33 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 
   if (url.pathname === '/api/brief' && request.method === 'GET') {
     return Response.json(await env.BRIEFS.getByName('halcyon').latest());
+  }
+
+  if (url.pathname === '/api/brief/overview' && request.method === 'GET') {
+    // The numbers around the brief for a hotel scope: about fifteen read-only queries and no model. A public read
+    // that costs database time, so it is limited per client and kept for a minute per scope.
+    const limited = await rateLimited(env.BRIEF_RATE_LIMIT, request, 'Too many requests. Try again in a minute.');
+    if (limited) return limited;
+    const scope = await scopeFor(env, hotelsParam(url.searchParams.get('hotels')));
+    if (!scope.ok) return error(scope.error.status, scope.error.message);
+    const hotels = scope.value.map((hotel) => hotel.code);
+    // The findings come from the stored brief, so each chart belongs to an item the page shows. Without a brief
+    // the rest still answers.
+    const brief = await env.BRIEFS.getByName('halcyon')
+      .latest()
+      .catch((cause: unknown) => {
+        console.error('brief overview: no brief', cause);
+        return null;
+      });
+    const overview = await overviews.get(hotels, brief?.generatedAt ?? 'no-brief', async () => {
+      const db = openPostgres(env.HYPERDRIVE.connectionString);
+      try {
+        return await briefOverview(db, { hotels, items: brief?.items ?? [] });
+      } finally {
+        ctx.waitUntil(db.close());
+      }
+    });
+    return Response.json(overview, { headers: { 'Cache-Control': 'private, max-age=60' } });
   }
 
   if (url.pathname === '/api/brief/refresh' && request.method === 'POST') {

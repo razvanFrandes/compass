@@ -16,6 +16,8 @@ export interface Env {
   VOICE_RATE_LIMIT: RateLimit;
   /** Board changes: 60 per minute per client. */
   BOARD_RATE_LIMIT: RateLimit;
+  /** GET /api/brief/overview: 30 reads per minute per client. */
+  BRIEF_RATE_LIMIT: RateLimit;
   KASSANDRA: DurableObjectNamespace<Kassandra>;
   BRIEFS: DurableObjectNamespace<Briefs>;
   WORKFLOWS: DurableObjectNamespace<WorkflowAgents>;
