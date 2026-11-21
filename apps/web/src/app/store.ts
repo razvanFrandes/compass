@@ -222,7 +222,7 @@ function topicFor(r: BriefRow): TopicContent {
           verb: 'Raise',
           impact: DECISION_UPSIDE,
           reaches: 'The revenue manager, as a task',
-          why: `Each night goes to its comp set median: ${DECISIONS.map((d) => `${formatDay(d.night.date)} ${formatEur(d.target!)}`).join(', ')}. Juyo only reads your data; the revenue manager applies the rates in the RMS.`,
+          why: `Each night goes to its comp set median: ${DECISIONS.map((d) => `${formatDay(d.night.date)} ${formatEur(d.target!)}`).join(', ')}. Compass only reads your data; the revenue manager applies the rates in the RMS.`,
         },
         definitions: [
           ['BAR', 'best available rate for the base room; AED converted at 0.25'],

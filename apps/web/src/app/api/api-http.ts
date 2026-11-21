@@ -15,7 +15,7 @@ export interface ApiError {
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError };
 
 const FALLBACK: Record<number, string> = {
-  0: 'Couldn’t reach Juyo. Check your connection and try again.',
+  0: 'Couldn’t reach Compass. Check your connection and try again.',
   403: 'That isn’t allowed from this page. Reload and try again.',
   404: 'That no longer exists. Reload to see the latest.',
   413: 'That’s too long to send. Shorten it and try again.',

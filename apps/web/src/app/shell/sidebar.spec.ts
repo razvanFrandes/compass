@@ -69,7 +69,8 @@ describe('Sidebar', () => {
     await render();
     expect(nav.getAttribute('aria-label')).toBe('Main');
     expect(nav.hasAttribute('data-collapsed')).toBe(false);
-    expect(nav.querySelector('.rail-logo svg')?.getAttribute('viewBox')).toBe('0 0 102 32');
+    expect(nav.querySelector('.rail-logo app-compass-logo')?.getAttribute('data-variant')).toBe('full');
+    expect(nav.querySelector('.rail-logo .word')?.textContent).toBe('Compass');
     expect(toggle().getAttribute('aria-expanded')).toBe('true');
     expect(toggle().getAttribute('aria-label')).toBe('Collapse sidebar');
     expect(toggle().getAttribute('aria-controls')).toBe(nav.id);
@@ -87,7 +88,8 @@ describe('Sidebar', () => {
     expect(toggle().getAttribute('aria-expanded')).toBe('false');
     expect(toggle().getAttribute('aria-label')).toBe('Expand sidebar');
     // The mark alone, not the wordmark.
-    expect(nav.querySelector('.rail-logo svg')?.getAttribute('viewBox')).toBe('0 0 32 32');
+    expect(nav.querySelector('.rail-logo app-compass-logo')?.getAttribute('data-variant')).toBe('mark');
+    expect(nav.querySelector('.rail-logo .word')).toBeNull();
 
     const scope = nav.querySelector<HTMLButtonElement>('.sw-side')!;
     expect(scope.hasAttribute('data-compact')).toBe(true);
@@ -121,7 +123,7 @@ describe('Sidebar', () => {
     const controls = [...nav.querySelectorAll('a, button')];
     expect(controls.length).toBeGreaterThanOrEqual(11);
     for (const control of controls) expect(name(control), control.outerHTML.slice(0, 80)).not.toBe('');
-    expect(controls.map(name).slice(0, 2)).toEqual(['Juyo, morning brief', 'Expand sidebar']);
+    expect(controls.map(name).slice(0, 2)).toEqual(['Compass, morning brief', 'Expand sidebar']);
   });
 
   it('marks the current place, in the rail as in the panel', async () => {

@@ -75,9 +75,9 @@ describe('chartToWidget', () => {
 
 describe('pageTitle', () => {
   it('names each place for the tab and the link preview', () => {
-    expect(pageTitle('inbox', '', '')).toBe('Morning brief · Juyo');
-    expect(pageTitle('watchers', '', '')).toBe('Agent Studio · Juyo');
-    expect(pageTitle('board', '', 'Portfolio')).toBe('Portfolio · Juyo');
+    expect(pageTitle('inbox', '', '')).toBe('Morning brief · Compass');
+    expect(pageTitle('watchers', '', '')).toBe('Agent Studio · Compass');
+    expect(pageTitle('board', '', 'Portfolio')).toBe('Portfolio · Compass');
     expect(pageTitle('thread', 'Why is Lisbon behind?', '')).toBe('Why is Lisbon behind? · Kassandra');
   });
 });

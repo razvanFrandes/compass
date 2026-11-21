@@ -5,12 +5,12 @@ import { phosphorCompassLight, phosphorInfoLight, phosphorSidebarSimpleLight } f
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { GROUP } from '../data';
 import * as icons from '../icons';
-import { JuyoLogo } from '../juyo-logo';
 import { KassandraThreadList } from '../kassandra/kassandra-thread-list';
 import { ScopeSwitcher } from '../scope/scope-switcher';
 import { CompassStore } from '../store';
 import { THEMES, Theme } from '../theme';
 import { isActiveNav, type NavItem } from './nav';
+import { CompassLogo } from './compass-logo';
 import { RailThreads } from './rail-threads';
 import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sidebar-state';
 
@@ -28,7 +28,7 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
  */
 @Component({
   selector: 'nav[appSidebar]',
-  imports: [NgIcon, JuyoLogo, ScopeSwitcher, KassandraThreadList, RailThreads, HlmTooltipImports],
+  imports: [NgIcon, CompassLogo, ScopeSwitcher, KassandraThreadList, RailThreads, HlmTooltipImports],
   providers: [provideIcons({ ...icons, phosphorCompassLight, phosphorInfoLight, phosphorSidebarSimpleLight, phosphorSwatchesFill })],
   encapsulation: ViewEncapsulation.None,
   host: {
@@ -103,8 +103,8 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
   `,
   template: `
     <div class="rail-head">
-      <a href="/" class="rail-logo" aria-label="Juyo, morning brief" (click)="$event.preventDefault(); store.go('inbox')">
-        <app-juyo-logo [size]="22" [markOnly]="collapsed()" />
+      <a href="/" class="rail-logo" aria-label="Compass, morning brief" (click)="$event.preventDefault(); store.go('inbox')">
+        <app-compass-logo [size]="22" [variant]="collapsed() ? 'mark' : 'full'" />
       </a>
       <button
         #toggleButton

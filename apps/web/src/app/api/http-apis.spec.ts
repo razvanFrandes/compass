@@ -105,7 +105,7 @@ describe('HTTP clients', () => {
       http.expectOne('/api/workflows').error(new ProgressEvent('error'));
       const failed = await offline;
       expect(failed).toMatchObject({ ok: false, error: { status: 0 } });
-      expect(failed.ok === false && failed.error.message).toContain('Couldn’t reach Juyo');
+      expect(failed.ok === false && failed.error.message).toContain('Couldn’t reach Compass');
 
       const broken = api.list();
       http.expectOne('/api/workflows').flush('<html>', { status: 502, statusText: 'Bad Gateway' });

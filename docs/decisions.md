@@ -464,7 +464,7 @@ Kassandra is drawn by the same components wherever she appears (`apps/web/src/ap
 - **Keys:** `[` on its own, and ⌘\ or Ctrl+\ from anywhere. `[` is a character while someone types (a field, a menu), and nothing happens while a modal dialog is open. ⌘[ and Ctrl+[ stay the browser's.
 - **Nothing moves but the labels.** The logo mark, the scope's initial and every icon sit on one axis, 32 px from the left edge, in both states. An item is as wide as the sidebar, so collapsing cuts its label off while the grid column animates (`--motion-moderate`, 200 ms in the default themes; none with `prefers-reduced-motion`). The main area follows the column; it does not jump.
 - **What the rail shows:**
-  - The Juyo mark, without the wordmark.
+  - The logo mark, without the wordmark.
   - The scope: the group's initial with the number of hotels in scope as a badge (stronger when the scope is narrowed). It is the same button as in the panel (`ScopeSwitcher` with `compact`), so it opens the same picker.
   - Inbox, Boards and Agent Studio as icons; a count becomes an orange badge with ink text (white fails 4.5:1 on the orange in the light theme). The current place keeps the Fill icon and a stronger background.
   - Threads as one icon that opens the list as a menu beside the rail. Rename and Delete stay in the panel.
@@ -498,3 +498,14 @@ Kassandra is drawn by the same components wherever she appears (`apps/web/src/ap
 - **What the models write follows the same rules.** Kassandra's prompt, the brief writer, the agents' run prompts and the builder prompt each carry a short voice block: money first, hotels by name, dates as "16–18 Dec", a rate against the comp set as a percentage, no tool, table or column names.
 - **Not covered:** the Inbox and the brief header (`inbox.ts`, `brief-charts.ts`) and the docs hub, which other branches rewrite.
 
+
+## The app's brand is Compass (21 Nov 2026)
+
+- **Owner decision: the product shown to users is "Compass".** The Juyo mark and wordmark are gone from the app: sidebar, rail, phone header, favicons, `og.png`, page titles ("Boards · Compass"), the meta description and `og:site_name`. Juyo's product vocabulary stays (Kassandra, Agent Studio), and so do the theme name "Juyo concept" and the domain.
+- **One component, `src/app/shell/compass-logo.ts`:** `<app-compass-logo variant="full | mark" [size]>`. `size` is the side of the tile in px; the wordmark scales from it. The host is one image named "Compass"; a link around it carries its own label.
+- **The mark is Phosphor's `compass`, Fill weight, in white on a rounded tile.** The candidates (compass and compass-rose, in regular, bold, duotone and fill) were rendered at 16–64 px. Inside a 16–24 px tile the glyph gets 12–18 px: the outline weights thin to about one pixel and the rose's eight points close up, while the filled disc with the needle cut out keeps its shape down to the 16 px favicon.
+- **The wordmark is live text in the theme's display face:** Inter 600 in Light and Dark, Archivo wide 500 in the concept theme. It takes the colour of the text around it.
+- **Colours are two tokens, `--logo-tile` and `--logo-ink`.** Light and Dark use the primary pair (the button purple, a step darker than the accent so white passes); the concept theme uses violet 5, the step that holds on both paper and the night rail. Measured in the browser: glyph on tile 5.8 / 5.0 / 4.0 : 1 and tile on its surface at least 5.2 / 3.8 / 3.7 : 1 (Light / Dark / concept).
+- **The icon files come from the same path:** `node scripts/brand-icons.mjs` (in `apps/web`) writes `favicon.svg` (a lighter tile under `prefers-color-scheme: dark`, 3.1:1 on Chrome's dark tab), `favicon-32.png` and `favicon.ico` (16, 32, 48; a PNG cannot follow the colour scheme, so these use `#9768d4`, the violet that keeps 3:1 on light and dark tab strips) and the opaque 180 px `apple-touch-icon.png`. `og.png` is a 1200×630 screenshot of the Inbox in the dark theme.
+- **Also renamed, because they name the app:** "Couldn’t reach Compass" (the network error) and "Compass only reads your data" (the rate proposal's note).
+- **Open:** the theme switch shows "Juyo concept" with a compass icon, which now echoes the logo; another icon would be clearer.
