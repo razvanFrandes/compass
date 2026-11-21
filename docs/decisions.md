@@ -397,7 +397,7 @@ Built from `docs/round2-contracts.md` §2–§3. It sits next to the Portfolio c
   - Amber and pink are new and live in `charts/tokens.ts`. The five-hue order was checked with the dataviz validator: adjacent colour-blind ΔE ≥ 8, normal-vision ΔE ≥ 15 and ≥ 3:1 against the card in both themes. Juyo's own teal and purple sit outside the validator's lightness band in dark mode; they are kept because they are the brand's.
   - Colours are read from the tokens in effect on the widget's own element, so a subtree with its own theme is drawn in that theme.
 - **Honest fallbacks, always with a note:** a pie or donut outside 2–7 parts (or with a negative part) is drawn as bars; flows that loop are shown as a table; an unknown kind is shown as a table; rows that don't fit are cut with "Showing the first N of M rows". No rows gives a sentence, not an empty axis.
-- **One value axis, never two.** A bridge whose steps are small next to its totals gets a broken axis, and says so.
+- **One value axis, never two.** A bridge whose steps are small next to its totals starts its axis at a round number under the lowest running total, said once as the first tick (superseded the broken axis on 21 Nov, see "Charts that hold still").
 - **Labels before legends:** line ends carry the series names, bars carry their values, slices carry name and share. A legend appears only where a direct label can't (stacks, phone widths).
 - **Accessibility:**
   - Each chart is a focusable image with a text alternative built from the data (kind, size, highest and lowest).
@@ -667,7 +667,6 @@ Seven branches merged into `r3/int2` in this order: visual-answers, chart-switch
 - **Density tokens reach the new parts:** the "Try asking" gallery, the "View as" row and its placeholder, the docs hub's gutters, sections and cards.
 - **Open:**
   - "View as" still never proposes a funnel whose stages are columns, although the chart now draws one (`charts/kinds.ts` was written before that builder).
-  - The preview of a result with a local-currency column reads "local currency 220k" for the few seconds it shows.
   - On a wide Thread the Docs button floats over the bottom right corner of Behind the numbers; the panel scrolls under it.
   - zod's probe for `eval` is reported by the CSP on every load (it is caught, and was there before this round).
 
@@ -779,3 +778,13 @@ The owner found the charts crowded. What changed, for every kind:
 - **Grouped bars per hotel of a value and its comparison** draw as one bar with a marker. Grouped columns show their numbers only where each fits its own bar; otherwise on hover.
 - **The chrome is in the header, top right.** "View as" is an icon-only segmented control (the name and the reason are the tooltip; a dot marks the recommended kind). Kassandra's cards put "Behind the numbers" and "Add to board" there as icon buttons, so the body is only the chart. Boards place "View as" next to the ⋯ menu (`<juyo-view-as [for]="chart">` with `controls="external"`); a widget without a header whose host does not place it keeps a one-line row under the body.
 - **The page itself never scrolls on desktop.** The shell is the containing block of absolutely positioned elements (`lg:relative`), and `main` is `relative`: the `sr-only` labels far down a scrolled pane had made `<html>` taller than the window, so the sidebar and everything scrolled away.
+
+## Charts that hold still (21 Nov 2026)
+
+- **What made tooltips blink was the trigger, not a redraw.** Measured in Chrome with a pointer moved every 16 ms for 3 s and then held for 2 s (`apps/web/scripts/tooltip-check.mjs`): nothing re-drew a chart while it was hovered (no setOption, resize, init or dispose in 25 s on the Thread or the Inbox), but every bar, bullet and bridge used `trigger: 'item'`, so the tooltip went in each gap between two marks and once the hand stopped between them (production, Inbox bars: 100% while moving, 8% held still). A wide "local currency 1.2k" axis and clipped line-end labels added dead strips to the left and right of the plot.
+  - Charts over categories (bars, columns, bullets, bridges, lines) answer for the whole band under the pointer (`bandTip`: `trigger: 'axis'`, a quiet shaded band). Every tooltip moves with the pointer at once (`transitionDuration: 0`; with a transition ECharts steps it every 50 ms and eases it behind the pointer) and waits 240 ms before hiding, which crosses the hairline gaps between slices and cells.
+  - A chart is drawn again only when what it draws changes: rows, columns and tokens are compared by value (`charts/same.ts`), and the host skips an option it has already applied. A live conversation re-sending the same rows, or a class on `<html>` that is not the theme, leaves the chart and its tooltip alone (`echart-host.spec.ts`).
+- **Bridges lie down in narrow cards** (under 560 px, e.g. a brief finding): a row per step at 28 px, whole names on the left, the value at the bar's end (+€8.4k green, −€90.3k red, totals bold), thin connectors, and a body as tall as its rows (a drawing may now ask for its own height, `Built.height`). Upright, names stay level on two lines and each value fits over its column. No broken axis and no footnote.
+- **Money in the hotel's own currency.** A currency column whose unit is not a code ("local currency") takes the currency of the hotel its rows are about (from the hotel's country), or of the hotels when they share one: "AED 1.2k". Otherwise the amounts stand alone and the subtitle says "In local currency" once.
+- **Calendar heatmaps** sit at the left under their legend, cells sized by the height; a wide card leaves the rest empty instead of centring a small calendar.
+- **Donut centres fit their hole:** the number large (compacted to 1.1k when needed), "Total room nights" small under it, the type sized to the hole's diameter down to 12 px, no label at all rather than a clipped one. A pie or donut on a phone gets the room its legend takes. Card headers put their tools under the title when the card is narrow.
