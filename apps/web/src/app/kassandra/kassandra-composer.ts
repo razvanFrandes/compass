@@ -149,17 +149,19 @@ let nextId = 0;
           <hlm-dropdown-menu-separator />
         }
         <hlm-dropdown-menu-group [attr.aria-labelledby]="uid + '-try'">
-          <hlm-dropdown-menu-label [id]="uid + '-try'">Try asking</hlm-dropdown-menu-label>
+          <hlm-dropdown-menu-label [id]="uid + '-try'">{{ examplesTitle() }}</hlm-dropdown-menu-label>
           @for (e of examples(); track e.question) {
             <button hlmDropdownMenuItem class="ask-prompt" (triggered)="choose(e.question)">
               <span class="ask-prompt-icon"><ng-icon [name]="iconOf(e)" aria-hidden="true" /></span><span class="min-w-0 flex-1">{{ e.question }}<span class="sr-only"> (answers with {{ nameOf(e) }})</span></span>
             </button>
           }
         </hlm-dropdown-menu-group>
-        <hlm-dropdown-menu-separator />
-        <button hlmDropdownMenuCheckbox class="ask-prompt-more" [checked]="allExamples()" (triggered)="allExamples.set(!allExamples())">
-          All {{ exampleCount }} examples<ng-icon name="phosphorCaretDownLight" class="ask-caret ms-auto text-[11px]" aria-hidden="true" />
-        </button>
+        @if (!ownExamples()) {
+          <hlm-dropdown-menu-separator />
+          <button hlmDropdownMenuCheckbox class="ask-prompt-more" [checked]="allExamples()" (triggered)="allExamples.set(!allExamples())">
+            All {{ exampleCount }} examples<ng-icon name="phosphorCaretDownLight" class="ask-caret ms-auto text-[11px]" aria-hidden="true" />
+          </button>
+        }
       </hlm-dropdown-menu>
     </ng-template>
 
@@ -233,6 +235,10 @@ export class KassandraComposer {
   readonly showPrompts = input(true);
   /** The hotel scope button. Off where the question is not about the scope (the agent builder). */
   readonly showScope = input(true);
+  /** The page's own examples for "Try asking" (a board's, the Boards page's): they replace the gallery. */
+  readonly ownExamples = input<readonly AskExample[] | null>(null, { alias: 'examples' });
+  /** The heading of the examples in the Prompts menu. */
+  readonly examplesTitle = input('Try asking');
   /** Questions about today's brief, the first group of the Prompts menu (none: the group is left out). */
   readonly briefPrompts = input<readonly string[]>([]);
   /** Large on the Inbox's start page: a taller field and larger text. */
@@ -255,7 +261,7 @@ export class KassandraComposer {
   protected readonly exampleCount = EXAMPLE_COUNT;
   /** The Prompts menu shows three examples until "All N examples" is checked. */
   protected readonly allExamples = signal(false);
-  protected readonly examples = computed<readonly AskExample[]>(() => (this.allExamples() ? ASK_GROUPS.flatMap((group) => group.items) : FEATURED_ASKS));
+  protected readonly examples = computed<readonly AskExample[]>(() => this.ownExamples() ?? (this.allExamples() ? ASK_GROUPS.flatMap((group) => group.items) : FEATURED_ASKS));
   protected iconOf(example: AskExample): string {
     return KIND_ICONS[example.kind];
   }

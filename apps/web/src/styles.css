@@ -6,6 +6,7 @@
 @import '@spartan-ng/brain/hlm-tailwind-preset.css';
 /* Density and layout tokens: page gutter, section and card spacing, row and control heights (docs/research/layout/tokens.md). */
 @import './density.css';
+@import './app/charts/calendar.css';
 
 /* A themed subtree (the theme lab shows two themes side by side): `dark:` follows the nearest .dark or .light. */
 @custom-variant dark (&:is(.dark *):not(:is(.dark .light *)));
@@ -339,7 +340,13 @@
   .clickable-card:active { transform: scale(0.99); }
 }
 .clickable-card:focus-visible,
-.clickable-row:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring); }
+.clickable-row:focus-visible,
+.clickable-card:has(.card-link:focus-visible) { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring); }
+.clickable-card, .clickable-row { cursor: pointer; }
+/* A card whose title is the link: the link's box covers the card, so the whole card opens it; other controls sit above. */
+.card-link { outline: none; cursor: pointer; text-align: left; }
+.card-link::before { content: ''; position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+.card-over { position: relative; z-index: 2; }
 @media (prefers-reduced-motion: reduce) {
   .clickable-card, .clickable-card:active { transition: none; transform: none; }
 }
@@ -816,3 +823,44 @@ textarea.field-input { height: auto; line-height: 1.5; }
 hlm-dropdown-menu [role^='menuitem'] { cursor: pointer; text-align: left; }
 /* A menu item's hover/focus fill: visible on the menu's own surface in every theme (--accent equals the popover in dark). */
 hlm-dropdown-menu { --menu-hover: color-mix(in srgb, var(--foreground) 9%, var(--popover)); }
+
+/* ───────── A board's card on the Boards page: the same picture box on every card, so the grid lines up ───────── */
+.board-visual { display: flex; flex-direction: column; gap: 8px; height: 124px; padding-inline: var(--space-card-pad); }
+.board-visual-head { display: flex; flex-direction: column; min-width: 0; }
+.board-visual-label { overflow: hidden; color: var(--muted-foreground); font-size: 12.5px; line-height: 18px; white-space: nowrap; text-overflow: ellipsis; }
+/* The number and its change on one baseline; the change never wraps inside itself, it shortens with an ellipsis. */
+.board-visual-figure { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.board-visual-value { flex: none; font-size: 24px; line-height: 30px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.board-visual-delta { min-width: 0; overflow: hidden; margin-left: auto; color: var(--muted-foreground); font-size: 13px; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.board-visual-spark { display: block; flex: 1; min-height: 0; width: calc(100% + 2 * var(--space-card-pad)); margin-inline: calc(-1 * var(--space-card-pad)); }
+.board-visual-tiles { display: grid; flex: 1; min-height: 0; gap: 6px; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.board-visual-tiles[data-layout='grid'] { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.board-tile { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; overflow: hidden; padding: 6px 7px; border-radius: 8px; background: color-mix(in srgb, var(--foreground) 4%, var(--card)); }
+.board-tile > svg { width: 100%; height: 100%; overflow: visible; }
+.board-tile-line { fill: none; stroke: var(--series); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.board-tile-cmp { fill: none; stroke: var(--series-cmp); stroke-width: 1.1; stroke-dasharray: 3 2.5; }
+.board-tile-area { fill: color-mix(in srgb, var(--series) 14%, transparent); }
+.board-tile-bar { fill: var(--series); }
+.board-tile-neg { fill: color-mix(in srgb, var(--series) 50%, var(--card)); }
+.board-tile-zero { stroke: color-mix(in srgb, var(--foreground) 18%, transparent); stroke-width: 1; }
+.board-tile-figure { overflow: hidden; color: var(--foreground); font-size: 17px; font-weight: 600; letter-spacing: -0.02em; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.board-tile-rows { display: flex; flex-direction: column; justify-content: center; gap: 5px; width: 100%; height: 100%; }
+.board-tile-rows > i { display: block; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--foreground) 16%, transparent); }
+.board-tile--ghost { background: none; border: 1px dashed color-mix(in srgb, var(--foreground) 16%, transparent); }
+.board-tile--ghost svg path, .board-tile--ghost svg circle { fill: none; stroke: color-mix(in srgb, var(--foreground) 14%, transparent); stroke-width: 1.5; }
+.board-tile--ghost svg circle { stroke-width: 6.5; }
+.board-tile--ghost svg rect { fill: color-mix(in srgb, var(--foreground) 8%, transparent); }
+.board-tile--ghost .board-tile-rows > i { background: color-mix(in srgb, var(--foreground) 9%, transparent); }
+
+/* Kassandra docked at the bottom of a page (the Boards list, a board): the column's width, above the safe area. */
+.kassandra-dock {
+  position: fixed; z-index: 30; bottom: 0;
+  padding: 4px max(var(--space-page-x), env(safe-area-inset-right, 0px)) max(14px, env(safe-area-inset-bottom, 0px)) max(var(--space-page-x), env(safe-area-inset-left, 0px));
+  background: var(--background); text-align: left;
+}
+.kassandra-dock-panel { max-height: min(46dvh, 30rem); overflow-y: auto; overscroll-behavior: contain; margin-bottom: 8px; }
+.board-card-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 16px; line-height: 1.35; font-weight: 600; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+/* An empty board: the faint mosaic, and over it what to do about it. */
+.board-empty { position: relative; }
+.board-empty-cta { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
+.board-empty-cta > p { padding: 0 8px; border-radius: 6px; background: var(--card); }

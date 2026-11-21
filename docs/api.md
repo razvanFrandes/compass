@@ -285,7 +285,7 @@ interface BoardWidget { id: string; spec: WidgetSpec; rows: Record<string, unkno
 
 | Method | Path | Body | Answer |
 |---|---|---|---|
-| GET | `/api/boards` | – | `BoardSummary[]`, oldest first. Each widget is `{ id, spec, question?, addedAt }`: no rows, columns or evidence. |
+| GET | `/api/boards` | – | `BoardListItem[]`, oldest first. Each widget is `{ id, spec, question?, addedAt }`: no rows, columns or evidence. `preview` holds the first 4 widgets as `{ id, spec, columns, rows }` with only the columns the spec draws and at most 40 rows (a long series thinned evenly; a calendar whole up to 92 days; a table its first 5 rows): what the board's card draws. |
 | POST | `/api/boards` | `{ name, description?, hotels? }` | 201 `Board` (no widgets yet) |
 | GET | `/api/boards/:id` | – | `Board` with every widget in full |
 | PATCH | `/api/boards/:id` | `{ name?, description?, hotels?, order? }` | `Board` |

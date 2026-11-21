@@ -117,6 +117,70 @@
       @if (b.points.length) {
         <span class="sr-only" [id]="uid + '-k'">Use the arrow keys to step through the data. The same numbers are in {{ switcher() ? '“View as”, Table' : '“View as table”' }}.</span>
       }
+    } @else if (b.render === 'calendar') {
+      @let cal = b.calendar;
+      <div class="wc-cal" [style.--wc-cell.px]="cal.cell" [style.--wc-cal-gap.px]="cal.gap">
+        <div class="wc-cal-plot" role="img" tabindex="0" [attr.aria-label]="summary()" [attr.aria-describedby]="uid + '-k'" (keydown)="onCalKey($event)" (blur)="leave()" (pointerleave)="calTip.set(null)">
+          <div class="wc-cal-months">
+            @for (m of cal.months; track m.key) {
+              <div class="wc-cal-month">
+                <p class="wc-cal-name">{{ m.name }}</p>
+                <div class="wc-cal-grid">
+                  @for (w of cal.weekdays; track $index) {
+                    <span class="wc-cal-wd">{{ cal.cell < 44 ? w.slice(0, 1) : w }}</span>
+                  }
+                  @for (week of m.weeks; track $index) {
+                    @for (d of week; track $index) {
+                      @if (d) {
+                        <span
+                          class="wc-cal-day"
+                          [class.wc-cal-day--off]="!d.inRange"
+                          [class.wc-cal-day--today]="d.today"
+                          [class.wc-cal-day--on]="d.inRange && d.index === cursor()"
+                          [attr.data-i]="d.inRange ? d.index : null"
+                          [style.background]="d.inRange ? d.fill : null"
+                          [style.color]="d.inRange ? d.ink : null"
+                          (pointerenter)="d.inRange ? pointAt(d.index, $any($event.currentTarget)) : calTip.set(null)"
+                          (click)="d.inRange && pickDay(d.iso)"
+                          ><span class="wc-cal-num">{{ d.day }}</span>
+                          @if (d.inRange && cal.cell >= 40) {
+                            <span class="wc-cal-val">{{ d.text }}</span>
+                          }
+                        </span>
+                      } @else {
+                        <span class="wc-cal-pad"></span>
+                      }
+                    }
+                  }
+                </div>
+              </div>
+            }
+          </div>
+          @if (calTip(); as tp) {
+            @let d = cal.days[tp.i];
+            <div class="wc-cal-tip" [class.wc-cal-tip--below]="tp.below" [style.left.px]="tp.x" [style.top.px]="tp.y">
+              <p class="wc-cal-tip-date">{{ tp.date }}</p>
+              <p class="wc-cal-tip-value"><i [style.background]="d.fill"></i>{{ d.full }}</p>
+              @if (d.meaning) {
+                <p class="wc-cal-tip-meaning">{{ d.meaning }}</p>
+              }
+            </div>
+          }
+        </div>
+        <div class="wc-cal-scale">
+          <span class="wc-cal-word">{{ cal.scale.lowLabel }}</span>
+          <span class="wc-cal-bar-wrap">
+            <span class="wc-cal-bar" [style.background]="cal.scale.gradient"></span>
+            <span class="wc-cal-tick wc-cal-tick--min">{{ cal.scale.minText }}</span>
+            @if (cal.scale.midText) {
+              <span class="wc-cal-tick wc-cal-tick--mid" [style.left.%]="(cal.scale.midAt ?? 0.5) * 100">{{ cal.scale.midText }}</span>
+            }
+            <span class="wc-cal-tick wc-cal-tick--max">{{ cal.scale.maxText }}</span>
+          </span>
+          <span class="wc-cal-word">{{ cal.scale.highLabel }}</span>
+        </div>
+      </div>
+      <span class="sr-only" [id]="uid + '-k'">Use the arrow keys to step through the nights. The same numbers are in {{ switcher() ? '“View as”, Table' : '“View as table”' }}.</span>
     } @else if (b.render === 'kpi') {
       <div class="wc-kpi">
         <div class="wc-kpi-text">

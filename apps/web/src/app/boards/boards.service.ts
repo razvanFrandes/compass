@@ -2,6 +2,8 @@ import { Service, computed, inject, signal } from '@angular/core';
 import { toast } from '@spartan-ng/brain/sonner';
 import { API_BASE } from '../api';
 import type { Board, BoardWidget, WidgetPayload } from './types';
+import type { BoardWidgetPreview } from '@compass/contracts';
+import { withPreview } from './board-preview-model';
 
 /*
   Saved boards (docs/round2-contracts.md §4). The server is the source of truth: GET/POST/PATCH/DELETE /api/boards.
@@ -38,9 +40,11 @@ function writeLocal(boards: Board[]) {
 export class BoardsService {
   private readonly base = inject(API_BASE);
   readonly mode = signal<BoardsMode>('loading');
-  /** The list (on the server, widgets carry spec and title only; `full()` loads the rows). */
-  readonly boards = signal<Board[]>([]);
+  /** The list (on the server, widgets carry spec and title only, and `preview` the first widgets' rows; `full()` loads the rows). */
+  readonly boards = signal<(Board & { preview?: BoardWidgetPreview[] })[]>([]);
   readonly error = signal<string | null>(null);
+  /** Set by "Ask Kassandra to add charts" on an empty board's card: the board puts the cursor in its composer when it opens. */
+  readonly askOnOpen = signal<string | null>(null);
   readonly loaded = computed(() => this.mode() !== 'loading');
   private readonly cache = new Map<string, Board>();
 
@@ -72,7 +76,7 @@ export class BoardsService {
     const r = await this.req<Board>('GET', `boards/${encodeURIComponent(id)}`);
     if (!r.ok) return null;
     this.cache.set(id, r.value);
-    this.replace(r.value, false);
+    this.replace(r.value);
     return r.value;
   }
   cached(id: string) {
@@ -147,7 +151,7 @@ export class BoardsService {
     const r = await this.req<BoardWidget>('POST', `boards/${encodeURIComponent(boardId)}/widgets`, { ...payload, rows });
     if (!r.ok) return quiet ? { ok: false, message: r.message } : this.fail(r.message, 'Couldn’t add the chart');
     this.cache.delete(boardId);
-    this.boards.update((l) => l.map((b) => (b.id === boardId ? { ...b, widgets: [...b.widgets, r.value], updatedAt: now() } : b)));
+    this.boards.update((l) => l.map((b) => (b.id === boardId ? withPreview({ ...b, widgets: [...b.widgets, r.value], updatedAt: now() }) : b)));
     return { ok: true, value: r.value };
   }
 
@@ -159,7 +163,7 @@ export class BoardsService {
     const r = await this.req<unknown>('DELETE', `boards/${encodeURIComponent(boardId)}/widgets/${encodeURIComponent(widgetId)}`);
     if (!r.ok) return this.fail(r.message, 'Couldn’t remove the chart');
     this.cache.delete(boardId);
-    this.boards.update((l) => l.map((b) => (b.id === boardId ? { ...b, widgets: b.widgets.filter((w) => w.id !== widgetId), updatedAt: now() } : b)));
+    this.boards.update((l) => l.map((b) => (b.id === boardId ? withPreview({ ...b, widgets: b.widgets.filter((w) => w.id !== widgetId), updatedAt: now() }) : b)));
     return { ok: true, value: null };
   }
 
@@ -200,8 +204,8 @@ export class BoardsService {
     this.boards.set(boards);
     writeLocal(boards);
   }
-  private replace(b: Board, bump = true) {
-    this.boards.update((l) => (l.some((x) => x.id === b.id) ? l.map((x) => (x.id === b.id ? (bump ? b : { ...x, ...b }) : x)) : [b, ...l]));
+  private replace(b: Board) {
+    this.boards.update((l) => (l.some((x) => x.id === b.id) ? l.map((x) => (x.id === b.id ? withPreview({ ...x, ...b }) : x)) : [b, ...l]));
   }
   private fail<T>(message: string, title?: string): Result<T> {
     if (title) toast(title, { description: message, duration: 8000 });

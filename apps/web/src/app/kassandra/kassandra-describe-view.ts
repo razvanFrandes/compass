@@ -1,5 +1,8 @@
-import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, input, model, output, signal, untracked, viewChild } from '@angular/core';
+import type { AnswerMode } from '@compass/contracts';
+import type { AskExample } from '../charts/ask-examples';
 import { toast } from '@spartan-ng/brain/sonner';
+import { NgTemplateOutlet } from '@angular/common';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import type { BoardWidget, ChatWidget } from '../api';
 import { ScopeService } from '../scope/scope.service';
@@ -19,46 +22,82 @@ export const BOARD_VIEW_PREFIX = 'Build a board view: ';
  */
 @Component({
   selector: 'kassandra-describe-view',
-  imports: [KassandraComposer, KassandraConversation, HlmButtonImports],
+  imports: [KassandraComposer, KassandraConversation, HlmButtonImports, NgTemplateOutlet],
   host: { class: 'block' },
   template: `
-    <kassandra-composer
-      label="Describe this board to Kassandra"
-      [placeholder]="placeholder()"
-      [busy]="chat.running()"
-      [phase]="chat.live()?.phase"
-      [showMode]="false"
-      [showPrompts]="false"
-      (submitted)="describe($event)"
-      (stopped)="chat.abort()"
-    />
-
-    @if (receipt(); as r) {
-      <section class="receipt gen-in mt-3 items-start" aria-label="Charts Kassandra added">
-        <span class="orb-mark mt-0.5 shrink-0" aria-hidden="true"></span>
-        <div class="min-w-0 flex-1 text-[13.5px]" role="status">
-          <p class="font-medium">Kassandra added {{ r.widgets.length }} {{ r.widgets.length === 1 ? 'chart' : 'charts' }} to {{ boardName() }}</p>
-          <ul class="text-muted-foreground mt-1 flex flex-col gap-0.5">
-            @for (w of r.widgets; track w.id) {
-              <li>{{ w.spec.title }}</li>
-            }
-          </ul>
+    @if (docked()) {
+      <!-- Docked: Kassandra's work and the receipt sit above the composer, in a panel that scrolls on its own -->
+      @if (!hidden() && (receipt() || latest().length || chat.error())) {
+        <div class="kassandra-dock-panel">
+          <ng-container [ngTemplateOutlet]="work" />
         </div>
-        <button hlmBtn type="button" variant="ghost" size="sm" class="shrink-0" [disabled]="undoing()" (click)="undo()">{{ undoing() ? 'Undoing…' : 'Undo' }}</button>
-      </section>
+      }
+      <ng-container [ngTemplateOutlet]="ask" />
+    } @else {
+      <ng-container [ngTemplateOutlet]="ask" />
+      <ng-container [ngTemplateOutlet]="work" />
     }
 
-    @if (latest().length || chat.error()) {
-      <div class="mt-1">
-        <kassandra-conversation [turns]="latest()" [phase]="chat.live()?.phase" [liveTools]="chat.live()?.tools" [error]="chat.error()" [showEvidence]="false" [addToBoard]="false" [stoppable]="true" (stopped)="chat.abort()" />
-      </div>
-    }
+    <ng-template #ask>
+      <kassandra-composer
+        [label]="'Describe a chart to add to ' + boardName()"
+        [inputId]="inputId()"
+        [placeholder]="placeholder()"
+        [busy]="chat.running()"
+        [phase]="chat.live()?.phase"
+        [docked]="docked()"
+        [(mode)]="mode"
+        [showMode]="docked()"
+        [showPrompts]="!!examples()"
+        [examples]="examples()"
+        examplesTitle="Add to this board"
+        (submitted)="describe($event)"
+        (stopped)="chat.abort()"
+      />
+    </ng-template>
+
+    <ng-template #work>
+      @if (receipt(); as r) {
+        <section class="receipt gen-in mt-3 items-start" [class.mt-0]="docked()" aria-label="Charts Kassandra added">
+          <span class="orb-mark mt-0.5 shrink-0" aria-hidden="true"></span>
+          <div class="min-w-0 flex-1 text-[13.5px]" role="status">
+            <p class="font-medium">Kassandra added {{ r.widgets.length }} {{ r.widgets.length === 1 ? 'chart' : 'charts' }} to {{ boardName() }}</p>
+            <ul class="text-muted-foreground mt-1 flex flex-col gap-0.5">
+              @for (w of r.widgets; track w.id) {
+                <li>{{ w.spec.title }}</li>
+              }
+            </ul>
+          </div>
+          <div class="flex shrink-0 gap-1">
+            <button hlmBtn type="button" variant="ghost" size="sm" [disabled]="undoing()" (click)="undo()">{{ undoing() ? 'Undoing…' : 'Undo' }}</button>
+            @if (docked()) {
+              <button hlmBtn type="button" variant="ghost" size="sm" (click)="hidden.set(true)">Done</button>
+            }
+          </div>
+        </section>
+      }
+
+      @if (latest().length || chat.error()) {
+        @if (!receipt() || chat.running()) {
+          <div class="mt-1">
+            <kassandra-conversation [turns]="latest()" [phase]="chat.live()?.phase" [liveTools]="chat.live()?.tools" [error]="chat.error()" [showEvidence]="false" [addToBoard]="false" [stoppable]="true" (stopped)="chat.abort()" />
+          </div>
+        }
+      }
+    </ng-template>
   `,
 })
 export class KassandraDescribeView {
   readonly boardId = input.required<string>();
   readonly boardName = input('this board');
   readonly placeholder = input('Describe what this board should show, e.g. “channel profitability after commission”');
+  /** Docked at the bottom of the board: Kassandra's work shows above the composer, and the menus open upward. */
+  readonly docked = input(false);
+  /** The examples in the Prompts menu (none: no Prompts menu). */
+  readonly examples = input<readonly AskExample[] | null>(null);
+  readonly inputId = input('board-describe');
+  /** Quick or Thinker. */
+  readonly mode = model<AnswerMode>('thinker');
   /** Widgets saved on the board from the last description. */
   readonly added = output<BoardWidget[]>();
   /** Widgets taken back with Undo (their ids). */
@@ -71,6 +110,9 @@ export class KassandraDescribeView {
   protected readonly latest = computed(() => this.chat.turns().slice(-1));
   protected readonly receipt = signal<{ widgets: BoardWidget[] } | null>(null);
   protected readonly undoing = signal(false);
+  /** The docked panel is put away ("Done") until the next description. */
+  protected readonly hidden = signal(false);
+  private readonly composer = viewChild(KassandraComposer);
   /** Turns whose widgets are saved already, by key. */
   private readonly done = new Set<string>();
   private description = '';
@@ -90,7 +132,13 @@ export class KassandraDescribeView {
   protected describe(text: string) {
     this.description = text;
     this.receipt.set(null);
-    this.chat.ask(`${BOARD_VIEW_PREFIX}${text}`, 'thinker', { hotels: this.scope.hotels() });
+    this.hidden.set(false);
+    this.chat.ask(`${BOARD_VIEW_PREFIX}${text}`, this.mode(), { hotels: this.scope.hotels() });
+  }
+
+  /** Puts the cursor in the field ("Ask Kassandra to add charts" on an empty board's card). */
+  focus() {
+    this.composer()?.focus();
   }
 
   private async save(widgets: ChatWidget[]) {

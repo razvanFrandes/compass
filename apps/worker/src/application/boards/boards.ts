@@ -1,7 +1,8 @@
-import { BOARD_LIMITS, BoardCreate, BoardPatch, BoardWidgetCreate, type Board, type BoardSummary, type BoardWidget, type BoardWidgetSummary } from '@compass/contracts';
+import { BOARD_LIMITS, BOARD_PREVIEW, BoardCreate, BoardPatch, BoardWidgetCreate, type Board, type BoardListItem, type BoardSummary, type BoardWidget, type BoardWidgetSummary } from '@compass/contracts';
 import type { z } from 'zod';
 import { err, ok, type Result } from '../../domain/result.ts';
 import { fitWidget } from '../widgets/fit.ts';
+import { previewOf } from './preview.ts';
 import type { BoardStore } from './store.ts';
 
 /**
@@ -42,9 +43,16 @@ export class BoardService {
     this.#newId = newId;
   }
 
-  /** Every board, oldest first, with its widgets' specs and no rows. */
-  async list(): Promise<BoardSummary[]> {
-    return (await this.#store.list()).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  /** Every board, oldest first, with its widgets' specs (no rows) and a preview of its first widgets for its card. */
+  async list(): Promise<BoardListItem[]> {
+    const boards = (await this.#store.list()).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    return Promise.all(
+      boards.map(async (board) => {
+        const first = board.widgets.slice(0, BOARD_PREVIEW.widgets).map((widget) => widget.id);
+        const widgets = await this.#store.widgets(board.id, first);
+        return { ...board, preview: widgets.map(previewOf) };
+      }),
+    );
   }
 
   async get(id: string): Outcome<Board> {

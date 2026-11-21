@@ -1,0 +1,199 @@
+/* The calendar widget (<juyo-widget-chart> kind calendar_heatmap). Global: widget-chart.css keeps under its budget. */
+/* ───────── Calendar: one Monday-first month grid per month, side by side, wrapping when the card is narrow ───────── */
+.wc-cal {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  --wc-cell: 40px;
+  --wc-cal-gap: 3px;
+}
+.wc-cal-plot {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--radius-control, 6px);
+  outline: none;
+}
+.wc-cal-plot:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.wc-cal-months {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px 24px;
+}
+.wc-cal-month {
+  width: calc(var(--wc-cell) * 7 + var(--wc-cal-gap) * 6);
+}
+.wc-cal-name {
+  height: 24px;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.wc-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, var(--wc-cell));
+  grid-auto-rows: var(--wc-cell);
+  gap: var(--wc-cal-gap);
+}
+.wc-cal-grid > .wc-cal-wd {
+  height: 17px;
+  align-self: end;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 17px;
+  text-align: center;
+}
+/* The weekday row is shorter than a week: it takes the first grid row's height only. */
+.wc-cal-grid {
+  grid-template-rows: 17px;
+}
+.wc-cal-day {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: min(6px, var(--chart-bar-radius, 6px));
+  font-variant-numeric: tabular-nums;
+  transition: box-shadow 90ms ease;
+}
+.wc-cal-num {
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 500;
+}
+.wc-cal-val {
+  padding-top: 7px;
+  font-size: clamp(11px, calc(var(--wc-cell) * 0.24), 13.5px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+/* Days outside the range: faint and empty, the day number still legible. */
+.wc-cal-day--off {
+  color: var(--muted-foreground);
+  box-shadow: inset 0 0 0 1px var(--grid, rgb(127 127 127 / 0.12));
+}
+.wc-cal-day--off .wc-cal-num {
+  font-weight: 400;
+}
+.wc-cal-day--today {
+  box-shadow:
+    0 0 0 2px var(--wc-bg),
+    0 0 0 3.5px var(--foreground);
+  z-index: 1;
+}
+.wc-cal-day[data-i]:hover,
+.wc-cal-day--on {
+  box-shadow:
+    0 0 0 1.5px var(--wc-bg),
+    0 0 0 3px var(--ring);
+  z-index: 2;
+}
+.wc-cal-tip {
+  position: absolute;
+  z-index: 5;
+  min-width: 168px;
+  max-width: 260px;
+  padding: 8px 10px;
+  border: 1px solid var(--field-border, var(--border));
+  border-radius: 8px;
+  background: var(--popover);
+  color: var(--popover-foreground, var(--foreground));
+  box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.35);
+  font-size: 12px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+.wc-cal-tip--below {
+  transform: translate(-50%, 0);
+}
+.wc-cal-tip-date {
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+.wc-cal-tip-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-weight: 600;
+}
+.wc-cal-tip-value i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgb(127 127 127 / 0.35);
+}
+.wc-cal-tip-meaning {
+  margin-top: 1px;
+}
+/* The scale: a small gradient bar, the midpoint marked, plain words at both ends. */
+.wc-cal-scale {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px 10px;
+  height: 36px;
+  margin-top: 12px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+}
+.wc-cal-word {
+  color: var(--foreground);
+  font-weight: 500;
+}
+.wc-cal-bar-wrap {
+  position: relative;
+  width: clamp(96px, 30cqi, 200px);
+  height: 30px;
+  margin-top: 4px;
+}
+.wc-cal-bar {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgb(127 127 127 / 0.2);
+}
+.wc-cal-tick {
+  position: absolute;
+  top: 11px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.wc-cal-tick--min {
+  left: 0;
+}
+.wc-cal-tick--max {
+  right: 0;
+}
+.wc-cal-tick--mid {
+  transform: translateX(-50%);
+  color: var(--foreground);
+}
+.wc-cal-tick--mid::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: var(--foreground);
+  transform: translateX(-50%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .wc-cal-day {
+    transition: none;
+  }
+}

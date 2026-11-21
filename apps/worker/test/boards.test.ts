@@ -1,7 +1,8 @@
-import { BOARD_LIMITS, type Board, type BoardWidget } from '@compass/contracts';
+import { BOARD_LIMITS, BOARD_PREVIEW, type Board, type BoardWidget } from '@compass/contracts';
 import { describe, expect, it } from 'vitest';
 import { BoardService } from '../src/application/boards/boards.ts';
 import { MemoryBoardStore } from '../src/application/boards/memory-store.ts';
+import { previewOf } from '../src/application/boards/preview.ts';
 import { inferColumns } from '../src/application/widgets/columns.ts';
 
 const EVIDENCE = { sources: ['hotel.pace_vs_stly()'], definitions: {}, period: null, sql: 'select 1', params: [], rowCount: 3, businessDate: '2026-11-20', notes: [] };
@@ -75,7 +76,7 @@ describe('boards: create, read, change, delete', () => {
     expect(list.map((b) => b.name)).toEqual(['Pace', 'Second']);
     expect(list[0]!.id).toBe(board.id);
     expect(list[0]!.widgets).toEqual([{ id: widgets[0]!.id, spec: widgets[0]!.spec, question: 'How is pace by hotel?', addedAt: widgets[0]!.addedAt }]);
-    expect(JSON.stringify(list)).not.toContain('"rows"');
+    expect(JSON.stringify(list[0]!.widgets)).not.toContain('"rows"');
   });
 
   it('renames a board and moves its updatedAt', async () => {
@@ -219,5 +220,55 @@ describe('boards: seeding', () => {
     await boards.seed([seed]);
     expect((await boards.list()).map((b) => b.id)).toEqual(['portfolio', 'b-id1']);
     expect(await boards.get('portfolio')).toEqual({ ok: true, value: seed });
+  });
+});
+
+describe('boards: the preview in the list', () => {
+  it('carries the first four widgets with only the columns they draw', async () => {
+    const boards = service();
+    const { widgets } = await boardWith(boards, 5);
+    await boards.create({ name: 'Empty' });
+    const [withWidgets, empty] = await boards.list();
+    expect(withWidgets!.preview).toHaveLength(BOARD_PREVIEW.widgets);
+    expect(withWidgets!.preview!.map((p) => p.id)).toEqual(widgets.slice(0, 4).map((w) => w.id));
+    expect(withWidgets!.preview![0]).toEqual({ id: widgets[0]!.id, spec: widgets[0]!.spec, columns: inferColumns(ROWS), rows: ROWS });
+    expect(empty!.preview).toEqual([]);
+  });
+
+  it('follows the order of the board', async () => {
+    const boards = service();
+    const { board, widgets } = await boardWith(boards, 2);
+    await boards.update(board.id, { order: [widgets[1]!.id, widgets[0]!.id] });
+    expect((await boards.list())[0]!.preview!.map((p) => p.id)).toEqual([widgets[1]!.id, widgets[0]!.id]);
+  });
+});
+
+describe('previewOf', () => {
+  const days = Array.from({ length: 90 }, (_, i) => ({ stay_date: `2026-${String(11 + Math.floor(i / 30)).padStart(2, '0')}-${String((i % 30) + 1).padStart(2, '0')}`, bar_vs_comp: 1 + i / 100, comps_sold_out: i, note: 'x' }));
+  const base = { id: 'w-1', evidence: EVIDENCE, addedAt: '2026-11-20T10:00:00.000Z' };
+
+  it('thins a long series evenly to at most 40 rows, keeping the first and the last', () => {
+    const preview = previewOf({ ...base, spec: { kind: 'line', title: 'Rate position', sourceCallId: 't', x: 'stay_date', y: ['bar_vs_comp'] }, rows: days, columns: inferColumns(days) });
+    expect(preview.rows).toHaveLength(BOARD_PREVIEW.rows);
+    expect(preview.rows[0]).toEqual({ stay_date: days[0]!.stay_date, bar_vs_comp: days[0]!.bar_vs_comp });
+    expect(preview.rows.at(-1)).toEqual({ stay_date: days[89]!.stay_date, bar_vs_comp: days[89]!.bar_vs_comp });
+    expect(preview.columns.map((c) => c.key)).toEqual(['stay_date', 'bar_vs_comp']);
+  });
+
+  it('keeps every day of a calendar up to three months, so each month stays whole', () => {
+    const preview = previewOf({ ...base, spec: { kind: 'calendar_heatmap', title: 'Rate position by night', sourceCallId: 't', x: 'stay_date', y: ['bar_vs_comp'] }, rows: days.slice(0, 45), columns: inferColumns(days) });
+    expect(preview.rows).toHaveLength(45);
+  });
+
+  it('keeps the first rows of a table and the columns it lists', () => {
+    const preview = previewOf({ ...base, spec: { kind: 'table', title: 'Rate position', sourceCallId: 't', y: ['stay_date', 'bar_vs_comp'] }, rows: days, columns: inferColumns(days) });
+    expect(preview.rows).toHaveLength(BOARD_PREVIEW.tableRows);
+    expect(Object.keys(preview.rows[0]!)).toEqual(['stay_date', 'bar_vs_comp']);
+  });
+
+  it('keeps the group and compare columns', () => {
+    const rows = [{ key: 'AMS', value: 1, compare_value: 2, extra: 3 }];
+    const preview = previewOf({ ...base, spec: { kind: 'bar', title: 'RevPAR by hotel', sourceCallId: 't', x: 'key', y: ['value'], compare: 'compare_value' }, rows, columns: inferColumns(rows) });
+    expect(preview.rows).toEqual([{ key: 'AMS', value: 1, compare_value: 2 }]);
   });
 });
