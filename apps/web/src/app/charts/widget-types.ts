@@ -66,6 +66,14 @@ export interface WidgetSpec {
   group?: string;
   /** Column key for the comparison series (LY, budget). */
   compare?: string;
+  /** Column key: the forecast (P50) of the first y value: a dotted projection (line, bar) or a hatched extension (bullet). */
+  forecast?: string;
+  /** Column keys of the likely range (P10, P90), drawn as a band (line, area, bar). */
+  band?: [string, string];
+  /** Column key: budget or target: a step line (line, bar); on a bullet each row is drawn as % of it. */
+  target?: string;
+  /** Column key: a ceiling such as capacity, drawn as one labelled line (line, area, bar). */
+  limit?: string;
   format?: 'number' | 'percent' | 'currency' | 'count';
 }
 

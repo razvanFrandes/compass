@@ -56,7 +56,7 @@ function localDay(): string {
 
 /** Two specs that draw the same marks: only the words around the chart (title, subtitle) may differ. */
 function sameDrawing(a: WidgetSpec, b: WidgetSpec): boolean {
-  return a.kind === b.kind && a.x === b.x && a.group === b.group && a.compare === b.compare && a.format === b.format && a.sourceCallId === b.sourceCallId && (a.y ?? []).join('\u0000') === (b.y ?? []).join('\u0000');
+  return a.kind === b.kind && a.x === b.x && a.group === b.group && a.compare === b.compare && a.forecast === b.forecast && a.target === b.target && a.limit === b.limit && (a.band ?? []).join('\u0000') === (b.band ?? []).join('\u0000') && a.format === b.format && a.sourceCallId === b.sourceCallId && (a.y ?? []).join('\u0000') === (b.y ?? []).join('\u0000');
 }
 
 /**

@@ -226,6 +226,74 @@ describe('fitWidget: categories', () => {
   });
 });
 
+describe('fitWidget: forecast, band, target and limit', () => {
+  // A booking curve: actuals up to today, then the forecast (P50) with its P10–P90 range; capacity on every row.
+  const curve: Row[] = ['2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21', '2026-11-22'].map((period, i) => ({
+    period,
+    rooms: i < 3 ? 100 + i * 10 : null,
+    rooms_p10: 110 + i * 8,
+    rooms_p50: 115 + i * 10,
+    rooms_p90: 120 + i * 12,
+    budget_rooms_sold: 130,
+    rooms_available: 180,
+  }));
+  // get_forecast by "hotel", grain "total".
+  const hotels: Row[] = [
+    { key: 'LIS', rooms_on_books: 2100, rooms_on_books_stly: 2300, rooms_p50: 2600, budget_rooms_sold: 2800 },
+    { key: 'AMS', rooms_on_books: 3900, rooms_on_books_stly: 3700, rooms_p50: 4400, budget_rooms_sold: 4200 },
+  ];
+  const overlays = { forecast: 'rooms_p50', band: ['rooms_p10', 'rooms_p90'] as [string, string], target: 'budget_rooms_sold', limit: 'rooms_available' };
+
+  it('line keeps all four; area has no target', () => {
+    expect(fit(curve, spec('line', { x: 'period', y: ['rooms'], ...overlays }))).toMatchObject({ ok: true, value: overlays });
+    const area = fit(curve, spec('area', { x: 'period', y: ['rooms'], ...overlays }));
+    expect(area).toMatchObject({ ok: true, value: { forecast: 'rooms_p50', band: ['rooms_p10', 'rooms_p90'], limit: 'rooms_available' } });
+    expect(area.ok && area.value.target).toBeUndefined();
+  });
+
+  it('a line per group keeps only the limit', () => {
+    const byHotel = ['LIS', 'AMS'].flatMap((key) => curve.map((row) => ({ ...row, key })));
+    const result = fit(byHotel, spec('line', { x: 'period', y: ['rooms'], group: 'key', ...overlays }));
+    expect(result.ok && result.value).toMatchObject({ limit: 'rooms_available' });
+    expect(result.ok && [result.value.forecast, result.value.band, result.value.target]).toEqual([undefined, undefined, undefined]);
+  });
+
+  it('a forecast on a line needs an ordered x', () => {
+    expect(errorOf(hotels, spec('line', { x: 'key', y: ['rooms_on_books'], forecast: 'rooms_p50' }))).toMatch(/ordered x/);
+  });
+
+  it('bar draws a forecast and band only over dates, but a target over any categories', () => {
+    expect(fit(curve, spec('bar', { x: 'period', y: ['rooms_p50'], ...overlays }))).toMatchObject({ ok: true, value: overlays });
+    expect(errorOf(hotels, spec('bar', { x: 'key', y: ['rooms_on_books'], forecast: 'rooms_p50' }))).toMatch(/date order.*Leave forecast and band out/);
+    expect(fit(hotels, spec('bar', { x: 'key', y: ['rooms_on_books'], target: 'budget_rooms_sold' }))).toMatchObject({ ok: true, value: { target: 'budget_rooms_sold' } });
+  });
+
+  it('kinds that do not draw them drop them', () => {
+    const result = fit(hotels, spec('grouped_bar', { x: 'key', y: ['rooms_on_books', 'rooms_p50'], forecast: 'rooms_p50', target: 'budget_rooms_sold', limit: 'rooms_on_books' }));
+    expect(result.ok && [result.value.forecast, result.value.target, result.value.limit]).toEqual([undefined, undefined, undefined]);
+  });
+
+  it('every one of them must be a number column of the result', () => {
+    expect(errorOf(curve, spec('line', { x: 'period', y: ['rooms'], forecast: 'nope' }))).toMatch(/Unknown column "nope"/);
+    expect(errorOf(curve, spec('line', { x: 'period', y: ['rooms'], band: ['rooms_p10', 'nope'] }))).toMatch(/Unknown column "nope"/);
+    expect(errorOf(curve, spec('line', { x: 'period', y: ['rooms'], limit: 'period' }))).toMatch(/"period" is not a number column, so it cannot be limit/);
+    expect(errorOf(hotels, spec('bullet', { x: 'key', y: ['rooms_on_books'], target: 'key' }))).toMatch(/cannot be target/);
+  });
+
+  it('band is [low, high]', () => {
+    expect(errorOf(curve, spec('line', { x: 'period', y: ['rooms'], band: ['rooms_p90', 'rooms_p10'] }))).toMatch(/other way round/);
+    expect(errorOf(curve, spec('line', { x: 'period', y: ['rooms'], band: ['rooms_p10', 'rooms_p10'] }))).toMatch(/two different columns/);
+  });
+
+  it('bullet against budget: target, forecast and last year as compare', () => {
+    const budget = { x: 'key', y: ['rooms_on_books'], target: 'budget_rooms_sold', forecast: 'rooms_p50', compare: 'rooms_on_books_stly' };
+    expect(fit(hotels, spec('bullet', budget))).toMatchObject({ ok: true, value: budget });
+    expect(fit(hotels, spec('bullet', { x: 'key', y: ['rooms_on_books'], target: 'budget_rooms_sold' })).ok).toBe(true);
+    const noBudget = hotels.map((row, i) => ({ ...row, budget_rooms_sold: i === 0 ? null : row['budget_rooms_sold'] }));
+    expect(errorOf(noBudget, spec('bullet', { x: 'key', y: ['rooms_on_books'], target: 'budget_rooms_sold' }))).toMatch(/% of its own target.*empty or 0/);
+  });
+});
+
 describe('fitWidget: stages and flows', () => {
   const stages = ['sessions', 'searches', 'checkout_starts', 'bookings'];
 

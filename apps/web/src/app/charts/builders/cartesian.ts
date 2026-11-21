@@ -1,5 +1,5 @@
 import { formatDelta, formatValue, isNumericKind, lowerIsBetter, num } from '../format';
-import { catColor, markRadius } from '../tokens';
+import { catColor, markRadius, mix } from '../tokens';
 import type { EvidenceColumn } from '../widget-types';
 import {
   type Built,
@@ -25,9 +25,11 @@ import {
   tip,
   tooltip,
   bandTip,
+  hatch,
   valueAxis,
   valueColumn,
 } from './shared';
+import { type Overlay, overlays } from './overlays';
 
 /*
   Line, area, bar, stacked bar, grouped bar, waterfall and bullet: everything on a category axis and a value axis.
@@ -122,9 +124,9 @@ function tipAt(c: Ctx, f: Frame, i: number): string {
   return tip(c, f.full[i] ?? '', rows, d ? `${d.text} vs ${cmp!.name.toLowerCase()}` : undefined);
 }
 
-function pointsOf(f: Frame): PointRef[] {
+function pointsOf(f: Frame, seriesIndex = 0): PointRef[] {
   return f.labels.map((_, i) => ({
-    seriesIndex: 0,
+    seriesIndex,
     dataIndex: i,
     text: `${f.full[i]}: ${f.series.map((s) => `${s.name} ${fmt(s.values[i], s.col)}`).join('; ')}`,
   }));
@@ -144,45 +146,63 @@ function lineLike(c: Ctx, area: boolean): Built {
   const f = frame(c);
   if (!f) return empty(c, 'No data for this period.');
   const multi = f.series.length > 1;
-  // Name the series on the line ends when they fit; otherwise the legend carries them.
-  const direct = !c.narrow && f.series.length <= 4;
+  const extra = overlays(c, { yKey: c.spec.y?.[0] ?? pickValueKey(c), columns: false });
+  const rich = extra.series.length > 0;
+  // Name the series on the line ends when they fit; otherwise the legend carries them. With a forecast, a range or a
+  // reference line the legend names everything, and only the main line's end carries its value.
+  const direct = !c.narrow && f.series.length <= 4 && !rich;
   const endText = (s: Series) => (multi ? s.name : formatValue(lastValue(s.values), s.col, { compact: true }));
+  const valueEnd = rich && extra.today === null && !c.narrow;
   // The end label sits 8 px past the line's end: its room is that, its width and a little air, or it is clipped.
-  const right = direct ? Math.min(150, Math.max(...f.series.map((s) => textWidth(endText(s), 12)))) + 8 + 8 : 12;
+  const right = direct ? Math.min(150, Math.max(...f.series.map((s) => textWidth(endText(s), 12)))) + 8 + 8 : valueEnd ? textWidth(formatValue(lastValue(f.series[0].values), f.series[0].col, { compact: true }), 12) + 16 : 16;
+  const dataMax = Math.max(...f.series.flatMap((s) => s.values.filter((v): v is number => v !== null)));
+  const reach = Math.max(...extra.values, dataMax);
   const option = {
     ...baseOption(c),
-    grid: { left: 8, right, top: 14, bottom: 4, containLabel: true },
-    tooltip: tooltip(c, { trigger: 'axis', axisPointer: { type: 'line', lineStyle: { color: c.t.muted, width: 1, opacity: 0.5 } }, formatter: axisTip(c, f) }),
+    grid: { left: 8, right, top: rich ? 22 : 14, bottom: 4, containLabel: true },
+    tooltip: tooltip(c, { trigger: 'axis', axisPointer: { type: 'line', lineStyle: { color: c.t.muted, width: 1, opacity: 0.5 } }, formatter: rich ? (params: unknown) => tipWith(c, f, extra, firstIndex(params)) : axisTip(c, f) }),
     xAxis: categoryAxis(c, f.labels, { boundaryGap: false }),
-    // An area encodes magnitude, so it starts at zero; a line may zoom to its range.
-    yAxis: valueAxis(c, f.valueCol, { scale: !area }),
-    series: f.series.map((s) => ({
-      type: 'line',
-      name: s.name,
-      data: s.values,
-      connectNulls: false,
-      symbol: 'circle',
-      symbolSize: 8,
-      showSymbol: f.labels.length === 1,
-      z: s.role === 'compare' ? 1 : 2,
-      lineStyle: { color: s.color, width: 2, type: s.role === 'compare' ? [...c.t.cmpDash] : 'solid', cap: 'round', join: 'round' },
-      itemStyle: { color: s.color, borderColor: c.t.surface, borderWidth: 2 },
-      emphasis: { focus: 'none', scale: false, lineStyle: { width: 2 } },
-      areaStyle: area && s.role === 'main' ? { color: s.color, opacity: multi ? 0.1 : 0.14 } : undefined,
-      endLabel: direct ? { show: true, formatter: () => endText(s), color: s.role === 'compare' ? c.t.muted : c.t.text, fontSize: 12, fontWeight: multi ? 500 : 600, fontFamily: c.t.font, distance: 8 } : undefined,
-      labelLayout: direct ? { moveOverlap: 'shiftY' } : undefined,
-    })),
+    // An area encodes magnitude, so it starts at zero; a line may zoom to its range, but not past a limit or a band.
+    yAxis: valueAxis(c, f.valueCol, rich ? { min: 0, ...(reach > dataMax ? { max: reach } : {}) } : { scale: !area }),
+    series: [
+      ...extra.series,
+      ...f.series.map((s) => ({
+        type: 'line',
+        name: s.name,
+        data: s.values,
+        connectNulls: false,
+        symbol: 'circle',
+        symbolSize: 8,
+        showSymbol: f.labels.length === 1,
+        z: s.role === 'compare' ? 1 : 2,
+        lineStyle: { color: s.color, width: s.role === 'compare' ? 1.5 : 2, type: s.role === 'compare' ? [...c.t.cmpDash] : 'solid', cap: 'round', join: 'round' },
+        itemStyle: { color: s.color, borderColor: c.t.surface, borderWidth: 2 },
+        emphasis: { focus: 'none', scale: false, lineStyle: { width: 2 } },
+        areaStyle: area && s.role === 'main' ? { color: s.color, opacity: multi ? 0.1 : 0.14 } : undefined,
+        endLabel: direct || (valueEnd && s === f.series[0]) ? { show: true, formatter: () => (direct ? endText(s) : formatValue(lastValue(s.values), s.col, { compact: true })), color: s.role === 'compare' ? c.t.muted : c.t.text, fontSize: 12, fontWeight: multi ? 500 : 600, fontFamily: c.t.font, distance: 8 } : undefined,
+        labelLayout: direct ? { moveOverlap: 'shiftY' } : undefined,
+      })),
+    ],
   };
+  const legend = rich ? [...f.series.map((s) => ({ label: s.name, color: s.color, mark: (s.role === 'compare' ? 'dashed' : 'line') as LegendItem['mark'] })), ...extra.legend] : direct ? [] : legendOf(f, (s) => (s.role === 'compare' ? 'dashed' : 'line'));
   return {
     render: 'echarts',
     kind: area ? 'area' : 'line',
     option,
-    points: pointsOf(f),
-    legend: direct ? [] : legendOf(f, (s) => (s.role === 'compare' ? 'dashed' : 'line')),
+    points: pointsOf(f, extra.series.length),
+    legend,
     note: droppedNote(f),
     table: tableModel(c, specKeys(c.spec)),
-    summary: describe(c, f, area ? 'Area chart' : 'Line chart', trend(f.series[0])),
+    summary: describe(c, f, area ? 'Area chart' : 'Line chart', [trend(f.series[0]), extra.spoken].filter(Boolean).join(' ')),
   };
+}
+
+const firstIndex = (params: unknown) => ((Array.isArray(params) ? params : [params]) as { dataIndex: number }[])[0]?.dataIndex ?? 0;
+
+/** The tooltip of a chart with overlays: its series, then the forecast, the range and the target. */
+function tipWith(c: Ctx, f: Frame, extra: Overlay, i: number): string {
+  const rows: TipRow[] = [...f.series.filter((s) => s.values[i] !== null).map((s) => ({ label: s.name, value: fmt(s.values[i], s.col), color: s.color, dashed: s.role === 'compare' })), ...extra.tip(i).filter((r) => r.value !== '–')];
+  return tip(c, f.full[i] ?? '', rows);
 }
 
 const lastValue = (xs: (number | null)[]) => [...xs].reverse().find((v): v is number => v !== null) ?? null;
@@ -304,7 +324,9 @@ export function rowLayout(c: Ctx, rows: number, more: boolean, bars = 1, legend 
 
 /** How many rows of bars fit the body (never more than eight). */
 export function rowLimit(c: Ctx, bars = 1, legend = false): number {
-  return Math.max(3, Math.min(MAX_BAR_ROWS, Math.floor((c.height - 8 - MORE_H - (legend ? LEGEND_H : 0)) / (bars > 1 ? 14 + bars * 8 : 22))));
+  // A host that gives the list more height than a card's (a board's bullet per hotel) gets more rows: 24 px each.
+  const cap = c.height >= 400 ? Math.max(MAX_BAR_ROWS, Math.floor((c.height - 8 - MORE_H - (legend ? LEGEND_H : 0)) / 24)) : MAX_BAR_ROWS;
+  return Math.max(3, Math.min(cap, Math.floor((c.height - 8 - MORE_H - (legend ? LEGEND_H : 0)) / (bars > 1 ? 14 + bars * 8 : 22))));
 }
 
 /** The room the category names of horizontal bars get: what they need, up to a share of the width. */
@@ -446,7 +468,12 @@ function barRows(c: Ctx, whole: Frame, note?: string): Built {
 function barColumns(c: Ctx, f: Frame, note?: string): Built {
   const main = f.series[0];
   const cmp = f.series.find((s) => s.role === 'compare');
-  const valueLabels = f.labels.length <= (c.narrow ? 8 : 14);
+  const extra = overlays(c, { yKey: c.spec.y?.[0] ?? pickValueKey(c), columns: true });
+  const rich = extra.series.length > 0;
+  const valueLabels = !rich && f.labels.length <= (c.narrow ? 8 : 14);
+  // A share of rooms stops at 100%.
+  const reach = Math.max(...extra.values, ...main.values.filter((v): v is number => v !== null), ...(cmp?.values.filter((v): v is number => v !== null) ?? []));
+  const capped = main.col.kind === 'percent' && reach <= 100 && reach > 40;
   const bar = {
     type: 'bar',
     name: main.name,
@@ -454,29 +481,31 @@ function barColumns(c: Ctx, f: Frame, note?: string): Built {
     barMaxWidth: 16,
     barCategoryGap: '40%',
     barMinHeight: 1,
+    z: 2,
     itemStyle: { color: main.color, borderRadius: markRadius(c.t, [3, 3, 0, 0]) },
     emphasis: { itemStyle: { color: main.color, opacity: 0.85 } },
     label: valueLabels ? { show: true, position: 'top', distance: 5, color: c.t.text, fontSize: 11.5, fontFamily: c.t.font, formatter: (p: { dataIndex: number }) => fmt(main.values[p.dataIndex], main.col, true) } : undefined,
     labelLayout: { hideOverlap: true },
   };
-  const tick = cmp ? { type: 'scatter', name: cmp.name, data: cmp.values, symbol: 'rect', symbolSize: [20, 2.5], itemStyle: { color: cmp.color, borderColor: c.t.surface, borderWidth: 1 }, emphasis: { scale: false }, z: 3 } : null;
+  const tick = cmp ? { type: 'scatter', name: cmp.name, data: cmp.values, symbol: 'rect', symbolSize: [Math.max(6, Math.min(20, ((c.width - 60) / f.labels.length) * 0.7)), 2.5], itemStyle: { color: cmp.color, borderColor: c.t.surface, borderWidth: 1 }, emphasis: { scale: false }, z: 3 } : null;
   const option = {
     ...baseOption(c),
-    tooltip: bandTip(c, (i) => tipAt(c, f, i)),
-    grid: { left: 8, right: 12, top: valueLabels ? 22 : 12, bottom: 4, containLabel: true },
+    tooltip: bandTip(c, (i) => (rich ? tipWith(c, f, extra, i) : tipAt(c, f, i))),
+    grid: { left: 8, right: 12, top: valueLabels ? 22 : rich ? 22 : 12, bottom: 4, containLabel: true },
     xAxis: categoryAxis(c, f.labels),
-    yAxis: valueAxis(c, f.valueCol, valueLabels ? { axisLabel: { show: false }, splitLine: { show: false } } : {}),
-    series: tick ? [bar, tick] : [bar],
+    yAxis: valueAxis(c, f.valueCol, valueLabels ? { axisLabel: { show: false }, splitLine: { show: false } } : capped ? { min: 0, max: 100 } : rich ? { min: 0, ...(reach > Math.max(...main.values.filter((v): v is number => v !== null)) ? { max: reach } : {}) } : {}),
+    series: [...extra.series, bar, ...(tick ? [tick] : [])],
   };
+  const legend = cmp || rich ? [{ label: main.name, color: main.color, mark: 'solid' as const }, ...(cmp ? [{ label: cmp.name, color: cmp.color, mark: 'tick' as const }] : []), ...extra.legend] : [];
   return {
     render: 'echarts',
     kind: 'bar',
     option,
-    points: pointsOf(f),
-    legend: cmp ? [{ label: main.name, color: main.color, mark: 'solid' }, { label: cmp.name, color: cmp.color, mark: 'tick' }] : [],
+    points: pointsOf(f, extra.series.length),
+    legend,
     note,
     table: tableModel(c, specKeys(c.spec)),
-    summary: describe(c, f, 'Bar chart'),
+    summary: describe(c, f, 'Bar chart', extra.spoken),
   };
 }
 
@@ -575,7 +604,106 @@ function multiBar(c: Ctx, stacked: boolean): Built {
   };
 }
 
-export const buildStackedBar = (c: Ctx): Built => multiBar(c, true);
+/** Parts of a bar that are a cost taken out of it (commission, fees): hatched in the bar's colour, never a second hue. */
+const COST = /commission|fees?\b|cost/i;
+
+/**
+ * Stacked bars, with what a stack can carry besides its parts: a comparison (last year's total or net) as a tick on
+ * rows or a dashed step over columns; parts below zero (cancellations) in grey under the axis; a cost part hatched;
+ * and, over nights, the weekends shaded.
+ */
+function stackedBar(c: Ctx): Built {
+  const whole = frame(c);
+  if (!whole) return empty(c, 'No data for this period.');
+  const partsOf = (f: Frame) => f.series.filter((s) => s.role === 'main');
+  const totalsOf = (f: Frame) => f.labels.map((_, i) => partsOf(f).reduce((sum, s) => sum + (s.values[i] ?? 0), 0));
+  let f = whole;
+  let more = 0;
+  let subject = whole.labels.map(() => false);
+  const hasCmp = whole.series.some((s) => s.role === 'compare');
+  if (whole.wordy) {
+    const subjectAll = subjectsOf(c.spec.title, whole.labels, whole.full);
+    const r = rank(c.spec.title, whole.labels, totalsOf(whole), subjectAll, rowLimit(c, 1, true));
+    f = pick(whole, r.order);
+    more = r.more;
+    subject = r.order.map((i) => subjectAll[i]);
+  }
+  const lit = subject.some(Boolean);
+  const parts = partsOf(f);
+  const cmp = f.series.find((s) => s.role === 'compare');
+  const totals = totalsOf(f);
+  const below = (s: Series) => s.values.some((v) => v !== null && v < 0) && s.values.every((v) => v === null || v <= 0);
+  const diverging = parts.some(below);
+  const costly = (s: Series, i: number) => i > 0 && COST.test(`${s.col.key} ${s.name}`);
+  const colorOf = (s: Series, i: number) => (below(s) ? c.t.grey : parts.length === 1 || i === 0 || costly(s, i) ? c.t.series : s.color);
+    const extra = f.wordy ? null : overlays(c, { yKey: undefined, columns: true });
+  const layout = rowLayout(c, f.labels.length, more > 0, 1, true);
+  const totalText = (i: number) => fmt(totals[i], f.valueCol, true);
+  const longest = Math.max(...totals.map((_, i) => textWidth(totalText(i), 11.5)));
+  const slot = ((c.width - 40) / Math.max(1, f.labels.length)) * 0.7;
+  const fits = !diverging && (f.wordy || slot >= longest);
+  const series = parts.map((s, si) => {
+    const color = colorOf(s, si);
+    const fill = costly(s, si) ? hatch(color, mix(color, c.t.surface, 0.18)) : color;
+    const last = si === parts.length - 1;
+    return {
+      type: 'bar',
+      name: s.name,
+      stack: 'total',
+      data: s.values.map((v, i) => ({ value: v, itemStyle: { opacity: !lit || subject[i] ? 1 : MUTED } })),
+      barWidth: f.wordy ? Math.min(layout.bar, 14) : undefined,
+      barMaxWidth: f.wordy ? undefined : 16,
+      barCategoryGap: '40%',
+      z: 2,
+      itemStyle: { color: fill, borderColor: costly(s, si) ? color : c.t.surface, borderWidth: 1, borderRadius: markRadius(c.t, 2) },
+      label: { show: fits && last, position: f.wordy ? 'right' : 'top', distance: 5, color: c.t.text, fontSize: 11.5, fontFamily: c.t.font, formatter: (p: { dataIndex: number }) => totalText(p.dataIndex) },
+      emphasis: { disabled: true },
+      labelLayout: f.wordy ? undefined : { hideOverlap: true },
+    };
+  });
+  // The comparison: a tick across each row, or a dashed step over the columns.
+  const cmpSeries = cmp
+    ? f.wordy
+      ? { type: 'scatter', name: cmp.name, data: cmp.values, symbol: 'rect', symbolSize: [2.5, Math.min(layout.bar, 14) + 8], itemStyle: { color: cmp.color, borderColor: c.t.surface, borderWidth: 1 }, emphasis: { scale: false }, z: 4 }
+      : { type: 'line', name: cmp.name, data: cmp.values, step: 'middle', symbol: 'none', z: 4, lineStyle: { color: cmp.color, width: 1.5, type: [...c.t.cmpDash] }, itemStyle: { color: cmp.color }, emphasis: { disabled: true } }
+    : null;
+  const zero = diverging ? [{ type: 'line', name: '__zero', data: [], silent: true, tooltip: { show: false }, markLine: { silent: true, symbol: 'none', animation: false, label: { show: false }, lineStyle: { color: c.t.ref, width: 1, type: 'solid' }, data: [{ [f.wordy ? 'xAxis' : 'yAxis']: 0 }] } }] : [];
+  const tipAtRow = (i: number) => {
+    const rows: TipRow[] = [
+      ...parts.map((s, si) => ({ label: s.name, value: fmt(s.values[i], s.col), color: colorOf(s, si) })),
+      ...(cmp ? [{ label: cmp.name, value: fmt(cmp.values[i], cmp.col), color: cmp.color, dashed: true }] : []),
+    ];
+    return tip(c, f.full[i] ?? '', rows, parts.length > 1 ? `${diverging ? 'Net' : 'Total'} ${fmt(totals[i], f.valueCol)}` : undefined);
+  };
+  const ends = totals.map((v, i) => Math.max(v, cmp?.values[i] ?? v));
+  const option = {
+    ...baseOption(c),
+    tooltip: bandTip(c, tipAtRow),
+    grid: f.wordy ? { left: nameWidth(c, f.labels) + 12, right: fits ? longest + 14 : 14, top: 4, height: layout.plot, containLabel: false } : { left: 8, right: 12, top: fits ? 22 : 14, bottom: 4, containLabel: true },
+    xAxis: f.wordy ? hiddenValueAxis(c, f.valueCol, { min: 0, max: Math.max(...ends) * 1.02 || 1 }) : categoryAxis(c, f.labels),
+    yAxis: f.wordy ? nameAxis(c, f, subject, layout) : valueAxis(c, f.valueCol),
+    series: [...(extra?.series ?? []), ...zero, ...series, ...(cmpSeries ? [cmpSeries] : [])],
+  };
+  const legend: LegendItem[] = [
+    ...parts.map((s, si) => ({ label: s.name, color: colorOf(s, si), mark: (costly(s, si) ? 'hatch' : 'solid') as LegendItem['mark'] })),
+    ...(cmp ? [{ label: cmp.name, color: cmp.color, mark: (f.wordy ? 'tick' : 'dashed') as LegendItem['mark'] }] : []),
+    ...(extra?.legend ?? []),
+  ];
+  const lead = (extra?.series.length ?? 0) + zero.length;
+  return {
+    render: 'echarts',
+    kind: 'stacked_bar',
+    option,
+    points: pointsOf(f, lead),
+    legend: legend.length > 1 ? legend : [],
+    note: droppedNote(f),
+    ...(more ? { more } : {}),
+    table: tableModel(c, specKeys(c.spec)),
+    summary: describe(c, whole, diverging ? 'Bars above and below zero' : 'Stacked bar chart', hasCmp && cmp ? `${cmp.name} is shown for comparison.` : ''),
+  };
+}
+
+export const buildStackedBar = (c: Ctx): Built => stackedBar(c);
 export const buildGroupedBar = (c: Ctx): Built => multiBar(c, false);
 
 /* ───────── Waterfall (the GOP bridge) ───────── */
@@ -822,6 +950,7 @@ interface WaterfallApi {
 /* ───────── Bullet (actual against target) ───────── */
 
 export function buildBullet(c: Ctx): Built {
+  if (c.spec.target) return budgetBullet(c);
   const xKey = pickLabelKey(c, c.spec.x, c.spec.group);
   const yKey = pickValueKey(c);
   if (!xKey || !yKey || !c.rows.length) return empty(c, 'No data for this period.');
@@ -913,6 +1042,142 @@ export function buildBullet(c: Ctx): Built {
     ...(more ? { more } : {}),
     table: tableModel(c, specKeys(c.spec)),
     summary: summary(c, `Bullet chart: ${col.label}${targetCol ? ` against ${targetCol.label}` : ''} for ${allNames.length} rows.`, extremes(allFull.map((name, i) => ({ name, value: allActual[i], text: fmt(allActual[i], col) })))),
+  };
+}
+
+/** A row that sums the others ("Group total", "Selection total"): first, and in bold. */
+const TOTAL_ROW = /\btotal$/i;
+
+/**
+ * Bullets against each row's own target (budget): every row as % of its target, so a small hotel and a large one
+ * share one scale and 100% is one line. The actual is solid; the forecast still to come is hatched on from it; last
+ * year (`compare`) is a tick. Worst first, the total on top. Beside each row: the amount, the gap to last year and
+ * the share of the target ("€368k · +€42k vs last year · 63% of budget"), shortened to "63%" on a phone.
+ */
+function budgetBullet(c: Ctx): Built {
+  const xKey = pickLabelKey(c, c.spec.x, c.spec.group);
+  const yKey = c.spec.y?.[0] ?? pickValueKey(c);
+  if (!xKey || !yKey || !c.spec.target || !c.rows.length) return empty(c, 'No data for this period.');
+  const xCol = column(c, xKey);
+  const col = valueColumn(c, yKey);
+  const tCol = valueColumn(c, c.spec.target);
+  const fCol = c.spec.forecast ? valueColumn(c, c.spec.forecast) : null;
+  const lyCol = c.spec.compare ? valueColumn(c, c.spec.compare) : null;
+  const all = c.rows.map((r) => {
+    const target = numberAt(r, c.spec.target);
+    const pct = (v: number | null) => (v === null || !target ? null : (v / target) * 100);
+    const actual = numberAt(r, yKey);
+    const forecast = fCol ? numberAt(r, c.spec.forecast) : null;
+    const ly = lyCol ? numberAt(r, c.spec.compare) : null;
+    return { name: label(cell(r, xKey), xCol), full: label(cell(r, xKey), xCol, 'full'), actual, target, forecast, ly, pa: pct(actual), pf: pct(forecast), pl: pct(ly) };
+  });
+  const lands = (r: (typeof all)[number]) => r.pf ?? r.pa ?? Infinity;
+  const sorted = [...all.keys()].sort((a, b) => Number(TOTAL_ROW.test(all[b].name)) - Number(TOTAL_ROW.test(all[a].name)) || lands(all[a]) - lands(all[b]) || a - b);
+  const limit = rowLimit(c, 1, true);
+  const order = sorted.slice(0, limit);
+  const more = all.length - order.length;
+  const rows = order.map((i) => all[i]);
+  const layout = rowLayout(c, rows.length, more > 0, 1, true);
+  const max = Math.max(120, ...rows.flatMap((r) => [r.pa, r.pf, r.pl]).filter((v): v is number => v !== null).map((v) => Math.ceil(v / 10) * 10 + 4));
+  const wide = c.width >= 720;
+  const lyWord = lyCol ? `vs ${lyCol.label.replace(/^./, (m) => m.toLowerCase())}` : '';
+  const tWord = tCol.label.toLowerCase();
+  const signed = (d: number) => `${d < 0 ? '−' : '+'}${formatValue(Math.abs(d), col, { compact: true })}`;
+  const sideText = (r: (typeof rows)[number]) => {
+    const pct = r.pa === null ? '–' : `${Math.round(r.pa)}%`;
+    if (c.narrow) return pct;
+    const parts = [fmt(r.actual, col, true)];
+    if (wide && r.ly !== null && r.actual !== null) parts.push(`${signed(r.actual - r.ly)} ${lyWord}`);
+    parts.push(`${pct} of ${tWord}`);
+    return parts.join(' · ');
+  };
+  const texts = rows.map(sideText);
+  const sideW = Math.max(...texts.map((t) => textWidth(t, 12))) + 8;
+  const names = rows.map((r) => r.name);
+  const nameW = nameWidth(c, names);
+  const barW = Math.min(layout.bar, 12);
+  const option = {
+    ...baseOption(c),
+    grid: { left: nameW + 12, right: sideW + 12, top: 4, height: layout.plot, containLabel: false },
+    tooltip: bandTip(c, (i) => {
+      const r = rows[i];
+      const pct = (v: number | null) => (v === null ? '' : ` (${Math.round(v)}%)`);
+      const tipRows: TipRow[] = [
+        { label: col.label, value: `${fmt(r.actual, col)}${pct(r.pa)}`, color: c.t.series },
+        ...(fCol && r.forecast !== null ? [{ label: fCol.label, value: `${fmt(r.forecast, fCol)}${pct(r.pf)}`, color: c.t.series, dashed: true }] : []),
+        ...(lyCol && r.ly !== null ? [{ label: lyCol.label, value: fmt(r.ly, lyCol), color: c.t.cmp }] : []),
+        { label: tCol.label, value: fmt(r.target, tCol), color: c.t.ref },
+      ];
+      return tip(c, r.full, tipRows);
+    }),
+    xAxis: hiddenValueAxis(c, { key: 'pct', label: '%', kind: 'percent' }, { min: 0, max }),
+    yAxis: [
+      categoryAxis(c, names, {
+        inverse: true,
+        axisLine: { show: false },
+        axisLabel: {
+          fontSize: 12,
+          fontFamily: c.t.font,
+          width: nameW,
+          overflow: 'truncate',
+          interval: 0,
+          margin: 10,
+          formatter: (n: string) => (TOTAL_ROW.test(n) ? `{b|${n}}` : n),
+          color: c.t.text,
+          rich: { b: { fontWeight: 600, color: c.t.text, fontSize: 12, fontFamily: c.t.font } },
+        },
+      }),
+      categoryAxis(c, texts, { inverse: true, position: 'right', axisLine: { show: false }, axisLabel: { interval: 0, margin: 8, color: c.t.muted, fontSize: 12, fontFamily: c.t.font, align: 'left' } }),
+    ],
+    series: [
+      {
+        type: 'bar',
+        name: col.label,
+        stack: 'pos',
+        barWidth: barW,
+        showBackground: true,
+        backgroundStyle: { color: c.t.grid, borderRadius: markRadius(c.t, 3) },
+        data: rows.map((r) => r.pa),
+        itemStyle: { color: c.t.series, borderRadius: markRadius(c.t, 2) },
+        emphasis: { disabled: true },
+        z: 3,
+      },
+      ...(fCol
+        ? [
+            {
+              type: 'bar',
+              name: fCol.label,
+              stack: 'pos',
+              barWidth: barW,
+              data: rows.map((r) => (r.pf === null || r.pa === null ? null : Math.max(0, r.pf - r.pa))),
+              itemStyle: { color: hatch(c.t.series, mix(c.t.series, c.t.surface, 0.12)), borderColor: c.t.series, borderWidth: 1, borderRadius: markRadius(c.t, 2) },
+              emphasis: { disabled: true },
+              // Above the track, which is drawn with the first series and may be opaque in a theme.
+              z: 4,
+            },
+          ]
+        : []),
+      ...(lyCol ? [{ type: 'scatter', name: lyCol.label, data: rows.map((r) => r.pl), symbol: 'rect', symbolSize: [2.5, barW + 8], itemStyle: { color: c.t.cmp, borderColor: c.t.surface, borderWidth: 1 }, emphasis: { scale: false }, z: 5 }] : []),
+      { type: 'line', name: tCol.label, data: [], silent: true, tooltip: { show: false }, markLine: { silent: true, symbol: 'none', animation: false, label: { show: false }, lineStyle: { color: c.t.ref, width: 1.5, type: 'solid' }, data: [{ xAxis: 100 }] } },
+    ],
+  };
+  const legend: LegendItem[] = [
+    { label: col.label, color: c.t.series, mark: 'solid' },
+    ...(fCol ? [{ label: `${fCol.label}, still to come`, color: c.t.series, mark: 'hatch' as const }] : []),
+    ...(lyCol ? [{ label: lyCol.label, color: c.t.cmp, mark: 'tick' as const }] : []),
+    { label: `${tCol.label} = 100%`, color: c.t.ref, mark: 'rule' },
+  ];
+  const missed = all.filter((r) => !TOTAL_ROW.test(r.name) && lands(r) < 100).length;
+  return {
+    render: 'echarts',
+    kind: 'bullet',
+    option,
+    points: rows.map((r, i) => ({ seriesIndex: 0, dataIndex: i, text: `${r.full}: ${texts[i] === `${Math.round(r.pa ?? 0)}%` ? `${fmt(r.actual, col)}, ${texts[i]} of ${tWord}` : texts[i]}${r.pf !== null ? `; ${fCol!.label.toLowerCase()} ${Math.round(r.pf)}%` : ''}` })),
+    rows: order,
+    legend,
+    ...(more ? { more } : {}),
+    table: tableModel(c, specKeys(c.spec)),
+    summary: summary(c, `Bullet chart: ${col.label} as a share of ${tWord} for ${all.length} rows.`, `${missed} of ${all.filter((r) => !TOTAL_ROW.test(r.name)).length} below 100%.`),
   };
 }
 

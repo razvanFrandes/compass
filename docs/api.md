@@ -187,12 +187,16 @@ interface WidgetSpec {
   y?: string[];
   group?: string;
   compare?: string;
+  forecast?: string;       // the forecast (P50) of the first y
+  band?: [string, string]; // the likely range: low (P10), high (P90)
+  target?: string;         // the budget or target
+  limit?: string;          // a ceiling such as capacity
   format?: 'number' | 'percent' | 'currency' | 'count';
 }
 ```
 
 - **The model never supplies a number.** It picks the kind, the title, the subtitle and the column keys. The server reads the tool result that `sourceCallId` names back from the transcript and copies its `rows`, `columns` and `evidence` into the widget. So `widget.rows` are the rows of that data `tool_result`, and "How this was computed" for a widget is `widget.evidence`.
-- **The server checks the fit.** Every key must be a column of those rows, `y` and `compare` must be number columns, and the kind must suit the shape (the table below). A widget that does not fit never reaches the client: the model gets a sentence saying what is wrong and tries again or answers without it.
+- **The server checks the fit.** Every key must be a column of those rows, `y`, `compare`, `forecast`, `band`, `target` and `limit` must be number columns, and the kind must suit the shape (the table below). A widget that does not fit never reaches the client: the model gets a sentence saying what is wrong and tries again or answers without it.
 - **The spec is normalised.** It holds only the fields its kind uses. `format` is filled from the kind of the first `y` column when the model leaves it out (absent for a table, and for a plain number column).
 - **`columns`** describe every column of the rows: `{ key, label, kind, unit?, hidden? }` with `kind` one of `text | hotel | date | month | number | percent | currency | count | id`. Use `label` for axis and legend names and `kind` and `unit` to format values. They come from the data tool's evidence when it names them, else they are read from the rows (key names and values).
 - **Limits:** at most 400 rows per widget (20 hotels over 20 nights), at most 4 widgets per answer (the prompt asks for at most 3; a board view may show 4).
@@ -226,6 +230,17 @@ What each kind takes. `x`, `y`, `group` and `compare` are column keys; "label" c
 | `sankey` | 2–100, one per flow | the source | 1: the flow, not negative | the target | – |
 
 A table without `y` shows every column that is not `hidden`.
+
+**Forecast, range, budget and capacity.** Four optional column keys draw on top of a `line`, `area`, `bar` or `bullet`. Like the others they are columns of the rows, so the forecast is the data tool's, never the model's. A kind that does not draw one drops it.
+
+| Field | `line`, `area` | `bar` | `bullet` |
+|---|---|---|---|
+| `forecast` | a dotted projection where the actuals stop: rows after today have `y` empty and `forecast` set, and a "Today" line marks where `y` stops | a dotted P50 line over the columns; `x` must be ordered (dates, months) | a hatched extension from the actual to the forecast |
+| `band` | `[low, high]`, the P10–P90 range as a shaded band; low is never above high | the same; `x` must be ordered | – |
+| `target` | `line` only: a labelled step line | a labelled step line | each row is drawn as a % of its own target (above 0 on every row), with a 100% line; `compare` is then last year, as a tick |
+| `limit` | one labelled flat line at the first value in the column (capacity) | the same | – |
+
+With `group` (a line per hotel) a line keeps only `limit`. A `bullet` needs `target` or `compare`; with `compare` alone, `compare` is the target, as before. Examples from `get_forecast`: by month, a `bar` with `y: rooms_on_books`, `forecast: rooms_p50`, `band: [rooms_p10, rooms_p90]`, `target: budget_rooms_sold`; by hotel with grain `total`, a `bullet` with `target: budget_rooms_sold`, `forecast: rooms_p50`, `compare: rooms_on_books_stly`.
 
 **One check, both sides.** These rules are `fitWidget(spec, { rows, columns })` in `@compass/contracts` (`widget-fit.ts`; the entry `@compass/contracts/widget-fit` loads it without zod). The Worker runs it in `show_widget` and on `POST /api/boards/:id/widgets`; the app runs the same function for "View as" and for the instant preview.
 

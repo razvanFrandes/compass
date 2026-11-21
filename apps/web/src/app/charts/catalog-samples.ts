@@ -1,3 +1,5 @@
+import { DEFAULTS } from '../filters';
+import { type ChartSpec, kpiWidget, resolve } from '../portfolio';
 import type { EvidenceColumn, WidgetRow, WidgetSpec } from './widget-types';
 
 /*
@@ -285,7 +287,33 @@ const tableRows: WidgetRow[] = [
 
 const europeRevenue: WidgetRow[] = HOTEL_REVENUE.filter(([, region]) => region === 'Europe').map(([hotel, , revenue]) => ({ hotel, revenue }));
 
+/* ───────── The hotel charts (the Portfolio board's, from the same extract) ───────── */
+
+/** A Portfolio chart under the board's default filters, as the widget it is drawn as. */
+function board(kind: ChartSpec['kind'], id: string, shows: string, wide = false): Specimen {
+  const r = resolve({ id: `cat-${kind}`, kind } as ChartSpec, DEFAULTS);
+  const { rows, columns, ...drawing } = r.data!;
+  return { id, spec: { ...drawing, title: r.title, subtitle: r.subtitle, sourceCallId: src(id) } as WidgetSpec, rows: rows as WidgetRow[], columns, shows, ...(wide ? { wide } : {}) };
+}
+const kpiSpecimen = (): Specimen => {
+  const { rows, columns, ...drawing } = kpiWidget(DEFAULTS);
+  return { id: 'kpi_row-trend', wide: true, spec: { ...drawing, title: 'Rate and revenue are ahead of last year; occupancy is level', subtitle: 'All hotels · next 30 nights, on the books, vs the same time last year', sourceCallId: src('kpi_row_trend') } as WidgetSpec, rows: rows as WidgetRow[], columns, shows: 'A figure for the whole period with its trend by night (`<key>_trend`), the comparison dashed behind it.' };
+};
+
 export const SPECIMENS: SpecimenGroup[] = [
+  {
+    id: 'hotel',
+    title: 'Hotel analytics',
+    blurb: 'The charts a revenue manager reads every morning. Forecasts are dotted and their likely range a pale band; what is still to come is hatched; budget is a thin neutral rule; last year is dashed or a tick. These five come from the same Halcyon extract as the Portfolio board.',
+    items: [
+      kpiSpecimen(),
+      board('position', 'bullet-budget', 'bullet with target (budget): each row as % of it, forecast hatched on from the actual, last year as a tick, worst first, the total on top.', true),
+      board('pace', 'booking-curve', 'line with forecast (P50), band (P10–P90) and limit (capacity): a booking curve with "Today" where the actuals stop.'),
+      board('pickup', 'pickup-diverging', 'stacked_bar with a part below zero (cancellations, grey) and compare as a dashed step; weekends shaded on nights of stay.'),
+      board('fan', 'forecast-occupancy', 'bar over nights with forecast, band and target (budget) as a step line.'),
+      board('mix_net', 'channel-net', 'stacked_bar by channel: net solid, commission hatched in the same hue, last year’s net as a tick.'),
+    ],
+  },
   {
     id: 'figures',
     title: 'Figures',

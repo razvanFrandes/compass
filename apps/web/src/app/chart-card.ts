@@ -1,13 +1,13 @@
-import { Component, DestroyRef, ElementRef, afterNextRender, computed, inject, input, linkedSignal, signal } from '@angular/core';
+import { Component, computed, inject, input, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
-import { EChart, palette } from './echart';
 import { WidgetChart } from './charts/widget-chart';
+import { ViewAs } from './charts/view-as';
 import type { WidgetSpec } from './charts/widget-types';
 import { BOOKED, CHANNELS, COMPARES, Filters, RANGES, SEGMENTS, hotelLabel, rangeDates, scopeChips, tokenValue } from './filters';
-import { Cell, ChartSpec, VIEW_LABEL, View, resolve } from './portfolio';
+import { ChartSpec, resolve } from './portfolio';
 import { CompassStore } from './store';
 import { Live } from './live';
 import { BoardsService } from './boards/boards.service';
@@ -16,11 +16,11 @@ import { CHART_HEIGHT, type ChartSize } from './theme/density';
 import * as icons from './icons';
 
 /*
-  The one card every chart uses, whether people or Kassandra made it (report: "Fiecare grafic poartă
-  aceleași cinci piese"): a statement title and a scope line; a badge when a dashboard filter can't apply
-  (click it for the read-only list); Chart/Table; "Show as" with Auto plus only the compatible views (the
-  others say what they lack); "Behind the numbers"; "Add to board" (saves the spec, not a picture);
-  "Wrong chart". Clicking a mark sends a structured follow-up ({ drill: { dimension, value } }).
+  A chart of the Portfolio board (report: "Fiecare grafic poartă aceleași cinci piese"): a statement title and a
+  scope line; a badge when a dashboard filter can't apply (click it for the read-only list); "View as" with only
+  the kinds these rows fit; "Behind the numbers"; "Add to board" (saves the numbers, not a picture). The chart
+  itself is <juyo-widget-chart>, the same component as Kassandra's answers, saved boards and /catalog. Clicking a
+  mark sends a structured follow-up ({ drill: { dimension, value } }).
 */
 /** A new board made from one chart is named after what the chart shows; rename it any time. */
 const BOARD_NAME: Record<ChartSpec['kind'], string> = {
@@ -37,23 +37,20 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
 
 @Component({
   selector: 'app-chart-card',
-  imports: [NgIcon, EChart, WidgetChart, HlmButtonImports, HlmDropdownMenuImports],
+  imports: [NgIcon, WidgetChart, ViewAs, HlmButtonImports, HlmDropdownMenuImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block min-w-0' },
   template: `
     @let r = resolved();
     <article class="insight-card flex h-full flex-col p-card-pad" [attr.aria-labelledby]="spec().id + '-t'">
-      <header class="flex items-start gap-3">
-        <div class="min-w-0 flex-1">
+      <header class="flex flex-wrap items-start gap-x-3 gap-y-2">
+        <div class="min-w-[min(100%,15rem)] flex-1">
           <h2 [id]="spec().id + '-t'" class="text-[15.5px]/snug font-semibold tracking-[-0.005em]">{{ r.title }}</h2>
           <p class="text-muted-foreground mt-1 text-[12.5px]/snug">{{ r.subtitle }}</p>
         </div>
-        <div class="flex shrink-0 items-center gap-1">
-          @if (r.views.length > 1 && !r.empty) {
-            <div class="seg" role="radiogroup" aria-label="Chart or table">
-              <button type="button" role="radio" [attr.aria-checked]="mode() === 'chart'" aria-label="Chart" (click)="mode.set('chart')"><ng-icon name="phosphorChartBarLight" /></button>
-              <button type="button" role="radio" [attr.aria-checked]="mode() === 'table'" aria-label="Table" (click)="mode.set('table')"><ng-icon name="phosphorListLight" /></button>
-            </div>
+        <div class="ml-auto flex flex-none items-start gap-3">
+          @if (widget()) {
+            <juyo-view-as class="mt-0.5" [for]="wc" />
           }
           <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground" [attr.aria-label]="'More for ' + r.title" [hlmDropdownMenuTrigger]="menu" align="end"><ng-icon name="phosphorDotsThreeBold" class="text-[18px]" /></button>
         </div>
@@ -79,13 +76,6 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
         </div>
       }
 
-      @if (manual()) {
-        <p class="text-muted-foreground mt-2 text-[12px]">
-          Shown as {{ label(shownView()) }}, your choice.
-          <button type="button" class="text-foreground underline underline-offset-2" (click)="backToAuto()">Back to Auto</button>
-        </p>
-      }
-
       <div class="mt-stack min-h-0 flex-1">
         @if (r.empty; as e) {
           <div class="text-muted-foreground flex flex-col items-start gap-3 py-6 text-[14px]">
@@ -94,62 +84,22 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
               <button hlmBtn variant="outline" size="sm" (click)="filters.set(a.patch)">{{ a.label }}</button>
             }
           </div>
-        } @else if (mode() === 'table' || view() === 'table') {
-          <div class="max-h-[420px] overflow-auto" tabindex="0" [attr.aria-label]="r.title + ' (table)'">
-            <table class="w-full text-[13px] tabular-nums">
-              <caption class="sr-only">{{ r.title }}</caption>
-              <thead class="text-muted-foreground sticky top-0 z-[1] bg-(--card) text-[12px]">
-                <tr>
-                  @for (c of r.table.columns; track $index) {
-                    <th scope="col" class="border-border h-row border-b font-medium whitespace-nowrap" [class]="align(r, $index) === 'l' ? 'pr-cell-x text-left' : 'pl-cell-x text-right'">{{ c }}</th>
-                  }
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of r.table.rows; track $index) {
-                  <tr class="border-border border-b last:border-b-0">
-                    @for (cell of row; track $index) {
-                      @let c = cellOf(cell);
-                      @if ($index === 0) {
-                        <th scope="row" class="h-row pr-cell-x text-left whitespace-nowrap" [class]="c.text === 'Group total' || c.text === 'Selection total' ? 'font-semibold' : 'font-normal'">{{ c.text }}</th>
-                      } @else {
-                        <td class="h-row pl-cell-x whitespace-nowrap" [class]="align(r, $index) === 'l' ? 'text-left' : 'text-right'" [class.text-muted-foreground]="c.muted">
-                          @if (c.spark) {
-                            <svg width="72" height="20" viewBox="0 0 72 20" class="inline-block align-middle" aria-hidden="true">
-                              <polyline [attr.points]="sparkPoints(c.spark)" fill="none" stroke="var(--series)" stroke-width="1.5" stroke-linejoin="round" />
-                            </svg>
-                          } @else {
-                            @if (c.bar !== undefined) {
-                              <span class="cell-bar mr-2" aria-hidden="true"><i [style.width.%]="c.bar * 100"></i></span>
-                            }
-                            {{ c.text }}
-                          }
-                        </td>
-                      }
-                    }
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        } @else if (view() === 'kpi' && r.kpi) {
-          <p class="text-[34px]/tight font-semibold tracking-[-0.02em] tabular-nums">{{ r.kpi.value }}</p>
-          <p class="text-muted-foreground mt-1 text-[13px]">{{ r.kpi.delta }}</p>
-        } @else if (widget(); as w) {
-          <!-- Drawn by the one chart system: the same marks, tooltips and keyboard steps as everywhere else -->
-          <juyo-widget-chart [spec]="w.spec" [rows]="w.rows" [columns]="w.columns" [header]="false" [switcher]="true" controls="external" [height]="height()" (picked)="drillRow($event)" />
-        } @else {
-          <app-echart [option]="option()" [label]="r.aria" [style.height.px]="height()" (pick)="drill($event)" />
         }
+        <!-- Kept while empty, so "View as" in the header always has its widget to point at -->
+        <juyo-widget-chart
+          #wc
+          [hidden]="!!r.empty"
+          [spec]="widget()?.spec ?? placeholder"
+          [rows]="widget()?.rows ?? []"
+          [columns]="widget()?.columns ?? []"
+          [header]="false"
+          [switcher]="true"
+          controls="external"
+          [viewKey]="'portfolio:' + spec().id"
+          [height]="height()"
+          (picked)="drillRow($event)"
+        />
       </div>
-
-      @if (mode() === 'chart' && view() !== 'table' && view() !== 'kpi' && r.legend.length && !r.empty) {
-        <ul class="text-muted-foreground mt-stack flex flex-wrap gap-x-4 gap-y-1 text-[12px]" aria-label="Legend">
-          @for (l of r.legend; track l.label) {
-            <li class="flex items-center gap-1.5"><i [class]="'legend-mark legend-mark--' + l.mark" aria-hidden="true"></i>{{ l.label }}</li>
-          }
-        </ul>
-      }
 
       @if (howOpen()) {
         <section class="mt-card-pad text-[12.5px]" aria-label="Behind the numbers">
@@ -171,25 +121,6 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
 
     <ng-template #menu>
       <hlm-dropdown-menu class="w-72">
-        <hlm-dropdown-menu-label>Show as</hlm-dropdown-menu-label>
-        <button hlmDropdownMenuItem class="items-start" (triggered)="backToAuto()">
-          <ng-icon [name]="!manual() && mode() === 'chart' ? 'phosphorCheckLight' : 'phosphorSparkleLight'" class="mt-0.5" />
-          <span class="flex flex-col items-start text-left"
-            ><span>Auto · {{ label(r.view) }}</span><span class="text-muted-foreground text-[11.5px]">{{ r.autoWhy }}</span></span
-          >
-        </button>
-        @for (v of r.views; track v.view) {
-          <button hlmDropdownMenuItem class="items-start" [disabled]="!v.ok" (triggered)="pick(v.view)">
-            <ng-icon [name]="manual() && isShown(v.view) ? 'phosphorCheckLight' : v.view === 'table' ? 'phosphorListLight' : 'phosphorChartBarLight'" class="mt-0.5" />
-            <span class="flex flex-col items-start text-left"
-              ><span>{{ label(v.view) }}</span>
-              @if (v.reason && !v.ok) {
-                <span class="text-muted-foreground text-[11.5px]">{{ v.reason }}</span>
-              }
-            </span>
-          </button>
-        }
-        <hlm-dropdown-menu-separator />
         <button hlmDropdownMenuItem (triggered)="howOpen.set(!howOpen())"><ng-icon name="phosphorDatabaseLight" />{{ howOpen() ? 'Close Behind the numbers' : 'Behind the numbers' }}</button>
         <hlm-dropdown-menu-separator />
         <hlm-dropdown-menu-label>Add to board</hlm-dropdown-menu-label>
@@ -204,7 +135,7 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
 export class ChartCard {
   /**
    * The height of the chart: `overview` (180 px) for a chart among others, `hero` (320 px) for the featured one,
-   * `auto` for the chart's own height (a bar per row grows with its rows).
+   * `auto` for the chart's own height (a bullet per hotel grows with its rows).
    */
   readonly size = input<ChartSize | 'auto'>('auto');
   readonly spec = input.required<ChartSpec>();
@@ -215,29 +146,19 @@ export class ChartCard {
   protected readonly resolved = computed(() => resolve(this.spec(), this.filters.state()));
   protected readonly height = computed(() => {
     const size = this.size();
-    return size === 'auto' ? this.resolved().height : CHART_HEIGHT[size];
+    return size === 'auto' ? (this.resolved().height ?? null) : CHART_HEIGHT[size];
   });
-  /** A manual "Show as" is a local change to the spec; it survives filter changes while it stays valid. */
-  private readonly chosen = linkedSignal<{ r: ReturnType<typeof resolve> }, View | null>({
-    source: () => ({ r: this.resolved() }),
-    computation: (src, prev) => (prev?.value && src.r.views.some((x) => x.view === prev.value && x.ok) ? prev.value : null),
-  });
-  protected readonly manual = computed(() => this.chosen() !== null);
-  protected readonly view = computed<View>(() => this.chosen() ?? this.resolved().view);
-  protected readonly mode = signal<'chart' | 'table'>('chart');
-  protected readonly shownView = computed<View>(() => (this.mode() === 'table' ? 'table' : this.view()));
-  protected readonly howOpen = signal(false);
-  protected readonly scopeOpen = signal(false);
-  private readonly width = signal(600);
-  protected readonly option = computed(() => this.resolved().option(this.view(), palette(), this.width()));
-  /** Views already drawn by <juyo-widget-chart> (the rest move over one by one). */
+  /** The chart as a widget: the resolver's rows, under its statement title. */
   protected readonly widget = computed(() => {
     const r = this.resolved();
-    if (this.view() !== 'quadrant' || !r.data) return null;
-    const { rows, columns, ...rest } = r.data;
-    const spec: WidgetSpec = { ...rest, title: r.title, subtitle: r.subtitle, sourceCallId: `portfolio:${this.spec().id}` };
+    if (!r.data || r.empty) return null;
+    const { rows, columns, ...drawing } = r.data;
+    const spec: WidgetSpec = { ...drawing, title: r.title, subtitle: r.subtitle, sourceCallId: `portfolio:${this.spec().id}` };
     return { spec, rows, columns };
   });
+  protected readonly placeholder: WidgetSpec = { kind: 'table', title: 'No data', sourceCallId: 'portfolio:none' };
+  protected readonly howOpen = signal(false);
+  protected readonly scopeOpen = signal(false);
   private readonly boards = inject(BoardsService);
   protected readonly savedBoards = computed(() => this.boards.boards().slice(0, 8));
   protected readonly scope = computed(() => scopeChips(this.filters.state()).join(' · '));
@@ -254,52 +175,8 @@ export class ChartCard {
     ];
   });
 
-  constructor() {
-    const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
-    const destroy = inject(DestroyRef);
-    afterNextRender(() => {
-      const ro = new ResizeObserver(([e]) => this.width.set(Math.round(e.contentRect.width / 40) * 40));
-      ro.observe(host);
-      destroy.onDestroy(() => ro.disconnect());
-    });
-  }
-
-  protected label(v: View) {
-    return VIEW_LABEL[v];
-  }
-  protected isShown(v: View) {
-    return v === 'table' ? this.mode() === 'table' : this.mode() === 'chart' && this.view() === v;
-  }
-  protected pick(v: View) {
-    if (v === 'table') {
-      this.mode.set('table');
-      return;
-    }
-    this.mode.set('chart');
-    this.chosen.set(v === this.resolved().view ? null : v);
-  }
-  protected backToAuto() {
-    this.mode.set('chart');
-    this.chosen.set(null);
-  }
-  protected align(r: ReturnType<typeof resolve>, i: number) {
-    return r.table.align?.[i] ?? 'r';
-  }
-  protected cellOf(c: Cell): { text: string; bar?: number; spark?: number[]; muted?: boolean } {
-    return typeof c === 'string' ? { text: c } : c;
-  }
-  protected sparkPoints(xs: number[]) {
-    const lo = Math.min(...xs);
-    const hi = Math.max(...xs);
-    const span = hi - lo || 1;
-    return xs.map((x, i) => `${((i / Math.max(1, xs.length - 1)) * 70 + 1).toFixed(1)},${(18 - ((x - lo) / span) * 16).toFixed(1)}`).join(' ');
-  }
   protected drillRow(row: Record<string, unknown>) {
     const d = this.resolved().drillRow?.(row);
-    if (d) this.live.drill(d, this.filters.state());
-  }
-  protected drill(i: number) {
-    const d = this.resolved().drill?.(i);
     if (d) this.live.drill(d, this.filters.state());
   }
   /** The chart, with the numbers it shows right now, onto a saved board (or a new one named after the chart). */

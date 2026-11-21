@@ -5,11 +5,13 @@ import { type Built, type Ctx, type KpiModel, type SparkPath, type SparkRow, cel
 /* The kinds that are numbers and text, not plots: kpi, kpi_row, sparkline_list and table. They render as HTML. */
 
 /** A sparkline in a 100 × 28 box (stretched to its container), with 3 px of air above and below. */
-export function sparkPath(values: (number | null)[]): SparkPath | null {
+export function sparkPath(values: (number | null)[], scale?: readonly (number | null)[]): SparkPath | null {
   const pts = values.map((v, i) => ({ v, i })).filter((p): p is { v: number; i: number } => p.v !== null);
   if (pts.length < 2) return null;
-  const lo = Math.min(...pts.map((p) => p.v));
-  const hi = Math.max(...pts.map((p) => p.v));
+  // Two lines in one box (this year and last) share one scale: `scale` holds every value that box shows.
+  const all = (scale ?? values).filter((v): v is number => v !== null);
+  const lo = Math.min(...all);
+  const hi = Math.max(...all);
   const span = hi - lo || 1;
   const n = values.length - 1;
   const x = (i: number) => (i / n) * 100;
@@ -19,7 +21,7 @@ export function sparkPath(values: (number | null)[]): SparkPath | null {
   return { line, area: `${line}L${x(last.i).toFixed(1)},28L${x(pts[0].i).toFixed(1)},28Z`, lastY: y(last.v) / 28 };
 }
 
-const COMPANIONS = ['_ly', '_stly', '_last_year', '_prev', '_previous', '_budget', '_target'];
+const COMPANIONS = ['_ly', '_stly', '_last_year', '_prev', '_previous', '_budget', '_target', '_cmp'];
 
 /** The comparison column for a value: the spec's `compare`, else a sibling like `revpar_ly` or `revpar_budget`. */
 function companion(c: Ctx, key: string, single: boolean): string | undefined {
@@ -62,8 +64,17 @@ function tile(c: Ctx, key: string, single: boolean): KpiModel {
     delta = formatDelta(row[key], c.rows[0][key], col.kind, col.unit, lowerIsBetter(col));
     vs = delta ? `since ${formatDate(cell(c.rows[0], c.spec.x), xCol.kind === 'month' ? 'month' : 'date')}` : '';
   }
+  // A figure for a whole period can bring its trend along: `<key>_trend` (and the comparison's `<cmp>_trend`), one number per night.
+  const trend = numbers(row[`${key}_trend`]);
+  const trendCmp = cmpKey ? numbers(row[`${cmpKey}_trend`]) : null;
+  if (trend) {
+    const both = [...trend, ...(trendCmp ?? [])];
+    return { label: col.label, value: formatValue(row[key], col, { compact: true }), delta, versus: vs, spark: sparkPath(trend, both), ...(trendCmp ? { sparkCmp: sparkPath(trendCmp, both) } : {}) };
+  }
   return { label: col.label, value: formatValue(row[key], col, { compact: true }), delta, versus: vs, spark: series ? sparkPath(c.rows.map((r) => numberAt(r, key))) : null };
 }
+
+const numbers = (v: unknown): (number | null)[] | null => (Array.isArray(v) && v.length > 1 && v.every((x) => x === null || typeof x === 'number') ? (v as (number | null)[]) : null);
 
 const speak = (k: KpiModel) => `${k.label} ${k.value}${k.delta ? `, ${k.delta.spoken} ${k.versus}` : ''}`;
 

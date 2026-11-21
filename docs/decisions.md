@@ -258,13 +258,18 @@ Built strictly from stages 1 and 2 of `docs/research/reports/Filtre și grafice 
   - a statement title and a scope line;
   - the compatible views, with the reason for each one that isn't;
   - the table, the badge, the definitions and the SQL.
-- **Standard card** (`chart-card.ts`):
-  - Chart/Table.
-  - "Show as" with **Auto** (and why Auto picked that view) plus the compatible views. A manual choice says "your choice · Back to Auto".
-  - How this was computed: definitions, scope, freshness, SQL.
-  - Add to board (saves the spec), and Wrong chart.
-  - A badge when a filter can't apply. Clicking it gives the read-only list with the ignored filters struck through.
-  - Clicking a mark sends a structured drill (`{ dimension, value }`), answered from the same specs.
+- **One chart system** (21 Nov 2026). Every chart is `<juyo-widget-chart>`: Kassandra's answers, saved boards,
+  /catalog, the theme lab and the built-in Portfolio and Dubai boards. The POC's hand-written ECharts options
+  (`echart.ts`, `metric-chart.ts`, the `option()` functions in `portfolio.ts`) are gone; the Portfolio resolvers
+  now only compute numbers, words and evidence, and hand rows to the widget. The richer hotel charts became
+  variants of existing kinds through four optional spec fields: `forecast` (P50, dotted, "Today" where actuals
+  stop; hatched on a bullet), `band` (P10–P90), `target` (budget: a step line, or % of target on a bullet) and
+  `limit` (capacity). A stacked bar with a part below zero is diverging (grey below the axis), a cost part
+  (commission, fees) is hatched in the bar's own hue, and nights of stay shade their weekends.
+- **Portfolio card** (`chart-card.ts`): a statement title and scope line, "View as" (the kinds these rows fit),
+  Behind the numbers (definitions, scope, freshness, SQL), Add to board (saves the rows), a badge when a filter
+  can't apply (click it for the read-only list with the ignored filters struck through), and a click on a mark
+  sends a structured drill (`{ dimension, value }`), answered from the same resolvers.
 - **Colour (report):**
   - The current period is blue and solid.
   - The comparison is purple, dashed or as a tick (`--series-cmp`: #9685e4 on dark, #7a68d8 on light; 5.5:1 and 4.4:1).
@@ -322,6 +327,7 @@ Built strictly from stages 1 and 2 of `docs/research/reports/Filtre și grafice 
 - **The server checks that the kind fits the rows** (`application/widgets/fit.ts`, one rule per kind): pie and donut only for 2–7 parts of a whole (percentages must add up to 100), line and area only over an ordered x, funnel only over stages that shrink, one row per bar, and so on. A refusal is a sentence that says what to do instead, so the model corrects itself in one turn.
 - **No row filter in the tool.** When a result has the wrong shape (a row per hotel where one row is needed), the model calls the data tool again narrower. That keeps the widget's rows identical to a tool result, with its SQL as evidence.
 - **The spec is normalised by the server:** only the fields the kind uses, and `format` from the column.
+- **Forecast, range, budget and capacity are column keys too (2026-11-21).** `forecast`, `band: [P10, P90]`, `target` and `limit` name columns of the rows, like `compare`, so the richer hotel charts (booking curve with its range, forecast against budget as bullets) still draw only numbers a tool returned. They are optional; a bullet with `compare` and no `target` reads as before.
 - **Limits:** 200 rows per widget; 4 widgets per answer on the server, 3 in the prompt (a board view may use 4).
 - **Quick mode offers `show_widget`** and takes 5 turns instead of 4: showing a widget is a tool round of its own, and it must not cost the answer.
 - **Column metadata:** a widget uses the columns its data tool names in the evidence (contracts §2). Until every tool does, `application/widgets/columns.ts` reads kinds and labels from key names and values. Only keys with `eur` are money: rates in local currency stay plain numbers.
@@ -604,11 +610,11 @@ Research: `docs/research/layout/layout-and-density.md`. Token names and rules: `
   a header, a conversation and a composer are gone; lines stay in tables and lists.
 - **Grid.** Reading pages are capped at 1280 px (`.page`); boards and the builder are full width. A row holds at most
   four KPI tiles (`.kpi-row`) or three charts (`.chart-row`, `.grid-12`), 200 px each at least. Charts are 180 px in
-  an overview and 320 px when featured (`<app-chart-card size>`); a bar per row keeps its own height.
+  an overview and 320 px when featured (`<app-chart-card size>`); a bullet per hotel keeps its own height (26 px a row).
 - **Thread.** The conversation is one column of 68 characters; Behind the numbers opens 400 px wide (it was 44% of
   the width) and can still be dragged; a remembered split is kept.
-- **Boards.** The Portfolio board's first row is the filter bar and a KPI rail of four tiles (label, a 32 px figure
-  with its sparkline, what it is compared with). Below, twelve columns: the budget chart, the GOP waterfall and the
+- **Boards.** The Portfolio board's first row is the filter bar and the key figures, a kpi_row widget of four tiles
+  (label, figure, delta, sparkline with the comparison dashed behind it; the base is said once under them). Below, twelve columns: the budget chart, the GOP waterfall and the
   table take a row; the others sit two to a row, three from 1600 px.
 - **Agent Studio.** The list is a table with clickable rows (agent, last run, latest finding, action, recent runs,
   controls), 64 px rows (56 px compact), the first column frozen on a narrow screen. How far an agent may go is

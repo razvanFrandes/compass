@@ -169,12 +169,15 @@
   height: 2px;
   border-radius: 1px;
 }
-.wc-mark[data-mark='dashed'] {
+.wc-mark:is([data-mark='dashed'], [data-mark='dotted']) {
   width: 12px;
   height: 0;
   border-top: 2px dashed var(--wc-mark);
   border-radius: 0;
   background: none;
+}
+.wc-mark[data-mark='dotted'] {
+  border-top-style: dotted;
 }
 .wc-mark[data-mark='tick'] {
   width: 3px;
@@ -184,6 +187,22 @@
 .wc-mark[data-mark='outline'] {
   border: 1.5px solid var(--wc-mark);
   background: none;
+}
+/* A likely range (P10–P90): a pale block of the series colour. */
+.wc-mark[data-mark='band'] {
+  width: 12px;
+  background: color-mix(in srgb, var(--wc-mark) 22%, transparent);
+}
+/* Forecast still to come, or a cost inside a bar: hatched, never a second colour. */
+.wc-mark[data-mark='hatch'] {
+  width: 12px;
+  border: 1px solid var(--wc-mark);
+  background: repeating-linear-gradient(-45deg, var(--wc-mark) 0 1px, #0000 1px 4px);
+}
+/* A reference (budget, capacity): a thin solid rule in the neutral reference colour. */
+.wc-mark[data-mark='rule'] {
+  width: 12px;
+  height: 1.5px;
 }
 .wc-ramp {
   display: flex;
@@ -324,6 +343,13 @@
   stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.wc-spark-cmp {
+  fill: none;
+  stroke: var(--series-cmp);
+  stroke-width: 1.25;
+  stroke-dasharray: 3 2;
   vector-effect: non-scaling-stroke;
 }
 .wc-spark-area {
