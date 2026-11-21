@@ -1,5 +1,6 @@
 import { DOCUMENT, Service, computed, effect, inject, signal, type Signal } from '@angular/core';
 import { HotelsApi } from '../api/hotels-api';
+import { setHotelCatalog } from '../charts/hotel-names';
 import { HALCYON_HOTELS, isHotelList, normalizeCodes, parseScopeParam, scopeLabel, scopePhrase, withScopeParam, type HotelRef } from './hotels';
 
 export const SCOPE_STORAGE_KEY = 'compass.scope';
@@ -42,6 +43,8 @@ export class ScopeService {
 
   constructor() {
     effect(() => this.persist(this.hotels()));
+    // Charts name hotels from the same list the scope picker uses.
+    effect(() => setHotelCatalog(this.catalog()));
     // Back and Forward change the place, not the scope: the scope is written again on the address they land on.
     this.view?.addEventListener?.('popstate', () => this.writeUrl(this.hotels()));
   }

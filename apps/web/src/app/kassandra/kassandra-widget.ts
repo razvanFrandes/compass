@@ -3,6 +3,9 @@ import type { ChatWidget } from '../api';
 import { specAs } from '../charts/kinds';
 import { ViewAsMemory } from '../charts/view-memory';
 import { WidgetChart, type WidgetLoading } from '../charts/widget-chart';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import { phosphorDatabaseLight } from '@ng-icons/phosphor-icons/light';
+import { ViewAs } from '../charts/view-as';
 import { KassandraBoardPicker } from './kassandra-board-picker';
 import { shownPhase, type SlotPhase, type WidgetSlot } from './live-slots';
 
@@ -22,15 +25,40 @@ const LOADING: Record<SlotPhase, WidgetLoading> = { chosen: 'skeleton', describe
  * appeared on screen for its minimum time. The title is the conclusion; the numbers are the tool's rows.
  *
  * A slot may be an instant preview (drawn from a data result before Kassandra chose a chart): it says "Preview",
- * and when her show_widget for that result lands the same card takes her kind and title. Under every chart, "View
- * as" lists the kinds its rows can be shown as; the choice is remembered for this answer, and "Add to board" saves
- * the kind on screen.
+ * and when her show_widget for that result lands the same card takes her kind and title. In the card's header,
+ * top right, "View as" lists the kinds its rows can be shown as (icons; the choice is remembered for this answer),
+ * then "Behind the numbers" and "Add to board" (which saves the kind on screen), so the body is only the chart.
  */
 @Component({
   selector: 'kassandra-widget',
-  imports: [WidgetChart, KassandraBoardPicker],
+  imports: [WidgetChart, KassandraBoardPicker, NgIcon, ViewAs],
+  providers: [provideIcons({ phosphorDatabaseLight })],
   host: { class: 'block', '[attr.data-phase]': 'phase()', '[attr.data-preview]': 'previewing() ? "" : null' },
   styles: `
+    .k-tool {
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-control, 7px);
+      color: var(--muted-foreground);
+      font-size: 16px;
+      transition: color 120ms ease, background-color 120ms ease;
+    }
+    .k-tool:hover {
+      color: var(--foreground);
+      background: var(--overlay-hover);
+    }
+    .k-tool:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 1px;
+    }
+    @media (pointer: coarse) {
+      .k-tool {
+        width: 40px;
+        height: 40px;
+      }
+    }
     .k-preview {
       flex: none;
       margin-top: 1px;
@@ -64,23 +92,22 @@ const LOADING: Record<SlotPhase, WidgetLoading> = { chosen: 'skeleton', describe
         @if (previewing()) {
           <p class="k-preview" title="Drawn from the data as it arrived. Kassandra may still choose another chart.">Preview<span class="sr-only">: drawn from the data as it arrived. Kassandra may still choose another chart.</span></p>
         }
+        <!-- The card's tools sit top right, so the body is only the chart: View as, Behind the numbers, Add to board -->
+        <div class="flex min-w-[3.5rem] flex-none items-center justify-end gap-1">
+          @if (phase() === 'ready' && shown(); as w) {
+            <juyo-view-as [for]="wc" />
+            @if (showEvidence()) {
+              <button type="button" class="k-tool" aria-label="Behind the numbers" title="Behind the numbers" (click)="evidence.emit(w.sourceCallId)"><ng-icon name="phosphorDatabaseLight" aria-hidden="true" /></button>
+            }
+            @if (addable()) {
+              <kassandra-board-picker [widget]="w" [question]="question()" [compact]="true" />
+            }
+          } @else {
+            <i class="k-skel block h-7 w-14 !rounded-lg" aria-hidden="true"></i>
+          }
+        </div>
       </figcaption>
-      <juyo-widget-chart class="mt-stack block" [spec]="s.spec" [rows]="s.widget?.rows ?? null" [columns]="s.widget?.columns ?? null" [loading]="loading()" [header]="false" [compact]="true" [switcher]="true" [viewKey]="viewKey()" />
-      <div class="mt-stack flex min-h-8 flex-wrap items-center justify-between gap-2">
-        @if (phase() === 'ready' && shown(); as w) {
-          @if (showEvidence()) {
-            <button type="button" class="k-link text-muted-foreground hover:text-foreground text-[12.5px] underline underline-offset-2" (click)="evidence.emit(w.sourceCallId)">Behind the numbers</button>
-          }
-          @if (addable()) {
-            <kassandra-board-picker class="ml-auto" [widget]="w" [question]="question()" />
-          }
-        } @else {
-          <i class="k-skel block h-3 w-32" aria-hidden="true"></i>
-          @if (addable()) {
-            <i class="k-skel block h-8 w-[124px] !rounded-lg" aria-hidden="true"></i>
-          }
-        }
-      </div>
+      <juyo-widget-chart #wc class="mt-stack block" [spec]="s.spec" [rows]="s.widget?.rows ?? null" [columns]="s.widget?.columns ?? null" [loading]="loading()" [header]="false" [compact]="true" [switcher]="true" controls="external" [viewKey]="viewKey()" />
     </figure>
   `,
 })

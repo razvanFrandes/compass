@@ -135,14 +135,15 @@ describe('WidgetChart', () => {
       plot.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
       fixture.detectChanges();
     };
-    press('ArrowRight');
-    expect(live.textContent).toBe('Kestrel London Mayfair: RevPAR €253');
+    // The bars are ranked, so the keys step from the highest down.
     press('ArrowRight');
     expect(live.textContent).toBe('Arbor New York Midtown: RevPAR €261');
+    press('ArrowRight');
+    expect(live.textContent).toBe('Kestrel London Mayfair: RevPAR €253');
     press('End');
     expect(live.textContent).toBe('Tessera Berlin Mitte: RevPAR €97.60');
     press('ArrowRight');
-    expect(live.textContent).toBe('Kestrel London Mayfair: RevPAR €253');
+    expect(live.textContent).toBe('Arbor New York Midtown: RevPAR €261');
     press('Escape');
     expect(live.textContent).toBe('');
   });

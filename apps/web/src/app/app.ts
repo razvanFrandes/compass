@@ -66,11 +66,12 @@ import * as icons from './icons';
       }
     } @else {
     <a href="#content" class="bg-foreground text-background sr-only z-50 rounded-md px-3 py-2 focus:not-sr-only focus:fixed focus:top-3 focus:left-3">Skip to content</a>
-    <div class="shell lg:grid lg:h-dvh lg:overflow-hidden" [class.shell--rail]="sidebar.collapsed()">
+    <!-- relative: the shell is the containing block of every absolutely positioned element (the sr-only labels too), so nothing far down a scrolled pane makes the page itself scroll -->
+    <div class="shell lg:relative lg:grid lg:h-dvh lg:overflow-hidden" [class.shell--rail]="sidebar.collapsed()">
       <!-- Navigation recedes: dimmer surface, light icons, Fill only for the current place. It collapses to a rail of icons (src/app/shell). -->
       <nav appSidebar [items]="nav()"></nav>
 
-      <main id="content" class="min-w-0 max-lg:overflow-x-clip lg:min-h-0" [class]="store.view() === 'thread' ? 'h-dvh' : 'lg:overflow-y-auto'">
+      <main id="content" class="relative min-w-0 max-lg:overflow-x-clip lg:min-h-0" [class]="store.view() === 'thread' ? 'h-dvh' : 'lg:overflow-y-auto'">
         @if (store.view() !== 'thread') {
           <!-- Phone: the logo, the hotel scope, and the menu. There is no tab bar: the bottom edge is Kassandra's (src/app/shell/mobile-menu.ts). -->
           <header class="flex h-14 items-center justify-between gap-2 pr-[max(6px,env(safe-area-inset-right,0px))] pl-[max(16px,env(safe-area-inset-left,0px))] lg:hidden">

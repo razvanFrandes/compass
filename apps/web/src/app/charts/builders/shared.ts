@@ -1,5 +1,6 @@
 import type { EChartsCoreOption } from 'echarts/core';
 import { EMPTY, type Delta, esc, formatValue, humanize, isNumericKind, num, parseDate } from '../format';
+import { hotelNames } from '../hotel-names';
 import { type ChartTokens, DARK_TOKENS, markRadius } from '../tokens';
 import type { ColumnKind, EvidenceColumn, WidgetKind, WidgetRow, WidgetSpec } from '../widget-types';
 
@@ -103,6 +104,8 @@ interface BuiltBase {
   summary: string;
   legend: LegendItem[];
   ramp?: RampLegend;
+  /** Rows of the data the chart leaves out (a list of bars draws eight at most): "+12 more" opens the table. */
+  more?: number;
 }
 export type Built =
   | (BuiltBase & { render: 'echarts'; option: EChartsCoreOption; points: PointRef[] })
@@ -191,13 +194,15 @@ function inferKind(key: string, rows: readonly WidgetRow[]): ColumnKind {
   }
   if (sample.every((v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v))) return 'date';
   if (sample.every((v) => typeof v === 'string' && /^\d{4}-\d{2}$/.test(v))) return 'month';
+  if (sample.every((v) => hotelNames(v))) return 'hotel';
   return 'text';
 }
 
 /** The metadata of a column: what the backend sent, else inferred from the key and the values. */
 export function column(c: Pick<Ctx, 'columns' | 'rows' | 'spec'>, key: string, role?: 'value'): EvidenceColumn {
   const found = c.columns.find((x) => x.key === key);
-  if (found) return found;
+  // A text column of hotel codes is a hotel column: it is drawn with the hotels' names.
+  if (found) return found.kind === 'text' && inferKind(key, c.rows) === 'hotel' ? { ...found, kind: 'hotel' } : found;
   const inferred = inferKind(key, c.rows);
   const kind = role === 'value' && c.spec.format && isNumericKind(inferred) ? c.spec.format : inferred;
   return { key, label: humanize(key), kind };

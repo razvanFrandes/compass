@@ -994,48 +994,60 @@
   }
 }
 
-/* The "View as" row under the widget, and its placeholder while the widget loads (the buttons are in view-as.css) */
+/*
+  "View as" (view-as.css) sits in the header, top right. A widget without a header of its own whose host does not
+  place it keeps it in a quiet one-line row under the body, right-aligned; its placeholder holds the place while
+  the widget loads.
+*/
 .wc-view-row {
-  margin-top: var(--space-stack, 12px);
-  min-height: var(--control-h-xs, 28px);
-}
-.juyo-wc--compact .wc-view-row {
-  margin-top: min(10px, var(--space-stack, 10px));
-}
-.wc-view {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 6px;
+  min-height: 28px;
 }
-.wc-view--stub i {
+.wc-head-tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+.wc-view--stub {
   display: block;
-  width: 64px;
-  height: var(--control-h-xs, 28px);
-  border-radius: var(--radius-control, 7px);
+  width: 84px;
+  height: 28px;
+  border-radius: calc(var(--radius-control, 7px) + 2px);
   background: var(--wc-sk);
 }
-.wc-view--stub i:first-child {
-  width: 46px;
-  height: 10px;
-  margin-right: 2px;
-  border-radius: 4px;
-}
 @media (pointer: coarse) {
-  .wc-view {
-    gap: 8px;
-  }
   .wc-view-row {
-    min-height: 36px;
+    min-height: 40px;
   }
-  .wc-view--stub i:not(:first-child) {
-    height: 36px;
+  .wc-view--stub {
+    height: 40px;
   }
 }
-@container (max-width: 479.98px) {
-  .wc-view--stub i:first-child {
-    display: none;
-  }
+
+/* "+12 more": the rows a list of bars leaves out, one click from the table that has them all */
+.wc-more {
+  flex: none;
+  align-self: flex-start;
+  height: 22px;
+  margin-top: 2px;
+  padding: 0 6px;
+  margin-left: -6px;
+  border-radius: var(--radius-control, 6px);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+.wc-more:hover {
+  color: var(--foreground);
+  background: var(--overlay-hover);
+}
+.wc-more:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
 }
 
 /* A switch of kind (by hand, or Kassandra's choice replacing the preview) happens in place: the box eases to its new height and the new figure fades in. ECharts animates its own marks. */
