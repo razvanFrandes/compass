@@ -14,6 +14,7 @@ import { WatchersView } from './watchers';
 import { Live } from './live';
 import { WatcherPage } from './watcher-page';
 import { WorkflowBuilder } from './builder/builder-page';
+import { HandoverSheet } from './handover-sheet';
 import { JuyoLogo } from './juyo-logo';
 import { NotFound } from './not-found';
 import { BUILT_IN } from './board';
@@ -32,7 +33,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, Sidebar, HlmButtonImports, HlmToasterImports],
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, HandoverSheet, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, Sidebar, HlmButtonImports, HlmToasterImports],
   providers: [provideIcons({ ...icons, phosphorCompassLight }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   styles: `
@@ -144,6 +145,8 @@ import * as icons from './icons';
 
     }
     <!-- Toasts sit where no composer is: top on phones (the ask bar and tab bar are at the bottom), bottom right on desktop -->
+    <!-- "View message" on a sent decision: the message as it was handed over. One for the whole app. -->
+    <app-handover-sheet />
     <hlm-toaster [theme]="theme.dark() ? 'dark' : 'light'" [position]="phone() ? 'top-center' : 'bottom-right'" [offset]="phone() ? '12px' : '24px'" />
   `,
 })

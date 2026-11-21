@@ -33,6 +33,7 @@ import * as icons from './icons';
 import { KassandraComposer } from './kassandra/kassandra-composer';
 import { Live, ago } from './live';
 import { ProposalCard } from './proposal-card';
+import { plainText } from './proposal-text';
 import { ScopeSwitcher } from './scope/scope-switcher';
 import { ScopeService } from './scope/scope.service';
 import { BriefRow, CompassStore, PORTFOLIO_BOARD, shortHotel } from './store';
@@ -498,7 +499,9 @@ export class InboxView {
   private readonly asked = new Map<string, string>();
   private readonly now = signal(Date.now());
   protected readonly agoText = (iso: string) => ago(iso, this.now());
-  protected readonly agents = computed(() =>
+  /** What an agent found, in the same plain words as the decision card beside it (no hotel codes, no ISO dates). */
+  protected readonly agents = computed(() => this.agentList().map((row) => (row.finding ? { ...row, finding: plainText(row.finding, this.scope.catalog()) } : row)));
+  private readonly agentList = computed(() =>
     agentRows(this.live.workflowList(), this.details(), this.live.audit.hasValue() ? this.live.audit.value() : [], (code) => this.scope.includes(code), this.scope.isAll() ? undefined : hotelMentions(this.scope.catalog().filter((h) => this.scope.includes(h.code)))),
   );
   protected readonly agentsHint = computed(() => agentsSummary(this.agents()) || 'What Agent Studio ran since the last brief');

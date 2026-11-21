@@ -1,15 +1,16 @@
 import { Service, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toast } from '@spartan-ng/brain/sonner';
-import type { AnswerMode, Proposal, Workflow } from '@compass/contracts';
+import { recipientFor, type AnswerMode, type DecisionReceipt, type Proposal, type Workflow } from '@compass/contracts';
 import { BriefApi, KassandraChat, WorkflowsApi, toApiError } from './api';
 import { FilterState, scopeChips } from './filters';
 import { AnswerScope, BRIEF_ITEMS, BriefRow, CompassStore, THEME_LAB_PATH, isBuilderUrl, isOrbLabUrl, scopeForRow } from './store';
 import { Drill } from './portfolio';
 import { drillContent } from './drill';
+import { dismissedToast, sentToast, toReceipt, undoneToast } from './proposal-text';
 import { ScopeService } from './scope/scope.service';
 
 /** Who decides, as the audit log records it. The demo has no sign-in yet. */
-export const DECIDER = 'Revenue manager (web)';
+export const DECIDER = 'Compass user (web)';
 const CONVERSATIONS_KEY = 'compass.conversations';
 const MODE_KEY = 'compass.answerMode';
 
@@ -361,27 +362,48 @@ export class Live {
     this.workflows.reload();
     return r;
   }
+  /**
+   * "Send to revenue manager" or "Dismiss". Compass is read-only: sending hands a task to a named person at the hotel
+   * and writes the audit log, nothing more. The toast says to whom, with the message as it was handed over one tap
+   * away and Undo beside it; a dismissal gets the same toast, without a message.
+   */
   async decide(p: Proposal, approved: boolean, note = '') {
     this.mark(p.id, approved ? 'Sending…' : 'Dismissing…');
     const r = await this.workflowsApi.decide(p.id, { approved, by: DECIDER, note });
     this.mark(p.id, null);
     if (!r.ok) toast('Couldn’t save your decision', { description: r.error.message, duration: 8000 });
-    else
-      // Compass is read-only: a sent suggestion is a task for a person and a line in the audit log, nothing more.
-      toast(approved ? 'Sent to the revenue manager' : 'Dismissed', {
-        description: approved ? 'It’s a task for them now, and it’s in the audit log. Compass changed nothing in your systems.' : 'Nothing was sent.',
-        duration: 6000,
-        ...(approved ? { action: { label: 'Undo', onClick: () => void this.undo(p) } } : {}),
+    else {
+      const outcome = toReceipt(r.value, p, approved);
+      const hotel = this.hotelScope.nameOf(p.hotel_code);
+      const text = approved ? sentToast(outcome, hotel) : dismissedToast(hotel);
+      toast(text.title, {
+        description: text.description,
+        duration: 12_000,
+        // Two lines of text and up to two buttons: the buttons get a row of their own (handover-sheet.css).
+        class: 'decision-toast',
+        action: { label: 'Undo', onClick: () => void this.undo(outcome.proposal) },
+        ...(approved ? { cancel: { label: 'View message', onClick: () => this.message.set(outcome) } } : {}),
       });
+    }
     this.reloadAll();
     return r;
   }
   async undo(p: Proposal) {
     const r = await this.workflowsApi.undo(p.id, DECIDER);
     if (!r.ok) toast('Couldn’t undo the decision', { description: r.error.message, duration: 8000 });
-    else toast('Taken back', { description: 'The revenue manager has a task to reverse it. It’s in the audit log.', duration: 5000 });
+    else {
+      const text = undoneToast(p.status, r.value.handedTo ?? null, this.hotelScope.nameOf(p.hotel_code));
+      toast(text.title, { description: text.description, duration: 6000 });
+    }
     this.reloadAll();
     return r;
+  }
+  /** The message a sent decision was handed over with, shown by the sheet in the shell. Null closes it. */
+  readonly message = signal<DecisionReceipt | null>(null);
+  /** "View message" on a card that was sent earlier: the recipient and the receipt are in its audit entry. */
+  viewMessage(p: Proposal) {
+    const entry = (this.audit.hasValue() ? this.audit.value() : []).find((a) => a.proposalId === p.id && a.outcome === 'sent_to_rms');
+    this.message.set({ proposal: p, handedTo: entry?.handedTo ?? recipientFor(p.hotel_code, p.action), receipt: entry?.receipt ?? '' });
   }
   reloadAll() {
     this.pending.reload();

@@ -1,7 +1,7 @@
 import { Component, DOCUMENT, computed, effect, inject, signal, untracked } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import type { Workflow } from '@compass/contracts';
+import type { Handover, Workflow } from '@compass/contracts';
 import type { WorkflowDetail } from './api';
 import { Live, ago } from './live';
 import { ACTION_LABEL, ProposalCard } from './proposal-card';
@@ -231,7 +231,7 @@ export const hotelName = (code: string) => HOTELS.find((h) => h.code === code)?.
                     <td class="px-4 py-2 whitespace-nowrap">{{ scope.nameOf(a.hotel_code) }}</td>
                     <td class="px-4 py-2 whitespace-nowrap">{{ actionLabel(a.action) }}</td>
                     <td class="text-muted-foreground px-4 py-2 whitespace-nowrap">{{ by(a.by) }}</td>
-                    <td class="px-4 py-2"><span class="font-medium">{{ outcome(a.outcome) }}</span><span class="text-muted-foreground block max-w-[60ch] text-[12.5px]">{{ human(a.receipt) }}</span></td>
+                    <td class="px-4 py-2"><span class="font-medium">{{ outcome(a.outcome, a.handedTo) }}</span><span class="text-muted-foreground block max-w-[60ch] text-[12.5px]">{{ human(a.receipt) }}</span></td>
                   </tr>
                 }
               </tbody>
@@ -349,8 +349,10 @@ export class WatchersView {
       setTimeout(() => group?.querySelectorAll<HTMLElement>('[role=radio]')[AUTONOMY_ORDER.indexOf(target)]?.focus(), 60);
     });
   }
-  protected outcome(o: string) {
-    return ({ sent_to_rms: 'Sent to the revenue manager', suggested: 'Suggested only', undone: 'Undone', emailed: 'Email sent' } as Record<string, string>)[o] ?? o;
+  /** What happened, with who got it when the entry says so ("Sent to Ana Pop, Revenue manager"). */
+  protected outcome(o: string, to?: Handover) {
+    if (o === 'sent_to_rms' && to) return `Sent to ${to.name}, ${to.roleLabel}`;
+    return ({ sent_to_rms: 'Sent to the revenue manager', suggested: 'Suggested only', undone: 'Taken back', emailed: 'Email sent', dismissed: 'Dismissed' } as Record<string, string>)[o] ?? o;
   }
   /** Receipts read as sentences: message ids and task ids stay out of the way. */
   protected human(s: string) {

@@ -30,6 +30,7 @@ describe('ProposalCard', () => {
   const busy = signal<Record<string, string>>({});
   const decided: [string, boolean][] = [];
   const undone: string[] = [];
+  const viewed: string[] = [];
 
   function render(over: Partial<Proposal> = {}) {
     const live = {
@@ -37,6 +38,7 @@ describe('ProposalCard', () => {
       workflowList: signal([{ id: 'tpl-pace-guard', name: 'Pace guard' }]),
       decide: (p: Proposal, approved: boolean) => void decided.push([p.id, approved]),
       undo: (p: Proposal) => void undone.push(p.id),
+      viewMessage: (p: Proposal) => void viewed.push(p.id),
     };
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), { provide: Live, useValue: live }] });
     const fixture = TestBed.createComponent(ProposalCard);
@@ -50,6 +52,7 @@ describe('ProposalCard', () => {
     busy.set({});
     decided.length = 0;
     undone.length = 0;
+    viewed.length = 0;
   });
 
   it('reads as a suggestion for a person, with the hotel by name and no rate-desk shorthand', () => {
@@ -103,23 +106,33 @@ describe('ProposalCard', () => {
     expect(text(panel.querySelector('.dcard-from'))).toBe('Suggested by the agent “Pace guard”, 5 min ago.');
   });
 
-  it('after sending: sent to the revenue manager, logged, with Undo', () => {
-    const { el } = render({ status: 'applied', decidedBy: 'Revenue manager (web)', decidedAt: new Date(Date.now() - 3 * 60_000).toISOString() });
+  it('after sending: sent to the revenue manager, logged, with the message and Undo', () => {
+    const { el } = render({ status: 'applied', decidedBy: 'Compass user (web)', decidedAt: new Date(Date.now() - 3 * 60_000).toISOString() });
     expect(text(el.querySelector('.dcard-status'))).toBe('Sent to the revenue manager · Arbor Lisbon Chiado');
     expect(text(el.querySelector('.dcard-done'))).toBe('Logged · 3 min ago');
     expect(text(el.querySelector('.dcard-promise'))).toMatch(/^This went to your revenue manager as a task\./);
-    const undo = buttons(el)[0]!;
-    expect(text(undo)).toMatch(/^Undo/);
-    undo.click();
+    const [message, undo] = buttons(el);
+    expect([text(message), text(undo)]).toEqual([expect.stringMatching(/^View message/), expect.stringMatching(/^Undo/)]);
+    message!.click();
+    undo!.click();
+    expect(viewed).toEqual(['prop-1']);
     expect(undone).toEqual(['prop-1']);
     expect(el.querySelector('article')!.classList.contains('decision-card')).toBe(false);
   });
 
-  it('after dismissing: nothing was sent, and there is nothing to undo', () => {
+  it('after dismissing: nothing was sent, there is no message, and it can be taken back', () => {
     const { el } = render({ status: 'denied', decidedAt: new Date(Date.now() - 60 * 60_000).toISOString() });
     expect(text(el.querySelector('.dcard-status'))).toBe('Dismissed · Arbor Lisbon Chiado');
     expect(text(el.querySelector('.dcard-done'))).toBe('Nothing was sent · 1 h ago');
-    expect(buttons(el).map(text)).toEqual(['See the reasoning']);
+    expect(buttons(el).map(text)).toEqual([expect.stringMatching(/^Undo/), 'See the reasoning']);
+    buttons(el)[0]!.click();
+    expect(undone).toEqual(['prop-1']);
+  });
+
+  it('a task for the house is sent to the general manager', () => {
+    const { el } = render({ action: 'create_task', risk: 'low', hotel_code: 'DPS', title: 'Add kitchen shifts for the weekend' });
+    expect(buttons(el).map(text)).toEqual(['Send to general manager', 'Dismiss', 'See the reasoning']);
+    expect(text(el.querySelector('.dcard-kind'))).toBe('Task · low risk');
   });
 
   it('names a deleted agent by the name it had', () => {

@@ -109,7 +109,9 @@ The changes that matter most, from the pass of 21 Nov 2026 (about 570 strings).
 | Decision card, label | Change the rate · high risk | Price change · needs a person |
 | Decision card, the change | ~~BAR 145–220 EUR, 1.10x–1.89x comp median~~ → Cap at about 1.2x comp median · LIS, stay dates 2026-11-20 to 2027-01-03 | behind "See the reasoning": Today €145–220 a night, up to 1.9× the competition → Suggested Cap at about 1.2× the competition · Covers Lisbon, stay dates Fri 20 Nov – Sun 3 Jan |
 | Decision card, after | Approved · Sent to the revenue manager | Sent to the revenue manager · Logged · 3 min ago · Undo |
-| Decision toast | Approved · Handed to the revenue manager as an RMS task; it shows in the audit log. | Sent to the revenue manager · It’s a task for them now, and it’s in the audit log. Compass changed nothing in your systems. |
+| Decision toast, sent | Approved · Handed to the revenue manager as an RMS task; it shows in the audit log. | Sent to Ana Pop, Revenue manager · Arbor Lisbon Chiado · Task created for the rate change · logged in the audit trail · View message · Undo |
+| Decision toast, dismissed | Declined · Nothing changes. | Dismissed · Arbor Lisbon Chiado · Nothing was sent · logged in the audit trail · Undo |
+| Message sheet, foot | (none) | Demo: Compass hands this to your RMS and revenue manager as a task. Compass never changes your rates. No email is sent, and the people in the demo team are fictional. |
 | Builder, steps | TRIGGER · CHECK · ANALYZE | WHEN · DATA · WATCH FOR |
 | Builder, header | Draft · 5 steps to finish · Save · Send test now | Draft · 5 details missing · Save agent · Run a test |
 | Builder, to finish | Trigger: not set yet · Goal: Too small | When it runs: not set · What to watch for: too short |

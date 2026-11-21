@@ -26,8 +26,9 @@ let next = 0;
 /**
  * A decision: something an agent suggests, waiting for a person. The card is written for the person who decides, not
  * for a rate desk (proposal-text.ts): what is suggested and why in plain words, what it could be worth, and what
- * sending it does. Compass is read-only, and the card says so: "Send to revenue manager" hands over a task and
- * writes the audit log; no rate, channel or account changes. The figures behind it (today → suggested, the nights
+ * sending it does. Compass is read-only, and the card says so: "Send to revenue manager" hands a task to a named
+ * person at the hotel and writes the audit log; no rate, channel or account changes. Once sent, the card offers
+ * the message as it was handed over and Undo; a dismissed one can be taken back too. The figures behind it (today → suggested, the nights
  * it covers, the agent's full reasoning) are one step down, behind "See the reasoning".
  *
  * One card for every place a decision shows: the morning brief, Agent Studio, an agent's page and a board.
@@ -56,11 +57,14 @@ let next = 0;
 
       <div class="dcard-actions">
         @if (p.status === 'pending') {
-          <button hlmBtn class="decision-btn" [disabled]="!!working()" (click)="live.decide(p, true)">{{ working() === sending ? sending : 'Send to revenue manager' }}</button>
+          <button hlmBtn class="decision-btn" [disabled]="!!working()" (click)="live.decide(p, true)">{{ working() === sending ? sending : v.send }}</button>
           <button hlmBtn variant="ghost" [disabled]="!!working()" (click)="live.decide(p, false)">{{ working() === dismissing ? dismissing : 'Dismiss' }}</button>
         } @else {
           <p class="dcard-done">{{ done() }}</p>
           @if (v.canUndo) {
+            <button hlmBtn variant="ghost" size="sm" (click)="live.viewMessage(p)">View message<span class="sr-only">: {{ v.title }}</span></button>
+          }
+          @if (v.canUndo || p.status === 'denied') {
             <button hlmBtn variant="ghost" size="sm" (click)="live.undo(p)">Undo<span class="sr-only">: {{ v.title }}</span></button>
           }
         }

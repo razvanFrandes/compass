@@ -1,6 +1,6 @@
 import type { Proposal } from '@compass/contracts';
 import { HALCYON_HOTELS } from './scope/hotels';
-import { decisionView, plainDates, plainDay, plainHotels, plainJargon, plainText } from './proposal-text';
+import { decisionView, dismissedToast, handoverMessage, plainDates, plainDay, plainHotels, plainJargon, plainText, sentToast, toReceipt, undoneToast } from './proposal-text';
 
 const TODAY = Date.parse('2026-11-20T00:00:00Z');
 
@@ -114,9 +114,73 @@ describe('the decision card’s words', () => {
     expect(view({ status: 'undone' }).status).toBe('Taken back');
   });
 
+  it('names the role the action goes to: the general manager for a task for the house', () => {
+    expect(view()).toMatchObject({ send: 'Send to revenue manager' });
+    const task = view({ action: 'create_task', risk: 'low', hotel_code: 'DPS' });
+    expect(task.send).toBe('Send to general manager');
+    expect(task.promise).toBe('This goes to your general manager as a task. Compass changes nothing in your hotel systems.');
+    expect(view({ action: 'create_task', status: 'applied' }).status).toBe('Sent to the general manager');
+  });
+
   it('never shows a hotel code, an ISO date, "BAR", "comp" or "risk: high" anywhere on the card', () => {
     const v = view();
     const all = [v.status, v.kind, v.title, v.summary, v.promise, ...Object.values(v.reasoning)].join(' ');
     expect(all).not.toMatch(/\bLIS\b|\bNYC\b|\d{4}-\d{2}-\d{2}|\bBAR\b|\bcomp\b|comp median|high risk|\d\.\d+x\b/);
+  });
+});
+
+const ANA = { name: 'Ana Pop', email: 'ana.pop@halcyon.example.com', role: 'revenue_manager' as const, roleLabel: 'Revenue manager', hotel: 'Arbor Lisbon Chiado', hotel_code: 'LIS' };
+const SENT = { ...LISBON, status: 'applied' as const, decidedBy: 'Compass user (web)', decidedAt: '2026-11-21T00:45:00.000Z' };
+const RECEIPT = { proposal: SENT, handedTo: ANA, receipt: "RMS task rms-mwpk3x-4 for Ana Pop (Revenue manager, Arbor Lisbon Chiado): Lower BAR on Lisbon's most overpriced nights to 1.2x comp median (…)." };
+
+describe('after the decision', () => {
+  it('the toast says what happened and to whom', () => {
+    expect(sentToast(RECEIPT, 'Arbor Lisbon Chiado')).toEqual({ title: 'Sent to Ana Pop, Revenue manager · Arbor Lisbon Chiado', description: 'Task created for the rate change · logged in the audit trail' });
+    expect(sentToast({ ...RECEIPT, proposal: { ...SENT, action: 'create_task' }, handedTo: { ...ANA, name: 'Miguel Faria', role: 'general_manager', roleLabel: 'General manager' } }, 'Arbor Lisbon Chiado')).toEqual({
+      title: 'Sent to Miguel Faria, General manager · Arbor Lisbon Chiado',
+      description: 'Task created · logged in the audit trail',
+    });
+    // A hotel the roster does not know still says the role and the hotel.
+    expect(sentToast({ ...RECEIPT, handedTo: null }, 'Porto Ribeira').title).toBe('Sent to the revenue manager · Porto Ribeira');
+  });
+
+  it('a dismissal gets the same kind of toast: nothing was sent, and it is logged', () => {
+    expect(dismissedToast('Arbor Lisbon Chiado')).toEqual({ title: 'Dismissed · Arbor Lisbon Chiado', description: 'Nothing was sent · logged in the audit trail' });
+  });
+
+  it('Undo says what was taken back', () => {
+    expect(undoneToast('applied', ANA, 'Arbor Lisbon Chiado')).toEqual({ title: 'Taken back · Arbor Lisbon Chiado', description: 'Ana Pop has a task to reverse it · logged in the audit trail' });
+    expect(undoneToast('denied', null, 'Arbor Lisbon Chiado')).toEqual({ title: 'Back in Decisions waiting · Arbor Lisbon Chiado', description: 'The dismissal was taken back · logged in the audit trail' });
+  });
+
+  it('reads the server’s answer, and an older server’s plain proposal, the same way', () => {
+    expect(toReceipt(RECEIPT, LISBON, true)).toBe(RECEIPT);
+    const legacy = toReceipt({ ...LISBON, status: 'approved' }, LISBON, true);
+    expect(legacy).toMatchObject({ proposal: { status: 'approved' }, handedTo: { name: 'Ana Pop', hotel: 'Arbor Lisbon Chiado' }, receipt: '' });
+    expect(toReceipt({ ...LISBON, status: 'denied' }, LISBON, false).handedTo).toBeNull();
+  });
+
+  it('the message as it was handed over: who, when, the suggestion, the reasoning with its numbers, the evidence', () => {
+    const m = handoverMessage(RECEIPT, 'Arbor Lisbon Chiado', HALCYON_HOTELS, TODAY, 'UTC');
+    expect(m).toMatchObject({
+      subject: "Suggestion for Arbor Lisbon Chiado: lower rates on Lisbon's most overpriced nights",
+      to: ANA,
+      role: 'Revenue manager',
+      hotel: 'Arbor Lisbon Chiado',
+      sent: 'Sat 21 Nov 2026, 00:45',
+      task: 'rms-mwpk3x-4',
+      suggestion: "Lower rates on Lisbon's most overpriced nights",
+      evidenceHref: '/studio/tpl-pace-guard',
+    });
+    expect(m.summary).toContain('This could win back about €38k.');
+    expect(m.reasoning.today).toBe('€145–220 a night, up to 1.9× the competition');
+    expect(m.reasoning.why).toContain('2,231 room nights on the books against 2,700 last year');
+    expect(m.footnote).toBe('Demo: Compass hands this to your RMS and revenue manager as a task. Compass never changes your rates. No email is sent, and the people in the demo team are fictional.');
+    expect(JSON.stringify(m)).not.toMatch(/\bLIS,|\d{4}-\d{2}-\d{2}T?(?!\d{2}:)|\bBAR\b|comp median/);
+  });
+
+  it('a message without a roster entry or a receipt still reads', () => {
+    const m = handoverMessage({ proposal: { ...SENT, hotel_code: 'OPO' }, handedTo: null, receipt: '' }, 'Porto Ribeira', HALCYON_HOTELS, TODAY, 'UTC');
+    expect(m).toMatchObject({ to: null, role: 'Revenue manager', hotel: 'Porto Ribeira', task: '', subject: expect.stringMatching(/^Suggestion for Porto Ribeira: /) });
   });
 });

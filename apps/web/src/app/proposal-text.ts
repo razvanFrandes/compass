@@ -1,4 +1,4 @@
-import type { ActionType, Proposal } from '@compass/contracts';
+import { TEAM_ROLE_LABEL, handoverRole, recipientFor, type ActionType, type DecisionReceipt, type Handover, type Proposal } from '@compass/contracts';
 import { BUSINESS_DAY } from './data';
 import type { HotelRef } from './scope/hotels';
 import { shortName } from './scope/hotels';
@@ -109,16 +109,20 @@ const NEVER: Record<ActionType, string> = {
   email: 'Compass changes nothing in your hotel systems.',
 };
 
-const STATUS: Record<Proposal['status'], string> = {
-  pending: 'Waiting for your decision',
-  approved: 'Sent to the revenue manager',
-  applied: 'Sent to the revenue manager',
-  auto_approved: 'Sent by the agent',
-  denied: 'Dismissed',
-  suggested: 'Suggestion only',
-  undone: 'Taken back',
-  superseded: 'Replaced by a newer suggestion',
-};
+/** "revenue manager" or "general manager": whose job this kind of action is (the roster's rule). */
+export const roleFor = (action: ActionType) => TEAM_ROLE_LABEL[handoverRole(action)].toLowerCase();
+
+const status = (p: Pick<Proposal, 'status' | 'action'>): string =>
+  ({
+    pending: 'Waiting for your decision',
+    approved: `Sent to the ${roleFor(p.action)}`,
+    applied: `Sent to the ${roleFor(p.action)}`,
+    auto_approved: 'Sent by the agent',
+    denied: 'Dismissed',
+    suggested: 'Suggestion only',
+    undone: 'Taken back',
+    superseded: 'Replaced by a newer suggestion',
+  })[p.status];
 /** What happened after the decision, in a few words. */
 const OUTCOME: Record<Proposal['status'], string> = {
   pending: '',
@@ -127,7 +131,7 @@ const OUTCOME: Record<Proposal['status'], string> = {
   auto_approved: 'low risk · logged',
   denied: 'nothing was sent',
   suggested: 'nothing was sent',
-  undone: 'the revenue manager has a task to reverse it · logged',
+  undone: 'logged',
   superseded: 'nothing was sent',
 };
 
@@ -144,6 +148,8 @@ export interface DecisionView {
   summary: string;
   /** "This goes to your revenue manager as a task. Compass never changes your rates." */
   promise: string;
+  /** The button that sends it on: "Send to revenue manager", or the general manager for a task for the house. */
+  send: string;
   /** One level down, behind "See the reasoning". */
   reasoning: { today: string; suggested: string; covers: string; why: string };
   /** A sent suggestion can be taken back. */
@@ -190,13 +196,99 @@ export function decisionView(p: Proposal, hotels: readonly HotelRef[], today = B
   const why = plain(p.rationale);
   const sent = p.status === 'approved' || p.status === 'applied' || p.status === 'auto_approved';
   return {
-    status: STATUS[p.status],
+    status: status(p),
     outcome: OUTCOME[p.status],
     kind: `${KIND[p.action] ?? 'Action'} · ${p.risk === 'high' ? 'needs a person' : 'low risk'}`,
     title: `Suggestion: ${lowerFirst(what)}`,
     summary: [lead(why, p.action), worth(p)].filter(Boolean).join(' '),
-    promise: `${p.status === 'pending' ? 'This goes' : sent ? 'This went' : 'This would go'} to your revenue manager as a task. ${NEVER[p.action] ?? NEVER.create_task}`,
+    promise: `${p.status === 'pending' ? 'This goes' : sent ? 'This went' : 'This would go'} to your ${roleFor(p.action)} as a task. ${NEVER[p.action] ?? NEVER.create_task}`,
+    send: `Send to ${roleFor(p.action)}`,
     reasoning: { today: plan(p.change.before, p.action, hotels, today), suggested: plan(p.change.after, p.action, hotels, today), covers: plain(p.change.scope), why },
     canUndo: sent,
+  };
+}
+
+
+/* ───────── After the decision: what the toast says, and the message as it was handed over ───────── */
+
+/** What a decision left behind, as the server answers it; an older server answers with the proposal alone. */
+export function toReceipt(answer: DecisionReceipt | Proposal, asked: Proposal, approved: boolean): DecisionReceipt {
+  if ('proposal' in answer) return answer;
+  return { proposal: { ...asked, ...answer }, handedTo: approved ? recipientFor(asked.hotel_code, asked.action) : null, receipt: '' };
+}
+
+/** What the handover is about, for "Task created for …". */
+const SUBJECT: Partial<Record<ActionType, string>> = {
+  adjust_bar: 'the rate change',
+  close_channel: 'the channel change',
+  open_channel: 'the channel change',
+  contact_account: 'the account follow-up',
+};
+
+export interface DecisionToast {
+  title: string;
+  description: string;
+}
+
+/** "Sent to Ana Pop, Revenue manager · Arbor Lisbon Chiado" / "Task created for the rate change · logged in the audit trail". */
+export function sentToast(outcome: DecisionReceipt, hotelName: string): DecisionToast {
+  const to = outcome.handedTo;
+  const about = SUBJECT[outcome.proposal.action];
+  return {
+    title: to ? `Sent to ${to.name}, ${to.roleLabel} · ${to.hotel}` : `Sent to the ${roleFor(outcome.proposal.action)} · ${hotelName}`,
+    description: `Task created${about ? ` for ${about}` : ''} · logged in the audit trail`,
+  };
+}
+export const dismissedToast = (hotelName: string): DecisionToast => ({ title: `Dismissed · ${hotelName}`, description: 'Nothing was sent · logged in the audit trail' });
+/** After Undo: what was taken back, and what that did. */
+export function undoneToast(before: Proposal['status'], to: Handover | null, hotelName: string): DecisionToast {
+  if (before === 'denied') return { title: `Back in Decisions waiting · ${hotelName}`, description: 'The dismissal was taken back · logged in the audit trail' };
+  return { title: `Taken back · ${hotelName}`, description: `${to ? to.name : 'The person who got it'} has a task to reverse it · logged in the audit trail` };
+}
+
+/** The message as it was handed over: what "View message" shows. */
+export interface HandoverMessage {
+  subject: string;
+  /** Null when the roster has no one for that hotel. */
+  to: Handover | null;
+  /** The role it went to, for when there is no name. */
+  role: string;
+  hotel: string;
+  /** "Sat 21 Nov 2026, 02:45". */
+  sent: string;
+  /** "rms-mwp…": the task's reference, when the receipt has one. */
+  task: string;
+  suggestion: string;
+  summary: string;
+  reasoning: DecisionView['reasoning'];
+  /** Where the agent's own working is: its page in Agent Studio. */
+  evidenceHref: string;
+  workflowId: string;
+  /** Said at the foot of the sheet, so nobody takes the demo for more than it is. */
+  footnote: string;
+}
+
+const SENT: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+
+export function handoverMessage(outcome: DecisionReceipt, hotelName: string, hotels: readonly HotelRef[], today = BUSINESS_DAY, timeZone?: string): HandoverMessage {
+  const p = outcome.proposal;
+  const view = decisionView(p, hotels, today);
+  const suggestion = upperFirst(view.title.replace(/^Suggestion:\s*/, ''));
+  const at = Date.parse(p.decidedAt ?? p.createdAt);
+  const format = new Intl.DateTimeFormat('en-GB', timeZone ? { ...SENT, timeZone } : SENT);
+  const never = NEVER[p.action] ?? NEVER.create_task;
+  return {
+    subject: `Suggestion for ${outcome.handedTo?.hotel ?? hotelName}: ${lowerFirst(suggestion)}`,
+    to: outcome.handedTo,
+    role: TEAM_ROLE_LABEL[handoverRole(p.action)],
+    hotel: outcome.handedTo?.hotel ?? hotelName,
+    sent: Number.isNaN(at) ? '' : format.format(at).replace(/^(\w{3}),/, '$1'),
+    task: /\b(rms-[\w-]+)/.exec(outcome.receipt)?.[1] ?? '',
+    suggestion,
+    summary: view.summary,
+    reasoning: view.reasoning,
+    evidenceHref: `/studio/${encodeURIComponent(p.workflowId)}`,
+    workflowId: p.workflowId,
+    footnote: `Demo: Compass hands this to your RMS and ${roleFor(p.action)} as a task. ${never} No email is sent, and the people in the demo team are fictional.`,
   };
 }
