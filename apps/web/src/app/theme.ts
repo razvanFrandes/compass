@@ -14,14 +14,23 @@ export const THEME_STORAGE_KEY = 'compass.theme';
 
 export const isThemeId = (value: unknown): value is ThemeId => THEMES.some((t) => t.id === value);
 
-/** The theme a page starts with: an explicit `data-theme`, else the class index.html set from the OS setting. */
+/**
+ * The theme of a visitor who has not chosen one: dark, like Juyo's product, whatever the OS prefers.
+ * index.html repeats it before the first paint (apps/worker/test/web-default-theme.test.ts holds the two together).
+ */
+export const DEFAULT_THEME: ThemeId = 'dark';
+
+/** The theme a page starts with: an explicit `data-theme`, else the class index.html set, else the default. */
 export function themeOf(root: Pick<HTMLElement, 'getAttribute' | 'classList'>): ThemeId {
   const attr = root.getAttribute('data-theme');
   if (isThemeId(attr)) return attr;
-  return root.classList.contains('light') ? 'light' : 'dark';
+  return root.classList.contains('light') ? 'light' : DEFAULT_THEME;
 }
 
-/** The app's theme: one signal, written to `<html data-theme>` and remembered in local storage. */
+/**
+ * The app's theme: one signal, written to `<html data-theme>` and remembered in local storage. Only a choice changes
+ * it: the OS setting for light or dark is not followed.
+ */
 @Service()
 export class Theme {
   private readonly doc = inject(DOCUMENT);
@@ -33,13 +42,6 @@ export class Theme {
   readonly dark = computed(() => this.current() === 'dark');
   /** The next theme in the list, for a one-button switch on small screens. */
   readonly next = computed(() => THEMES[(THEMES.findIndex((t) => t.id === this.current()) + 1) % THEMES.length]);
-
-  constructor() {
-    // Until a theme is chosen, light or dark follows the OS; index.html has already switched the class.
-    this.doc.defaultView?.matchMedia?.('(prefers-color-scheme: light)').addEventListener?.('change', (e) => {
-      if (!this.doc.documentElement.hasAttribute('data-theme')) this.current.set(e.matches ? 'light' : 'dark');
-    });
-  }
 
   set(id: ThemeId) {
     this.doc.documentElement.setAttribute('data-theme', id);

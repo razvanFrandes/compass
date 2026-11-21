@@ -25,24 +25,22 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Geist+Mono:wght@400;500&family=Archivo:wdth,wght@75..125,400..700&family=Chivo+Mono:wght@400;500&display=swap">
   <script>
     // Theme: an explicit data-theme on <html> wins, then the choice remembered in this browser (localStorage
-    // "compass.theme": light, dark or juyo-concept), then the OS setting for light or dark.
-    // Spartan reads the .dark class; "juyo-concept" is a light theme.
+    // "compass.theme": light, dark or juyo-concept). With no choice the app is dark, like Juyo's product,
+    // whatever the OS prefers. Spartan reads the .dark class; "juyo-concept" is a light theme.
     (function () {
       var root = document.documentElement;
-      var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
       try {
         var saved = localStorage.getItem('compass.theme');
         if (!root.getAttribute('data-theme') && (saved === 'light' || saved === 'dark' || saved === 'juyo-concept')) root.setAttribute('data-theme', saved);
       } catch (e) {}
       function apply() {
-        var theme = root.getAttribute('data-theme') || (mq && mq.matches ? 'light' : 'dark');
+        var theme = root.getAttribute('data-theme') || 'dark';
         var light = theme === 'light' || theme === 'juyo-concept';
         root.classList.toggle('light', light);
         root.classList.toggle('dark', !light);
       }
       apply();
       new MutationObserver(apply).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
-      if (mq && mq.addEventListener) mq.addEventListener('change', apply);
     })();
   </script>
 </head>

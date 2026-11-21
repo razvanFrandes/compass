@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { THEMES, THEME_STORAGE_KEY, Theme, isThemeId, themeOf } from './theme';
+import { DEFAULT_THEME, THEMES, THEME_STORAGE_KEY, Theme, isThemeId, themeOf } from './theme';
 
 describe('Theme', () => {
   const root = document.documentElement;
@@ -14,6 +14,31 @@ describe('Theme', () => {
     expect(THEMES.map((t) => t.id)).toEqual(['light', 'dark', 'juyo-concept']);
     expect(isThemeId('juyo-concept')).toBe(true);
     expect(isThemeId('sepia')).toBe(false);
+  });
+
+  it('is dark for a visitor who has not chosen, whatever the OS prefers', () => {
+    expect(DEFAULT_THEME).toBe('dark');
+    // A device that asks for light, and says so again while the app is open.
+    const listeners: ((event: { matches: boolean }) => void)[] = [];
+    const matchMedia = vi.fn((query: string) => ({ matches: query.includes('light'), media: query, addEventListener: (_: string, fn: (event: { matches: boolean }) => void) => listeners.push(fn), removeEventListener: () => undefined }));
+    Object.defineProperty(window, 'matchMedia', { configurable: true, value: matchMedia });
+    try {
+      const theme = TestBed.inject(Theme);
+      expect(theme.id()).toBe('dark');
+      expect(theme.dark()).toBe(true);
+      for (const tell of listeners) tell({ matches: true });
+      expect(theme.id()).toBe('dark');
+    } finally {
+      Reflect.deleteProperty(window, 'matchMedia');
+    }
+    // Nothing was written: it is a default, not a choice.
+    expect(root.hasAttribute('data-theme')).toBe(false);
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBeNull();
+  });
+
+  it('keeps an explicit choice over the default', () => {
+    root.setAttribute('data-theme', 'light');
+    expect(TestBed.inject(Theme).id()).toBe('light');
   });
 
   it('reads the starting theme from data-theme, then from the class index.html set', () => {
