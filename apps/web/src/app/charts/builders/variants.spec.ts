@@ -173,3 +173,37 @@ describe('overlay helpers', () => {
     ]);
   });
 });
+
+describe('a ratio to a benchmark (BAR ÷ comp set median)', () => {
+  const ratio = col('bar_vs_comp', 'Our BAR vs the comp set median', 'number', '× the median');
+  const rows = [
+    { hotel: 'Bali', bar_vs_comp: 1.6, occupancy_otb_pct: 16.5 },
+    { hotel: 'Paris', bar_vs_comp: 1.27, occupancy_otb_pct: 13.6 },
+    { hotel: 'Lisbon', bar_vs_comp: 0.92, occupancy_otb_pct: 11.6 },
+  ];
+  const columns = [col('hotel', 'Hotel', 'text'), ratio, col('occupancy_otb_pct', 'Occupancy on the books', 'percent')];
+
+  it('reads as a difference, never as a multiple', async () => {
+    const { formatValue, ratioBase } = await import('../format');
+    expect(formatValue(1.6, ratio)).toBe('+60%');
+    expect(formatValue(0.78, ratio)).toBe('−22%');
+    expect(formatValue(1.042, ratio)).toBe('+4.2%');
+    expect(formatValue(1, ratio, { axis: true })).toBe('Comp set median');
+    expect(ratioBase(ratio)).toBe('Comp set median');
+  });
+
+  it('grows its bars from 1, where it is level with the benchmark', () => {
+    const b = build(spec('bar', { x: 'hotel', y: ['bar_vs_comp'] }), rows, columns);
+    const values = (series(b)[0]['data'] as Obj[]).map((d) => Math.round((d['value'] as number) * 100) / 100);
+    expect(values).toEqual([0.6, 0.27, -0.08]);
+  });
+
+  it('puts the scatter’s reference at 1, named by its ticks, not at the hotels’ own median', () => {
+    const b = build(spec('scatter', { x: 'occupancy_otb_pct', y: ['bar_vs_comp'], group: 'hotel' }), rows, columns);
+    const lines = (series(b)[0]['markLine'] as Obj)['data'] as Obj[];
+    expect(lines[1]['yAxis']).toBe(1);
+    const y = opt(b)['yAxis'] as Obj;
+    expect(((y['axisLabel'] as Obj)['formatter'] as (v: number) => string)(1)).toBe('Comp set median');
+    expect(y['min'] as number).toBeLessThanOrEqual(0.92);
+  });
+});

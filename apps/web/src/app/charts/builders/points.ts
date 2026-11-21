@@ -1,4 +1,4 @@
-import { formatDelta, formatValue, isNumericKind } from '../format';
+import { formatDelta, formatValue, isNumericKind, isRatio, ratioBase } from '../format';
 import { catColor, mix } from '../tokens';
 import type { EvidenceColumn } from '../widget-types';
 import { hotelLabel } from '../hotel-names';
@@ -44,15 +44,18 @@ export function buildScatter(c: Ctx): Built {
   if (!pts.length) return empty(c, 'No data for this period.');
   const xs = pts.map((p) => p.x);
   const ys = pts.map((p) => p.y);
-  const xIndex = isIndex(xCol, xs);
-  const yIndex = isIndex(yCol, ys);
-  const xRef = xIndex ? 100 : median(xs);
-  const yRef = yIndex ? 100 : median(ys);
+  // A ratio to a benchmark (BAR ÷ comp set median) is read against 1, like an index against 100: level with it.
+  const xRatio = isRatio(xCol);
+  const yRatio = isRatio(yCol);
+  const xIndex = !xRatio && isIndex(xCol, xs);
+  const yIndex = !yRatio && isIndex(yCol, ys);
+  const xRef = xIndex ? 100 : xRatio ? 1 : median(xs);
+  const yRef = yIndex ? 100 : yRatio ? 1 : median(ys);
   const compSet = xIndex && yIndex && isCompSetPair(xCol.key, xCol.label, yCol.key, yCol.label);
   const narrow = c.narrow;
 
   // The plot box in px: everything below is placed in it, so the grid does not size itself around its labels.
-  const tickText = (v: number, col: EvidenceColumn, isIdx: boolean) => (isIdx ? vsCompSet(v) : formatValue(Math.round(v * 10) / 10, col, { axis: true }));
+  const tickText = (v: number, col: EvidenceColumn, isIdx: boolean) => (isIdx ? vsCompSet(v) : formatValue(isRatio(col) ? v : Math.round(v * 10) / 10, col, { axis: true }));
   let xr = zoomRange(xs, xRef);
   let yr = zoomRange(ys, yRef);
   const top = 26;
@@ -101,7 +104,7 @@ export function buildScatter(c: Ctx): Built {
   const xWords = compSet ? { name: narrow ? '← Cheaper · Price · Pricier →' : '← Cheaper · Price vs comp set · Pricier →' } : { name: xCol.label };
   const yName = compSet ? (narrow ? 'Share of demand ↑' : 'Share of demand vs comp set (↑ more guests)') : yCol.label;
   const axisText = { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font };
-  const refLabel = (isIdx: boolean, v: number, col: EvidenceColumn) => (isIdx ? 'Comp set' : `median ${formatValue(v, col, { compact: true })}`);
+  const refLabel = (isIdx: boolean, v: number, col: EvidenceColumn) => (isIdx ? 'Comp set' : isRatio(col) ? ratioBase(col) : `median ${formatValue(v, col, { compact: true })}`);
   const tipRows = (p: (typeof pts)[number], k: Corner): TipRow[] => {
     if (!compSet) return [
       { label: xCol.label, value: formatValue(p.x, xCol), color: c.t.series },
@@ -164,8 +167,8 @@ export function buildScatter(c: Ctx): Built {
           label: { color: c.t.muted, fontSize: 11, fontFamily: c.t.font },
           data: [
             // An index line is named by its tick ("Comp set"); a median line by its own label.
-            { xAxis: xRef, label: { show: !xIndex, formatter: refLabel(xIndex, xRef, xCol), position: 'end' } },
-            { yAxis: yRef, label: { show: !yIndex, formatter: refLabel(yIndex, yRef, yCol), position: 'insideEndTop' } },
+            { xAxis: xRef, label: { show: !xIndex && !xRatio, formatter: refLabel(xIndex, xRef, xCol), position: 'end' } },
+            { yAxis: yRef, label: { show: !yIndex && !yRatio, formatter: refLabel(yIndex, yRef, yCol), position: 'insideEndTop' } },
           ],
         },
         markArea: compSet

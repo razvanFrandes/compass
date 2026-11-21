@@ -65,7 +65,27 @@ export interface FormatOptions {
   unit?: boolean;
 }
 
+/**
+ * A ratio to a benchmark ("Our BAR vs the comp set median", unit "× the median"): 1 is level with it. It reads as
+ * a difference, "+60%" or "−22%", never as a multiple such as 1.60 or 0.78×.
+ */
+export function isRatio(col: ColumnLike): boolean {
+  return col.kind === 'number' && /^\s*[×x](\s|$)/i.test(col.unit ?? '');
+}
+
+/** What a ratio column is measured against: "Comp set median" from "Our BAR vs the comp set median". */
+export function ratioBase(col: ColumnLike): string {
+  const said = col.label?.match(/\b(?:vs\.?|versus|against)\s+(?:the\s+)?(.+)$/i)?.[1] ?? col.unit?.replace(/^\s*[×x]\s*(the\s+)?/i, '') ?? '';
+  return said ? said.trim().replace(/^./, (m) => m.toUpperCase()) : 'Level';
+}
+
 export function formatNumber(n: number, col: ColumnLike, o: FormatOptions = {}): string {
+  if (isRatio(col)) {
+    const d = (n - 1) * 100;
+    if (Math.abs(d) < 0.5) return o.axis ? ratioBase(col) : '0%';
+    const size = Math.abs(d) < 10 && !o.axis ? trim(Math.abs(d).toFixed(1)) : String(Math.round(Math.abs(d)));
+    return `${d > 0 ? '+' : MINUS}${size}%`;
+  }
   const sign = n < 0 && Math.abs(n) > 1e-9 ? MINUS : '';
   const abs = Math.abs(n);
   const unit = col.unit?.trim();

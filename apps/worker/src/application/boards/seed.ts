@@ -95,7 +95,7 @@ export const SEED_BOARDS: readonly SeedBoard[] = [
       {
         tool: 'get_rate_position',
         args: (day) => ({ hotels: ['DXB2'], ...next45(day) }),
-        spec: { kind: 'calendar_heatmap', title: 'BAR against the comp set median by night (1.00 is at the median)', subtitle: 'Tessera Dubai Business Bay · next 45 nights', x: 'stay_date', y: ['bar_vs_comp'] },
+        spec: { kind: 'calendar_heatmap', title: 'BAR against the comp set median by night (above or below it, in %)', subtitle: 'Tessera Dubai Business Bay · next 45 nights', x: 'stay_date', y: ['bar_vs_comp'] },
         question: 'On which nights is Tessera Dubai Business Bay priced under the comp set?',
       },
       {
