@@ -1,13 +1,12 @@
 import { Component, DOCUMENT, computed, effect, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmToasterImports } from '@spartan-ng/helm/sonner';
-import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { provideBrnTooltipGroup } from '@spartan-ng/brain/tooltip';
 import { BoardView, BoardsList } from './board';
 import { InboxView } from './inbox';
 import { CompassStore, View } from './store';
-import { THEMES, Theme } from './theme';
+import { Theme } from './theme';
+import { ThemeSwitcher } from './theme/theme-switcher';
 import { ThemeLab } from './theme-lab/theme-lab';
 import { ThreadView } from './thread';
 import { WatchersView } from './watchers';
@@ -31,7 +30,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, KassandraThreadList, HlmButtonImports, HlmToasterImports, HlmTooltipImports],
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, KassandraThreadList, ThemeSwitcher, HlmToasterImports],
   providers: [provideIcons({ ...icons }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   template: `
@@ -82,14 +81,8 @@ import * as icons from './icons';
         <kassandra-thread-list />
 
         <div class="text-muted-foreground mt-auto flex flex-col gap-px text-[14px]">
-          <div class="px-2 pb-1.5">
-            <p id="theme-label" class="pb-1 text-[12px] font-medium">Theme</p>
-            <div class="seg seg--fill" role="radiogroup" aria-labelledby="theme-label">
-              @for (t of themes; track t.id) {
-                <button type="button" role="radio" [attr.aria-checked]="theme.id() === t.id" [attr.aria-label]="t.label" [hlmTooltip]="t.label" (click)="theme.set(t.id)">{{ t.short }}</button>
-              }
-            </div>
-          </div>
+          <!-- Theme and mode: src/app/theme/theme-switcher (variant="menu" is its one-button shape) -->
+          <app-theme-switcher class="px-2 pb-1.5" />
           <button type="button" class="flex items-center gap-2.5 rounded-md px-2 py-1.5" [class]="store.view() === 'theme-lab' ? 'bg-foreground/6 text-foreground font-medium' : 'hover:text-foreground hover:bg-foreground/4'" [attr.aria-current]="store.view() === 'theme-lab' ? 'page' : null" (click)="store.go('theme-lab')"><ng-icon name="phosphorSwatchesLight" class="text-[16px]" />Theme lab</button>
           <p class="px-2 pt-3 text-[12px]/relaxed">Halcyon Hospitality is a fictional group with generated data. Business date Fri 20 Nov 2026.</p>
         </div>
@@ -105,7 +98,7 @@ import * as icons from './icons';
               <span class="text-muted-foreground text-[14px]" aria-hidden="true">/</span>
               <app-scope-switcher />
             </div>
-            <button hlmBtn variant="ghost" size="icon" [attr.aria-label]="'Theme: ' + theme.option().label + '. Switch to ' + theme.next().label" (click)="theme.set(theme.next().id)"><ng-icon [name]="theme.option().icon" /></button>
+            <app-theme-switcher variant="menu" />
           </header>
         }
         @switch (store.view()) {
@@ -181,7 +174,6 @@ export class App {
   private readonly doc = inject(DOCUMENT);
   protected readonly group = GROUP;
   protected readonly theme = inject(Theme);
-  protected readonly themes = THEMES;
   protected readonly phone = signal(this.doc.defaultView?.matchMedia('(max-width: 1023px)').matches ?? false);
 
   constructor() {

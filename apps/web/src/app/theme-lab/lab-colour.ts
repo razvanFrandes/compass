@@ -7,7 +7,7 @@ interface Swatch {
   name: string;
   step: string;
   hex: string;
-  /** WCAG ratio against the raised surface (white in the concept theme). */
+  /** WCAG ratio against the raised surface (the card of the pane's mode). */
   ratio: number;
 }
 
@@ -100,6 +100,7 @@ export class LabPalette {
 
 interface Row {
   label: string;
+  /** The token (or literal) each side resolved to. */
   fg: string;
   bg: string;
   fgHex: string;
@@ -108,7 +109,19 @@ interface Row {
   ratio: number;
   lc: number;
   pass: boolean;
+  /** Below the ratio, but the two colours are kept apart by the focus ring's gap. */
+  gap: boolean;
   missing: boolean;
+}
+
+/** The first name of a list that the pane sets, else the last; then its value. A literal colour is its own value. */
+function resolve(el: Element, names: string | readonly string[]) {
+  const list = typeof names === 'string' ? [names] : names;
+  for (const name of list) {
+    const value = name.startsWith('--') ? readToken(el, name) : name;
+    if (value) return { name, value };
+  }
+  return { name: list[list.length - 1] ?? '', value: '' };
 }
 
 /**
@@ -158,7 +171,7 @@ interface Row {
               <td class="border-b border-border py-1.5 pl-2 whitespace-nowrap">
                 @if (!r.missing) {
                   <span class="tabular-nums">{{ need[r.kind] }}:1</span>
-                  <span class="ml-1.5 font-medium" [class]="r.pass ? '' : 'underline decoration-2 underline-offset-2'">{{ r.pass ? 'pass' : 'fail' }}</span>
+                  <span class="ml-1.5 font-medium" [class]="r.pass ? '' : 'underline decoration-2 underline-offset-2'">{{ r.gap ? 'gap' : r.pass ? 'pass' : 'fail' }}</span>
                 }
               </td>
             </tr>
@@ -167,6 +180,9 @@ interface Row {
       </table>
     </div>
     <p class="text-muted-foreground mt-2 text-[12px]" role="status">{{ summary() }}</p>
+    @if (gapped()) {
+      <p class="text-muted-foreground mt-1 text-[12px]">Gap: the ring is drawn 2px away from the control, so it never touches the fill. It is read against the surface in between, where it passes.</p>
+    }
   `,
 })
 export class LabContrast {
@@ -175,6 +191,7 @@ export class LabContrast {
   protected readonly need = REQUIRED;
   protected readonly rows = signal<Row[]>([]);
   protected readonly summary = signal('');
+  protected readonly gapped = signal(false);
   /** The pane's name, so the two scrollable regions of a comparison have different labels. */
   protected readonly pane = signal('');
   private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
@@ -185,18 +202,26 @@ export class LabContrast {
       lab.version();
       const el = this.host.nativeElement;
       this.pane.set(paneOf(el).getAttribute('aria-label') ?? '');
+      // A theme that draws its ring with a gap sets the gap as a token; the default themes have no such promise.
+      const ringGap = Number.parseFloat(readToken(el, '--focus-offset')) > 0;
       const rows = this.pairs().map((p): Row => {
-        const value = (name: string) => (name.startsWith('--') ? readToken(el, name) : name);
-        const bg = rgbOf(value(p.bg));
-        const fg = bg && rgbOf(value(p.fg), bg);
-        if (!bg || !fg) return { ...p, fgHex: '', bgHex: '', ratio: 0, lc: 0, pass: false, missing: true };
+        const back = resolve(el, p.bg);
+        const front = resolve(el, p.fg);
+        const names = { label: p.label, kind: p.kind, fg: front.name, bg: back.name };
+        const bg = rgbOf(back.value);
+        const fg = bg && rgbOf(front.value, bg);
+        if (!bg || !fg) return { ...names, fgHex: '', bgHex: '', ratio: 0, lc: 0, pass: false, gap: false, missing: true };
         const ratio = wcagRatio(fg, bg);
-        return { ...p, fgHex: toHex(fg), bgHex: toHex(bg), ratio, lc: Math.abs(apcaLc(fg, bg)), pass: passes(ratio, p.kind), missing: false };
+        const gap = !passes(ratio, p.kind) && !!p.gap && ringGap;
+        return { ...names, fgHex: toHex(fg), bgHex: toHex(bg), ratio, lc: Math.abs(apcaLc(fg, bg)), pass: gap || passes(ratio, p.kind), gap, missing: false };
       });
       this.rows.set(rows);
       const measured = rows.filter((r) => !r.missing);
       const failed = measured.filter((r) => !r.pass);
-      this.summary.set(failed.length ? `${measured.length - failed.length} of ${measured.length} pairs pass. Failing: ${failed.map((r) => r.label.toLowerCase()).join('; ')}.` : `All ${measured.length} pairs pass.`);
+      const gaps = measured.filter((r) => r.gap).length;
+      this.gapped.set(gaps > 0);
+      const passed = `${gaps ? `${measured.length - gaps} of ${measured.length}` : `All ${measured.length}`} pairs pass${gaps ? `; ${gaps} ${gaps === 1 ? 'is' : 'are'} kept apart by a gap` : ''}.`;
+      this.summary.set(failed.length ? `${measured.length - failed.length} of ${measured.length} pairs pass. Failing: ${failed.map((r) => r.label.toLowerCase()).join('; ')}.` : passed);
     });
   }
 }

@@ -8,7 +8,7 @@
 #   with a temporary key (docs/round2-contracts.md §6). The audio worklet (pcm-capture.worklet.js) is a file of 'self'.
 # style-src needs 'unsafe-inline': Angular adds component styles as <style> elements, and the build inlines the fonts' CSS.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-DAtfkrOuDy5EqCluSd6nWhs/4kyEzXfsQ3XSYbtQkJs=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' wss://juyo.razvanfrandes.com wss://stt-rt.soniox.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-BUFVNCwRUgN8Gzsz8ddDvZktSRQWZmFJtXcA/aIB0K0=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' wss://juyo.razvanfrandes.com wss://stt-rt.soniox.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY

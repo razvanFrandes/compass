@@ -24,11 +24,11 @@ export const SCALES = [
 /** What each step of a hue scale is for. The same job in every scale, so contrast is known from the step. */
 export const STEP_JOBS = [
   { steps: '1–3', job: 'Tinted surfaces and their borders' },
-  { steps: '4', job: 'Soft fills; text on the dark rail' },
-  { steps: '5', job: 'Graphics: lines, bars, icons (3:1 or more on surfaces 0–2)' },
-  { steps: '6', job: 'Text (4.5:1 or more on surfaces 0–3)' },
+  { steps: '4', job: 'Soft fills' },
+  { steps: '5', job: 'Graphics: lines, bars, icons (3:1 or more on the surfaces)' },
+  { steps: '6', job: 'Text (4.5:1 or more on the surfaces and on the scale’s own tint)' },
   { steps: '7', job: 'Strong text (7:1 or more)' },
-  { steps: '8', job: 'Text on the scale’s own tint' },
+  { steps: '8', job: 'The far end: text on the scale’s own fills' },
 ] as const;
 
 /** Semantic colour roles shared by every theme (the contract the components read). */
@@ -44,6 +44,7 @@ export const COLOR_ROLES = [
 export const CONCEPT_ROLES = {
   colour: [
     '--surface-sunken', '--surface-inverse', '--text-secondary', '--link', '--border-strong', '--border-control',
+    '--destructive-fill', '--destructive-foreground', '--selection', '--on-signal', '--on-inverse-ring', '--on-inverse-decision',
     '--kassandra', '--kassandra-tint', '--kassandra-border', '--decision-border', '--selected', '--selected-border',
     '--chart-axis', '--chart-rule', '--cat-1', '--cat-2', '--cat-3', '--cat-4', '--cat-5', '--cat-6',
     '--seq-1', '--seq-2', '--seq-3', '--seq-4', '--seq-5', '--seq-6', '--seq-7',
@@ -64,7 +65,8 @@ export const CONCEPT_ROLES = {
   component: [
     '--button-radius', '--input-radius', '--chip-radius', '--tag-radius', '--nav-item-radius', '--card-radius', '--card-border',
     '--card-shadow-hover', '--popover-radius', '--popover-shadow', '--dialog-radius', '--dialog-shadow', '--ask-radius',
-    '--table-header-surface', '--table-rule', '--table-total-rule', '--chart-line-width', '--chart-cmp-dash', '--chart-bar-radius',
+    '--table-header-surface', '--table-rule', '--table-total-rule', '--segment-selected-surface', '--rail-border',
+    '--chart-line-width', '--chart-cmp-dash', '--chart-bar-radius',
   ],
 } as const;
 
@@ -91,10 +93,18 @@ export const CONCEPT_ONLY: readonly string[] = [...scaleTokens, '--jc-orange-sig
 /** The contrast audit: a foreground role on the surface it is used on, and what the pair must reach. */
 export interface ContrastPair {
   label: string;
-  /** A token name, or a literal colour for a value a component hardcodes. */
-  fg: string;
-  bg: string;
+  /**
+   * A token name, or a literal colour for a value a component hardcodes. A list is tried in order: the first
+   * token the pane sets, else the last entry (the role a theme without that token falls back to).
+   */
+  fg: string | readonly string[];
+  bg: string | readonly string[];
   kind: PairKind;
+  /**
+   * The two colours never touch where the theme draws its focus ring with a gap (`--focus-offset`): the ring is
+   * read against the surface in the gap. Below 3:1 such a pair is reported as "gap", not as a failure.
+   */
+  gap?: boolean;
 }
 
 export const CONTRAST_PAIRS: readonly ContrastPair[] = [
@@ -103,17 +113,22 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   { label: 'Secondary text on the canvas', fg: '--muted-foreground', bg: '--background', kind: 'text' },
   { label: 'Secondary text on a card', fg: '--muted-foreground', bg: '--card', kind: 'text' },
   { label: 'Secondary text on a muted fill', fg: '--muted-foreground', bg: '--muted', kind: 'text' },
+  { label: 'Text on a popover', fg: '--foreground', bg: '--popover', kind: 'text' },
+  { label: 'Secondary text on a popover', fg: '--muted-foreground', bg: '--popover', kind: 'text' },
   { label: 'Primary button label', fg: '--primary-foreground', bg: '--primary', kind: 'text' },
   { label: 'Decision text on its tint', fg: '--decision', bg: '--decision-tint', kind: 'text' },
   { label: 'Decision text on a card', fg: '--decision', bg: '--card', kind: 'text' },
-  { label: 'Destructive button label', fg: '#ffffff', bg: '--destructive', kind: 'text' },
+  { label: 'Destructive button label', fg: ['--destructive-foreground', '#ffffff'], bg: ['--destructive-fill', '--destructive'], kind: 'text' },
+  { label: 'Destructive text on a card', fg: '--destructive', bg: '--card', kind: 'text' },
   { label: 'Ahead (positive) on a card', fg: '--positive', bg: '--card', kind: 'text' },
   { label: 'Behind (negative) on a card', fg: '--negative', bg: '--card', kind: 'text' },
   { label: 'Link on a card', fg: '--link', bg: '--card', kind: 'text' },
   { label: 'Kassandra tag on its tint', fg: '--kassandra', bg: '--kassandra-tint', kind: 'text' },
   { label: 'Field border on a card', fg: '--input', bg: '--card', kind: 'graphic' },
+  { label: 'Field border on the canvas', fg: '--input', bg: '--background', kind: 'graphic' },
   { label: 'Focus ring on the canvas', fg: '--ring', bg: '--background', kind: 'graphic' },
-  { label: 'Focus ring beside a primary button', fg: '--ring', bg: '--primary', kind: 'graphic' },
+  { label: 'Focus ring on a card', fg: '--ring', bg: '--card', kind: 'graphic' },
+  { label: 'Focus ring beside a primary button', fg: '--ring', bg: '--primary', kind: 'graphic', gap: true },
   { label: 'Series: this period', fg: '--series', bg: '--card', kind: 'graphic' },
   { label: 'Series: comparison period', fg: '--series-cmp', bg: '--card', kind: 'graphic' },
   { label: 'Series: reference (budget)', fg: '--series-ref', bg: '--card', kind: 'graphic' },

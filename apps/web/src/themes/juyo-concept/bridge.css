@@ -96,6 +96,8 @@
   [data-slot='button'][data-variant='outline'] { border-color: var(--border-strong); }
   [data-slot='button'][data-variant='secondary'] { background: var(--card); border-color: var(--border-strong); }
   [data-slot='button'][data-variant='link'] { color: var(--link); }
+  /* `--destructive` is a text colour; a filled button takes the fill step and its own label colour. */
+  [data-slot='button'][data-variant='destructive'] { background: var(--destructive-fill); color: var(--destructive-foreground); }
   [data-slot='button'].rounded-full { border-radius: var(--jc-radius-round); }
 }
 
@@ -108,7 +110,7 @@
     font-kerning: normal;
   }
   body { font-feature-settings: normal; font-synthesis: none; }
-  ::selection { background: rgb(71 126 227 / 0.24); }
+  ::selection { background: var(--selection); }
 
   /* Focus: one ring on every component, the same 2px outline with a 2px gap. It replaces five ring recipes
      (glows, insets, double shadows). !important because focus visibility is an invariant, not a style. */
@@ -165,7 +167,7 @@
   /* A decision that waits for you: the orange tint and border, and the one orange action with ink text. */
   .decision-card { border-color: var(--decision-border); background: var(--decision-tint); }
   .watcher-card--needs { border-color: var(--decision-border); }
-  .decision-btn { background: var(--jc-orange-signal); color: var(--jc-ink-12); border-radius: var(--button-radius); }
+  .decision-btn { background: var(--jc-orange-signal); color: var(--on-signal); border-radius: var(--button-radius); }
   .stake-chip { height: var(--control-height-sm); border-radius: var(--chip-radius); font-size: var(--type-dense-size); font-stretch: var(--font-width-numeric); }
   .stake-chip--decision { color: var(--decision); border-color: var(--decision-border); background: var(--decision-tint); }
   @media (hover: hover) { .stake-chip--decision:hover { background: var(--jc-orange-2); } }
@@ -189,7 +191,7 @@
   .op-toggle { border-color: var(--field-border); }
   .seg > button { height: var(--control-height-xs); border-radius: var(--radius-mark); font-size: var(--type-dense-size); }
   .op-toggle button { border-radius: var(--radius-mark); font-size: var(--type-label-size); }
-  .seg > button[aria-selected='true'], .seg > button[aria-checked='true'], .op-toggle button[aria-pressed='true'], .op-toggle button[aria-checked='true'] { box-shadow: var(--elevation-raised); }
+  .seg > button[aria-selected='true'], .seg > button[aria-checked='true'], .op-toggle button[aria-pressed='true'], .op-toggle button[aria-checked='true'] { background: var(--segment-selected-surface); box-shadow: var(--elevation-raised); }
 
   /* Tables: a ledger. Quiet header, hairline rows, tabular figures; the ask is in the rows, not the grid. */
   .dec-table th { padding: 0 var(--cell-padding-x) 6px; font-size: var(--type-label-size); letter-spacing: var(--type-label-tracking); border-bottom-color: var(--border-strong); }
@@ -247,6 +249,8 @@
   .toggle { background: var(--border-control); }
   .toggle > i { background: var(--jc-ink-0); box-shadow: var(--elevation-raised); }
   .toggle[aria-checked='true'] { background: var(--primary); }
+  /* On, the thumb is the label colour of the fill it sits on: white on ink, graphite on the light fill of the dark mode. */
+  .toggle[aria-checked='true'] > i { background: var(--primary-foreground); }
 
   /* Fields: the border is a control border (3:1 against the surface), which the default themes miss. */
   .field-label { font-size: var(--type-dense-size); }
@@ -290,7 +294,7 @@
   .juyo-wc :is(.wc-mark, .wc-ramp-bar i) { border-radius: 1px; }
 
   /* Shell: the rail's current item is a filled row; the mobile bar keeps the paper surface. */
-  nav[aria-label='Main']:not(.fixed) { border-right-color: transparent; }
+  nav[aria-label='Main']:not(.fixed) { border-right-color: var(--rail-border); }
   nav[aria-label='Main']:not(.fixed) :is(button, a) { border-radius: var(--nav-item-radius); }
 }
 

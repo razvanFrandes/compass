@@ -68,7 +68,7 @@ function mixOption(p: Palette, s: ChartStyle): EChartsCoreOption {
   imports: [EChart],
   host: { class: 'block' },
   template: `
-    <div class="grid gap-3 lg:grid-cols-2">
+    <div class="grid gap-3 @3xl:grid-cols-2">
       <figure class="border-border bg-card min-w-0 rounded-lg border p-4">
         <figcaption class="text-[14px] font-semibold">Room revenue on the books, next 30 nights</figcaption>
         <p class="text-muted-foreground text-[12px]">This year is {{ lineWidth() }}px solid; last year is dashed and {{ concept() ? 'drained of colour' : 'violet' }}</p>
@@ -84,11 +84,11 @@ function mixOption(p: Palette, s: ChartStyle): EChartsCoreOption {
         }
       </figure>
     </div>
-    <div class="mt-3 grid gap-3 lg:grid-cols-2">
+    <div class="mt-3 grid gap-3 @3xl:grid-cols-2">
       @if (concept()) {
         <div>
           <p class="text-[12.5px] font-medium">Sequential, for a quantity (occupancy, pickup)</p>
-          <div class="mt-1.5 flex h-6 overflow-hidden rounded-[2px]" role="img" aria-label="Seven blue steps from pale to dark">
+          <div class="mt-1.5 flex h-6 overflow-hidden rounded-[2px]" role="img" aria-label="Seven blue steps, from the surface’s end of the scale to the far end">
             @for (n of seq; track n) {
               <span class="flex-1" [style.background]="'var(--seq-' + n + ')'"></span>
             }
@@ -105,7 +105,7 @@ function mixOption(p: Palette, s: ChartStyle): EChartsCoreOption {
           <p class="text-muted-foreground mt-1 flex justify-between text-[11.5px]"><span>Behind</span><span>On plan</span><span>Ahead</span></p>
         </div>
       } @else {
-        <p class="text-muted-foreground text-[12.5px] lg:col-span-2">The default themes have no sequential or diverging scale. Heat maps mix the series colour with the card, one alpha step at a time.</p>
+        <p class="text-muted-foreground text-[12.5px] @3xl:col-span-2">The default themes have no sequential or diverging scale. Heat maps mix the series colour with the card, one alpha step at a time.</p>
       }
     </div>
   `,
