@@ -13,18 +13,39 @@ import { HALCYON_HOTELS, type HotelRef } from '../scope/hotels';
 export interface HotelNames {
   full: string;
   short: string;
+  /** The hotel's own currency (ISO code), from its country; undefined for a country this list does not know. */
+  currency?: string;
 }
+
+/** Local currency by country, as `GET /api/hotels` (ISO alpha-2) or the built-in list (English name) gives it. */
+const CURRENCY_BY_COUNTRY: Record<string, string> = {
+  JP: 'JPY', Japan: 'JPY',
+  SG: 'SGD', Singapore: 'SGD',
+  ID: 'IDR', Indonesia: 'IDR',
+  NL: 'EUR', Netherlands: 'EUR', PT: 'EUR', Portugal: 'EUR', FR: 'EUR', France: 'EUR', AT: 'EUR', Austria: 'EUR', ES: 'EUR', Spain: 'EUR', DE: 'EUR', Germany: 'EUR', IT: 'EUR', Italy: 'EUR', IE: 'EUR', Ireland: 'EUR', BE: 'EUR', Belgium: 'EUR', GR: 'EUR', Greece: 'EUR',
+  GB: 'GBP', UK: 'GBP', 'United Kingdom': 'GBP',
+  CH: 'CHF', Switzerland: 'CHF',
+  QA: 'QAR', Qatar: 'QAR',
+  AE: 'AED', 'United Arab Emirates': 'AED',
+  US: 'USD', 'United States': 'USD',
+  CA: 'CAD', Canada: 'CAD',
+  BR: 'BRL', Brazil: 'BRL',
+  AR: 'ARS', Argentina: 'ARS',
+};
 
 type Directory = ReadonlyMap<string, HotelNames>;
 
-function directoryOf(hotels: readonly Pick<HotelRef, 'code' | 'name' | 'brand' | 'city'>[]): Directory {
+type CatalogHotel = Pick<HotelRef, 'code' | 'name' | 'brand' | 'city'> & Partial<Pick<HotelRef, 'country'>>;
+
+function directoryOf(hotels: readonly CatalogHotel[]): Directory {
   const perCity = new Map<string, number>();
   for (const h of hotels) if (h.city) perCity.set(h.city, (perCity.get(h.city) ?? 0) + 1);
   const map = new Map<string, HotelNames>();
   for (const h of hotels) {
     const unbranded = h.brand && h.name.startsWith(`${h.brand} `) ? h.name.slice(h.brand.length + 1) : h.name;
     const short = h.city && perCity.get(h.city) === 1 ? h.city : unbranded;
-    const names = { full: h.name, short };
+    const currency = h.country ? CURRENCY_BY_COUNTRY[h.country.trim()] : undefined;
+    const names: HotelNames = { full: h.name, short, ...(currency ? { currency } : {}) };
     // A row may name the hotel by its code, its full name or its short one.
     map.set(h.code.toUpperCase(), names);
     map.set(h.name.toLowerCase(), names);
@@ -36,7 +57,7 @@ function directoryOf(hotels: readonly Pick<HotelRef, 'code' | 'name' | 'brand' |
 const directory = signal<Directory>(directoryOf(HALCYON_HOTELS));
 
 /** Registers the group's hotels (from `GET /api/hotels`). Charts that read hotel names draw again. */
-export function setHotelCatalog(hotels: readonly Pick<HotelRef, 'code' | 'name' | 'brand' | 'city'>[]): void {
+export function setHotelCatalog(hotels: readonly CatalogHotel[]): void {
   if (hotels.length) directory.set(directoryOf(hotels));
 }
 

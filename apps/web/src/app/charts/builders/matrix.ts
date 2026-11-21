@@ -94,13 +94,17 @@ export interface CalendarLayout {
   top: number;
 }
 
-/** Fits a Monday-first calendar (weeks as columns) into the space: square cells, centred. */
+/**
+ * Fits a Monday-first calendar (weeks as columns) into the space: square cells as big as the height allows, at the
+ * left edge under the legend (the day names in the gutter), top-aligned. A wide card does not stretch it: what is
+ * left over stays empty on the right, not split around a calendar floating in the middle.
+ */
 export function calendarLayout(first: number, last: number, width: number, height: number): CalendarLayout {
   const days = Math.round((last - first) / DAY) + 1;
   const weeks = Math.ceil((weekday(first) + days) / 7);
   const gutter = 34;
-  const cell = Math.max(10, Math.min(40, Math.floor((width - gutter - 8) / weeks), Math.floor((height - 30) / 7)));
-  return { range: [isoDay(first), isoDay(last)], weeks, cell, left: Math.max(gutter, Math.round((width - cell * weeks + gutter - 8) / 2)), top: 24 + Math.max(0, Math.floor((height - 30 - cell * 7) / 2)) };
+  const cell = Math.max(10, Math.min(32, Math.floor((width - gutter - 8) / weeks), Math.floor((height - 30) / 7)));
+  return { range: [isoDay(first), isoDay(last)], weeks, cell, left: gutter, top: 24 };
 }
 
 export function buildCalendarHeatmap(c: Ctx): Built {

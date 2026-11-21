@@ -22,6 +22,7 @@ export class EChartHost {
   readonly option = input.required<EChartsCoreOption>();
   private readonly el = viewChild.required<ElementRef<HTMLDivElement>>('el');
   private chart?: EChartsType;
+  private applied?: EChartsCoreOption;
 
   constructor() {
     const destroy = inject(DestroyRef);
@@ -32,7 +33,8 @@ export class EChartHost {
         if (!node.clientWidth || !node.clientHeight) return;
         if (this.chart) return this.chart.resize();
         this.chart = echarts.init(node, null, { renderer: 'svg' });
-        this.chart.setOption(this.option(), true);
+        this.applied = this.option();
+        this.chart.setOption(this.applied, true);
       };
       fit();
       const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
@@ -42,9 +44,13 @@ export class EChartHost {
         this.chart?.dispose();
       });
     });
+    // A new option replaces the old one. The same option again (an unrelated change upstream) leaves the drawing
+    // alone: setOption would redraw it and hide a tooltip under a pointer that has not moved.
     effect(() => {
       const option = this.option();
-      this.chart?.setOption(option, true);
+      if (!this.chart || option === this.applied) return;
+      this.applied = option;
+      this.chart.setOption(option, true);
     });
   }
 

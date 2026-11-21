@@ -24,6 +24,16 @@ export function num(v: unknown): number | null {
 }
 
 const CURRENCY_SYMBOL: Record<string, string> = { EUR: '€', USD: '$', GBP: '£', AED: 'AED ', JPY: '¥', CHF: 'CHF ', SGD: 'S$' };
+/** A currency code (AED, usd). Anything else a backend puts in `unit` ("local currency") is never written next to an amount. */
+export const isCurrencyCode = (unit: string | undefined): unit is string => !!unit && /^[a-z]{3}$/i.test(unit.trim());
+
+/** "€", "AED " or "" (no code: the amount stands alone, and the chart says the unit once). No unit at all is EUR. */
+function currencyPrefix(unit: string | undefined): string {
+  if (!unit) return '€';
+  if (!isCurrencyCode(unit)) return '';
+  const code = unit.toUpperCase();
+  return CURRENCY_SYMBOL[code] ?? `${code} `;
+}
 const KNOWN_UNITS = new Set(['pts', 'pt', 'nights', 'rooms', 'bookings', 'index', 'days', 'guests', 'x', '×']);
 
 function grouped(n: number, decimals: number): string {
@@ -61,7 +71,7 @@ export function formatNumber(n: number, col: ColumnLike, o: FormatOptions = {}):
   const unit = col.unit?.trim();
   switch (col.kind) {
     case 'currency': {
-      const symbol = CURRENCY_SYMBOL[(unit ?? 'EUR').toUpperCase()] ?? `${unit} `;
+      const symbol = currencyPrefix(unit);
       const short = o.compact || o.axis ? compactNumber(abs, !!o.axis) : null;
       if (short) return `${sign}${symbol}${short}`;
       // Cents only where they matter: small amounts in tables and tooltips, never on a chart label.

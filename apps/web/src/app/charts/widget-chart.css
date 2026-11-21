@@ -16,14 +16,20 @@
 }
 .wc-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 12px;
+  gap: 8px 12px;
   min-height: 28px;
   margin-bottom: 12px;
 }
+/* In a narrow card the tools drop under the title rather than squeeze it to a word a line. */
 .wc-titles {
-  min-width: 0;
+  min-width: min(100%, 15rem);
   flex: 1;
+}
+.wc-head-tools,
+.wc-titles + .wc-toggle {
+  margin-left: auto;
 }
 .wc-title {
   color: var(--foreground);
@@ -883,13 +889,14 @@
 }
 .wc-sk-cal-wrap {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding-top: 20px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  /* Where the calendar sits: under the month names, past the day names, at the left. */
+  padding: 24px 0 0 34px;
 }
 .wc-sk-cal {
   display: grid;
-  height: min(100%, 196px);
+  height: min(100%, 224px);
   grid-auto-columns: auto;
   grid-auto-flow: column;
   grid-template-rows: repeat(7, minmax(0, 1fr));

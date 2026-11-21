@@ -19,8 +19,8 @@
           }
         } @else {
           <p class="wc-title" [id]="uid + '-t'">{{ s.title }}</p>
-          @if (s.subtitle) {
-            <p class="wc-subtitle">{{ s.subtitle }}</p>
+          @if (subtitle(); as sub) {
+            <p class="wc-subtitle">{{ sub }}</p>
           }
         }
       }

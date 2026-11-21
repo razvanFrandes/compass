@@ -5,7 +5,7 @@ import { calendarLayout } from './matrix';
 import { hasCycle } from './parts';
 import { niceCeil, niceStep } from './points';
 import { sparkPath } from './figures';
-import { waterfallBreak, waterfallSteps } from './cartesian';
+import { waterfallBase, waterfallSteps } from './cartesian';
 import { BUILDERS, type BuildInput, type Built, bodyHeight, buildWidget, context, kpiColumns } from './index';
 
 type Obj = Record<string, unknown>;
@@ -73,6 +73,26 @@ describe('every widget kind', () => {
     expect(b.render === 'empty' && b.message.length).toBeGreaterThan(5);
   });
 
+  it('shows the tooltip wherever the pointer is over a bar or line chart, and moves it with the pointer at once', () => {
+    for (const sp of specimens) {
+      for (const width of [1100, 320]) {
+        const b = buildWidget({ spec: sp.spec, rows: sp.rows, columns: sp.columns, width });
+        if (b.render !== 'echarts') continue;
+        const o = b.option as Obj;
+        const tip = o['tooltip'] as Obj;
+        // No transition: ECharts then throttles the tooltip to 50 ms steps and eases it behind the pointer.
+        expect(tip['transitionDuration'], sp.id).toBe(0);
+        // The tooltip survives the hairline gaps between slices, cells and steps.
+        expect(tip['hideDelay'], sp.id).toBeGreaterThanOrEqual(200);
+        const axes = [o['xAxis'], o['yAxis']].flat().filter(Boolean) as Obj[];
+        const marks = ((o['series'] as Obj[]) ?? []).map((x) => x['type']);
+        // Bars and lines over categories answer for the whole band under the pointer, not only for the mark itself:
+        // between two bars, beside a short one, on a line between its points.
+        if (axes.some((a) => a['type'] === 'category') && marks.some((m) => m === 'bar' || m === 'line')) expect(tip['trigger'], `${sp.id} at ${width}`).toBe('axis');
+      }
+    }
+  });
+
   it('shows an unknown kind as a table with a note, never a blank', () => {
     const b = build(spec('hexbin' as WidgetKind, { x: 'hotel', y: ['revpar'] }), HOTELS, HOTEL_COLS);
     expect(b.render).toBe('table');
@@ -98,6 +118,36 @@ describe('every widget kind', () => {
   it('turns motion off under prefers-reduced-motion', () => {
     expect(opt(build(spec('line', { x: 'stay_date', y: ['rooms_otb'] }), DAILY, DAILY_COLS, { motion: false }))['animation']).toBe(false);
     expect(opt(build(spec('line', { x: 'stay_date', y: ['rooms_otb'] }), DAILY, DAILY_COLS))['animation']).toBe(true);
+  });
+});
+
+describe('money in a hotel’s own currency', () => {
+  const LOCAL = [col('hotel_code', 'Hotel', 'hotel'), col('stay_date', 'Stay date', 'date'), col('bar_rate', 'Our BAR', 'currency', 'local currency'), col('comp_median', 'Comp set median', 'currency', 'local currency')];
+  const nights = (hotel: string, n = 4) => Array.from({ length: n }, (_, i) => ({ hotel_code: hotel, stay_date: `2026-12-${String(i + 10).padStart(2, '0')}`, bar_rate: 530 + i * 300, comp_median: 446.2 + i * 100 }));
+  const line = spec('line', { x: 'stay_date', y: ['bar_rate', 'comp_median'], format: 'currency' });
+  const all = (b: Built) => JSON.stringify(b, (_k, v) => (typeof v === 'function' ? undefined : v)) + [tooltipHtml(b, [{ dataIndex: 0 }])].join();
+  const ticks = (b: Built) => [200, 800, 1200].map((v) => call((axis(b, 'yAxis')['axisLabel'] as Obj)['formatter'], v));
+
+  it('writes the currency of the hotel the rows are about, never the words “local currency”', () => {
+    const b = build(line, nights('DXB2'), LOCAL);
+    expect(ticks(b)).toEqual(['AED 200', 'AED 800', 'AED 1.2k']);
+    expect(tooltipHtml(b, [{ dataIndex: 0 }])).toContain('AED 530');
+    expect(all(b)).not.toMatch(/local currency/i);
+    expect(b.unitNote).toBeUndefined();
+  });
+
+  it('writes plain numbers when the hotels’ currencies differ or are unknown, and says the unit once', () => {
+    for (const rows of [[...nights('DXB2', 2), ...nights('NYC', 2)], nights('DXB2').map(({ hotel_code: _h, ...r }) => r)]) {
+      const b = build(line, rows, LOCAL);
+      expect(ticks(b)).toEqual(['200', '800', '1.2k']);
+      expect(all(b)).not.toMatch(/local currency \d|currency \d/i);
+      expect(b.unitNote).toBe('In local currency');
+    }
+  });
+
+  it('shares one currency between hotels of the same country', () => {
+    const b = build(line, [...nights('DXB1', 2), ...nights('DXB2', 2)], LOCAL);
+    expect(ticks(b)[2]).toBe('AED 1.2k');
   });
 });
 
@@ -362,20 +412,92 @@ describe('waterfall', () => {
     expect(waterfallSteps(context({ spec: s, rows: open })).map((x) => x.type)).toEqual(['total', 'up', 'up']);
   });
 
-  it('breaks the axis when the steps are small next to the totals, and says so', () => {
-    const b = build(s, rows, cols);
-    const brk = waterfallBreak(waterfallSteps(context({ spec: s, rows, columns: cols })));
-    expect(brk).not.toBeNull();
-    expect(brk!.end).toBeLessThan(1_248_000);
-    expect(axis(b, 'yAxis')['breaks']).toHaveLength(1);
-    expect(b.note).toMatch(/^The axis is broken between €\S+ and €\S+ so the steps are readable\.$/);
-    // A bridge whose steps are large needs no break.
-    expect(waterfallBreak(waterfallSteps(context({ spec: s, rows: [{ step: 'Open', amount: 100 }, { step: 'A', amount: -70 }] })))).toBeNull();
+  // Miami Beach, October: "From budgeted to actual GOP", in a brief card about 400 px wide.
+  const miami: WidgetRow[] = [
+    { step: 'Budget GOP', amount: 886_300 },
+    { step: 'Rooms', amount: -12_000 },
+    { step: 'F&B', amount: 8_400 },
+    { step: 'Meetings & events', amount: -21_600 },
+    { step: 'Other revenue', amount: 3_200 },
+    { step: 'Costs', amount: -50_000 },
+    { step: 'Unallocated', amount: -18_300 },
+    { step: 'Actual GOP', amount: 796_000 },
+  ];
+  /** Runs the custom series' renderItem for step i, the way ECharts would, and returns what it draws. */
+  const drawStep = (b: Built, i: number) => {
+    const data = series(b)[0]['data'] as number[][];
+    const horizontal = axis(b, 'yAxis')['type'] === 'category';
+    const api = {
+      value: (dim: number) => data[i][dim],
+      coord: ([a, v]: [number, number]) => (horizontal ? [v / 1000, a * 28 + 14] : [a * 60 + 30, 300 - v / 1000]),
+      size: () => (horizontal ? [0, 28] : [60, 0]),
+    };
+    const out = call(series(b)[0]['renderItem'], {}, api) as unknown as { children: Obj[] };
+    return out.children;
+  };
+  const texts = (b: Built) => miami.map((_, i) => drawStep(b, i).find((ch) => ch['type'] === 'text')!['style'] as Obj);
+
+  it('draws the bridge lying down in a narrow card: a row per step, the whole name on the left, the value at the bar’s end', () => {
+    for (const width of [400, 320, 540]) {
+      const b = chart(build(s, miami, cols, { width, compact: true, height: 180 }));
+      const y = axis(b, 'yAxis');
+      expect(y['type'], `${width}`).toBe('category');
+      expect(y['data']).toEqual(miami.map((r) => r['step']));
+      expect(y['inverse']).toBe(true);
+      expect((y['axisLabel'] as Obj)['rotate'] ?? 0).toBe(0);
+      expect(axis(b, 'xAxis')['type']).toBe('value');
+      // About 28 px a row, whatever height the host asked for: a squashed bridge says nothing.
+      expect(b.height).toBeGreaterThanOrEqual(miami.length * 26);
+      expect(b.height).toBeLessThanOrEqual(miami.length * 28 + 60);
+      expect(texts(b).map((t) => t['text'])).toEqual(['€886k', '−€12k', '+€8.4k', '−€21.6k', '+€3.2k', '−€50k', '−€18.3k', '€796k']);
+      const [open, rooms, fb] = texts(b);
+      expect(open['fontWeight']).toBe(600);
+      expect(rooms['fill']).toBe(DARK_TOKENS.neg);
+      expect(fb['fill']).toBe(DARK_TOKENS.pos);
+      // A thin connector from each step's end to the next row.
+      expect(drawStep(b, 1).some((ch) => ch['type'] === 'line')).toBe(true);
+    }
+  });
+
+  it('never breaks the axis: it starts near the lowest running total and says so once, as its first tick', () => {
+    for (const width of [400, 900]) {
+      const b = chart(build(s, miami, cols, { width }));
+      const o = opt(b);
+      expect(JSON.stringify(o)).not.toMatch(/"breaks"|breakArea|zigzag/);
+      expect(b.note).toBeUndefined();
+      const valueAxis = axis(b, width < 560 ? 'xAxis' : 'yAxis');
+      const min = valueAxis['min'] as number;
+      expect(min).toBeGreaterThan(0);
+      expect(min).toBeLessThan(796_000);
+      const tick = (v: number) => call((valueAxis['axisLabel'] as Obj)['formatter'], v);
+      expect(tick(min)).toMatch(/^€\d+k$/);
+      if (width < 560) expect(tick(min + 100_000)).toBe('');
+    }
+    // A bridge whose steps are large next to its totals starts at zero.
+    expect(waterfallBase(waterfallSteps(context({ spec: s, rows: [{ step: 'Open', amount: 100 }, { step: 'A', amount: -70 }] })))).toBe(0);
+  });
+
+  it('stands the bridge up in a wide card without turning a label or letting two collide', () => {
+    for (const width of [560, 760, 1100]) {
+      const b = chart(build(s, miami, cols, { width }));
+      const x = axis(b, 'xAxis');
+      expect(x['type']).toBe('category');
+      const label = x['axisLabel'] as Obj;
+      expect(label['rotate'] ?? 0).toBe(0);
+      const slot = (width - 60) / miami.length;
+      for (const name of miami.map((r) => r['step'] as string)) {
+        const lines = call(label['formatter'], name).split('\n');
+        expect(lines.length, name).toBeLessThanOrEqual(2);
+        for (const line of lines) expect(line.length * 11.5 * 0.53, `${name} at ${width}`).toBeLessThanOrEqual(slot - 4);
+      }
+      // Each value fits over its own column.
+      for (const t of texts(b)) expect(String(t['text']).length * (t['fontSize'] as number) * 0.55, `${t['text']} at ${width}`).toBeLessThanOrEqual(slot);
+    }
   });
 
   it('labels direction with arrows in the legend and for screen readers', () => {
     const b = chart(build(s, rows, cols));
-    expect(b.legend.map((l) => l.label)).toEqual(['Total', '▲ Adds', '▼ Takes away']);
+    expect(b.legend.map((l) => l.label)).toEqual(['Total', '+ Adds', '− Takes away']);
     expect(b.points[3].text).toBe('Payroll: takes away €147,000, running total €1,248,000');
     expect(b.summary).toContain('Payroll down €147k');
   });
@@ -420,6 +542,49 @@ describe('pie and donut', () => {
     // Parts take the categorical hues in order; "Other" is grey.
     const colors = (s['data'] as Obj[]).map((d) => (d['itemStyle'] as Obj)['color']);
     expect(colors).toEqual([DARK_TOKENS.cat[0], DARK_TOKENS.cat[1], DARK_TOKENS.cat[2], DARK_TOKENS.grey]);
+  });
+
+  it('fits the total inside the hole at every width: the number big, its unit small with “Total”, or nothing', () => {
+    // "Account production — New York Midtown": 1,114 room nights, which used to spill out of both sides of the hole.
+    const accounts = [col('account', 'Account', 'text'), col('room_nights', 'Room nights', 'count', 'room nights')];
+    const rows = [
+      { account: 'Vantor Consulting', room_nights: 512 },
+      { account: 'Halden Pharma', room_nights: 301 },
+      { account: 'Meridian Air crew', room_nights: 187 },
+      { account: 'Other', room_nights: 114 },
+    ];
+    for (const [cols2, data] of [
+      [accounts, rows],
+      [cols, parts(4)],
+      [accounts, rows.map((r) => ({ ...r, room_nights: r.room_nights * 1234 }))],
+    ] as const) {
+      for (const width of [1100, 640, 390, 320, 240]) {
+        for (const compact of [false, true]) {
+          const b = chart(build(spec('donut', { group: data === rows || cols2 === accounts ? 'account' : 'channel', y: [cols2[1].key] }), [...data], [...cols2], { width, compact }));
+          const g = opt(b)['graphic'] as Obj[] | undefined;
+          const center = g?.[0];
+          // A card as narrow as a phone still has room for the total; only a smaller hole goes without (never clipped).
+          if (width >= 320 && data === rows) expect(center, `label at ${width}${compact ? ' compact' : ''}`).toBeTruthy();
+          if (!center) continue;
+          const st = center['style'] as Obj;
+          const text = st['text'] as string;
+          const rich = st['rich'] as Record<string, Obj>;
+          const [big, small] = text.split('\n').map((line) => line.replace(/^\{\w\|(.*)\}$/, '$1'));
+          expect(big, `${width} ${compact}`).not.toMatch(/room nights|Total/);
+          expect(small).toMatch(/^Total/);
+          // The text block, as wide as its longest line at a generous digit width, lies inside the hole.
+          const w = Math.max(big.length * (rich['v']['fontSize'] as number) * 0.62, small.length * (rich['l']['fontSize'] as number) * 0.56);
+          const h = (rich['v']['lineHeight'] as number) + (rich['l']['lineHeight'] as number);
+          expect(Math.hypot(w, h), `${big} / ${small} at ${width}${compact ? ' compact' : ''}`).toBeLessThanOrEqual((center['info'] as Obj)['hole'] as number);
+          expect(rich['v']['fontSize']).toBeGreaterThanOrEqual(12);
+        }
+      }
+    }
+    const wide = chart(build(spec('donut', { group: 'account', y: ['room_nights'] }), rows, accounts, { width: 640 }));
+    expect(((opt(wide)['graphic'] as Obj[])[0]['style'] as Obj)['text']).toBe('{v|1,114}\n{l|Total room nights}');
+    // A count without a unit says what it counts.
+    const unitless = chart(build(spec('donut', { group: 'account', y: ['room_nights'] }), rows, [accounts[0], col('room_nights', 'Room nights', 'count')], { width: 640 }));
+    expect(((opt(unitless)['graphic'] as Obj[])[0]['style'] as Obj)['text']).toBe('{v|1,114}\n{l|Total room nights}');
   });
 
   it('separates slices with a gap in the surface colour', () => {
@@ -615,6 +780,18 @@ describe('heatmap and calendar', () => {
     expect(lay.weeks).toBe(5);
     expect(lay.cell).toBe(25);
     expect(calendarLayout(Date.UTC(2026, 10, 23), Date.UTC(2027, 2, 28), 320, 206).cell).toBe(15);
+  });
+
+  it('sizes the calendar to its weeks and sets it at the left, under its legend, however wide the card', () => {
+    for (const width of [1600, 1100, 640]) {
+      const lay = calendarLayout(Date.UTC(2026, 10, 23), Date.UTC(2027, 2, 28), width, 206);
+      expect(lay.left, `left at ${width}`).toBe(34);
+      expect(lay.top, `top at ${width}`).toBe(24);
+      expect(lay.left + lay.cell * lay.weeks, `within ${width}`).toBeLessThanOrEqual(width);
+    }
+    // A month in a wide card is a month of square cells, not a band across the card.
+    const month = calendarLayout(Date.UTC(2026, 11, 1), Date.UTC(2026, 11, 31), 1600, 206);
+    expect(month.cell * month.weeks).toBeLessThan(260);
   });
 
   it('draws nights on a calendar with the day of the month and a full-date tooltip', () => {
