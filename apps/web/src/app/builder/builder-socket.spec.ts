@@ -1,6 +1,6 @@
 import type { BuilderServerMessage, ChatEntry, WorkflowGraph } from '@compass/contracts';
 import { specToGraph } from '@compass/contracts';
-import { BuilderSocket, EMPTY_GRAPH, IDLE_LIVE, builderSocketUrl, ensureDraftId, mergeEntries, workflowToEdit, type SocketLike } from './builder-socket';
+import { BuilderSocket, EMPTY_GRAPH, IDLE_LIVE, LOAD_TIMEOUT_MS, builderSocketUrl, ensureDraftId, mergeEntries, workflowToEdit, type SocketLike } from './builder-socket';
 
 class FakeSocket implements SocketLike {
   static all: FakeSocket[] = [];
@@ -69,6 +69,43 @@ describe('BuilderSocket', () => {
     expect(client.connected()).toBe(false);
     expect(client.loaded()).toBe(false);
     expect(FakeSocket.all[0]!.url).toBe(URL);
+  });
+
+  it('a draft that does not arrive within the load timeout is a stall: it says so and opens a fresh connection', () => {
+    const { client, socket } = connect();
+    socket().open();
+    socket().receive(snapshot([]));
+    vi.advanceTimersByTime(LOAD_TIMEOUT_MS - 1);
+    expect(client.stalled()).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(client.stalled()).toBe(true);
+    expect(FakeSocket.all).toHaveLength(2);
+    expect(FakeSocket.all[0]!.closed).toBe(true);
+
+    socket().open();
+    socket().receive(draftMessage());
+    expect(client.loaded()).toBe(true);
+    expect(client.stalled()).toBe(false);
+    // Loaded: no more timeouts.
+    vi.advanceTimersByTime(LOAD_TIMEOUT_MS * 3);
+    expect(FakeSocket.all).toHaveLength(2);
+  });
+
+  it('a handshake that never completes is a stall too', () => {
+    const { client } = connect();
+    vi.advanceTimersByTime(LOAD_TIMEOUT_MS);
+    expect(client.stalled()).toBe(true);
+    expect(client.state()).toBe('reconnecting');
+    expect(FakeSocket.all).toHaveLength(2);
+  });
+
+  it('retry() starts a fresh connection even when the current one looks open', () => {
+    const { client, socket } = connect();
+    socket().open();
+    client.retry();
+    expect(FakeSocket.all).toHaveLength(2);
+    expect(FakeSocket.all[0]!.closed).toBe(true);
+    expect(client.state()).toBe('connecting');
   });
 
   it('takes the snapshot, then merges later entries by id', () => {
