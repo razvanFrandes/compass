@@ -318,3 +318,35 @@ describe('KassandraComposer: voice', () => {
     expect(notice.getAttribute('role')).toBe('status');
   });
 });
+
+describe('KassandraComposer: the orb mark', () => {
+  const orb = (fixture: ComponentFixture<unknown>) => el(fixture).querySelector<HTMLElement>('juyo-orb');
+
+  it('shows the Lattice orb at rest, 32 px and decorative, instead of the CSS mark', () => {
+    const { fixture } = render();
+    expect(orb(fixture)).not.toBeNull();
+    expect(orb(fixture)!.getAttribute('aria-hidden')).toBe('true');
+    expect(orb(fixture)!.style.width).toBe('32px');
+    expect(orb(fixture)!.dataset['state']).toBe('idle');
+    expect(el(fixture).querySelector('.orb-mark')).toBeNull();
+  });
+
+  it('thinks while Kassandra runs and speaks while the answer is written', () => {
+    const { fixture } = render({ busy: true, phase: 'thinking' });
+    expect(orb(fixture)!.dataset['state']).toBe('thinking');
+    fixture.componentRef.setInput('phase', 'tools');
+    fixture.detectChanges();
+    expect(orb(fixture)!.dataset['state']).toBe('thinking');
+    fixture.componentRef.setInput('phase', 'writing');
+    fixture.detectChanges();
+    expect(orb(fixture)!.dataset['state']).toBe('speaking');
+    fixture.componentRef.setInput('busy', false);
+    fixture.detectChanges();
+    expect(orb(fixture)!.dataset['state']).toBe('idle');
+  });
+
+  it('shows no mode description and no scope under the field', () => {
+    const { fixture } = render();
+    expect(text(el(fixture))).not.toMatch(/takes longer|trusted source|hotels/);
+  });
+});

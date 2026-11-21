@@ -6,7 +6,7 @@
   1. The four states each describe a full set of parameters as a function of the voice (`stateParams`).
   2. A weight per state eases towards the current state (`stepWeights`), and the frame is the weighted mix.
      Changing state therefore cross-fades every uniform; nothing jumps.
-  3. Speeds are integrated into phases (`flowT`, `spinT`, …), so a speed change bends the motion instead of
+  3. Speeds are integrated into phases (`spinT`, `waveT`, …), so a speed change bends the motion instead of
      making it skip.
 */
 
@@ -15,8 +15,6 @@ export const ORB_STATES: readonly OrbState[] = ['idle', 'listening', 'thinking',
 
 /** Bands the shaders work with; any input length is resampled to this. */
 export const ORB_BANDS = 8;
-/** Spherical-harmonic terms used for the wobble: five of degree 2, four of degree 3. */
-export const ORB_SH = 9;
 
 /* ───────────────────────── Easing ───────────────────────── */
 
@@ -39,19 +37,16 @@ export function damp(current: number, target: number, tau: number, dt: number) {
   return current + (target - current) * (1 - Math.exp(-dt / tau));
 }
 
-/** A per-frame factor authored at 60 fps (a feedback decay, a zoom), converted to the real frame time. */
-export const perFrame = (valueAt60: number, dt: number) => Math.pow(valueAt60, dt * 60);
-
 /* ───────────────────────── Voice features ───────────────────────── */
 
 export interface OrbFeatures {
   /** Overall loudness, 0..1. */
   level: number;
-  /** Low bands (the voice's fundamental): the orb bulges. */
+  /** Low bands (the voice's fundamental): the sphere swells and its equator lifts. */
   bass: number;
-  /** Middle bands (vowels): the surface ripples. */
+  /** Middle bands (vowels): the middle latitudes lift. */
   mid: number;
-  /** High bands (consonants, sibilance): the rim sparkles. */
+  /** High bands (consonants, sibilance): the poles lift and the points twinkle. */
   high: number;
 }
 
@@ -131,171 +126,101 @@ export function simulatedVoice(t: number, bands: Float32Array) {
 export interface OrbParams {
   /** Radius multiplier. */
   scale: number;
-  /** Simplex displacement, as a fraction of the radius. */
-  amp: number;
-  /** Simplex frequency: higher is lumpier. */
-  freq: number;
-  /** How fast the displacement field drifts (units per second). */
-  flow: number;
-  /** Spherical-harmonic wobble amplitude. */
-  wobble: number;
-  /** Fine travelling ripples (mids). */
+  /** How far a full band pushes its latitude out, as a fraction of the radius. */
+  lift: number;
+  /** Share of the lift that rides a wave travelling from pole to pole, 0..1. The rest is steady. */
+  wave: number;
+  /** How fast that wave travels, radians per second. */
+  waveSpeed: number;
+  /** A slow swell that is always there, so a silent sphere is still alive. */
   ripple: number;
-  /** Rings that travel over the surface from the pole facing the viewer (speaking). */
+  /** Rings leaving the equator towards both poles (speaking). */
   pulse: number;
-  /** Twist around the vertical axis, in radians at the poles (thinking). */
-  twist: number;
+  /** A three-armed spiral that winds around the sphere (thinking). */
+  spiral: number;
   /** Rotation speed, radians per second. */
   spin: number;
-  /** Inner plasma speed. */
-  plasma: number;
-  /** Inner plasma brightness. */
-  glow: number;
-  /** Fresnel rim brightness. */
-  rim: number;
-  /** Glints on the rim (highs). */
+  /** Point size multiplier. */
+  dot: number;
+  /** Twinkle: points flick larger and brighter (highs). */
   sparkle: number;
-  /** Feedback zoom per frame at 60 fps, minus one: how fast trails leave the orb. */
-  trailZoom: number;
-  /** Feedback rotation, radians per second: how much trails swirl. */
-  trailSpin: number;
-  /** Feedback decay per frame at 60 fps: how long trails last. */
-  trailDecay: number;
-  /** Wave distortion of the trails. */
-  trailWarp: number;
-  /** Halo brightness. */
-  halo: number;
-  /** The waveform ring drawn into the trails. */
-  ring: number;
-  /** Colour cycling speed, cycles of the gradient per second. */
+  /** Brightness. */
+  glow: number;
+  /** Colour cycling speed, cycles per second. */
   hue: number;
 }
 
-export const PARAM_KEYS = [
-  'scale',
-  'amp',
-  'freq',
-  'flow',
-  'wobble',
-  'ripple',
-  'pulse',
-  'twist',
-  'spin',
-  'plasma',
-  'glow',
-  'rim',
-  'sparkle',
-  'trailZoom',
-  'trailSpin',
-  'trailDecay',
-  'trailWarp',
-  'halo',
-  'ring',
-  'hue',
-] as const satisfies readonly (keyof OrbParams)[];
+export const PARAM_KEYS = ['scale', 'lift', 'wave', 'waveSpeed', 'ripple', 'pulse', 'spiral', 'spin', 'dot', 'sparkle', 'glow', 'hue'] as const satisfies readonly (keyof OrbParams)[];
 
 /**
  * What each state looks like for a given voice at time `t`.
- * Idle breathes. Listening hands the surface to the voice. Thinking twists and turns, quietly.
+ * Idle breathes. Listening hands the latitudes to the voice. Thinking winds a spiral and turns, quietly.
  * Speaking beats: with no level supplied it follows `speechPulse`.
  */
 export function stateParams(state: OrbState, f: OrbFeatures, t: number): OrbParams {
   switch (state) {
     case 'idle': {
       const breath = Math.sin(t * 0.85);
-      const l = f.level * 0.35;
       return {
-        scale: 1 + 0.018 * breath + 0.03 * l,
-        amp: 0.085 + 0.012 * breath + 0.08 * l,
-        freq: 0.72,
-        flow: 0.16 + 0.3 * l,
-        wobble: 0.034 + 0.05 * l,
-        ripple: 0,
+        scale: 1 + 0.015 * breath + 0.02 * f.level,
+        lift: 0.08,
+        wave: 0.65,
+        waveSpeed: 1.2,
+        ripple: 0.022 + 0.006 * breath,
         pulse: 0,
-        twist: 0.18 * Math.sin(t * 0.21),
-        spin: 0.08,
-        plasma: 0.2 + 0.4 * l,
-        glow: 0.85 + 0.2 * l,
-        rim: 0.9 + 0.08 * breath,
+        spiral: 0,
+        spin: 0.12,
+        dot: 1,
         sparkle: 0,
-        trailZoom: 0.008,
-        trailSpin: 0.06,
-        trailDecay: 0.948,
-        trailWarp: 0.55,
-        halo: 0.55 + 0.06 * breath,
-        ring: 0,
-        hue: 0.018,
+        glow: 0.85 + 0.05 * breath,
+        hue: 0.01,
       };
     }
     case 'listening':
       return {
-        scale: 1 + 0.07 * f.level + 0.04 * f.bass,
-        amp: 0.09 + 0.055 * f.bass + 0.02 * f.level,
-        freq: 0.62 + 0.2 * f.mid,
-        flow: 0.34 + 1.25 * f.level,
-        wobble: 0.045 + 0.1 * f.bass,
-        ripple: 0.003 + 0.015 * f.mid,
+        scale: 1 + 0.05 * f.bass + 0.03 * f.level,
+        lift: 0.3,
+        wave: 0.65,
+        waveSpeed: 3,
+        ripple: 0.012,
         pulse: 0,
-        twist: 0.12 * Math.sin(t * 0.5),
-        spin: 0.12 + 0.22 * f.level,
-        plasma: 0.42 + 1.5 * f.level,
-        glow: 1 + 0.55 * f.level,
-        rim: 1 + 0.55 * f.high + 0.3 * f.level,
+        spiral: 0,
+        spin: 0.14 + 0.3 * f.level,
+        dot: 1 + 0.1 * f.level,
         sparkle: f.high,
-        trailZoom: 0.008 + 0.028 * f.level,
-        trailSpin: 0.1 + 0.25 * f.mid,
-        trailDecay: 0.945 + 0.018 * f.level,
-        trailWarp: 0.8 + 1.7 * f.mid,
-        halo: 0.72 + 0.6 * f.level,
-        ring: 0.12 + 0.88 * f.level,
-        hue: 0.04 + 0.11 * f.level,
+        glow: 1 + 0.25 * f.level,
+        hue: 0.03 + 0.05 * f.level,
       };
     case 'thinking':
       return {
-        scale: 0.965 + 0.01 * Math.sin(t * 1.7),
-        amp: 0.045,
-        freq: 0.9,
-        flow: 0.22,
-        wobble: 0.02,
-        ripple: 0.004,
+        scale: 0.97 + 0.008 * Math.sin(t * 1.7),
+        lift: 0.03,
+        wave: 0.65,
+        waveSpeed: 1.5,
+        ripple: 0.008,
         pulse: 0,
-        twist: 1.15 + 0.25 * Math.sin(t * 0.6),
-        spin: 0.6,
-        plasma: 0.75,
+        spiral: 0.075,
+        spin: 0.75,
+        dot: 0.95,
+        sparkle: 0.08,
         glow: 0.95,
-        rim: 0.85,
-        sparkle: 0.06,
-        trailZoom: 0.0035,
-        trailSpin: 1.0,
-        trailDecay: 0.956,
-        trailWarp: 0.35,
-        halo: 0.62,
-        ring: 0,
-        hue: 0.06,
+        hue: 0.05,
       };
     case 'speaking': {
       const d = Math.max(f.level, 0.85 * speechPulse(t));
       return {
-        scale: 1 + 0.065 * d,
-        amp: 0.08 + 0.06 * d + 0.04 * f.bass,
-        freq: 0.7 + 0.12 * f.mid,
-        flow: 0.3 + 0.55 * d,
-        wobble: 0.04 + 0.05 * d,
-        ripple: 0.008 * f.mid,
-        pulse: 0.012 + 0.032 * d,
-        twist: 0,
-        spin: 0.14,
-        plasma: 0.5 + 0.85 * d,
-        glow: 1 + 0.45 * d,
-        rim: 1 + 0.4 * d,
-        sparkle: 0.15 * d + 0.4 * f.high,
-        trailZoom: 0.01 + 0.02 * d,
-        trailSpin: 0.08,
-        trailDecay: 0.95,
-        trailWarp: 0.6,
-        halo: 0.7 + 0.5 * d,
-        ring: 0.2 + 0.65 * d,
-        hue: 0.05,
+        scale: 1 + 0.045 * d,
+        lift: 0.16,
+        wave: 0.4,
+        waveSpeed: 2.4,
+        ripple: 0.01,
+        pulse: 0.035 + 0.075 * d,
+        spiral: 0,
+        spin: 0.18,
+        dot: 1 + 0.1 * d,
+        sparkle: 0.1 * d + 0.3 * f.high,
+        glow: 1 + 0.3 * d,
+        hue: 0.03,
       };
     }
   }
@@ -325,20 +250,6 @@ export function mixParams(w: StateWeights, f: OrbFeatures, t: number): OrbParams
   return out;
 }
 
-/* ───────────────────────── Spherical-harmonic wobble ───────────────────────── */
-
-const SH_RATE = [0.53, 0.71, 0.37, 0.61, 0.83, 0.47, 0.67, 0.29, 0.59];
-const SH_PHASE = [0.0, 1.9, 4.1, 2.6, 5.3, 0.8, 3.4, 1.2, 4.7];
-
-/**
- * Coefficients for the nine harmonics. Each one swings at its own slow rate, so the shape never repeats
- * within a session; degree 3 gets less weight than degree 2, which keeps the wobble round rather than spiky.
- */
-export function shCoefficients(phase: number, amplitude: number, out: Float32Array) {
-  for (let i = 0; i < ORB_SH; i++) out[i] = amplitude * (i < 5 ? 1 : 0.45) * Math.sin(phase * SH_RATE[i] * 2 * Math.PI + SH_PHASE[i]);
-  return out;
-}
-
 /* ───────────────────────── The frame ───────────────────────── */
 
 export interface OrbInput {
@@ -352,21 +263,13 @@ export interface OrbFrame {
   params: OrbParams;
   features: OrbFeatures;
   /** Integrated phases. */
-  flowT: number;
   spinT: number;
-  plasmaT: number;
-  hueT: number;
-  rippleT: number;
+  waveT: number;
   pulseT: number;
-  wobbleT: number;
-  trailSpinT: number;
-  sh: Float32Array;
+  spiralT: number;
+  twinkleT: number;
+  hueT: number;
   bands: Float32Array;
-  /** This frame's length in 60 fps frames, and the per-frame feedback factors scaled to it. */
-  frames: number;
-  decay: number;
-  zoom: number;
-  rotate: number;
 }
 
 /** Holds the eased state of one orb and turns inputs into frames. */
@@ -383,26 +286,14 @@ export class OrbMotion {
       time,
       params: mixParams(this.weights, this.features, time),
       features: this.features,
-      flowT: time * 0.16,
-      spinT: time * 0.08,
-      plasmaT: time * 0.2,
-      hueT: 0,
-      rippleT: 0,
+      spinT: time * 0.12,
+      waveT: time * 1.2,
       pulseT: 0,
-      wobbleT: time,
-      trailSpinT: 0,
-      sh: new Float32Array(ORB_SH),
+      spiralT: 0,
+      twinkleT: 0,
+      hueT: 0,
       bands: new Float32Array(ORB_BANDS),
-      frames: 1,
-      decay: 1,
-      zoom: 1,
-      rotate: 0,
     };
-  }
-
-  /** Jump straight to a state (used for the reduced-motion still). */
-  snap(state: OrbState) {
-    this.weights = weightsFor(state);
   }
 
   step(dt: number, input: OrbInput): OrbFrame {
@@ -425,20 +316,12 @@ export class OrbMotion {
     this.weights = stepWeights(this.weights, input.state, dt);
     const p = (fr.params = mixParams(this.weights, f, t));
 
-    fr.flowT += p.flow * dt;
     fr.spinT += p.spin * dt;
-    fr.plasmaT += p.plasma * dt;
+    fr.waveT += p.waveSpeed * dt;
+    fr.pulseT += (5 + 40 * p.pulse) * dt;
+    fr.spiralT += (1.2 + 14 * p.spiral) * dt;
+    fr.twinkleT += 14 * dt;
     fr.hueT = (fr.hueT + p.hue * dt) % 1;
-    fr.rippleT += (1.4 + 3.2 * f.mid) * dt;
-    fr.pulseT += (5 + 60 * p.pulse) * dt;
-    fr.wobbleT += (0.5 + 1.6 * f.bass + 0.6 * f.level) * dt;
-    fr.trailSpinT += p.trailSpin * dt;
-    shCoefficients(fr.wobbleT, p.wobble, fr.sh);
-
-    fr.frames = dt * 60;
-    fr.decay = perFrame(p.trailDecay, dt);
-    fr.zoom = perFrame(1 + p.trailZoom, dt);
-    fr.rotate = p.trailSpin * dt * 0.35;
     return fr;
   }
 }

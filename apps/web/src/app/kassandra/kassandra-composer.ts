@@ -20,7 +20,8 @@ let nextId = 0;
 /*
   Kassandra's composer: the one ask bar of the app (Inbox, Thread, workflow builder, a workflow's page, a board).
   At rest it is quiet, like every composer we studied (docs/research/ui-round3/voice_and_composer.md): 56 px,
-  12 px radius, hairline border, the orb as the only colour, a neutral mic, Send only when there is text. Under
+  12 px radius, hairline border, the orb as the only colour (the Lattice orb at mark size, sharing one WebGL
+  context with every other orb on the page), a neutral mic, Send only when there is text. Under
   it sits one control, Quick or Thinker, and nothing else: the hotel scope is in the sidebar and goes with every
   question (Live), so the composer does not repeat it.
   Voice grows the bar in place; on a phone it opens a full-screen sheet. The words appear while they are spoken
@@ -36,8 +37,9 @@ let nextId = 0;
     <form class="ask-field group" [class.ask-field--voice]="voiceOn() && !sheet()" (submit)="$event.preventDefault(); voiceOn() ? sendVoice() : dispatch({ type: 'submit' })">
       @if (!voiceOn() || sheet()) {
         <div class="flex min-h-[54px] items-center gap-2.5 py-1.5 pr-2 pl-3.5 max-sm:min-h-[50px]">
-          <!-- At rest the mark is CSS: the WebGL orb exists only while voice is on -->
-          <span class="orb-mark shrink-0" [class.orb-mark--busy]="orbState() === 'thinking'" aria-hidden="true"></span>
+          <!-- The mark is the Lattice orb, 32 px (an 18 px sphere; the negative margin keeps the old 18 px slot):
+               it breathes at rest, winds while Kassandra thinks and sends rings while she writes -->
+          <juyo-orb class="-mx-[7px] shrink-0" [size]="32" [state]="orbState()" />
           <label [for]="inputId()" class="sr-only">{{ label() }}</label>
           <!-- A textarea that grows with its text: a pre-filled question can be long, and on a phone a one-line input shows only its end -->
           <textarea
@@ -145,6 +147,8 @@ export class KassandraComposer {
   readonly shortcut = input(false);
   /** Kassandra is answering: the orb turns and Stop takes Send's place. */
   readonly busy = input(false);
+  /** What Kassandra is doing while busy (the live phase): 'writing' turns the orb to speaking. */
+  readonly phase = input<string | null | undefined>(null);
   /** While busy, text can still be sent (it joins the running answer); Stop shows when the field is empty. */
   readonly steerable = input(false);
   /** False while the connection is down: typing stays possible, sending waits. */
@@ -178,7 +182,9 @@ export class KassandraComposer {
   protected readonly orbState = computed<OrbState>(() => {
     const voice = this.state().voice;
     if (voice === 'starting' || voice === 'listening') return 'listening';
-    return voice === 'sending' || this.busy() ? 'thinking' : 'idle';
+    if (voice === 'sending') return 'thinking';
+    if (!this.busy()) return 'idle';
+    return this.phase() === 'writing' ? 'speaking' : 'thinking';
   });
   protected readonly statusText = computed(() => {
     const { voice, engine } = this.state();

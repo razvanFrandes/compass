@@ -6,10 +6,10 @@ import { ORB_BANDS, ORB_STATES, type OrbState, simulatedVoice } from './orb-moti
 type Source = 'sliders' | 'simulated' | 'microphone';
 
 const STATE_NOTES: Record<OrbState, string> = {
-  idle: 'A slow breathing morph. Nothing asks for attention.',
-  listening: 'Your voice drives it: bass bulges the body, mids ripple the surface, highs sparkle on the rim, and the waveform leaves ripples in the halo.',
-  thinking: 'A calmer swirl: the surface twists, the orb turns, the trails wind around it.',
-  speaking: 'Rings travel over the surface in the rhythm of speech. It follows the level when one is given.',
+  idle: 'It turns slowly and breathes. Nothing asks for attention.',
+  listening: 'Your voice drives it. Each latitude is a frequency band: bass lifts the equator, highs lift the poles and make the points twinkle.',
+  thinking: 'Quiet: a spiral winds around the sphere and it turns quickly.',
+  speaking: 'Rings leave the equator in the rhythm of speech. It follows the level when one is given.',
 };
 
 /*
