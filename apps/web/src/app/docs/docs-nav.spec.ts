@@ -9,7 +9,9 @@ import { DOCS_PAGES } from './docs-pages';
 import { DocsRouter } from './docs-router';
 import { DocsArchitecture } from './pages/architecture';
 import { EDGES, FLOWS, NODES, nodeHeight, placeRows } from './pages/architecture-map';
+import { DocsSource } from './docs-kit';
 import { DocsComponents } from './pages/components';
+import { DocsData, SIZE_ROWS, STORIES } from './pages/data';
 import { DocsDesignSystem } from './pages/design-system';
 
 /** The heavy pages draw charts and WebGL; the navigation tests only need to know which page is on screen. */
@@ -246,5 +248,57 @@ describe('the architecture map', () => {
     tabs[1]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     await settle(fixture);
     expect(root.querySelector('svg')!.getAttribute('data-flow')).toBe('brief');
+  });
+});
+
+describe('the data page', () => {
+  it('counts the rows of the loaded database', () => {
+    expect(SIZE_ROWS).toHaveLength(21);
+    expect(new Set(SIZE_ROWS.map((r) => r.table)).size).toBe(21);
+    // About 5.76 million rows, four fifths of them bookings and guests.
+    const total = SIZE_ROWS.reduce((sum, r) => sum + r.rows, 0);
+    expect(total).toBe(5_759_543);
+    const bookings = SIZE_ROWS.filter((r) => ['reservation_nights', 'reservations', 'guests'].includes(r.table)).reduce((sum, r) => sum + r.rows, 0);
+    expect(Math.round((bookings / total) * 100)).toBe(80);
+    expect([...new Set(SIZE_ROWS.map((r) => r.system))]).toEqual(['PMS', 'RMS', 'Market', 'Operations', 'Finance', 'Reference']);
+  });
+
+  it('tells the seven planted stories, each with its plant, its check and its eval', () => {
+    expect(STORIES.map((s) => s.id)).toEqual(['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7']);
+    for (const s of STORIES) {
+      for (const text of [s.hotel, s.title, s.planted, s.shows, s.check, s.question]) expect(text.length, s.id).toBeGreaterThan(8);
+      expect(s.seconds, s.id).toMatch(/^\d+\.\d s$/);
+    }
+  });
+
+  it('shows how the data was made, what is in it and how to regenerate it', async () => {
+    configure('/docs/data');
+    const fixture = TestBed.createComponent(DocsData);
+    const root = fixture.nativeElement as HTMLElement;
+    await settle(fixture);
+    const headings = [...root.querySelectorAll('h2')].map((h) => h.textContent!.trim());
+    expect(headings).toEqual(['How the data was made', 'What is in the database', 'Regenerate it', 'Definitions live in SQL', 'Seven planted stories, seven evals: 7 of 7', 'What guests say: semantic search', 'Connect your own AI']);
+    const made = root.querySelector('#made')!;
+    expect([...made.querySelectorAll('.docs-flow > li strong')].map((e) => e.textContent)).toEqual(['Config', 'World', 'Bookings simulation', 'Market, operations, finance', 'Postgres', 'Views']);
+    expect(made.querySelector('a[href="https://github.com/chadwambles/isla-velaluz"]')).not.toBeNull();
+    expect(root.querySelector('#tables juyo-widget-chart')).not.toBeNull();
+    expect(root.querySelectorAll('#tables .docs-cells > li')).toHaveLength(12);
+    const commands = root.querySelector('#regenerate pre')!.textContent!;
+    for (const line of ['uv sync', 'uv run python -m datagen', 'db/load.sh', 'uv run python tests/check.py']) expect(commands).toContain(line);
+    expect(root.querySelectorAll('#evals li.docs-panel')).toHaveLength(7);
+  });
+
+  it('names a source path as text, and as a link once the repository is public', async () => {
+    configure('/docs/data');
+    const fixture = TestBed.createComponent(DocsSource);
+    fixture.componentRef.setInput('path', 'tools/datagen');
+    fixture.componentRef.setInput('repo', '');
+    await settle(fixture);
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('a')).toBeNull();
+    expect(root.textContent!.trim()).toBe('tools/datagen');
+    fixture.componentRef.setInput('repo', 'https://github.com/owner/compass-mvp');
+    await settle(fixture);
+    expect(root.querySelector('a')!.getAttribute('href')).toBe('https://github.com/owner/compass-mvp/tree/main/tools/datagen');
   });
 });

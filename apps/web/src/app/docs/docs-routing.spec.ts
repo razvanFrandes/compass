@@ -6,7 +6,7 @@ import { FakeSocket } from '../api/testing';
 import { pageTitle } from '../app';
 import { Live } from '../live';
 import { CompassStore } from '../store';
-import { DOCS_PAGES, SHOWCASES, docsLabel, docsPageOf, docsPath, docsTitle } from './docs-pages';
+import { DOCS_PAGES, REPO_URL, SHOWCASES, docsLabel, docsPageOf, docsPath, docsTitle, repoHref } from './docs-pages';
 import { DocsRouter } from './docs-router';
 
 function setup(url: string) {
@@ -50,6 +50,14 @@ describe('docs pages', () => {
     expect(docsTitle('index')).toBe('Docs · Juyo');
     expect(docsTitle('kassandra')).toBe('Kassandra & agents · Docs · Juyo');
     expect(docsLabel('about')).toBe('About this build');
+  });
+
+  it('links a source path only once the repository has a public address', () => {
+    // Until the repository is public the constant is empty, and a path in the docs is plain text.
+    expect(repoHref('tools/datagen', 'tree', '')).toBeNull();
+    expect(repoHref('tools/datagen')).toBe(REPO_URL ? `${REPO_URL.replace(/\/+$/, '')}/tree/main/tools/datagen` : null);
+    expect(repoHref('tools/datagen', 'tree', 'https://github.com/owner/compass-mvp')).toBe('https://github.com/owner/compass-mvp/tree/main/tools/datagen');
+    expect(repoHref('/tools/datagen/tests/check.py', 'blob', 'https://github.com/owner/compass-mvp/')).toBe('https://github.com/owner/compass-mvp/blob/main/tools/datagen/tests/check.py');
   });
 
   it('points to the three showcase views', () => {

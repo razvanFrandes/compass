@@ -201,7 +201,8 @@ import { DocsSecurity } from './pages/security';
       font-weight: 500;
       color: var(--foreground);
     }
-    .docs-table tbody th code {
+    .docs-table tbody th code,
+    .docs-table .docs-nowrap code {
       white-space: nowrap;
     }
     .docs-table tbody td {
@@ -231,6 +232,24 @@ import { DocsSecurity } from './pages/security';
       font-family: var(--font-mono);
       font-size: 13.5px;
       color: var(--foreground);
+    }
+    .docs-copy--block {
+      align-items: flex-start;
+      padding: 12px 8px 12px 16px;
+    }
+    .docs-copy pre {
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--foreground);
+    }
+    .docs-copy pre:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+    }
+    .docs-copy pre code {
+      font-size: inherit;
     }
     .docs-copy__btn {
       display: inline-flex;

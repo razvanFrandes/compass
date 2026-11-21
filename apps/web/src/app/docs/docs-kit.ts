@@ -1,7 +1,8 @@
-import { Component, DOCUMENT, Pipe, type PipeTransform, inject, input, signal } from '@angular/core';
+import { Component, DOCUMENT, Pipe, type PipeTransform, computed, inject, input, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { phosphorCheckLight, phosphorCopyLight } from '@ng-icons/phosphor-icons/light';
 import { inline } from '../markdown';
+import { REPO_URL, repoHref } from './docs-pages';
 
 /*
   The small parts every docs page is made of: a page head, a section, a grid of cells, a table and a copy button.
@@ -110,7 +111,7 @@ export class DocsCells {
                 @if (i === 0) {
                   <th scope="row" class="docs-md" [innerHTML]="c | md"></th>
                 } @else {
-                  <td class="docs-md" [class.docs-num]="numeric().includes(i)" [innerHTML]="c | md"></td>
+                  <td class="docs-md" [class.docs-num]="numeric().includes(i)" [class.docs-nowrap]="nowrap().includes(i)" [innerHTML]="c | md"></td>
                 }
               }
             </tr>
@@ -126,6 +127,8 @@ export class DocsTable {
   readonly rows = input.required<readonly (readonly string[])[]>();
   /** Column indexes set as figures: right-aligned, tabular. */
   readonly numeric = input<readonly number[]>([]);
+  /** Column indexes that hold one short token (a key, a view name) and must not break across lines. */
+  readonly nowrap = input<readonly number[]>([]);
   readonly minWidth = input(520);
 }
 
@@ -136,8 +139,12 @@ export class DocsTable {
   providers: [provideIcons({ phosphorCheckLight, phosphorCopyLight })],
   host: { class: 'block' },
   template: `
-    <div class="docs-copy">
-      <code class="min-w-0 flex-1 truncate" [attr.title]="value()">{{ value() }}</code>
+    <div class="docs-copy" [class.docs-copy--block]="block()">
+      @if (block()) {
+        <pre class="min-w-0 flex-1" tabindex="0" role="region" [attr.aria-label]="label()"><code>{{ value() }}</code></pre>
+      } @else {
+        <code class="min-w-0 flex-1 truncate" [attr.title]="value()">{{ value() }}</code>
+      }
       <button type="button" class="docs-copy__btn" [attr.aria-label]="'Copy ' + label()" (click)="copy()">
         <ng-icon [name]="state() === 'copied' ? 'phosphorCheckLight' : 'phosphorCopyLight'" aria-hidden="true" />
         <span>{{ state() === 'copied' ? 'Copied' : state() === 'failed' ? 'Select and copy' : 'Copy' }}</span>
@@ -150,6 +157,8 @@ export class DocsCopy {
   readonly value = input.required<string>();
   /** What is copied, for the button's name: "the MCP URL". */
   readonly label = input('the value');
+  /** Several lines (shell commands): shown as a block that scrolls sideways, not cut to one line. */
+  readonly block = input(false);
   protected readonly state = signal<'idle' | 'copied' | 'failed'>('idle');
   private readonly view = inject(DOCUMENT).defaultView;
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -166,4 +175,24 @@ export class DocsCopy {
   }
 }
 
-export const DOCS_KIT = [DocsHead, DocsSection, DocsCells, DocsTable, DocsCopy, MdPipe] as const;
+/** A path in the repository: a link to its source once the repository is public (`REPO_URL`), plain text until then. */
+@Component({
+  selector: 'docs-source',
+  template: `
+    @if (href(); as url) {
+      <a class="docs-link" [href]="url" target="_blank" rel="noopener noreferrer"><code class="docs-code">{{ path() }}</code><span class="sr-only"> (opens the source in a new tab)</span></a>
+    } @else {
+      <code class="docs-code">{{ path() }}</code>
+    }
+  `,
+})
+export class DocsSource {
+  readonly path = input.required<string>();
+  /** A folder (`tree`) or a file (`blob`). */
+  readonly kind = input<'tree' | 'blob'>('tree');
+  /** The repository's address; the docs pass nothing and get `REPO_URL`. */
+  readonly repo = input(REPO_URL);
+  protected readonly href = computed(() => repoHref(this.path(), this.kind(), this.repo()));
+}
+
+export const DOCS_KIT = [DocsHead, DocsSection, DocsCells, DocsTable, DocsCopy, DocsSource, MdPipe] as const;

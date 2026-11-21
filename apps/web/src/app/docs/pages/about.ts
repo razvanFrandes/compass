@@ -19,7 +19,7 @@ const REAL: readonly DocsCell[] = [
 ];
 
 const MOCKED: readonly DocsCell[] = [
-  { title: 'All data is fictional', text: 'The hotels, 1.2 million reservations, accounts, reviews and the seven planted stories are generated. The business date is fixed at 20 Nov 2026.' },
+  { title: 'All data is fictional', text: 'The hotels, 1.2 million reservations, accounts, reviews and the seven planted stories come from a generator in the repository, `tools/datagen`. The business date is fixed at 20 Nov 2026.' },
   { title: 'Nothing is written to a hotel system', text: 'There is no PMS, RMS or POS integration. An “applied” action is a logged task plus an audit entry.' },
   { title: 'There is no login', text: 'An approval is recorded under a role name, not a person. The flow is real; the control is not.' },
   { title: 'Two boards are computed in the browser', text: 'Portfolio and Dubai Business Bay are drawn from a snapshot extracted from the same database. Saved boards come from the server.' },

@@ -52,3 +52,15 @@ export const SHOWCASES: readonly { label: string; href: string; view: View | nul
   { label: 'Theme lab', href: '/theme-lab', view: 'theme-lab', note: 'The concept theme next to a default one, with a contrast audit.' },
   { label: 'Orb lab', href: '/orb-lab', view: null, note: 'Kassandra’s voice orb on its own, in every state.' },
 ];
+
+/**
+ * The public address of the repository, e.g. `https://github.com/<owner>/compass-mvp`. It is empty until the
+ * repository is public: source paths in the docs are then plain text, and become links once this is set.
+ */
+export const REPO_URL: string = '';
+
+/** A link to a path in the repository on its default branch, or null while the repository is not public. */
+export function repoHref(path: string, kind: 'tree' | 'blob' = 'tree', base: string = REPO_URL): string | null {
+  const root = base.trim().replace(/\/+$/, '');
+  return root ? `${root}/${kind}/main/${path.replace(/^\/+/, '')}` : null;
+}
