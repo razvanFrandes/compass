@@ -1,4 +1,4 @@
-import { formatDelta, formatValue, isNumericKind, lowerIsBetter, num } from '../format';
+import { formatDelta, formatValue, isNumericKind, isRatio, lowerIsBetter, num } from '../format';
 import { catColor, markRadius, mix } from '../tokens';
 import type { EvidenceColumn } from '../widget-types';
 import {
@@ -415,33 +415,37 @@ function barRows(c: Ctx, whole: Frame, note?: string): Built {
   const main = f.series[0];
   const cmp = f.series.find((s) => s.role === 'compare');
   const layout = rowLayout(c, f.labels.length, more > 0, 1, !!cmp);
+  // A ratio to a benchmark (BAR ÷ comp set median) grows from 1, where it is level: a bar is the gap, not the multiple.
+  const base = isRatio(main.col) ? 1 : 0;
+  const at = (v: number | null) => (v === null ? null : v - base);
   const texts = main.values.map((v) => fmt(v, main.col, true));
   const longest = Math.max(...texts.map((t) => textWidth(t, 11.5)));
-  const negative = main.values.some((v) => v !== null && v < 0);
-  const positive = main.values.some((v) => v !== null && v > 0) || !!cmp?.values.some((v) => v !== null && v > 0);
+  const negative = main.values.some((v) => v !== null && v < base);
+  const positive = main.values.some((v) => v !== null && v > base) || !!cmp?.values.some((v) => v !== null && v > base);
   // Room for the labels on the side they sit: right of bars above zero, left of bars below it (clear of the names).
   const left = nameWidth(c, f.labels) + 12 + (negative ? 28 : 0);
   const right = positive || !negative ? longest + 12 : 16;
   const plotW = c.width - left - right;
   // A label goes past whichever is further out: the bar or its comparison marker.
   const ends = main.values.map((v, i) => {
-    const b = cmp?.values[i] ?? null;
-    if (v === null) return null;
-    if (b === null) return v;
-    return v < 0 ? Math.min(v, b) : Math.max(v, b);
+    const b = at(cmp?.values[i] ?? null);
+    const x = at(v);
+    if (x === null) return null;
+    if (b === null) return x;
+    return x < 0 ? Math.min(x, b) : Math.max(x, b);
   });
-  const extent = barExtent([...main.values, ...(cmp?.values ?? [])], plotW, negative ? longest + 10 : 0);
+  const extent = barExtent([...main.values, ...(cmp?.values ?? [])].map(at), plotW, negative ? longest + 10 : 0);
   const radius = (v: number | null) => markRadius(c.t, v !== null && v < 0 ? [3, 0, 0, 3] : [0, 3, 3, 0]);
   const bar = {
     type: 'bar',
     name: main.name,
     barWidth: layout.bar,
     barMinHeight: 1,
-    data: main.values.map((v, i) => ({ value: v, itemStyle: { color: main.color, opacity: !lit || subject[i] ? 1 : MUTED, borderRadius: radius(v) } })),
+    data: main.values.map((v, i) => ({ value: at(v), itemStyle: { color: main.color, opacity: !lit || subject[i] ? 1 : MUTED, borderRadius: radius(at(v)) } })),
     emphasis: { itemStyle: { opacity: 1 } },
   };
   const tick = cmp
-    ? { type: 'scatter', name: cmp.name, data: cmp.values, symbol: 'rect', symbolSize: [2.5, layout.bar + 6], itemStyle: { color: cmp.color, borderColor: c.t.surface, borderWidth: 1 }, emphasis: { scale: false }, z: 3 }
+    ? { type: 'scatter', name: cmp.name, data: cmp.values.map(at), symbol: 'rect', symbolSize: [2.5, layout.bar + 6], itemStyle: { color: cmp.color, borderColor: c.t.surface, borderWidth: 1 }, emphasis: { scale: false }, z: 3 }
     : null;
   const option = {
     ...baseOption(c),
