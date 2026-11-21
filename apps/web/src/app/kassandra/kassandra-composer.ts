@@ -164,13 +164,13 @@ let nextId = 0;
     </ng-template>
 
     <ng-template #effortMenu>
-      <hlm-dropdown-menu class="ask-menu w-64" [sideOffset]="menuOffset()">
+      <hlm-dropdown-menu class="ask-menu w-72" [sideOffset]="menuOffset()">
         <hlm-dropdown-menu-group [attr.aria-labelledby]="uid + '-effort'">
           <hlm-dropdown-menu-label [id]="uid + '-effort'">Effort</hlm-dropdown-menu-label>
           @for (m of efforts; track m.id) {
             <button hlmDropdownMenuRadio class="ask-effort-item" [checked]="mode() === m.id" [keepOpen]="false" (triggered)="mode.set(m.id)">
               <ng-icon [name]="m.icon" class="text-[16px]" aria-hidden="true" />
-              <span class="min-w-0 flex-1">
+              <span class="min-w-0 flex-1 text-left">
                 <span class="block text-[13px] font-medium">{{ m.label }}</span>
                 <span class="text-muted-foreground block text-[12px]">{{ m.hint }}</span>
               </span>
