@@ -8,6 +8,8 @@ import type { EvidenceEntry } from './types';
 
 /** From this width the evidence sits beside the conversation; below it, it opens as a bottom sheet. */
 const DESKTOP = '(min-width: 1024px)';
+/** The evidence pane's width until the person drags the divider: --pane-evidence in src/density.css (360–480 is the sensible range). */
+export const EVIDENCE_PANE_WIDTH = 400;
 
 /**
  * A conversation with its evidence. Whatever is projected (the conversation) takes the first pane. On wide
@@ -83,6 +85,8 @@ const DESKTOP = '(min-width: 1024px)';
       #split
       [storageKey]="storageKey()"
       [single]="!desktop()"
+      [defaultEnd]="paneWidth"
+      [minEnd]="360"
       [(collapsed)]="collapsed"
       label="Resize the conversation and the Behind the numbers panel"
       startLabel="conversation"
@@ -90,8 +94,9 @@ const DESKTOP = '(min-width: 1024px)';
     >
       <div paneStart class="flex h-full min-h-0 min-w-0 flex-1 flex-col"><ng-content /></div>
       @if (desktop()) {
-        <aside paneEnd class="flex h-full min-h-0 min-w-0 flex-1 flex-col" aria-label="Behind the numbers">
-          <header class="border-border/70 flex h-14 shrink-0 items-center gap-2 border-b pr-3 pl-5">
+        <!-- A compact region: the evidence is scanned and compared, the conversation is read -->
+        <aside paneEnd data-density="compact" class="flex h-full min-h-0 min-w-0 flex-1 flex-col" aria-label="Behind the numbers">
+          <header class="flex h-14 shrink-0 items-center gap-2 pr-3 pl-card-pad">
             <div class="min-w-0 flex-1">
               <h2 class="truncate text-[14px]/5 font-medium">Behind the numbers</h2>
               @if (subject(); as about) {
@@ -102,7 +107,7 @@ const DESKTOP = '(min-width: 1024px)';
               <ng-icon name="phosphorSidebarSimpleLight" class="-scale-x-100 text-[18px]" />
             </button>
           </header>
-          <div class="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-8">
+          <div class="min-h-0 flex-1 overflow-y-auto px-card-pad pt-stack pb-section">
             <juyo-evidence-panel [entries]="entries()" [answer]="answer()" [focusCallId]="focus()" [focusColumns]="focusColumns()" [empty]="empty()" />
           </div>
         </aside>
@@ -121,7 +126,7 @@ const DESKTOP = '(min-width: 1024px)';
           </div>
           <button hlmBtn variant="ghost" size="icon-lg" class="shrink-0" aria-label="Close" (click)="closeSheet()"><ng-icon name="phosphorXLight" /></button>
         </header>
-        <div class="border-border/70 min-h-0 flex-1 overflow-y-auto overscroll-contain border-t px-4 pt-4 pb-[max(24px,env(safe-area-inset-bottom,0px))]">
+        <div data-density="compact" class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-card-pad pt-stack pb-[max(24px,env(safe-area-inset-bottom,0px))]">
           @if (sheetOpen()) {
             <juyo-evidence-panel [entries]="entries()" [answer]="answer()" [focusCallId]="focus()" [focusColumns]="focusColumns()" [empty]="empty()" />
           }
@@ -150,6 +155,7 @@ export class EvidenceLayout {
 
   private static count = 0;
   protected readonly uid = `evl${++EvidenceLayout.count}`;
+  protected readonly paneWidth = EVIDENCE_PANE_WIDTH;
   private readonly injector = inject(Injector);
   private readonly view = inject(DOCUMENT).defaultView;
   private readonly panel = viewChild(EvidencePanel);

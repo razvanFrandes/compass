@@ -15,6 +15,8 @@ import * as icons from './icons';
   family: `kassandra-conversation` for the turns (the work collapsed to one line, the answer streaming in, charts
   with "Add to board", next questions) and `kassandra-composer` for the ask bar (voice, Quick or Thinker, the hotel
   scope). On the right, "Behind the numbers" from the evidence every data tool returns.
+  Layout (docs/research/layout): the conversation is one column of 68 characters, the evidence a 400 px supporting
+  pane. No rules between header, conversation and composer: the composer sits on a fade of the page.
   Explore, a chart click and a KPI tile send their question at once; only /ask?q= fills the composer and waits.
 */
 @Component({
@@ -22,11 +24,21 @@ import * as icons from './icons';
   imports: [NgIcon, KassandraComposer, KassandraConversation, EvidenceLayout, HlmButtonImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'flex h-full min-h-0' },
+  styles: `
+    /* The end of the conversation fades into the page above the composer, so no rule is needed there. */
+    .thread-dock::before {
+      content: '';
+      position: absolute;
+      inset: -24px 0 100% 0;
+      background: linear-gradient(to top, var(--background), transparent);
+      pointer-events: none;
+    }
+  `,
   template: `
     <!-- Evidence integration point 1 of 3: the layout wraps the conversation; the evidence is its second pane (a sheet on phones) -->
     <juyo-evidence-layout #evidence [entries]="selectedSteps()" [answer]="selectedAnswer()" [question]="selectedLabel()" [chart]="target().chart?.title" [focusCallId]="target().callId" [focusColumns]="target().chart?.columns ?? []">
       <section class="flex min-h-0 min-w-0 flex-1 flex-col" aria-label="Conversation">
-        <header class="border-border/70 flex h-14 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
+        <header class="flex h-14 shrink-0 items-center gap-inline px-page-x">
           <button hlmBtn variant="ghost" size="sm" class="text-muted-foreground -ml-1" (click)="store.go('inbox')"><ng-icon name="phosphorArrowLeftLight" />Inbox</button>
           <span class="text-muted-foreground" aria-hidden="true">/</span>
           <h1 class="min-w-0 flex-1 truncate text-[14px] font-medium">{{ live.title() }}</h1>
@@ -40,11 +52,11 @@ import * as icons from './icons';
           <button hlmBtn variant="ghost" size="sm" class="shrink-0" (click)="live.newChat()"><ng-icon name="phosphorPlusLight" />New</button>
         </header>
 
-        <div #scroller class="min-h-0 flex-1 overflow-y-auto px-4 pb-6" tabindex="0" role="group" aria-label="Conversation with Kassandra" (scroll)="onScroll()">
-          <div class="mx-auto flex max-w-[640px] flex-col">
+        <div #scroller class="min-h-0 flex-1 overflow-y-auto px-page-x pb-section" tabindex="0" role="group" aria-label="Conversation with Kassandra" (scroll)="onScroll()">
+          <div class="max-w-measure mx-auto flex flex-col text-[14.5px]">
             <h2 class="sr-only">Conversation</h2>
             @if (live.scope(); as sc) {
-              <div class="flex flex-wrap items-center gap-1.5 pt-4" role="group" aria-label="What this conversation covers">
+              <div class="flex flex-wrap items-center gap-1.5 pt-stack" role="group" aria-label="What this conversation covers">
                 @for (c of sc.chips; track c) {
                   <span class="scope-chip">{{ c }}</span>
                 }
@@ -67,7 +79,7 @@ import * as icons from './icons';
               (suggestionPicked)="live.send($event)"
               (stopped)="chat.abort()"
             >
-              <div class="pt-10">
+              <div class="pt-section-lg">
                 <span class="orb-mark block" style="width: 28px; height: 28px" aria-hidden="true"></span>
                 <p class="mt-3 text-[20px] font-semibold tracking-[-0.01em]">Ask Kassandra</p>
                 <p class="text-muted-foreground mt-1 text-[14px]">About any hotel, night or metric. Every number in the answer shows where it comes from.</p>
@@ -76,8 +88,8 @@ import * as icons from './icons';
           </div>
         </div>
 
-        <footer class="border-border/70 shrink-0 border-t px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom,0px))]">
-          <div class="mx-auto max-w-[640px]">
+        <footer class="thread-dock relative shrink-0 px-page-x pt-1 pb-[max(var(--space-stack),env(safe-area-inset-bottom,0px))]">
+          <div class="max-w-measure mx-auto text-[14.5px]">
             <kassandra-composer
               inputId="thread-ask"
               label="Ask Kassandra"

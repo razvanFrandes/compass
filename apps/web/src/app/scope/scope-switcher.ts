@@ -39,7 +39,7 @@ const POP_WIDTH = 416;
     /* A narrowed scope reads stronger than the whole group. */
     .sw-count[data-narrowed] { border-color: var(--rail, var(--background)); background: var(--foreground); color: var(--background); }
     .sw-chip {
-      display: inline-flex; max-width: 100%; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border-radius: 9999px; outline: none;
+      display: inline-flex; max-width: 100%; align-items: center; gap: 6px; height: var(--control-h-xs); padding: 0 9px; border-radius: 9999px; outline: none;
       font-size: 12.5px; color: var(--foreground); background: var(--field); border: 1px solid var(--field-border-hover); transition: border-color 130ms ease;
     }
     .sw-chip[data-narrowed] { border-color: color-mix(in srgb, var(--brand) 55%, transparent); background: color-mix(in srgb, var(--brand) 12%, var(--field)); }

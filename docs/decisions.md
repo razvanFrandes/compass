@@ -498,3 +498,40 @@ Kassandra is drawn by the same components wherever she appears (`apps/web/src/ap
 - **What the models write follows the same rules.** Kassandra's prompt, the brief writer, the agents' run prompts and the builder prompt each carry a short voice block: money first, hotels by name, dates as "16–18 Dec", a rate against the comp set as a percentage, no tool, table or column names.
 - **Not covered:** the Inbox and the brief header (`inbox.ts`, `brief-charts.ts`) and the docs hub, which other branches rewrite.
 
+## Density and airy layouts (Round 3, 21 Nov 2026)
+
+Research: `docs/research/layout/layout-and-density.md`. Token names and rules: `docs/research/layout/tokens.md`.
+
+- **Density is its own axis.** `data-density="comfortable" | "compact"` on `<html>`, next to `data-theme`, and on any
+  region. Comfortable is the default. It changes heights, padding and gaps, never a font size. The tokens are in
+  `apps/web/src/density.css`; the `Density` service remembers the choice in `localStorage["compass.density"]`; the
+  switch (`<app-density-switch>`) sits under the theme in the sidebar and in `/theme-lab` → Density.
+- **No inline script for it.** `index.html` paints nothing before Angular starts, so the service sets the attribute
+  in an app initializer. The CSP keeps its two script hashes.
+- **Compact regions whatever the page is:** the Behind the numbers panel, `<juyo-data-table>`, the Portfolio filter
+  bar, the audit log, the builder's top bar. The builder's inspector is always comfortable. Overlays stay
+  comfortable; touch keeps 44 px.
+- **The concept theme no longer decides density.** Its `--control-height-*`, `--row-height` and `--cell-padding-x`
+  are aliases of the density tokens: comfortable gives it the default themes' heights, compact gives the heights
+  its spec lists. Its cards do not lift on hover (`--card-shadow-hover: none`).
+- **Flat cards.** Hover moves a card's hairline; shadows are for popovers, dialogs, sheets and toasts. Rules between
+  a header, a conversation and a composer are gone; lines stay in tables and lists.
+- **Grid.** Reading pages are capped at 1280 px (`.page`); boards and the builder are full width. A row holds at most
+  four KPI tiles (`.kpi-row`) or three charts (`.chart-row`, `.grid-12`), 200 px each at least. Charts are 180 px in
+  an overview and 320 px when featured (`<app-chart-card size>`); a bar per row keeps its own height.
+- **Thread.** The conversation is one column of 68 characters; Behind the numbers opens 400 px wide (it was 44% of
+  the width) and can still be dragged; a remembered split is kept.
+- **Boards.** The Portfolio board's first row is the filter bar and a KPI rail of four tiles (label, a 32 px figure
+  with its sparkline, what it is compared with). Below, twelve columns: the budget chart, the GOP waterfall and the
+  table take a row; the others sit two to a row, three from 1600 px.
+- **Agent Studio.** The list is a table with clickable rows (agent, last run, latest finding, action, recent runs,
+  controls), 64 px rows (56 px compact), the first column frozen on a narrow screen. How far an agent may go is
+  shown there and changed on its page. The agent's page is a primary column of two thirds (what it watches for,
+  decisions, runs, the run log) and a secondary one of one third (how it works, ask about it). The run list shows
+  five runs, then "Show all".
+- **Builder.** The canvas is full bleed. From 1280 px the settings of the selected step open in a 344 px inspector
+  on the right; below that they open inside the step, as before. The chat column is 320–400 px.
+- **Not done here:** tabs and an edit drawer on the agent's page (it is edited in the builder); collapsible groups
+  and height presets chosen by the person on a board; the tables inside `<juyo-widget-chart>` (their skeletons
+  compute heights in TypeScript, and two other branches are changing that component).
+

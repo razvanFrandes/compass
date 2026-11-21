@@ -27,6 +27,14 @@ const pace: EvidenceRow[] = [
 ];
 
 describe('DataTable', () => {
+  it('is a compact region by default, and comfortable when asked', () => {
+    const { el, fixture } = render(pace);
+    expect(el.getAttribute('data-density')).toBe('compact');
+    fixture.componentRef.setInput('density', 'comfortable');
+    fixture.detectChanges();
+    expect(el.getAttribute('data-density')).toBe('comfortable');
+  });
+
   it('has human headers, a caption and column scopes, and hides internal columns', () => {
     const { el, text } = render(pace, { caption: 'Pace vs last year' });
     expect(text('thead th')).toEqual(['Hotel', 'Rooms on the books', 'Pace vs last year', 'Revenue on the books']);

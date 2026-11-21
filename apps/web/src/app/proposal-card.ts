@@ -39,7 +39,7 @@ const STATUS: Record<Proposal['status'], string> = {
   host: { class: 'block' },
   template: `
     @let p = proposal();
-    <article class="relative flex h-full flex-col p-5" [class]="p.status === 'pending' ? 'decision-card' : 'insight-card'" [attr.aria-label]="p.title">
+    <article class="relative flex h-full flex-col p-card-pad" [class]="p.status === 'pending' ? 'decision-card' : 'insight-card'" [attr.aria-label]="p.title">
       <div class="flex items-center justify-between gap-3">
         <span class="card-eyebrow" [class]="p.status === 'pending' ? 'text-(--decision)' : 'text-muted-foreground'">{{ status() }}</span>
         <span class="text-muted-foreground text-right text-[12.5px]">{{ hotel() }} · {{ action() }}{{ p.risk === 'high' ? ' · high risk' : '' }}</span>
@@ -56,7 +56,7 @@ const STATUS: Record<Proposal['status'], string> = {
       @if (p.rationale.length > 220) {
         <button type="button" class="text-muted-foreground hover:text-foreground self-start text-[12.5px] underline underline-offset-2" (click)="more.set(!more())">{{ more() ? 'Show less' : 'See the full reasoning' }}</button>
       }
-      <div class="mt-auto flex flex-wrap items-center gap-2 pt-4">
+      <div class="mt-auto flex flex-wrap items-center gap-2 pt-card-gap">
         @if (p.status === 'pending') {
           <button hlmBtn class="decision-btn" [disabled]="!!working()" (click)="live.decide(p, true)">{{ working() === 'Approving…' ? working() : 'Approve' }}</button>
           <button hlmBtn variant="ghost" [disabled]="!!working()" (click)="live.decide(p, false)">{{ working() && working() !== 'Approving…' ? 'Declining…' : 'Decline' }}</button>

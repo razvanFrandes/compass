@@ -31,7 +31,7 @@ export function richText(text: string): { text: string; bold: boolean }[] {
     .wb-starter {
       display: block;
       width: 100%;
-      padding: 10px 12px;
+      padding: var(--space-stack) var(--space-card-gap);
       border-radius: var(--radius-container, 10px);
       border: 1px solid var(--field-border);
       background: var(--card);
@@ -54,18 +54,18 @@ export function richText(text: string): { text: string; bold: boolean }[] {
     }
   `,
   template: `
-    <div #scroller class="min-h-0 flex-1 overflow-y-auto px-4 max-lg:max-h-[52dvh]" tabindex="0" role="log" aria-label="Conversation with Kassandra" [attr.aria-busy]="running()" (scroll)="onScroll()">
-      <div class="mx-auto flex max-w-[620px] flex-col gap-4 py-5">
+    <div #scroller class="min-h-0 flex-1 overflow-y-auto px-page-x max-lg:max-h-[52dvh]" tabindex="0" role="log" aria-label="Conversation with Kassandra" [attr.aria-busy]="running()" (scroll)="onScroll()">
+      <div class="max-w-measure mx-auto flex flex-col gap-card-gap py-card-pad text-[14.5px]">
         @if (!items().length) {
-          <div class="gen-in flex flex-col gap-4 pt-2 lg:pt-8">
+          <div class="gen-in flex flex-col gap-card-gap pt-2 lg:pt-section">
             <span class="orb-mark" style="width: 28px; height: 28px" aria-hidden="true"></span>
             <div>
               <h2 class="text-[20px]/7 font-semibold tracking-[-0.015em]">What should this agent watch for you?</h2>
               <p class="text-muted-foreground mt-1.5 text-[14px]/relaxed">Describe it in your own words. Kassandra builds the agent step by step, and you can change any step by hand.</p>
             </div>
             <div>
-              <h3 class="card-eyebrow mb-2">Try one of these</h3>
-              <ul class="flex flex-col gap-2">
+              <h3 class="card-eyebrow mb-stack">Try one of these</h3>
+              <ul class="flex flex-col gap-inline">
                 @for (starter of starters; track starter) {
                   <li><button type="button" class="wb-starter" (click)="useStarter(starter)">{{ starter }}</button></li>
                 }
@@ -139,10 +139,10 @@ export function richText(text: string): { text: string; bold: boolean }[] {
       </div>
     </div>
 
-    <div class="shrink-0 px-4 pt-1 pb-[max(16px,env(safe-area-inset-bottom,0px))]">
+    <div class="shrink-0 px-page-x pt-1 pb-[max(var(--space-card-gap),env(safe-area-inset-bottom,0px))]">
       <!-- A spoken description lands in the field instead of being sent: the person adds what is theirs (an address) first -->
       <kassandra-composer
-        class="mx-auto block max-w-[620px]"
+        class="max-w-measure mx-auto block text-[14.5px]"
         label="Describe the agent, or ask for a change"
         [placeholder]="items().length ? 'Ask for a change…' : 'Describe what to watch…'"
         [busy]="running()"

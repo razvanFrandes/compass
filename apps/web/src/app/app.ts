@@ -104,7 +104,7 @@ import * as icons from './icons';
             @defer (on immediate) {
               <app-theme-lab />
             } @placeholder {
-              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading the theme lab…</p>
+              <p class="text-muted-foreground px-page-x pt-section text-[14px]" role="status">Loading the theme lab…</p>
             }
           }
           @case ('watcher') {
@@ -112,7 +112,7 @@ import * as icons from './icons';
             @defer (on immediate) {
               <app-watcher-page />
             } @placeholder {
-              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading the agent…</p>
+              <p class="text-muted-foreground px-page-x pt-section text-[14px]" role="status">Loading the agent…</p>
             }
           }
           @case ('catalog') {
@@ -120,7 +120,7 @@ import * as icons from './icons';
             @defer (on immediate) {
               <app-catalog />
             } @placeholder {
-              <p class="text-muted-foreground px-8 pt-8 text-[14px]" role="status">Loading the chart catalogue…</p>
+              <p class="text-muted-foreground px-page-x pt-section text-[14px]" role="status">Loading the chart catalogue…</p>
             }
           }
         }

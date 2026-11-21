@@ -82,6 +82,10 @@ export function namedScope(graph: WorkflowGraph, hotels: readonly string[] | und
 /**
  * The workflow builder: the person describes a workflow in the chat, the agent fills in the chain on the canvas one
  * node per tool call, and "Send test now" runs it once while the nodes light up in order.
+ *
+ * Layout (docs/research/layout): the canvas is full bleed, with no maximum width. The top bar holds the actions that
+ * matter (save, run a test) and is a compact region; Kassandra's chat is the panel on the left, and the settings of
+ * the selected step open in an inspector on the right (inside the step on a narrow screen), at comfortable density.
  */
 @Component({
   selector: 'app-workflow-builder',
@@ -112,7 +116,7 @@ export function namedScope(graph: WorkflowGraph, hotels: readonly string[] | und
     }
   `,
   template: `
-    <header class="border-border/70 flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-2 border-b px-3 py-2.5 sm:px-4 lg:min-h-14">
+    <header data-density="compact" class="border-border/70 flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-2 border-b px-page-x py-2 lg:min-h-12">
       <a hlmBtn variant="ghost" size="sm" [href]="backHref" class="text-muted-foreground -ml-1"><ng-icon name="phosphorArrowLeftLight" aria-hidden="true" />Agent Studio</a>
       <span class="text-muted-foreground" aria-hidden="true">/</span>
       <h1 class="min-w-0 truncate text-[14px] font-medium">{{ title() }}</h1>
@@ -150,34 +154,34 @@ export function namedScope(graph: WorkflowGraph, hotels: readonly string[] | und
     </header>
 
     @if (offline()) {
-      <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-(--field-border) bg-(--field) px-4 py-2 text-[13px]" role="status">
+      <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-(--field-border) bg-(--field) px-page-x py-2 text-[13px]" role="status">
         <ng-icon name="phosphorWifiSlashLight" class="text-[16px] text-(--negative)" aria-hidden="true" />
         <span>The connection dropped. Reconnecting now; your draft is safe.</span>
         <button hlmBtn type="button" variant="link" size="sm" (click)="socket.reconnect()">Try again</button>
       </div>
     }
     @if (editFailed()) {
-      <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-(--field-border) bg-(--decision-tint) px-4 py-2 text-[13px]/5" role="alert">
+      <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-(--field-border) bg-(--decision-tint) px-page-x py-2 text-[13px]/5" role="alert">
         <ng-icon name="phosphorWarningFill" class="shrink-0 text-[16px] text-(--decision)" aria-hidden="true" />
         <span>Couldn’t open this agent for editing, so changes made here won’t reach it. Go back and open it again.</span>
         <a hlmBtn variant="link" size="sm" [href]="backHref">Back to Agent Studio</a>
       </div>
     }
     @if (socket.error(); as message) {
-      <div class="flex shrink-0 items-start gap-2.5 border-b border-(--field-border) bg-(--decision-tint) px-4 py-2 text-[13px]/5" role="alert">
+      <div class="flex shrink-0 items-start gap-2.5 border-b border-(--field-border) bg-(--decision-tint) px-page-x py-2 text-[13px]/5" role="alert">
         <ng-icon name="phosphorWarningFill" class="mt-0.5 shrink-0 text-[16px] text-(--decision)" aria-hidden="true" />
         <p class="min-w-0 flex-1">{{ message }}</p>
         <button hlmBtn type="button" variant="ghost" size="icon-xs" aria-label="Dismiss this message" (click)="socket.dismissError()"><ng-icon name="phosphorXLight" /></button>
       </div>
     }
 
-    <main class="grid grid-cols-[minmax(0,1fr)] lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(360px,460px)_minmax(0,1fr)]">
+    <main class="grid grid-cols-[minmax(0,1fr)] lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(320px,400px)_minmax(0,1fr)]">
       <section class="border-border/70 flex min-w-0 flex-col lg:min-h-0 lg:border-r" aria-label="Chat">
         <app-builder-chat class="lg:min-h-0 lg:flex-1" [items]="conversation()" [running]="socket.live().running" [online]="!offline()" (ask)="socket.ask($event)" (stop)="socket.abort()" />
       </section>
-      <section class="border-border/70 min-w-0 max-lg:border-t lg:min-h-0" aria-label="Agent">
+      <section class="min-w-0 lg:min-h-0" aria-label="Agent">
         <app-workflow-canvas
-          class="lg:h-full lg:overflow-y-auto"
+          class="lg:h-full"
           [graph]="graph()"
           [draft]="socket.draft()"
           [changed]="socket.changed()"

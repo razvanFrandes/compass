@@ -10,6 +10,7 @@ import { CompassStore } from './store';
 import { Live } from './live';
 import { BoardsService } from './boards/boards.service';
 import { chartToWidget } from './boards/catalogue-widget';
+import { CHART_HEIGHT, type ChartSize } from './theme/density';
 import * as icons from './icons';
 
 /*
@@ -39,7 +40,7 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
   host: { class: 'block min-w-0' },
   template: `
     @let r = resolved();
-    <article class="insight-card flex h-full flex-col p-5" [attr.aria-labelledby]="spec().id + '-t'">
+    <article class="insight-card flex h-full flex-col p-card-pad" [attr.aria-labelledby]="spec().id + '-t'">
       <header class="flex items-start gap-3">
         <div class="min-w-0 flex-1">
           <h2 [id]="spec().id + '-t'" class="text-[15.5px]/snug font-semibold tracking-[-0.005em]">{{ r.title }}</h2>
@@ -83,7 +84,7 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
         </p>
       }
 
-      <div class="mt-4 min-h-0 flex-1">
+      <div class="mt-stack min-h-0 flex-1">
         @if (r.empty; as e) {
           <div class="text-muted-foreground flex flex-col items-start gap-3 py-6 text-[14px]">
             {{ e.text }}
@@ -98,7 +99,7 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
               <thead class="text-muted-foreground sticky top-0 z-[1] bg-(--card) text-[12px]">
                 <tr>
                   @for (c of r.table.columns; track $index) {
-                    <th scope="col" class="border-border border-b py-2 font-medium whitespace-nowrap" [class]="align(r, $index) === 'l' ? 'pr-3 text-left' : 'pl-3 text-right'">{{ c }}</th>
+                    <th scope="col" class="border-border h-row border-b font-medium whitespace-nowrap" [class]="align(r, $index) === 'l' ? 'pr-cell-x text-left' : 'pl-cell-x text-right'">{{ c }}</th>
                   }
                 </tr>
               </thead>
@@ -108,9 +109,9 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
                     @for (cell of row; track $index) {
                       @let c = cellOf(cell);
                       @if ($index === 0) {
-                        <th scope="row" class="py-2 pr-3 text-left whitespace-nowrap" [class]="c.text === 'Group total' || c.text === 'Selection total' ? 'font-semibold' : 'font-normal'">{{ c.text }}</th>
+                        <th scope="row" class="h-row pr-cell-x text-left whitespace-nowrap" [class]="c.text === 'Group total' || c.text === 'Selection total' ? 'font-semibold' : 'font-normal'">{{ c.text }}</th>
                       } @else {
-                        <td class="py-2 pl-3 whitespace-nowrap" [class]="align(r, $index) === 'l' ? 'text-left' : 'text-right'" [class.text-muted-foreground]="c.muted">
+                        <td class="h-row pl-cell-x whitespace-nowrap" [class]="align(r, $index) === 'l' ? 'text-left' : 'text-right'" [class.text-muted-foreground]="c.muted">
                           @if (c.spark) {
                             <svg width="72" height="20" viewBox="0 0 72 20" class="inline-block align-middle" aria-hidden="true">
                               <polyline [attr.points]="sparkPoints(c.spark)" fill="none" stroke="var(--series)" stroke-width="1.5" stroke-linejoin="round" />
@@ -133,12 +134,12 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
           <p class="text-[34px]/tight font-semibold tracking-[-0.02em] tabular-nums">{{ r.kpi.value }}</p>
           <p class="text-muted-foreground mt-1 text-[13px]">{{ r.kpi.delta }}</p>
         } @else {
-          <app-echart [option]="option()" [label]="r.aria" [style.height.px]="r.height" (pick)="drill($event)" />
+          <app-echart [option]="option()" [label]="r.aria" [style.height.px]="height()" (pick)="drill($event)" />
         }
       </div>
 
       @if (mode() === 'chart' && view() !== 'table' && view() !== 'kpi' && r.legend.length && !r.empty) {
-        <ul class="text-muted-foreground mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12px]" aria-label="Legend">
+        <ul class="text-muted-foreground mt-stack flex flex-wrap gap-x-4 gap-y-1 text-[12px]" aria-label="Legend">
           @for (l of r.legend; track l.label) {
             <li class="flex items-center gap-1.5"><i [class]="'legend-mark legend-mark--' + l.mark" aria-hidden="true"></i>{{ l.label }}</li>
           }
@@ -146,7 +147,7 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
       }
 
       @if (howOpen()) {
-        <section class="border-border mt-4 border-t pt-3 text-[12.5px]" aria-label="Behind the numbers">
+        <section class="mt-card-pad text-[12.5px]" aria-label="Behind the numbers">
           <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
             @for (d of r.definitions; track d[0]) {
               <dt class="text-muted-foreground">{{ d[0] }}</dt>
@@ -196,12 +197,21 @@ const BOARD_NAME: Record<ChartSpec['kind'], string> = {
   `,
 })
 export class ChartCard {
+  /**
+   * The height of the chart: `overview` (180 px) for a chart among others, `hero` (320 px) for the featured one,
+   * `auto` for the chart's own height (a bar per row grows with its rows).
+   */
+  readonly size = input<ChartSize | 'auto'>('auto');
   readonly spec = input.required<ChartSpec>();
   protected readonly filters = inject(Filters);
   protected readonly store = inject(CompassStore);
   private readonly live = inject(Live);
   protected readonly asOf = 'Fri 20 Nov, 07:00';
   protected readonly resolved = computed(() => resolve(this.spec(), this.filters.state()));
+  protected readonly height = computed(() => {
+    const size = this.size();
+    return size === 'auto' ? this.resolved().height : CHART_HEIGHT[size];
+  });
   /** A manual "Show as" is a local change to the spec; it survives filter changes while it stays valid. */
   private readonly chosen = linkedSignal<{ r: ReturnType<typeof resolve> }, View | null>({
     source: () => ({ r: this.resolved() }),

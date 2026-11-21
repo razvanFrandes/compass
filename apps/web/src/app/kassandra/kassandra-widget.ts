@@ -24,7 +24,7 @@ const LOADING: Record<SlotPhase, WidgetLoading> = { chosen: 'skeleton', describe
   host: { class: 'block', '[attr.data-phase]': 'phase()' },
   template: `
     @let s = slot();
-    <figure class="insight-card gen-in p-4" [attr.aria-busy]="phase() === 'ready' ? null : 'true'">
+    <figure class="insight-card gen-in p-card-pad" [attr.aria-busy]="phase() === 'ready' ? null : 'true'">
       <figcaption class="min-h-[42px]">
         @if (s.title) {
           <h3 class="text-[14.5px]/snug font-semibold tracking-[-0.005em] text-balance">{{ s.title }}</h3>
@@ -39,8 +39,8 @@ const LOADING: Record<SlotPhase, WidgetLoading> = { chosen: 'skeleton', describe
           </span>
         }
       </figcaption>
-      <juyo-widget-chart class="mt-3 block" [spec]="s.spec" [rows]="s.widget?.rows ?? null" [columns]="s.widget?.columns ?? null" [loading]="loading()" [header]="false" [compact]="true" />
-      <div class="mt-3 flex min-h-8 flex-wrap items-center justify-between gap-2">
+      <juyo-widget-chart class="mt-stack block" [spec]="s.spec" [rows]="s.widget?.rows ?? null" [columns]="s.widget?.columns ?? null" [loading]="loading()" [header]="false" [compact]="true" />
+      <div class="mt-stack flex min-h-8 flex-wrap items-center justify-between gap-2">
         @if (phase() === 'ready' && s.widget; as w) {
           @if (showEvidence()) {
             <button type="button" class="k-link text-muted-foreground hover:text-foreground text-[12.5px] underline underline-offset-2" (click)="evidence.emit(w.sourceCallId)">Behind the numbers</button>
