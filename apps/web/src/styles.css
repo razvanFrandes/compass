@@ -683,24 +683,47 @@ textarea.field-input { height: auto; line-height: 1.5; }
 }
 @media (hover: hover) { .k-suggestion:hover { background: var(--overlay-hover); border-color: var(--field-border-hover); } }
 .k-suggestion:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring); }
-/* Sidebar threads: the title is the target; the time gives way to ⋯ on hover and focus. */
-.k-thread { position: relative; display: flex; align-items: center; border-radius: 6px; color: var(--muted-foreground); transition: background-color 150ms ease, color 150ms ease; }
-@media (hover: hover) { .k-thread:hover { background: rgb(from var(--foreground) r g b / 0.04); color: var(--foreground); } }
-.k-thread--current { background: rgb(from var(--foreground) r g b / 0.06); color: var(--foreground); }
-.k-thread-open { display: flex; min-width: 0; flex: 1; align-items: baseline; gap: 8px; padding: 4px 8px; border-radius: 6px; text-align: left; outline: none; }
-.k-thread-time { flex-shrink: 0; font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--muted-foreground); }
-.k-thread-more {
-  position: absolute; right: 2px; top: 50%; display: grid; width: 24px; height: 24px; place-items: center; border-radius: 5px;
-  transform: translateY(-50%); opacity: 0; color: var(--muted-foreground); outline: none;
+/* Sidebar conversations (kassandra-thread-list.ts): a title and a muted takeaway under it, a small icon for what the
+   answer showed. Rename and delete appear on hover and on focus, over a fade of the row's own colour. */
+/* Solid row colours (the foreground mixed into the rail), so the fade behind the actions ends on the same colour. */
+.k-recent { --k-row: var(--rail, var(--background)); --k-row-hover: color-mix(in srgb, var(--foreground) 4.5%, var(--rail, var(--background))); --k-row-current: color-mix(in srgb, var(--foreground) 7.5%, var(--rail, var(--background))); }
+.k-recent-head { display: flex; min-height: 28px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px 0 11px; }
+.k-recent-new {
+  display: grid; width: 26px; height: 26px; flex-shrink: 0; place-items: center; border-radius: 6px; color: var(--muted-foreground); outline: none;
+  transition: background-color 150ms ease, color 150ms ease;
 }
-.k-thread:hover .k-thread-more, .k-thread:focus-within .k-thread-more, .k-thread-more[aria-expanded='true'] { opacity: 1; }
-.k-thread:hover .k-thread-time, .k-thread:focus-within .k-thread-time { visibility: hidden; }
-@media (hover: hover) { .k-thread-more:hover { background: var(--overlay-hover); color: var(--foreground); } }
-.k-thread-open:focus-visible, .k-thread-more:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+.k-day { padding: 14px 11px 4px; color: var(--muted-foreground); font-size: 11.5px; font-weight: 500; letter-spacing: 0.01em; }
+.k-day:first-child { padding-top: 4px; }
+.k-thread { position: relative; display: flex; align-items: stretch; border-radius: 8px; background: var(--k-row); color: var(--muted-foreground); transition: background-color 150ms ease, color 150ms ease; }
+@media (hover: hover) { .k-thread:hover { --k-row: var(--k-row-hover); color: var(--foreground); } }
+.k-thread--current { --k-row: var(--k-row-current); color: var(--foreground); }
+@media (hover: hover) { .k-thread--current:hover { --k-row: var(--k-row-current); } }
+/* The current conversation also carries a short bar of the brand colour at its left edge: it reads without colour too (the fill). */
+.k-thread--current::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 2px; border-radius: 2px; background: var(--brand, var(--primary)); }
+.k-thread-open { display: flex; min-width: 0; flex: 1; align-items: flex-start; gap: 9px; padding: 6px 8px 6px 11px; border-radius: 8px; text-align: left; outline: none; }
+.k-thread-icon { flex-shrink: 0; margin-top: 1.5px; font-size: 15px; color: var(--muted-foreground); }
+.k-thread--current .k-thread-icon { color: var(--foreground); }
+.k-thread-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }
+.k-thread-title { overflow: hidden; color: inherit; font-size: 13px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.k-thread:hover .k-thread-title, .k-thread--current .k-thread-title { color: var(--foreground); }
+.k-thread--current .k-thread-title { font-weight: 500; }
+.k-thread-summary { overflow: hidden; color: var(--muted-foreground); font-size: 12px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.k-thread-actions {
+  position: absolute; top: 50%; right: 4px; display: flex; gap: 1px; padding-left: 18px; opacity: 0; pointer-events: none; transform: translateY(-50%);
+  background: linear-gradient(to right, transparent, var(--k-row) 16px); transition: opacity 120ms ease;
+}
+.k-thread:hover .k-thread-actions, .k-thread:focus-within .k-thread-actions { opacity: 1; pointer-events: auto; }
+@media (hover: none) { .k-thread-actions { opacity: 1; pointer-events: auto; } }
+.k-thread-action { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 6px; color: var(--muted-foreground); outline: none; font-size: 15px; }
+@media (hover: hover) {
+  .k-thread-action:hover, .k-recent-new:hover { background: var(--overlay-hover, rgb(from var(--foreground) r g b / 0.06)); color: var(--foreground); }
+}
+.k-thread-open:focus-visible, .k-thread-action:focus-visible, .k-recent-new:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
 .k-thread-input {
-  min-width: 0; flex: 1; height: 28px; padding: 0 7px; border-radius: 6px; font-size: 13px; color: var(--foreground);
+  min-width: 0; flex: 1; height: 30px; margin: 3px 0; padding: 0 9px; border-radius: 8px; font-size: 13px; color: var(--foreground);
   background: var(--field); border: 1px solid var(--focus-brand); outline: none; box-shadow: 0 0 0 3px rgb(153 106 213 / 0.2);
 }
+@media (prefers-reduced-motion: reduce) { .k-thread-actions, .k-recent-new { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .k-suggestion, .k-thread { transition: none; } }
 /* Skeletons of generative UI (docs/decisions.md "Skeletons"): a quiet block with a slow, faint sweep of light.
    Static under reduced motion. */

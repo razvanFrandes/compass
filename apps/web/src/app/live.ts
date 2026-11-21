@@ -1,7 +1,7 @@
 import { Service, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toast } from '@spartan-ng/brain/sonner';
-import { recipientFor, type AnswerMode, type DecisionReceipt, type Proposal, type Workflow } from '@compass/contracts';
-import { BriefApi, KassandraChat, WorkflowsApi, toApiError } from './api';
+import { recipientFor, type AnswerMode, type DecisionReceipt, type Proposal, type ThreadKind, type ThreadMeta, type ThreadMetaList, type Workflow } from '@compass/contracts';
+import { ApiHttp, BriefApi, KassandraChat, WorkflowsApi, toApiError } from './api';
 import { FilterState, scopeChips } from './filters';
 import { AnswerScope, BRIEF_ITEMS, BriefRow, CompassStore, THEME_LAB_PATH, isBuilderUrl, isOrbLabUrl, scopeForRow } from './store';
 import { Drill } from './portfolio';
@@ -23,7 +23,22 @@ export interface ConversationRef {
   scope?: AnswerScope;
   /** What opened it (a brief item, a chart mark, a KPI tile), so the same click reopens it instead of asking again. */
   source?: string;
+  /** The answer's takeaway, written on the server after the first answer ("Corporate down 12% vs last year"). */
+  summary?: string | null;
+  /** What the first answer showed, for the sidebar's icon. */
+  kind?: ThreadKind;
+  /** The hotel code when the conversation is about one hotel. */
+  hotel?: string | null;
+  /** The server has written its title and takeaway: there is nothing more to ask for. */
+  named?: boolean;
+  /** The person named it: the server's title does not replace it. */
+  renamed?: boolean;
 }
+
+/** How long a deleted thread can be brought back (the toast's Undo) before the server forgets it too. */
+const UNDO_MS = 9000;
+/** A thread the server had no title for yet is asked about again after this long. */
+const META_RETRY_MS = 20_000;
 
 /**
  * A thread's title from its first question: the trailing scope in brackets is dropped, long questions are cut at a
@@ -63,6 +78,7 @@ export class Live {
   readonly briefApi = inject(BriefApi);
   readonly chat = inject(KassandraChat);
   readonly workflowsApi = inject(WorkflowsApi);
+  private readonly http = inject(ApiHttp);
   /** The hotels the person works on (the sidebar switcher). Decisions waiting on a person follow it; every question carries it. */
   readonly hotelScope = inject(ScopeService);
 
@@ -118,6 +134,17 @@ export class Live {
         this.unanswered.set(null);
         if (!this.chat.turns().length) this.chat.ask(want.question, this.mode(), this.askScope());
       });
+    });
+    // The title and takeaway the server wrote after the first answer, sent on the open socket.
+    effect(() => {
+      const sent = this.chat.meta();
+      if (sent) untracked(() => this.applyMeta(sent.conversation, sent.meta));
+    });
+    // Threads the server has not titled yet (answered while their socket was closed, or before titles existed) are
+    // asked about together, a moment after the list changes.
+    effect(() => {
+      const missing = this.conversations().some((c) => !c.named);
+      if (missing) untracked(() => this.scheduleMetaSync());
     });
     // A conversation is remembered once it has a question.
     effect(() => {
@@ -289,10 +316,16 @@ export class Live {
   exploreRow(r: BriefRow) {
     this.explore(r.question ?? r.title ?? r.hotel_name, scopeForRow(r), `brief:${r.id}`);
   }
-  /** A new name for a thread in the sidebar. An empty name keeps the old one. */
+  /** A new name for a thread in the sidebar, kept on the server too. An empty name keeps the old one. */
   renameConversation(id: string, title: string) {
     const name = title.replace(/\s+/g, ' ').trim().slice(0, 120);
-    if (name) this.conversations.update((list) => list.map((c) => (c.id === id ? { ...c, title: name } : c)));
+    if (!name) return;
+    const before = this.conversations().find((c) => c.id === id);
+    if (!before || before.title === name) return;
+    this.conversations.update((list) => list.map((c) => (c.id === id ? { ...c, title: name, renamed: true } : c)));
+    void this.http.patch<ThreadMeta>(`kassandra/conversations/${encodeURIComponent(id)}`, { title: name }).then((r) => {
+      if (!r.ok) toast('Couldn’t save the new name', { description: r.error.message, duration: 6000 });
+    });
   }
   /**
    * Takes a thread out of the list and returns it, so the caller can offer Undo (`restoreConversation`). The list is
@@ -304,13 +337,58 @@ export class Live {
     this.forgotten.add(id);
     this.conversations.update((list) => list.filter((c) => c.id !== id));
     if (this.chat.conversation() === id) this.chat.newConversation();
+    // The server forgets the transcript once Undo is no longer offered.
+    clearTimeout(this.deleting.get(id));
+    this.deleting.set(
+      id,
+      setTimeout(() => {
+        this.deleting.delete(id);
+        void this.http.delete(`kassandra/conversations/${encodeURIComponent(id)}`);
+      }, UNDO_MS),
+    );
     return removed;
   }
   restoreConversation(ref: ConversationRef) {
+    clearTimeout(this.deleting.get(ref.id));
+    this.deleting.delete(ref.id);
     this.forgotten.delete(ref.id);
     this.conversations.update((list) => (list.some((c) => c.id === ref.id) ? list : [...list, ref].sort((a, b) => b.at - a.at)));
   }
   private readonly forgotten = new Set<string>();
+  private readonly deleting = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /** The server's title, takeaway and kind for a thread. A title the person gave stays. */
+  private applyMeta(id: string, meta: ThreadMeta) {
+    this.conversations.update((list) =>
+      list.map((c) =>
+        c.id !== id
+          ? c
+          : { ...c, title: c.renamed || !meta.title ? c.title : meta.title, summary: meta.summary ?? null, kind: meta.kind, hotel: meta.hotel ?? null, named: true },
+      ),
+    );
+  }
+
+  private metaTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly metaAsked = new Map<string, number>();
+  private scheduleMetaSync() {
+    if (this.metaTimer) return;
+    this.metaTimer = setTimeout(() => {
+      this.metaTimer = null;
+      void this.syncMeta();
+    }, 1000);
+  }
+  private async syncMeta() {
+    const now = Date.now();
+    const ids = this.conversations()
+      .filter((c) => !c.named && now - (this.metaAsked.get(c.id) ?? 0) > META_RETRY_MS)
+      .map((c) => c.id)
+      .slice(0, 30);
+    if (!ids.length) return;
+    for (const id of ids) this.metaAsked.set(id, now);
+    const r = await this.http.get<ThreadMetaList>('kassandra/conversations', { ids: ids.join(',') });
+    if (!r.ok || !r.value || typeof r.value !== 'object') return;
+    for (const [id, meta] of Object.entries(r.value)) if (meta && typeof meta.title === 'string') this.applyMeta(id, meta);
+  }
 
   private prefill(text: string) {
     this.composer.set({ text, n: ++this.n });

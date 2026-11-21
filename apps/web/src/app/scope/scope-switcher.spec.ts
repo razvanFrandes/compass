@@ -36,7 +36,7 @@ describe('ScopeSwitcher', () => {
   it('is the group switcher in the sidebar: the group, the scope, and no "coming soon"', async () => {
     await render('sidebar');
     expect(trigger().textContent).toContain('Halcyon Hospitality');
-    expect(trigger().textContent).toContain('All 20 hotels');
+    expect(trigger().textContent).toContain('20 hotels · 16 countries');
     expect(trigger().hasAttribute('aria-disabled')).toBe(false);
     expect(trigger().disabled).toBe(false);
     expect(trigger().getAttribute('aria-expanded')).toBe('false');
@@ -79,7 +79,7 @@ describe('ScopeSwitcher', () => {
     expect(badge().textContent?.trim()).toBe('20');
     expect(badge().hasAttribute('data-narrowed')).toBe(false);
     // The names stay in the button for a screen reader; the badge is for the eye.
-    expect(button.textContent).toContain('All 20 hotels');
+    expect(button.textContent).toContain('20 hotels · 16 countries');
     expect(badge().getAttribute('aria-hidden')).toBe('true');
 
     scope.set(['LIS', 'DXB2']);

@@ -14,9 +14,10 @@ const BUDGET_KINDS: readonly { key: string; label: string; what: string }[] = [
   { key: 'embedding', label: 'Embeddings', what: '`find_reviews` calls over MCP' },
   { key: 'voice', label: 'Voice dictations', what: 'Temporary speech-to-text keys' },
   { key: 'board_write', label: 'Board changes', what: 'Create, rename, add or remove a widget' },
+  { key: 'thread_title', label: 'Conversation titles', what: 'One Quick model call per conversation, after its first answer' },
 ];
 /** The limits in `apps/worker/wrangler.jsonc`, shown when the live count cannot be read. */
-const DEFAULT_LIMITS: Record<string, number> = { question: 300, workflow_run: 60, decision: 120, brief_refresh: 24, embedding: 2000, voice: 300, board_write: 600 };
+const DEFAULT_LIMITS: Record<string, number> = { question: 300, workflow_run: 60, decision: 120, brief_refresh: 24, embedding: 2000, voice: 300, board_write: 600, thread_title: 300 };
 
 const POSTURE: readonly DocsCell[] = [
   { k: 'Database', title: 'A role that can only read', text: '`compass_ro` has `SELECT` on schema `hotel` only. Every transaction is read-only and stops at 5 s. Postgres listens on localhost; the VM opens no inbound port.' },

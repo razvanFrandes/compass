@@ -1,5 +1,5 @@
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { SOCKET_FACTORY } from './api';
 import { FakeSocket, live as liveState, user } from './api/testing';
@@ -146,6 +146,85 @@ describe('Live: asking Kassandra', () => {
     live.send('A follow-up');
     expect(live.conversations().map((c) => c.title)).toEqual(['First question', 'Second question']);
     expect(live.conversations()[0]!.at).toBeGreaterThan(live.conversations()[1]!.at);
+  });
+});
+
+describe('Live: the sidebar’s titles from the server', () => {
+  const META = { title: 'Group: occupancy', summary: 'Occupancy up 2 pts vs last year', kind: 'chart' as const, hotel: null, renamed: false };
+  const http = () => TestBed.inject(HttpTestingController);
+  /** Requests to the conversations API, answered with nothing (an empty list, 204). */
+  const calls = () =>
+    http()
+      .match((r) => r.url.includes('/kassandra/conversations'))
+      .map((r) => {
+        const call = `${r.request.method} ${r.request.urlWithParams}`;
+        r.flush(r.request.method === 'GET' ? {} : r.request.method === 'PATCH' ? META : null);
+        return { call, body: r.request.body as unknown };
+      });
+
+  beforeEach(() => {
+    FakeSocket.reset();
+    localStorage.clear();
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    history.replaceState(null, '', '/');
+  });
+
+  it('takes the title, the takeaway and the kind the server wrote once the first answer is in', () => {
+    const { live } = create();
+    live.askNew('How is occupancy?');
+    accept();
+    FakeSocket.last.serve({ type: 'meta', meta: META });
+    TestBed.tick();
+    expect(live.conversations()[0]).toMatchObject({ title: 'Group: occupancy', summary: 'Occupancy up 2 pts vs last year', kind: 'chart', hotel: null, named: true });
+  });
+
+  it('keeps a title the person gave over the one the server wrote', () => {
+    const { live } = create();
+    live.askNew('How is occupancy?');
+    accept();
+    live.renameConversation(live.chat.conversation(), 'Mine');
+    FakeSocket.last.serve({ type: 'meta', meta: META });
+    TestBed.tick();
+    expect(live.conversations()[0]).toMatchObject({ title: 'Mine', summary: 'Occupancy up 2 pts vs last year' });
+  });
+
+  it('asks the server for the titles it does not have yet, and applies them', async () => {
+    localStorage.setItem('compass.conversations', JSON.stringify([{ id: 'c-old', title: 'How is pace?', at: Date.now() }, { id: 'c-done', title: 'Done', at: Date.now(), named: true }]));
+    const { live } = create();
+    await vi.advanceTimersByTimeAsync(1500);
+    const request = http().expectOne((r) => r.url.includes('/kassandra/conversations'));
+    expect(request.request.method).toBe('GET');
+    expect(request.request.urlWithParams).toBe('/api/kassandra/conversations?ids=c-old');
+    request.flush({ 'c-old': { ...META, title: 'Group: pace' } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(live.conversations().find((c) => c.id === 'c-old')).toMatchObject({ title: 'Group: pace', named: true });
+  });
+
+  it('a rename is kept on the server', async () => {
+    const { live } = create();
+    live.askNew('How is occupancy?');
+    const id = live.chat.conversation();
+    live.renameConversation(id, 'Occupancy, group');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls().filter((c) => c.call.startsWith('PATCH'))).toEqual([{ call: `PATCH /api/kassandra/conversations/${id}`, body: { title: 'Occupancy, group' } }]);
+  });
+
+  it('a delete reaches the server once the Undo window is over; Undo in time keeps it', async () => {
+    const { live } = create();
+    live.askNew('First');
+    const first = live.chat.conversation();
+    live.askNew('Second');
+    const second = live.chat.conversation();
+
+    const removed = live.deleteConversation(first)!;
+    await vi.advanceTimersByTimeAsync(3000);
+    live.restoreConversation(removed);
+    live.deleteConversation(second);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(calls().filter((c) => c.call.startsWith('DELETE'))).toEqual([{ call: `DELETE /api/kassandra/conversations/${second}`, body: null }]);
   });
 });
 

@@ -1,5 +1,5 @@
 import { DestroyRef, inject, InjectionToken, Service, signal, type Signal } from '@angular/core';
-import type { AnswerMode } from '@compass/contracts';
+import type { AnswerMode, ThreadMeta } from '@compass/contracts';
 import { API_BASE, wsUrl } from './api-config';
 import { ChatSocket, type SocketFactory } from './chat-socket';
 import type { AskScope } from './round2-contracts';
@@ -47,9 +47,14 @@ function store(id: string): void {
 export class KassandraChat {
   private readonly base = inject(API_BASE);
   private readonly _conversation = signal(readStored() ?? newConversationId());
-  private readonly chat = new ChatSocket({
+  private readonly _meta = signal<{ conversation: string; meta: ThreadMeta } | null>(null);
+  private readonly chat = new ChatSocket<{ type: 'meta'; meta: ThreadMeta }>({
     url: () => wsUrl(this.base, 'kassandra/ws', { conversation: this._conversation() }),
     createSocket: inject(SOCKET_FACTORY),
+    // The conversation's title and takeaway, written on the server after its first answer.
+    onMessage: (message) => {
+      if (message.type === 'meta' && message.meta && typeof message.meta.title === 'string') this._meta.set({ conversation: this._conversation(), meta: message.meta });
+    },
   });
 
   readonly conversation: Signal<string> = this._conversation.asReadonly();
@@ -62,6 +67,8 @@ export class KassandraChat {
   readonly running = this.chat.running;
   readonly usage = this.chat.usage;
   readonly turns = this.chat.turns;
+  /** The last title and takeaway the server sent, with the conversation it belongs to. */
+  readonly meta = this._meta.asReadonly();
 
   constructor() {
     store(this._conversation());

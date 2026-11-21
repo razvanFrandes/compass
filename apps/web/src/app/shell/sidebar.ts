@@ -1,18 +1,16 @@
 import { Component, DOCUMENT, ElementRef, Injector, ViewEncapsulation, afterNextRender, computed, inject, input, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { phosphorBookOpenFill } from '@ng-icons/phosphor-icons/fill';
-import { phosphorBookOpenLight, phosphorSidebarSimpleLight } from '@ng-icons/phosphor-icons/light';
+import { phosphorSidebarSimpleLight } from '@ng-icons/phosphor-icons/light';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { GROUP } from '../data';
 import * as icons from '../icons';
 import { KassandraThreadList } from '../kassandra/kassandra-thread-list';
 import { ScopeSwitcher } from '../scope/scope-switcher';
-import { DocsRouter } from '../docs/docs-router';
 import { CompassStore } from '../store';
-import { AppearanceFlyout } from './appearance-flyout';
 import { isActiveNav, type NavItem } from './nav';
 import { CompassLogo } from './compass-logo';
 import { RailThreads } from './rail-threads';
+import { UserMenu } from './user-menu';
 import { RAIL_TIP_GAP, SidebarState, isSidebarShortcut } from './sidebar-state';
 
 /**
@@ -29,8 +27,8 @@ import { RAIL_TIP_GAP, SidebarState, isSidebarShortcut } from './sidebar-state';
  */
 @Component({
   selector: 'nav[appSidebar]',
-  imports: [NgIcon, CompassLogo, ScopeSwitcher, KassandraThreadList, RailThreads, AppearanceFlyout, HlmTooltipImports],
-  providers: [provideIcons({ ...icons, phosphorBookOpenFill, phosphorBookOpenLight, phosphorSidebarSimpleLight })],
+  imports: [NgIcon, CompassLogo, ScopeSwitcher, KassandraThreadList, RailThreads, UserMenu, HlmTooltipImports],
+  providers: [provideIcons({ ...icons, phosphorSidebarSimpleLight })],
   encapsulation: ViewEncapsulation.None,
   host: {
     id: 'main-nav',
@@ -40,8 +38,8 @@ import { RAIL_TIP_GAP, SidebarState, isSidebarShortcut } from './sidebar-state';
     '(document:keydown)': 'onKey($event)',
   },
   styles: `
-    /* Ink for text on the orange count: it passes 4.5:1 on --brass in all three themes; white does not. */
-    .rail { --rail-ink: #0d1117; --rail-hover: rgb(from var(--foreground) r g b / 0.04); --rail-active: rgb(from var(--foreground) r g b / 0.06); }
+    /* Ink for text on the orange dot of the rail: it passes 4.5:1 on --brass in all three themes; white does not. */
+    .rail { --rail-ink: #0d1117; --rail-hover: rgb(from var(--foreground) r g b / 0.045); --rail-active: rgb(from var(--foreground) r g b / 0.075); }
     .rail[data-collapsed] { --rail-active: rgb(from var(--foreground) r g b / 0.1); }
 
     .rail-head { display: flex; min-height: 32px; align-items: center; justify-content: space-between; gap: 8px; }
@@ -62,8 +60,12 @@ import { RAIL_TIP_GAP, SidebarState, isSidebarShortcut } from './sidebar-state';
     .rail-item--active { background: var(--rail-active); color: var(--foreground); font-weight: 500; }
     .rail-item--current { color: var(--foreground); }
     .rail-label { min-width: 0; flex: 1; transition: opacity 120ms ease; }
-    /* A step toward the text colour: --brass-ink alone is 4.3:1 on the current row in the light theme. */
-    .rail-count { flex-shrink: 0; color: color-mix(in srgb, var(--brass-ink) 86%, var(--foreground)); font-size: 12px; font-weight: 500; }
+    /* What waits there: a small, quiet pill. The text is the row's own colour, so it holds 4.5:1 in every theme. */
+    .rail-count {
+      display: grid; flex-shrink: 0; min-width: 20px; height: 18px; padding: 0 6px; place-items: center; border-radius: 9999px;
+      background: rgb(from var(--foreground) r g b / 0.075); color: var(--foreground); font-size: 11px; font-weight: 500; line-height: 1; letter-spacing: 0.01em;
+    }
+    .rail-item--active .rail-count { background: rgb(from var(--foreground) r g b / 0.1); }
     .rail[data-collapsed] .rail-label { opacity: 0; }
     .rail[data-collapsed] .rail-count {
       position: absolute; top: 1px; right: 1px; display: grid; min-width: 16px; height: 16px; padding: 0 4px; place-items: center; border-radius: 9999px;
@@ -77,7 +79,11 @@ import { RAIL_TIP_GAP, SidebarState, isSidebarShortcut } from './sidebar-state';
     .rail-item[aria-expanded='true'] { background: var(--rail-hover); color: var(--foreground); }
     .rail-logo:focus-visible, .rail-toggle:focus-visible, .rail-item:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
 
-    .rail-foot { display: flex; flex-direction: column; gap: 1px; margin-top: auto; }
+    /* Navigation, then Recent (it takes the room and scrolls), then the person, pinned at the bottom. */
+    .rail-nav { display: flex; flex-direction: column; gap: 2px; }
+    .rail-recent { display: flex; min-height: 0; flex: 1; flex-direction: column; margin-top: 10px; }
+    .rail[data-collapsed] .rail-recent { margin-top: 0; }
+    .rail-foot { margin: 0 -4px; padding-top: 10px; border-top: 1px solid rgb(from var(--foreground) r g b / 0.08); }
 
     /* The key in the tooltip of the collapse button; the tooltip is drawn outside the nav. */
     .rail-kbd {
@@ -115,7 +121,7 @@ import { RAIL_TIP_GAP, SidebarState, isSidebarShortcut } from './sidebar-state';
     <!-- The scope: which hotels the brief, Kassandra and new agents work on (src/app/scope) -->
     <app-scope-switcher variant="sidebar" [compact]="collapsed()" [group]="group.name" />
 
-    <ul class="flex flex-col gap-px text-[14px]">
+    <ul class="rail-nav text-[14px]">
       @for (n of items(); track n.view) {
         <li>
           <button
@@ -132,37 +138,25 @@ import { RAIL_TIP_GAP, SidebarState, isSidebarShortcut } from './sidebar-state';
             <ng-icon [name]="isActive(n.view) ? n.iconActive : n.icon" class="rail-icon" aria-hidden="true" />
             <span class="rail-label">{{ n.label }}</span>
             @if (n.count) {
-              <span class="rail-count tabular-nums">{{ n.count }}</span>
+              <span class="rail-count tabular-nums"><span class="sr-only">, </span>{{ n.count }}<span class="sr-only"> waiting</span></span>
             }
           </button>
         </li>
       }
     </ul>
 
-    <!-- Threads: the list in the panel, one icon with a menu in the rail -->
-    @if (collapsed()) {
-      <app-rail-threads />
-    } @else {
-      <kassandra-thread-list />
-    }
+    <!-- Recent conversations: the list in the panel, one icon with a menu in the rail -->
+    <div class="rail-recent">
+      @if (collapsed()) {
+        <app-rail-threads />
+      } @else {
+        <kassandra-thread-list />
+      }
+    </div>
 
-    <!-- The foot: two quiet items. Docs opens the hub; Appearance opens its panel beside the sidebar (appearance-flyout.ts). -->
-    <div class="rail-foot text-muted-foreground text-[14px]">
-      <button
-        type="button"
-        class="rail-item rounded-md"
-        [class.rail-item--active]="isActive('docs')"
-        [attr.aria-current]="isActive('docs') ? 'page' : null"
-        hlmTooltip="Docs"
-        position="right"
-        [sideOffset]="tipGap"
-        [tooltipDisabled]="!collapsed()"
-        (click)="docs.open('index')"
-      >
-        <ng-icon [name]="isActive('docs') ? 'phosphorBookOpenFill' : 'phosphorBookOpenLight'" class="rail-icon" aria-hidden="true" />
-        <span class="rail-label">Docs</span>
-      </button>
-      <app-appearance-flyout [collapsed]="collapsed()" />
+    <!-- The person: Docs, Appearance, Keyboard shortcuts (user-menu.ts) -->
+    <div class="rail-foot">
+      <app-user-menu [collapsed]="collapsed()" />
     </div>
   `,
 })
@@ -171,7 +165,6 @@ export class Sidebar {
   readonly items = input.required<readonly NavItem[]>();
 
   protected readonly store = inject(CompassStore);
-  protected readonly docs = inject(DocsRouter);
   private readonly state = inject(SidebarState);
   private readonly doc = inject(DOCUMENT);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);

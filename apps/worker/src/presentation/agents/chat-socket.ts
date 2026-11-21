@@ -1,4 +1,4 @@
-import type { BuilderServerMessage } from '@compass/contracts';
+import type { BuilderServerMessage, ChatEntry } from '@compass/contracts';
 import type { PiSession } from 'agents/harness/pi';
 import { PublicError, publicMessage } from '../http/errors.ts';
 import { projectEntries, projectLive } from './chat-projection.ts';
@@ -12,6 +12,8 @@ export interface ChatSocketOptions {
   onMessage(raw: unknown): Promise<void>;
   /** Called once the snapshot is sent, with the way to send more on this socket. */
   onOpen?(send: (message: BuilderServerMessage) => void): Promise<void>;
+  /** Called after new transcript entries are sent. A throw is logged; the socket stays open. */
+  onEntries?(fresh: readonly ChatEntry[], send: (message: BuilderServerMessage) => void): Promise<void>;
 }
 
 /**
@@ -50,7 +52,10 @@ export async function serveChatSocket(socket: WebSocket, session: PiSession, opt
       if (call.kind !== 'value') return;
       const fresh = projectEntries(call.value.entries).filter((entry) => !sent.has(entry.id));
       for (const entry of fresh) sent.add(entry.id);
-      if (fresh.length) send({ type: 'entries', entries: fresh });
+      if (fresh.length) {
+        send({ type: 'entries', entries: fresh });
+        void opts.onEntries?.(fresh, send).catch((error: unknown) => console.warn(`${label} entries hook failed`, error));
+      }
       const live = JSON.stringify(projectLive(call.value.docs));
       if (live !== lastLive) {
         lastLive = live;

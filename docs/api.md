@@ -110,6 +110,21 @@ live.streamingText                       → the answer while it is being writte
 
 Open a new socket with the same `conversation`. You get a fresh `snapshot`; merge it by entry `id`.
 
+## Kassandra: conversations (the sidebar)
+
+Each conversation is its Kassandra object; the list of them lives in the browser. After a conversation's first answer, the
+object writes its `ThreadMeta` once with the Quick model (Haiku): a short `title` ("Tessera Dubai: business mix"), the
+answer's `summary` ("Corporate down 12% vs last year", or null), the `kind` the answer showed (`chart`, `table`, `text`)
+and the `hotel` when the scope was one hotel. The call is taken from the daily budget `thread_title`; with none left, or if
+the model fails, the title is the cleaned question. A title the person gave (`renamed`) is never replaced.
+
+- Over the socket: `{ type: 'meta', meta }` on connect when there is one, and once the first answer has one.
+- `GET /api/kassandra/conversations?ids=a,b` (1–30 ids): `{ [id]: ThreadMeta }` for those that have one; writes a missing one.
+- `PATCH /api/kassandra/conversations/:id` with `{ title }` (1–120 characters): the renamed `ThreadMeta`.
+- `DELETE /api/kassandra/conversations/:id`: 204; the transcript, scope and meta are deleted. The app sends it once its Undo is gone.
+
+All three: 60 requests a minute per client (`CONVERSATION_RATE_LIMIT`), the same cross-site and body rules as other writes.
+
 ## Kassandra: one-shot HTTP (scripts, evals)
 
 `POST /api/kassandra/ask` with body `{ "conversation"?: string, "question": string, "mode"?: "quick" | "thinker", "scope"?: { "hotels": string[] } }` returns:
