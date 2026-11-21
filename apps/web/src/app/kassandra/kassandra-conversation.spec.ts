@@ -17,7 +17,8 @@ function render(turns: ChatTurn[], inputs: Record<string, unknown> = {}) {
   return fixture;
 }
 const el = (fixture: ComponentFixture<unknown>) => fixture.nativeElement as HTMLElement;
-const text = (node: Element | null | undefined) => node?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
+/** What a control says: its words, or the name of an icon-only control. */
+const text = (node: Element | null | undefined) => (node ? node.textContent?.replace(/\s+/g, ' ').trim() || node.getAttribute('aria-label') : null) ?? null;
 const button = (fixture: ComponentFixture<unknown>, label: string) => [...el(fixture).querySelectorAll('button')].find((b) => text(b)?.includes(label));
 const status = (turns: ChatTurn[], phase: ChatLive['phase'] | null) => text(render(turns, { phase }).nativeElement.querySelector('[role=status]'));
 
@@ -214,7 +215,7 @@ describe('KassandraConversation: widgets', () => {
     expect(body['rows']).toEqual(widget().rows);
     expect(body['question']).toBe('Why is Lisbon behind?');
     fixture.detectChanges();
-    expect(text(button(fixture, 'On Lisbon'))).toBe('On Lisbon · Open');
+    expect(button(fixture, 'On Lisbon')?.getAttribute('title')).toBe('On Lisbon · Open');
     fetched.mockRestore();
   });
 });
@@ -259,11 +260,11 @@ describe('KassandraConversation: instant previews and "View as"', () => {
     expect(card(fixture).getAttribute('data-phase')).toBe('ready');
     expect(card(fixture).hasAttribute('data-preview')).toBe(true);
     expect(text(card(fixture).querySelector('h3'))).toBe('Pace vs last year');
-    expect(text(card(fixture).querySelector('figcaption .text-muted-foreground'))).toBe('Lisbon Chiado, Amsterdam Centraal, Paris Opera · 21 Nov – 20 Dec');
+    expect(text(card(fixture).querySelector('figcaption p.text-muted-foreground'))).toBe('Lisbon Chiado, Amsterdam Centraal, Paris Opera · 21 Nov – 20 Dec');
     expect(text(card(fixture).querySelector('.k-preview'))).toBe('Preview: drawn from the data as it arrived. Kassandra may still choose another chart.');
     expect(chart(fixture).getAttribute('data-kind')).toBe('bar');
     expect([...card(fixture).querySelectorAll('[role=radio]')].map((b) => b.getAttribute('data-kind'))).toEqual(['kpi_row', 'bullet', 'bar', 'grouped_bar', 'donut', 'pie', 'treemap', 'table']);
-    expect(text(radio(fixture, 'Bar'))).toBe('Bar, Recommended');
+    expect(text(radio(fixture, 'Bar'))).toBe('Bar, recommended');
     expect(card(fixture).querySelector('figure')).toBe(figure); // the skeleton's card, not a new one
   });
 
@@ -303,7 +304,7 @@ describe('KassandraConversation: instant previews and "View as"', () => {
     fixture.detectChanges();
     expect(chart(fixture).getAttribute('data-kind')).toBe('table');
     expect(radio(fixture, 'Table').getAttribute('aria-checked')).toBe('true');
-    expect(text(radio(fixture, 'Bar'))).toBe('Bar, Recommended'); // her kind is the recommendation
+    expect(text(radio(fixture, 'Bar'))).toBe('Bar, recommended'); // her kind is the recommendation
   });
 
   it('saves the kind on screen with "Add to board", in a spec the server accepts', async () => {

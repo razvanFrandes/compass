@@ -8,6 +8,7 @@ import { type KindOption, compatibleKinds } from './kinds';
 import { readTokens } from './tokens';
 import { ViewAs } from './view-as';
 import { ViewAsMemory } from './view-memory';
+import { hotelCatalog } from './hotel-names';
 import { WidgetSkeleton } from './widget-skeleton';
 import type { EvidenceColumn, WidgetKind, WidgetRow, WidgetSpec } from './widget-types';
 
@@ -47,8 +48,9 @@ function sameDrawing(a: WidgetSpec, b: WidgetSpec): boolean {
  * box the finished widget will have. Every chart can be read as a table ("View as table"), reached and stepped through with the keyboard,
  * and follows the theme and prefers-reduced-motion.
  *
- * With `[switcher]` it has a "View as" row under it: the kinds these rows can be shown as (`compatibleKinds`), the
- * one the widget came with marked "Recommended". A switch is instant and reads the same rows; `[viewKey]` remembers
+ * With `[switcher]` it has "View as" in its header, top right: an icon per kind these rows can be shown as
+ * (`compatibleKinds`), the one the widget came with marked by a dot. Without a header, the host places it in its own
+ * (`[controls]="'external'"` and `<juyo-view-as [for]="chart" />`), or it sits in a one-line row under the body. A switch is instant and reads the same rows; `[viewKey]` remembers
  * it for this widget. The host reads the spec on screen with `specAs(spec, memory.kind(key), rows, columns)`.
  */
 @Component({
@@ -77,21 +79,26 @@ export class WidgetChart {
   readonly viewKey = input<string | null>(null);
   /** The kind marked "Recommended". By default the one the widget came with: Kassandra's choice, or the first look at the rows. */
   readonly recommended = input<WidgetKind | null>(null);
+  /**
+   * Where "View as" goes when the widget has no header of its own: `auto` puts it in a one-line row under the
+   * body; `external` leaves it to the host, which places `<juyo-view-as [for]="chart" />` in its own header.
+   */
+  readonly controls = input<'auto' | 'external'>('auto');
 
   private readonly memory = inject(ViewAsMemory);
   /** The choice of a widget nobody gave a key: it lasts until the widget shows other data. */
   private readonly unkeyed = linkedSignal<string, WidgetKind | null>({ source: () => this.spec().sourceCallId, computation: () => null });
   /** The kinds these rows can be shown as; empty until there are rows, or when nobody asked for the switcher. */
-  protected readonly options = computed<KindOption[]>(() => {
+  readonly options = computed<KindOption[]>(() => {
     const rows = this.rows();
     return this.switcher() && rows ? compatibleKinds(this.spec(), rows as readonly WidgetRow[], this.columns()) : [];
   });
   private readonly chosen = computed(() => (this.viewKey() ? this.memory.kind(this.viewKey()) : this.unkeyed()));
   /** The spec on screen: the widget's own, or the one for the kind chosen in "View as" when these rows still allow it. */
   readonly view = computed<WidgetSpec>(() => this.options().find((option) => option.kind === this.chosen())?.spec ?? this.spec());
-  protected readonly recommendedKind = computed(() => this.recommended() ?? this.spec().kind);
+  readonly recommendedKind = computed(() => this.recommended() ?? this.spec().kind);
   /** The row keeps its place while the widget loads, and goes when there is nothing to switch to. */
-  protected readonly switcherSlot = computed(() => this.switcher() && (this.state() !== 'none' || !this.rows() || this.options().length > 1 || this.rowFloor() > 0));
+  protected readonly switcherSlot = computed(() => this.switcher() && !this.header() && this.controls() === 'auto' && (this.state() !== 'none' || !this.rows() || this.options().length > 1 || this.rowFloor() > 0));
   private readonly viewRow = viewChild<ElementRef<HTMLElement>>('viewRow');
   /**
    * The tallest the "View as" row has been at this width. The row never gets shorter than that: when a preview
@@ -148,6 +155,7 @@ export class WidgetChart {
   protected readonly built = computed<Built | null>(() => {
     const rows = this.rows();
     if (!rows || this.state() !== 'none') return null;
+    hotelCatalog();
     return buildWidget({ spec: this.drawn(), rows: rows as readonly WidgetRow[], columns: this.columns() ?? [], tokens: this.tokens(), width: this.width(), compact: this.compact(), motion: !this.reducedMotion(), ...(this.fixed() ? { height: this.fixed()! } : {}) });
   });
 
@@ -216,12 +224,18 @@ export class WidgetChart {
   }
 
   /** "View as": the kind the widget came with needs no remembering. */
-  protected viewAs(kind: WidgetKind) {
+  viewAs(kind: WidgetKind) {
     const pick = kind === this.spec().kind ? null : kind;
     const key = this.viewKey();
     if (key) this.memory.set(key, pick);
     else this.unkeyed.set(pick);
     this.leave();
+  }
+
+  /** "+12 more": the whole list, as the table. */
+  protected showAll() {
+    if (this.switcher() && this.options().some((o) => o.kind === 'table')) this.viewAs('table');
+    else this.asTable.set(true);
   }
 
   private measureRow() {

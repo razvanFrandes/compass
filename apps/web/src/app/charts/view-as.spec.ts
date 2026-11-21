@@ -30,7 +30,7 @@ function renderRow(inputs: { value: WidgetKind; recommended?: WidgetKind | null;
   fixture.detectChanges();
   const el = fixture.nativeElement as HTMLElement;
   const radios = () => [...el.querySelectorAll<HTMLButtonElement>('[role=radio]')];
-  const name = (button: Element) => (button.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const name = (button: Element) => button.getAttribute('aria-label') ?? '';
   return { fixture, el, radios, name, picked };
 }
 const press = (target: HTMLElement, key: string) => {
@@ -45,28 +45,30 @@ describe('ViewAs: the row of kinds under a chart', () => {
     expect(el.getAttribute('role')).toBe('radiogroup');
     expect(el.getAttribute('aria-label')).toBe('View as: Leisure is half of December');
     expect(OPTIONS.map((o) => o.kind)).toEqual(['kpi_row', 'bar', 'donut', 'pie', 'treemap', 'table']);
-    expect(radios().map(name)).toEqual(['Tiles', 'Bar, Recommended', 'Donut', 'Pie', 'Treemap', 'Table']);
+    expect(radios().map(name)).toEqual(['Tiles', 'Bar, recommended', 'Donut', 'Pie', 'Treemap', 'Table']);
     expect(radios().map((radio) => radio.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false', 'false', 'false', 'false']);
     expect(radios().every((radio) => radio.type === 'button')).toBe(true);
   });
 
-  it('shows each kind’s icon next to its name, hidden from assistive tech, and says why the kind fits', () => {
+  it('shows only each kind’s icon, hidden from assistive tech, with its name and why it fits as the tooltip', () => {
     const { radios } = renderRow({ value: 'bar' });
     for (const radio of radios()) {
       const icon = radio.querySelector('ng-icon')!;
       expect(icon.getAttribute('aria-hidden')).toBe('true');
       expect(radio.getAttribute('title')).toBeTruthy();
     }
-    expect(radios()[2]!.getAttribute('title')).toBe('3 parts of one whole.');
+    expect(radios()[2]!.getAttribute('title')).toBe('Donut\n3 parts of one whole.');
+    expect(radios()[2]!.textContent?.trim()).toBe(''); // icon only: the card body is the chart
     expect(Object.keys(KIND_ICONS).sort()).toEqual([...KIND_ORDER].sort());
     expect(new Set(Object.values(KIND_ICONS)).size).toBe(KIND_ORDER.length); // no two kinds share a picture
     expect(Object.values(KIND_ICONS).every((icon) => /^phosphor[A-Z]\w+Light$/.test(icon))).toBe(true);
   });
 
-  it('marks the recommended kind in words, whether or not it is the one on screen', () => {
+  it('marks the recommended kind with a dot and in its name, whether or not it is the one on screen', () => {
     const { el, radios, name } = renderRow({ value: 'donut', recommended: 'bar' });
     expect(el.querySelectorAll('.wc-view-rec')).toHaveLength(1);
-    expect(name(radios()[1]!)).toBe('Bar, Recommended');
+    expect(name(radios()[1]!)).toBe('Bar, recommended');
+    expect(radios()[1]!.getAttribute('title')).toContain('Bar · Recommended');
     expect(radios()[1]!.getAttribute('aria-checked')).toBe('false');
     expect(radios()[2]!.getAttribute('aria-checked')).toBe('true');
   });
@@ -126,7 +128,7 @@ describe('WidgetChart with the switcher', () => {
     for (const [name, value] of Object.entries({ spec: SPEC, rows: ROWS, columns: COLUMNS, switcher: true, ...inputs })) fixture.componentRef.setInput(name, value);
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
-    const radio = (label: string) => [...el.querySelectorAll<HTMLButtonElement>('[role=radio]')].find((button) => button.textContent?.includes(label))!;
+    const radio = (label: string) => [...el.querySelectorAll<HTMLButtonElement>('[role=radio]')].find((button) => button.getAttribute('aria-label')?.startsWith(label))!;
     const checked = () => el.querySelector('[role=radio][aria-checked=true]')?.getAttribute('data-kind');
     return { fixture, el, radio, checked };
   }
@@ -207,15 +209,30 @@ describe('WidgetChart with the switcher', () => {
     expect(el.querySelector('caption')?.textContent?.trim()).toBe('Leisure is 49% of room nights');
   });
 
-  it('holds the row’s place while the widget loads, and drops it when there is nothing to switch to', () => {
+  it('sits in the header, top right, and holds its place there while the widget loads', () => {
+    const { el } = render({});
+    expect(el.querySelector('.wc-head .wc-head-tools [role=radiogroup]')).not.toBeNull();
+    expect(el.querySelector('.wc-view-row')).toBeNull();
     const loading = render({ rows: null });
+    expect(loading.el.querySelector('.wc-head-tools .wc-view--stub')?.getAttribute('aria-hidden')).toBe('true');
+    expect(loading.el.querySelector('[role=radiogroup]')).toBeNull();
+  });
+
+  it('without a header, sits in a one-line row under the body, or nowhere when the host places it', () => {
+    const own = render({ header: false });
+    expect(own.el.querySelector('.wc-view-row [role=radiogroup]')).not.toBeNull();
+    expect(render({ header: false, controls: 'external' }).el.querySelector('[role=radiogroup]')).toBeNull();
+  });
+
+  it('holds the row’s place while the widget loads, and drops it when there is nothing to switch to', () => {
+    const loading = render({ rows: null, header: false });
     expect(loading.el.querySelector('.wc-view-row .wc-view--stub')?.getAttribute('aria-hidden')).toBe('true');
     expect(loading.el.querySelector('[role=radiogroup]')).toBeNull();
     expect(render({ loading: 'skeleton' }).el.querySelector('.wc-view--stub')).not.toBeNull();
 
-    const prose = render({ spec: { ...SPEC, kind: 'table', x: undefined, y: undefined }, rows: [{ note: 'Rates were loaded late.' }, { note: 'The comp set changed.' }], columns: [{ key: 'note', label: 'Note', kind: 'text' }] });
+    const prose = render({ header: false, spec: { ...SPEC, kind: 'table', x: undefined, y: undefined }, rows: [{ note: 'Rates were loaded late.' }, { note: 'The comp set changed.' }], columns: [{ key: 'note', label: 'Note', kind: 'text' }] });
     expect(prose.el.querySelector('.wc-view-row')).toBeNull();
-    expect(render({ rows: [] }).el.querySelector('.wc-view-row')).toBeNull();
+    expect(render({ rows: [], header: false }).el.querySelector('.wc-view-row')).toBeNull();
   });
 
   it('does not rebuild the chart when only its title changes', () => {

@@ -25,12 +25,18 @@
         }
       }
     </div>
-    @if (toggleSlot()) {
-      <button type="button" class="wc-toggle" [class.wc-toggle--stub]="state() === 'skeleton' || (b && !canToggle())" [disabled]="!canToggle()" [attr.aria-label]="(asTable() ? 'View as chart: ' : 'View as table: ') + s.title" (click)="asTable.set(!asTable())">
-        <ng-icon [name]="asTable() ? 'phosphorChartBarLight' : 'phosphorTableLight'" aria-hidden="true" />
-        @if (!compact() && !narrow()) {
-          <span>{{ asTable() ? 'View as chart' : 'View as table' }}</span>
+    @if (header() && switcher()) {
+      <div class="wc-head-tools">
+        @if (b && options().length > 1) {
+          <juyo-view-as [options]="options()" [value]="s.kind" [recommended]="recommendedKind()" [of]="s.title" (picked)="viewAs($event)" />
+        } @else if (!b) {
+          <span class="wc-view--stub" aria-hidden="true"></span>
         }
+      </div>
+    }
+    @if (toggleSlot()) {
+      <button type="button" class="wc-toggle" [attr.title]="asTable() ? 'View as chart' : 'View as table'" [class.wc-toggle--stub]="state() === 'skeleton' || (b && !canToggle())" [disabled]="!canToggle()" [attr.aria-label]="(asTable() ? 'View as chart: ' : 'View as table: ') + s.title" (click)="asTable.set(!asTable())">
+        <ng-icon [name]="asTable() ? 'phosphorChartBarLight' : 'phosphorTableLight'" aria-hidden="true" />
       </button>
     }
   </figcaption>
@@ -105,6 +111,9 @@
       <div class="wc-plot" role="img" tabindex="0" [attr.aria-label]="summary()" [attr.aria-describedby]="b.points.length ? uid + '-k' : null" (keydown)="onKey($event)" (blur)="leave()">
         <juyo-echart [option]="b.option" />
       </div>
+      @if (b.more) {
+        <button type="button" class="wc-more" [attr.aria-label]="'Show all ' + b.table.rows.length + ' rows as a table'" (click)="showAll()">+{{ b.more }} more</button>
+      }
       @if (b.points.length) {
         <span class="sr-only" [id]="uid + '-k'">Use the arrow keys to step through the data. The same numbers are in {{ switcher() ? '“View as”, Table' : '“View as table”' }}.</span>
       }
@@ -189,7 +198,7 @@
         <juyo-view-as [options]="options()" [value]="s.kind" [recommended]="recommendedKind()" [of]="s.title" (picked)="viewAs($event)" />
       } @else if (!b) {
         <!-- The row is there before the rows are, so the card does not grow when the chart lands -->
-        <div class="wc-view wc-view--stub" aria-hidden="true"><i></i><i></i><i></i></div>
+        <span class="wc-view--stub" aria-hidden="true"></span>
       }
     </div>
   }

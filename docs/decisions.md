@@ -757,3 +757,14 @@ The owner's request: less text, and a calmer foot for the sidebar.
   - the Portfolio board's subtitle no longer starts with "All 20 hotels:" / "3 hotels selected:" (the Hotels filter says it);
   - an agent's page: the line "When … · All 20 hotels" under "What it watches for" (the same two facts are under "How it works"), and the sentence that described the chosen autonomy level (now each level's tooltip; "Approver: …" stays).
 - **Kept on purpose:** the resolved dates under the filter bar, each chart's own scope line, and a conversation's scope chips in the Thread: they say something the controls do not, or travel with the chart.
+
+## Calmer charts (21 Nov 2026)
+
+The owner found the charts crowded. What changed, for every kind:
+
+- **A hotel is never a code on a chart.** `charts/hotel-names.ts` maps codes and full names to a short name: the city ("Lisbon"), or the name without its brand where two hotels share a city ("Dubai Business Bay", "London Mayfair"). Marks and axes use it; tooltips and tables use the full name. ScopeService registers the `GET /api/hotels` catalog; until then the built-in list applies. A text column whose values are all hotel codes is treated as a hotel column.
+- **Bars per hotel or segment are a ranked list.** Sorted by the value, or by the gap to the comparison when the title is about it ("behind last year"); a title about the weak end ("behind", "lowest", "weakest") ranks from the bottom up. Rows the title names are in full colour, the rest muted. One bar thickness (12–16 px) on every row; the value at the bar's end (past the comparison marker; left of bars below zero). Ordinal labels (weekdays, months, stages) keep their order.
+- **At most eight rows**, then "+N more" inside the card, which opens the table. Rows the title names are never cut.
+- **Grouped bars per hotel of a value and its comparison** draw as one bar with a marker. Grouped columns show their numbers only where each fits its own bar; otherwise on hover.
+- **The chrome is in the header, top right.** "View as" is an icon-only segmented control (the name and the reason are the tooltip; a dot marks the recommended kind). Kassandra's cards put "Behind the numbers" and "Add to board" there as icon buttons, so the body is only the chart. Boards place "View as" next to the ⋯ menu (`<juyo-view-as [for]="chart">` with `controls="external"`); a widget without a header whose host does not place it keeps a one-line row under the body.
+- **The page itself never scrolls on desktop.** The shell is the containing block of absolutely positioned elements (`lg:relative`), and `main` is `relative`: the `sr-only` labels far down a scrolled pane had made `<html>` taller than the window, so the sidebar and everything scrolled away.

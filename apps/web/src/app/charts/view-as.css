@@ -1,74 +1,65 @@
 /*
-  <juyo-view-as>: the buttons of "View as". Unscoped like the chart's own styles (.wc- prefix). The row they sit in,
-  and its placeholder while the chart loads, are the chart's (widget-chart.css): they are on screen before this is.
+  <juyo-view-as>: "View as" as a compact segmented control of icons, in the card header. Unscoped like the
+  chart's own styles (.wc- prefix).
 */
-/* "View as": the kinds these rows can be shown as, under the widget */
-.wc-view-label {
-  margin-right: 2px;
-  color: var(--muted-foreground);
-  font-size: 12px;
-  line-height: var(--control-h-xs, 28px);
-  white-space: nowrap;
+.wc-view {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border-radius: calc(var(--radius-control, 7px) + 2px);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+.wc-view--empty {
+  display: none;
 }
 .wc-view-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  /* The smallest control of the density (src/density.css); the placeholder in widget-chart.css has the same height. */
-  height: var(--control-h-xs, 28px);
-  padding: 0 9px 0 7px;
-  border: 1px solid var(--border);
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 24px;
   border-radius: var(--radius-control, 7px);
   color: var(--muted-foreground);
-  font-size: 12px;
-  line-height: 1;
-  white-space: nowrap;
   transition:
     color 120ms ease,
-    background-color 120ms ease,
-    border-color 120ms ease;
+    background-color 120ms ease;
 }
 .wc-view-btn ng-icon {
-  flex: none;
   font-size: 15px;
 }
 .wc-view-btn:hover {
   color: var(--foreground);
-  background: var(--overlay-hover);
 }
-/* The chosen kind: filled, a stronger edge and heavier type, so it does not rest on colour alone. */
+/* The chosen kind: a raised chip and full ink, so it does not rest on colour alone. */
 .wc-view-btn[aria-checked='true'] {
-  border-color: color-mix(in srgb, var(--foreground) 42%, transparent);
-  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  background: var(--card);
   color: var(--foreground);
-  font-weight: 500;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--foreground) 14%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.12);
 }
 .wc-view-btn:focus-visible {
   outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline-offset: 1px;
 }
+/* "Recommended": a small dot on the icon of the kind the chart came with. */
 .wc-view-rec {
-  padding-left: 6px;
-  border-left: 1px solid color-mix(in srgb, var(--foreground) 22%, transparent);
-  color: var(--muted-foreground);
-  font-size: 11px;
-  font-weight: 400;
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--primary);
 }
 @media (pointer: coarse) {
   .wc-view-btn {
+    width: 36px;
     height: 36px;
-    padding: 0 12px 0 10px;
-  }
-  .wc-view-label {
-    line-height: 36px;
   }
 }
-@container (max-width: 479.98px) {
-  .wc-view-label {
-    display: none;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .wc-view-btn {
     transition: none;

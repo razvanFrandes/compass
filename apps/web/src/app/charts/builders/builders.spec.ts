@@ -179,45 +179,112 @@ describe('line and area', () => {
 });
 
 describe('bars', () => {
-  it('lays bars down when the categories are names and keeps the row order', () => {
-    const b = build(spec('bar', { x: 'hotel', y: ['revpar'] }), HOTELS, HOTEL_COLS);
+  const endLabelSeries = (b: Built) => series(b).find((x) => String(x['name']).endsWith('values')) as Obj;
+  const endLabelTexts = (b: Built) => (endLabelSeries(b)['data'] as (Obj | string)[]).map((d) => (typeof d === 'string' ? d : ((d['label'] as Obj)['formatter'] as string)));
+
+  it('lays bars down when the categories are names, sorted by value, with the value at the end of each bar', () => {
+    const b = build(spec('bar', { x: 'hotel', y: ['revpar'] }), [HOTELS[2], HOTELS[0], HOTELS[1]], HOTEL_COLS);
     expect(axis(b, 'yAxis')['type']).toBe('category');
     expect(axis(b, 'yAxis')['inverse']).toBe(true);
-    expect(axis(b, 'yAxis')['data']).toEqual(['Arbor New York Midtown', 'Kestrel London Mayfair', 'Tessera Berlin Mitte']);
-    expect(call((series(b)[0]['label'] as Obj)['formatter'], { dataIndex: 2 })).toBe('€98');
+    // Hotels read by their city on the marks; the full name is in the tooltip.
+    expect(axis(b, 'yAxis')['data']).toEqual(['New York', 'London Mayfair', 'Berlin']);
+    expect(endLabelTexts(b)).toEqual(['€261', '€253', '€98']);
+    expect(tooltipHtml(b, { dataIndex: 0 })).toContain('Arbor New York Midtown');
     expect(b.legend).toEqual([]);
   });
 
-  it('stands bars up for dates', () => {
-    const b = build(spec('bar', { x: 'stay_date', y: ['rooms_otb'] }), DAILY, DAILY_COLS);
-    expect(axis(b, 'xAxis')['type']).toBe('category');
-    expect(axis(b, 'xAxis')['data']).toEqual(['14 Dec', '15 Dec', '16 Dec']);
+  it('names hotels, never codes, on every chart kind that draws them', () => {
+    const rows = [
+      { hotel_code: 'LIS', pace_pct: -20.5 },
+      { hotel_code: 'DXB2', pace_pct: 9 },
+      { hotel_code: 'LON2', pace_pct: -8.9 },
+    ];
+    const cols = [col('hotel_code', 'Hotel', 'hotel'), col('pace_pct', 'Pace', 'percent')];
+    for (const kind of ['bar', 'bullet', 'donut', 'pie', 'funnel'] as const) {
+      const b = build(spec(kind, { x: 'hotel_code', y: ['pace_pct'] }), rows, cols);
+      const text = JSON.stringify(chart(b).option, (_k, v) => (typeof v === 'function' ? undefined : v));
+      expect(text, kind).not.toMatch(/"(LIS|DXB2|LON2)"/);
+    }
+    const bar = build(spec('bar', { x: 'hotel_code', y: ['pace_pct'] }), rows, cols);
+    expect(axis(bar, 'yAxis')['data']).toEqual(expect.arrayContaining(['Lisbon', 'Dubai Business Bay', "London King's Cross"]));
+    // A text column of codes is recognised as hotels too.
+    const loose = build(spec('bar', { x: 'hotel_code', y: ['pace_pct'] }), rows, [col('hotel_code', 'Hotel', 'text'), col('pace_pct', 'Pace', 'percent')]);
+    expect(axis(loose, 'yAxis')['data']).toContain('Lisbon');
   });
 
-  it('draws the comparison as a purple tick and moves the values to their own column', () => {
+  it('ranks from the weak end when the title is about it, and highlights the hotels the title names', () => {
+    const rows = [
+      { hotel_code: 'AMS', pace_pct: 5.6 },
+      { hotel_code: 'LIS', pace_pct: -20.5 },
+      { hotel_code: 'DPS', pace_pct: 8.4 },
+      { hotel_code: 'LON2', pace_pct: -8.9 },
+    ];
+    const cols = [col('hotel_code', 'Hotel', 'hotel'), col('pace_pct', 'Pace', 'percent')];
+    const b = build(spec('bar', { title: 'Lisbon is 20.5% behind last year, the weakest of the group', x: 'hotel_code', y: ['pace_pct'] }), rows, cols);
+    expect(axis(b, 'yAxis')['data']).toEqual(['Lisbon', "London King's Cross", 'Amsterdam', 'Bali']);
+    const data = series(b)[0]['data'] as Obj[];
+    expect(data.map((d) => (d['itemStyle'] as Obj)['opacity'])).toEqual([1, 0.38, 0.38, 0.38]);
+    const color = (axis(b, 'yAxis')['axisLabel'] as Obj)['color'] as (v: string, i: number) => string;
+    expect([color('', 0), color('', 1)]).toEqual([DARK_TOKENS.text, DARK_TOKENS.muted]);
+    // Labels of bars below zero sit on their left, past the bar's end; the axis keeps room for them.
+    const labels = endLabelSeries(b)['data'] as Obj[];
+    expect((labels[0]['label'] as Obj)['position']).toBe('left');
+    expect((labels[2]['label'] as Obj)['position']).toBe('right');
+    expect((axis(b, 'xAxis')['min'] as number) < -20.5).toBe(true);
+    // A title about the strong end ranks from the top.
+    const top = build(spec('bar', { title: 'Bali leads the group', x: 'hotel_code', y: ['pace_pct'] }), rows, cols);
+    expect((axis(top, 'yAxis')['data'] as string[])[0]).toBe('Bali');
+  });
+
+  it('keeps one bar thickness on every row, between 12 and 16 px', () => {
+    for (const n of [3, 6, 8]) {
+      const rows = Array.from({ length: n }, (_, i) => ({ hotel: `Hotel ${i + 1}`, revpar: 100 + i }));
+      const b = build(spec('bar', { x: 'hotel', y: ['revpar'] }), rows, HOTEL_COLS, { compact: true });
+      const w = series(b)[0]['barWidth'] as number;
+      expect(w).toBeGreaterThanOrEqual(12);
+      expect(w).toBeLessThanOrEqual(16);
+    }
+  });
+
+  it('draws the comparison as a purple tick, with the value past whichever ends further out', () => {
     const b = build(spec('bar', { x: 'hotel', y: ['revpar'], compare: 'revpar_ly' }), HOTELS, HOTEL_COLS);
-    expect(series(b).map((x) => x['type'])).toEqual(['bar', 'scatter']);
+    expect(series(b).map((x) => x['type'])).toEqual(['bar', 'scatter', 'scatter']);
     expect((series(b)[1]['itemStyle'] as Obj)['color']).toBe(DARK_TOKENS.cmp);
-    expect(series(b)[0]['label']).toBeUndefined();
-    expect(call((axis(b, 'yAxis', 1)['axisLabel'] as Obj)['formatter'], '', 0)).toBe('€261');
+    const ends = (endLabelSeries(b)['data'] as Obj[]).map((d) => d['value']);
+    expect(ends).toEqual([289.2, 252.8, 97.6]);
     expect(b.legend.map((l) => [l.label, l.mark])).toEqual([
       ['RevPAR', 'solid'],
       ['Last year', 'tick'],
     ]);
   });
 
-  it('caps bar thickness at 20 px and rounds only the data end', () => {
-    const b = build(spec('bar', { x: 'hotel', y: ['revpar'] }), HOTELS, HOTEL_COLS);
-    expect(series(b)[0]['barMaxWidth']).toBe(20);
-    expect((series(b)[0]['itemStyle'] as Obj)['borderRadius']).toEqual([0, 4, 4, 0]);
+  it('draws eight rows at most and keeps the rest one “+N more” away, never cutting a hotel the title names', () => {
+    const rows = Array.from({ length: 20 }, (_, i) => ({ hotel: `Hotel ${i + 1}`, revpar: 100 + i }));
+    const b = build(spec('bar', { title: 'Hotel 1 trails the group', x: 'hotel', y: ['revpar'] }), rows, HOTEL_COLS);
+    const shown = axis(b, 'yAxis')['data'] as string[];
+    expect(shown.length).toBeLessThanOrEqual(8);
+    expect(b.more).toBe(20 - shown.length);
+    expect(b.note).toBeUndefined();
+    expect(b.table.rows).toHaveLength(20);
+    const named = build(spec('bar', { title: 'Hotel 1 is the weakest by far', x: 'hotel', y: ['revpar'] }), [...rows].reverse(), HOTEL_COLS);
+    expect(axis(named, 'yAxis')['data']).toContain('Hotel 1');
+    const high = build(spec('bar', { title: 'Hotel 1 is far below the top', x: 'hotel', y: ['revpar'] }), rows, HOTEL_COLS);
+    expect(high.more).toBeGreaterThan(0);
+    const strong = build(spec('bar', { title: 'Hotel 1 keeps its place', x: 'hotel', y: ['revpar'] }), rows, HOTEL_COLS);
+    expect(axis(strong, 'yAxis')['data']).toContain('Hotel 1');
   });
 
-  it('shows what fits and says where the rest is', () => {
-    const rows = Array.from({ length: 40 }, (_, i) => ({ hotel: `Hotel ${i + 1}`, revpar: 100 + i }));
-    const b = build(spec('bar', { x: 'hotel', y: ['revpar'] }), rows, HOTEL_COLS, { compact: true });
-    expect((axis(b, 'yAxis')['data'] as string[]).length).toBeLessThan(40);
-    expect(b.note).toMatch(/^Showing the first \d+ of 40\. /);
-    expect(b.table.rows).toHaveLength(40);
+  it('draws grouped bars of a value and its comparison per hotel as one bar and a marker', () => {
+    const b = build(spec('grouped_bar', { x: 'hotel', y: ['revpar', 'revpar_ly'] }), HOTELS, HOTEL_COLS);
+    expect(b.kind).toBe('grouped_bar');
+    expect(series(b).map((x) => x['type'])).toEqual(['bar', 'scatter', 'scatter']);
+  });
+
+  it('never lets the numbers of grouped columns collide: they show on hover when they do not fit', () => {
+    const rows = ['2026-08', '2026-09', '2026-10', '2026-11'].flatMap((month, m) => ['Corporate', 'Leisure', 'Group'].map((segment, i) => ({ month, segment, room_nights: 3000 + 100 * m + 17 * i })));
+    const b = build(spec('grouped_bar', { x: 'month', y: ['room_nights'], group: 'segment' }), rows, [col('month', 'Month', 'month'), col('segment', 'Segment', 'text'), col('room_nights', 'Room nights', 'count')], { width: 360, compact: true });
+    expect(series(b).every((x) => (x['label'] as Obj)['show'] === false)).toBe(true);
+    expect(series(b).every((x) => ((x['emphasis'] as Obj)['label'] as Obj)['show'] === true)).toBe(true);
   });
 
   it('stacks the parts with a surface-coloured gap and labels each stack with its total', () => {
@@ -225,7 +292,7 @@ describe('bars', () => {
     const b = build(spec('stacked_bar', { x: 'month', y: ['room_nights'], group: 'segment' }), rows, [col('month', 'Month', 'month'), col('segment', 'Segment', 'text'), col('room_nights', 'Room nights', 'count', 'nights')]);
     expect(series(b).every((x) => x['stack'] === 'total')).toBe(true);
     expect((series(b)[0]['itemStyle'] as Obj)['borderColor']).toBe(DARK_TOKENS.surface);
-    expect(series(b)[0]['label']).toBeUndefined();
+    expect((series(b)[0]['label'] as Obj)['show']).toBe(false);
     expect(call((series(b)[1]['label'] as Obj)['formatter'], { dataIndex: 1 })).toBe('4,500');
     expect(b.legend.map((l) => l.label)).toEqual(['Corporate', 'Leisure']);
     expect(tooltipHtml(b, [{ dataIndex: 0 }])).toContain('Total 2,500 nights');

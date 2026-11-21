@@ -74,7 +74,7 @@ export function frame(c: Ctx): Frame | null {
       xCol,
       labels: xs.map((x) => label(x, xCol)),
       full: xs.map((x) => label(x, xCol, 'full')),
-      series: shown.map((g, i) => ({ name: g, values: xs.map((x) => at.get(`${x}¦${g}`) ?? null), color: catColor(c.t, i, g), role: 'main', col: valueCol })),
+      series: shown.map((g, i) => ({ name: label(g, column(c, split)), values: xs.map((x) => at.get(`${x}¦${g}`) ?? null), color: catColor(c.t, i, g), role: 'main', col: valueCol })),
       valueCol,
       wordy,
       dropped: groups.length - shown.length,
@@ -197,81 +197,273 @@ export const buildArea = (c: Ctx): Built => lineLike(c, true);
 
 /* ───────── Bars ───────── */
 
-/** How many horizontal bars fit the body before the rest moves to the table. */
-const maxRows = (c: Ctx, perRow = 15) => Math.max(4, Math.floor((c.height - 24) / perRow));
+/*
+  Horizontal bars (one row per hotel, segment, channel) read like a ranked list: sorted by what the title is
+  about, the rows the title names in full colour and the rest muted, every bar the same thickness, the value at
+  the end of its bar. At most eight rows are drawn; the rest are one "+12 more" away (the table has them all).
+*/
 
-function clip(c: Ctx, f: Frame, limit: number): { f: Frame; note?: string } {
-  if (f.labels.length <= limit) return { f };
-  const cut = (xs: readonly string[]) => xs.slice(0, limit);
-  return {
-    f: { ...f, labels: cut(f.labels), full: cut(f.full), series: f.series.map((s) => ({ ...s, values: s.values.slice(0, limit) })) },
-    note: `Showing the first ${limit} of ${f.labels.length}. “View as table” has them all.`,
-  };
+/** The most rows a list of bars draws. */
+export const MAX_BAR_ROWS = 8;
+/** Pixels kept under the rows for "+12 more". */
+export const MORE_H = 24;
+/** Pixels the legend row above the plot takes. */
+export const LEGEND_H = 26;
+/** A title about the weak end ("behind", "lowest") ranks from the bottom up. */
+const LOW_END = /\b(behind|weakest|weaker|lowest|lower|worst|below|bottom|least|slowest|fewest|lag\w*|trail\w*|under\w*|down|drops?|dropped|fell|falls?|falling|declin\w*|los(?:es|t|ing)|short|miss\w*|soft\w*)\b/i;
+/** A title about a gap to a comparison ("vs last year", "behind budget") ranks by that gap. */
+const ABOUT_GAP = /\b(last year|ly|stly|budget|target|forecast|vs\.?|versus|behind|ahead|above|below|gap|pace|pacing|against|compared)\b/i;
+/** Column keys that hold the comparison to another (last year, budget): such a pair is one bar and a marker. */
+export const COMPARE_KEY = /(_ly$|_stly$|stly|last_?year|_py$|prior|budget|target|forecast|_cmp$|compare)/i;
+const ORDINAL = /^(\d|mon|tue|wed|thu|fri|sat|sun|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|q[1-4]\b|week|day|stage|step)/i;
+
+const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Which rows the title names (a hotel by its city, short or full name, a segment by its name). */
+export function subjectsOf(title: string, names: string[], full: string[] = names): boolean[] {
+  const hit = names.map((n, i) =>
+    [n, full[i]]
+      .filter((s): s is string => !!s && s.length >= 3)
+      .some((s) => new RegExp(`(^|[^\\p{L}])${escRe(s)}($|[^\\p{L}])`, 'iu').test(title)),
+  );
+  const count = hit.filter(Boolean).length;
+  // Naming every row (or none) singles nothing out.
+  return count && count < names.length ? hit : names.map(() => false);
+}
+
+export interface Ranking {
+  /** Row indices in the order to draw. */
+  order: number[];
+  /** Rows not drawn: "+N more". */
+  more: number;
+}
+
+/**
+ * The order and the cut of a list of bars: by `key` (descending, or ascending for a title about the weak end),
+ * the first `limit`, and every row the title names even when it ranks below the cut.
+ */
+export function rank(title: string, labels: string[], key: (number | null)[] | null, subject: boolean[], limit: number): Ranking {
+  const all = labels.map((_, i) => i);
+  const ordinal = labels.length > 0 && labels.every((l) => ORDINAL.test(l.trim()));
+  let order = all;
+  if (key && !ordinal) {
+    const dir = LOW_END.test(title) ? 1 : -1;
+    order = [...all].sort((a, b) => {
+      const x = key[a];
+      const y = key[b];
+      if (x === null || y === null) return x === y ? a - b : x === null ? 1 : -1;
+      return (x - y) * dir || a - b;
+    });
+  }
+  if (order.length <= limit) return { order, more: 0 };
+  const kept = order.slice(0, limit);
+  for (const i of order.slice(limit)) {
+    if (!subject[i]) continue;
+    // Give the named row the place of the last row nobody asked about.
+    const out = [...kept].reverse().find((k) => !subject[k]);
+    if (out === undefined) break;
+    kept.splice(kept.indexOf(out), 1);
+    kept.push(i);
+  }
+  const shown = new Set(kept);
+  return { order: order.filter((i) => shown.has(i)), more: labels.length - kept.length };
+}
+
+/** What a list of bars ranks by: the gap to the comparison when the title is about it, else the value. */
+function rankKey(c: Ctx, main: Series, cmp: Series | undefined): (number | null)[] {
+  if (cmp && ABOUT_GAP.test(c.spec.title)) {
+    return main.values.map((v, i) => {
+      const b = cmp.values[i];
+      if (v === null || b === null || b === undefined) return null;
+      return main.col.kind === 'percent' || b === 0 ? v - b : (v - b) / Math.abs(b);
+    });
+  }
+  return main.values;
+}
+
+function pick(f: Frame, order: number[]): Frame {
+  const at = <T>(xs: readonly T[]) => order.map((i) => xs[i]);
+  return { ...f, labels: at(f.labels), full: at(f.full), series: f.series.map((s) => ({ ...s, values: at(s.values) })) };
+}
+
+/** The vertical rhythm of a list of bars: one pitch per row, the same bar thickness on every row. */
+export interface RowLayout {
+  pitch: number;
+  bar: number;
+  /** Height of the plot (rows only). */
+  plot: number;
+}
+export function rowLayout(c: Ctx, rows: number, more: boolean, bars = 1, legend = false): RowLayout {
+  const room = c.height - 8 - (more ? MORE_H : 0) - (legend ? LEGEND_H : 0);
+  const pitch = Math.max(18, Math.min(bars > 1 ? 18 + bars * 12 : 34, Math.floor(room / Math.max(1, rows))));
+  const bar = bars > 1 ? Math.max(6, Math.min(12, Math.floor((pitch * 0.72) / bars))) : pitch >= 30 ? 16 : pitch >= 24 ? 14 : 12;
+  return { pitch, bar, plot: pitch * rows };
+}
+
+/** How many rows of bars fit the body (never more than eight). */
+export function rowLimit(c: Ctx, bars = 1, legend = false): number {
+  return Math.max(3, Math.min(MAX_BAR_ROWS, Math.floor((c.height - 8 - MORE_H - (legend ? LEGEND_H : 0)) / (bars > 1 ? 14 + bars * 8 : 22))));
 }
 
 /** The room the category names of horizontal bars get: what they need, up to a share of the width. */
 export function nameWidth(c: Ctx, names: string[]): number {
-  return Math.min(Math.max(...names.map((l) => textWidth(l, 12))) + 6, Math.round(c.width * (c.narrow ? 0.36 : 0.3)));
+  return Math.min(Math.max(...names.map((l) => textWidth(l, 12))) + 6, Math.round(c.width * (c.narrow ? 0.36 : 0.32)));
 }
 
-/** Category names on the left of horizontal bars, truncated with an ellipsis to the room they have. */
-function nameAxis(c: Ctx, f: Frame) {
+/** Category names on the left of horizontal bars: wrapped onto a second line when long, never cut to "…" where a row has the room. */
+function nameAxis(c: Ctx, f: Frame, subject: boolean[], layout: RowLayout) {
+  const lit = subject.some(Boolean);
   return categoryAxis(c, f.labels, {
     inverse: true,
     axisLine: { show: false },
-    axisLabel: { color: c.t.text, fontSize: 12, fontFamily: c.t.font, width: nameWidth(c, f.labels), overflow: 'truncate', interval: 0, margin: 10 },
-  });
-}
-
-/** The plot area of horizontal bars, with the name and value columns reserved explicitly (names never slide under bars). */
-function rowsGrid(c: Ctx, names: string[], right: number, bottom = 4) {
-  return { left: nameWidth(c, names) + 12, right, top: 4, bottom, containLabel: false };
-}
-
-/** A right-hand column of values for horizontal bars: right-aligned, in tabular figures. */
-function valuesAxis(c: Ctx, f: Frame, s: Series) {
-  return categoryAxis(c, f.labels, {
-    inverse: true,
-    position: 'right',
-    axisLine: { show: false },
-    axisLabel: { interval: 0, margin: 10, color: c.t.text, fontSize: 12, fontFamily: c.t.font, formatter: (_: string, i: number) => fmt(s.values[i], s.col, true) },
+    axisLabel: {
+      color: (_: string, i: number) => (!lit || subject[i] ? c.t.text : c.t.muted),
+      fontSize: 12,
+      fontFamily: c.t.font,
+      fontWeight: 400,
+      width: nameWidth(c, f.labels),
+      overflow: layout.pitch >= 28 ? 'break' : 'truncate',
+      lineHeight: 13,
+      interval: 0,
+      margin: 10,
+    },
   });
 }
 
 const hiddenValueAxis = (c: Ctx, col: EvidenceColumn, extra: Record<string, unknown> = {}) => valueAxis(c, col, { axisLabel: { show: false }, splitLine: { show: false }, ...extra });
 
+/**
+ * The value axis of horizontal bars with the labels' room built in: bars below zero keep space on their left for
+ * their number, so a label never runs into the names.
+ */
+function barExtent(values: (number | null)[], plotW: number, negLabel: number): { min?: number; max?: number } {
+  const ok = values.filter((v): v is number => v !== null);
+  if (!ok.length) return {};
+  const lo = Math.min(0, ...ok);
+  const hi = Math.max(0, ...ok);
+  if (lo >= 0) return { min: 0 };
+  const range = hi - lo || 1;
+  const scale = range / Math.max(40, plotW - negLabel);
+  return { min: lo - negLabel * scale, max: hi };
+}
+
+/** Direct value labels at the end of each bar, carried by an invisible series so they sit past a comparison marker too. */
+function endLabels(c: Ctx, ends: (number | null)[], texts: string[], subject: boolean[], name: string, xAxisIndex = 0) {
+  const lit = subject.some(Boolean);
+  return {
+    type: 'scatter',
+    name,
+    silent: true,
+    tooltip: { show: false },
+    symbolSize: 1,
+    // Transparent, not opacity 0: the label would inherit an opacity.
+    itemStyle: { color: 'rgba(0,0,0,0)' },
+    xAxisIndex,
+    z: 4,
+    data: ends.map((v, i) =>
+      v === null
+        ? '-'
+        : {
+            value: v,
+            label: { show: true, position: v < 0 ? 'left' : 'right', distance: 5, formatter: texts[i], color: !lit || subject[i] ? c.t.text : c.t.muted, fontWeight: lit && subject[i] ? 600 : 400, fontSize: 11.5, fontFamily: c.t.font },
+          },
+    ),
+  };
+}
+
+const MUTED = 0.38;
+
 export function buildBar(c: Ctx, note?: string): Built {
   const whole = frame(c);
   if (!whole) return empty(c, 'No data for this period.');
-  const { f, note: clipped } = whole.wordy ? clip(c, whole, maxRows(c)) : { f: whole, note: undefined };
+  return whole.wordy ? barRows(c, whole, note) : barColumns(c, whole, note);
+}
+
+/** Bars per hotel, segment or channel: a ranked list. */
+function barRows(c: Ctx, whole: Frame, note?: string): Built {
+  const main0 = whole.series[0];
+  const cmp0 = whole.series.find((s) => s.role === 'compare');
+  const subjectAll = subjectsOf(c.spec.title, whole.labels, whole.full);
+  const { order, more } = rank(c.spec.title, whole.labels, rankKey(c, main0, cmp0), subjectAll, rowLimit(c, 1, !!cmp0));
+  const f = pick(whole, order);
+  const subject = order.map((i) => subjectAll[i]);
+  const lit = subject.some(Boolean);
   const main = f.series[0];
   const cmp = f.series.find((s) => s.role === 'compare');
-  const tipFmt = (p: unknown) => tipAt(c, f, (p as { dataIndex: number }).dataIndex);
-  const valueLabels = f.wordy || f.labels.length <= (c.narrow ? 8 : 14);
-  const longest = Math.max(...main.values.map((v) => textWidth(fmt(v, main.col, true), 12)));
-  // With a comparison tick on the bar, the values move to their own column so a tick never crosses a number.
-  const column = f.wordy && !!cmp;
+  const layout = rowLayout(c, f.labels.length, more > 0, 1, !!cmp);
+  const texts = main.values.map((v) => fmt(v, main.col, true));
+  const longest = Math.max(...texts.map((t) => textWidth(t, 11.5)));
+  const negative = main.values.some((v) => v !== null && v < 0);
+  const positive = main.values.some((v) => v !== null && v > 0) || !!cmp?.values.some((v) => v !== null && v > 0);
+  // Room for the labels on the side they sit: right of bars above zero, left of bars below it (clear of the names).
+  const left = nameWidth(c, f.labels) + 12 + (negative ? 28 : 0);
+  const right = positive || !negative ? longest + 12 : 16;
+  const plotW = c.width - left - right;
+  // A label goes past whichever is further out: the bar or its comparison marker.
+  const ends = main.values.map((v, i) => {
+    const b = cmp?.values[i] ?? null;
+    if (v === null) return null;
+    if (b === null) return v;
+    return v < 0 ? Math.min(v, b) : Math.max(v, b);
+  });
+  const extent = barExtent([...main.values, ...(cmp?.values ?? [])], plotW, negative ? longest + 10 : 0);
+  const radius = (v: number | null) => markRadius(c.t, v !== null && v < 0 ? [3, 0, 0, 3] : [0, 3, 3, 0]);
+  const bar = {
+    type: 'bar',
+    name: main.name,
+    barWidth: layout.bar,
+    barMinHeight: 1,
+    data: main.values.map((v, i) => ({ value: v, itemStyle: { color: main.color, opacity: !lit || subject[i] ? 1 : MUTED, borderRadius: radius(v) } })),
+    emphasis: { itemStyle: { opacity: 1 } },
+  };
+  const tick = cmp
+    ? { type: 'scatter', name: cmp.name, data: cmp.values, symbol: 'rect', symbolSize: [2.5, layout.bar + 6], itemStyle: { color: cmp.color, borderColor: c.t.surface, borderWidth: 1 }, emphasis: { scale: false }, z: 3 }
+    : null;
+  const option = {
+    ...baseOption(c),
+    tooltip: tooltip(c, { trigger: 'item', formatter: (p: unknown) => tipAt(c, f, (p as { dataIndex: number }).dataIndex) }),
+    grid: { left, right, top: 4, height: layout.plot, containLabel: false },
+    xAxis: hiddenValueAxis(c, f.valueCol, extent),
+    yAxis: nameAxis(c, f, subject, layout),
+    series: [bar, ...(tick ? [tick] : []), endLabels(c, ends, texts, subject, `${main.name} values`)],
+  };
+  return {
+    render: 'echarts',
+    kind: 'bar',
+    option,
+    points: pointsOf(f),
+    legend: cmp ? [{ label: main.name, color: main.color, mark: 'solid' }, { label: cmp.name, color: cmp.color, mark: 'tick' }] : [],
+    note,
+    ...(more ? { more } : {}),
+    table: tableModel(c, specKeys(c.spec)),
+    summary: describe(c, whole, 'Bar chart', more ? `The chart shows ${f.labels.length} of them; the table has all ${whole.labels.length}.` : ''),
+  };
+}
+
+/** Bars over time (days, months): upright columns in their own order. */
+function barColumns(c: Ctx, f: Frame, note?: string): Built {
+  const main = f.series[0];
+  const cmp = f.series.find((s) => s.role === 'compare');
+  const valueLabels = f.labels.length <= (c.narrow ? 8 : 14);
   const bar = {
     type: 'bar',
     name: main.name,
     data: main.values,
-    barMaxWidth: 20,
+    barMaxWidth: 16,
+    barCategoryGap: '40%',
     barMinHeight: 1,
-    itemStyle: { color: main.color, borderRadius: markRadius(c.t, f.wordy ? [0, 4, 4, 0] : [4, 4, 0, 0]) },
+    itemStyle: { color: main.color, borderRadius: markRadius(c.t, [3, 3, 0, 0]) },
     emphasis: { itemStyle: { color: main.color, opacity: 0.85 } },
-    label: valueLabels && !column ? { show: true, position: f.wordy ? 'right' : 'top', distance: 6, color: c.t.text, fontSize: 12, fontFamily: c.t.font, formatter: (p: { dataIndex: number }) => fmt(main.values[p.dataIndex], main.col, true) } : undefined,
-    labelLayout: f.wordy ? undefined : { hideOverlap: true },
+    label: valueLabels ? { show: true, position: 'top', distance: 5, color: c.t.text, fontSize: 11.5, fontFamily: c.t.font, formatter: (p: { dataIndex: number }) => fmt(main.values[p.dataIndex], main.col, true) } : undefined,
+    labelLayout: { hideOverlap: true },
   };
-  // The comparison rides on each bar as a purple tick, so the bar itself stays the one thing to read.
-  const tick = cmp
-    ? { type: 'scatter', name: cmp.name, data: cmp.values, symbol: 'rect', symbolSize: f.wordy ? [3, 18] : [18, 3], itemStyle: { color: cmp.color, borderColor: c.t.surface, borderWidth: 1 }, emphasis: { scale: false }, z: 3 }
-    : null;
+  const tick = cmp ? { type: 'scatter', name: cmp.name, data: cmp.values, symbol: 'rect', symbolSize: [20, 2.5], itemStyle: { color: cmp.color, borderColor: c.t.surface, borderWidth: 1 }, emphasis: { scale: false }, z: 3 } : null;
   const option = {
     ...baseOption(c),
-    tooltip: tooltip(c, { trigger: 'item', formatter: tipFmt }),
-    grid: f.wordy ? rowsGrid(c, f.labels, longest + 16) : { left: 8, right: 12, top: valueLabels ? 22 : 12, bottom: 4, containLabel: true },
-    xAxis: f.wordy ? hiddenValueAxis(c, f.valueCol) : categoryAxis(c, f.labels),
-    yAxis: f.wordy ? (column ? [nameAxis(c, f), valuesAxis(c, f, main)] : nameAxis(c, f)) : valueAxis(c, f.valueCol, valueLabels ? { axisLabel: { show: false }, splitLine: { show: false } } : {}),
+    tooltip: tooltip(c, { trigger: 'item', formatter: (p: unknown) => tipAt(c, f, (p as { dataIndex: number }).dataIndex) }),
+    grid: { left: 8, right: 12, top: valueLabels ? 22 : 12, bottom: 4, containLabel: true },
+    xAxis: categoryAxis(c, f.labels),
+    yAxis: valueAxis(c, f.valueCol, valueLabels ? { axisLabel: { show: false }, splitLine: { show: false } } : {}),
     series: tick ? [bar, tick] : [bar],
   };
   return {
@@ -280,49 +472,76 @@ export function buildBar(c: Ctx, note?: string): Built {
     option,
     points: pointsOf(f),
     legend: cmp ? [{ label: main.name, color: main.color, mark: 'solid' }, { label: cmp.name, color: cmp.color, mark: 'tick' }] : [],
-    note: [note, clipped].filter(Boolean).join(' ') || undefined,
+    note,
     table: tableModel(c, specKeys(c.spec)),
     summary: describe(c, f, 'Bar chart'),
   };
 }
 
+/**
+ * Grouped bars per hotel (or segment) of a value and its comparison (this year and last, actual and budget) read
+ * better as one bar with a marker: the spec as a bar chart with `compare`, or null when it is not such a pair.
+ */
+export function comparisonPair(c: Ctx, f: Frame): Ctx | null {
+  if (!f.wordy || c.spec.group || f.series.length !== 2) return null;
+  const y = c.spec.y ?? [];
+  if (c.spec.compare && y.length === 1) return c;
+  if (c.spec.compare || y.length !== 2) return null;
+  const [a, b] = y;
+  return COMPARE_KEY.test(a) || !COMPARE_KEY.test(b) ? null : { ...c, spec: { ...c.spec, y: [a], compare: b } };
+}
+
 function multiBar(c: Ctx, stacked: boolean): Built {
   const whole = frame(c);
   if (!whole) return empty(c, 'No data for this period.');
-  const perRow = stacked ? 15 : 12 + whole.series.length * 7;
-  const { f, note: clipped } = whole.wordy ? clip(c, whole, maxRows(c, perRow)) : { f: whole, note: undefined };
-  const totals = f.labels.map((_, i) => f.series.reduce((sum, s) => sum + (s.values[i] ?? 0), 0));
-  const few = f.labels.length * (stacked ? 1 : f.series.length) <= (c.narrow ? 8 : 14);
+  const pair = stacked ? null : comparisonPair(c, whole);
+  if (pair) return { ...buildBar(pair), kind: 'grouped_bar' };
+  const k = stacked ? 1 : whole.series.length;
+  const totalsOf = (f: Frame) => f.labels.map((_, i) => f.series.reduce((sum, s) => sum + (s.values[i] ?? 0), 0));
+  let f = whole;
+  let more = 0;
+  let subject = whole.labels.map(() => false);
+  if (whole.wordy) {
+    const subjectAll = subjectsOf(c.spec.title, whole.labels, whole.full);
+    const r = rank(c.spec.title, whole.labels, stacked ? totalsOf(whole) : whole.series[0].values, subjectAll, rowLimit(c, k, whole.series.length > 1));
+    f = pick(whole, r.order);
+    more = r.more;
+    subject = r.order.map((i) => subjectAll[i]);
+  }
+  const lit = subject.some(Boolean);
+  const totals = totalsOf(f);
   const hasCompare = f.series.some((s) => s.role === 'compare');
-  // Upright bars side by side leave no room for a number that a taller neighbour would not run into.
-  const showLabels = stacked ? f.wordy || few : f.wordy ? f.series.length <= 3 : few && !hasCompare;
-  // Side by side, only the series the chart is about carries numbers; a comparison is read against it.
+  const layout = rowLayout(c, f.labels.length, more > 0, k, f.series.length > 1);
+  // Labels never collide: on rows, each bar needs the height of its number; on columns, each bar the width of its number.
+  const longest = Math.max(...(stacked ? totals : f.series.flatMap((s) => s.values)).map((v) => textWidth(fmt(v, f.valueCol, true), 11.5)));
+  const plotW = c.width - 40;
+  const slot = (plotW / Math.max(1, f.labels.length)) * 0.7;
+  const fits = f.wordy ? (stacked ? true : layout.bar >= 11) : stacked ? slot >= longest : slot / k >= longest + 2 && !hasCompare;
   const labelled = (s: Series, si: number) => (stacked ? si === f.series.length - 1 : !hasCompare || s.role === 'main');
-  const longest = Math.max(...(stacked ? totals : f.series.flatMap((s) => s.values)).map((v) => textWidth(fmt(v, f.valueCol, true), 12)));
+  const labelStyle = (s: Series, si: number) => ({
+    position: f.wordy ? 'right' : 'top',
+    distance: 5,
+    color: stacked || s.role === 'main' ? c.t.text : c.t.muted,
+    fontSize: 11.5,
+    fontFamily: c.t.font,
+    formatter: (p: { dataIndex: number }) => fmt(stacked ? totals[p.dataIndex] : s.values[p.dataIndex], s.col, true),
+    show: fits && labelled(s, si),
+  });
   const series = f.series.map((s, si) => ({
     type: 'bar',
     name: s.name,
-    data: s.values,
+    data: s.values.map((v, i) => ({ value: v, itemStyle: { opacity: !lit || subject[i] ? 1 : MUTED } })),
     stack: stacked ? 'total' : undefined,
-    barMaxWidth: stacked ? 20 : 14,
-    barGap: stacked ? undefined : '12%',
-    barCategoryGap: stacked ? '38%' : '30%',
-    // A 2 px gap in the surface colour separates the parts of a stack; no outlines.
+    barWidth: f.wordy ? layout.bar : undefined,
+    barMaxWidth: f.wordy ? undefined : stacked ? 18 : 12,
+    barGap: stacked ? undefined : '20%',
+    barCategoryGap: stacked ? '40%' : '32%',
+    // A 1 px gap in the surface colour separates the parts of a stack; no outlines.
     itemStyle: stacked ? { color: s.color, borderColor: c.t.surface, borderWidth: 1, borderRadius: markRadius(c.t, 2) } : { color: s.color, borderRadius: markRadius(c.t, f.wordy ? [0, 3, 3, 0] : [3, 3, 0, 0]) },
-    emphasis: { focus: 'series', blurScope: 'coordinateSystem' },
+    label: labelStyle(s, si),
+    // Where the numbers do not fit beside every bar, hovering a bar shows its own.
+    emphasis: { focus: 'series', blurScope: 'coordinateSystem', label: { show: labelled(s, si) || !stacked } },
     blur: { itemStyle: { opacity: 0.35 } },
-    label:
-      showLabels && labelled(s, si)
-        ? {
-            show: true,
-            position: f.wordy ? 'right' : 'top',
-            distance: 6,
-            color: stacked || s.role === 'main' ? c.t.text : c.t.muted,
-            fontSize: stacked ? 12 : 11.5,
-            fontFamily: c.t.font,
-            formatter: (p: { dataIndex: number }) => fmt(stacked ? totals[p.dataIndex] : s.values[p.dataIndex], s.col, true),
-          }
-        : undefined,
     labelLayout: f.wordy ? undefined : { hideOverlap: true },
   }));
   const option = {
@@ -336,9 +555,9 @@ function multiBar(c: Ctx, stacked: boolean): Built {
         return tip(c, f.full[i] ?? '', rows, stacked ? `Total ${fmt(totals[i], f.valueCol)}` : undefined);
       },
     }),
-    grid: f.wordy ? rowsGrid(c, f.labels, showLabels ? longest + 16 : 14, showLabels ? 4 : 24) : { left: 8, right: 12, top: showLabels ? 22 : 12, bottom: 4, containLabel: true },
-    xAxis: f.wordy ? (showLabels ? hiddenValueAxis(c, f.valueCol) : valueAxis(c, f.valueCol)) : categoryAxis(c, f.labels),
-    yAxis: f.wordy ? nameAxis(c, f) : valueAxis(c, f.valueCol),
+    grid: f.wordy ? { left: nameWidth(c, f.labels) + 12, right: fits ? longest + 12 : 14, top: 4, height: layout.plot, containLabel: false } : { left: 8, right: 12, top: fits ? 22 : 12, bottom: 4, containLabel: true },
+    xAxis: f.wordy ? hiddenValueAxis(c, f.valueCol) : categoryAxis(c, f.labels),
+    yAxis: f.wordy ? nameAxis(c, f, subject, layout) : valueAxis(c, f.valueCol),
     series,
   };
   return {
@@ -347,9 +566,10 @@ function multiBar(c: Ctx, stacked: boolean): Built {
     option,
     points: pointsOf(f),
     legend: legendOf(f, () => 'solid'),
-    note: [droppedNote(f), clipped].filter(Boolean).join(' ') || undefined,
+    note: droppedNote(f),
+    ...(more ? { more } : {}),
     table: tableModel(c, specKeys(c.spec)),
-    summary: describe(c, f, stacked ? 'Stacked bar chart' : 'Grouped bar chart'),
+    summary: describe(c, whole, stacked ? 'Stacked bar chart' : 'Grouped bar chart'),
   };
 }
 
@@ -519,18 +739,32 @@ export function buildBullet(c: Ctx): Built {
   const xCol = column(c, xKey);
   const col = valueColumn(c, yKey);
   const targetCol = c.spec.compare ? valueColumn(c, c.spec.compare) : null;
-  const limit = maxRows(c, 26);
-  const rows = c.rows.slice(0, limit);
-  const names = rows.map((r) => label(cell(r, xKey), xCol));
-  const actual = rows.map((r) => numberAt(r, yKey));
-  const target = rows.map((r) => (targetCol ? numberAt(r, c.spec.compare) : null));
+  const allNames = c.rows.map((r) => label(cell(r, xKey), xCol));
+  const allFull = c.rows.map((r) => label(cell(r, xKey), xCol, 'full'));
+  const allActual = c.rows.map((r) => numberAt(r, yKey));
+  const allTarget = c.rows.map((r) => (targetCol ? numberAt(r, c.spec.compare) : null));
+  const subjectAll = subjectsOf(c.spec.title, allNames, allFull);
+  // Against a target the list ranks by how far each row is from it; otherwise by the value.
+  const gap = allActual.map((v, i) => (v === null || allTarget[i] === null ? null : col.kind === 'percent' || !allTarget[i] ? v - allTarget[i]! : (v - allTarget[i]!) / Math.abs(allTarget[i]!)));
+  const { order, more } = rank(c.spec.title, allNames, targetCol ? gap : allActual, subjectAll, rowLimit(c, 1, !!targetCol));
+  const at = <T>(xs: readonly T[]) => order.map((i) => xs[i]);
+  const names = at(allNames);
+  const full = at(allFull);
+  const actual = at(allActual);
+  const target = at(allTarget);
+  const subject = at(subjectAll);
+  const lit = subject.some(Boolean);
+  const layout = rowLayout(c, names.length, more > 0, 1, !!targetCol);
   const max = Math.max(...actual.map((v) => v ?? 0), ...target.map((v) => v ?? 0)) * 1.04 || 1;
-  const deltas = rows.map((_, i) => (targetCol ? formatDelta(actual[i], target[i], col.kind, col.unit, lowerIsBetter(col)) : null));
+  const deltas = actual.map((v, i) => (targetCol ? formatDelta(v, target[i], col.kind, col.unit, lowerIsBetter(col)) : null));
+  const showDelta = !!targetCol && !c.narrow;
   const nameW = nameWidth(c, names);
   const valueW = Math.max(...actual.map((v) => textWidth(fmt(v, col, true), 12))) + 4;
+  const deltaW = showDelta ? Math.max(...deltas.map((d) => (d ? textWidth(d.text, 11.5) : 0))) + 10 : 0;
+  const ink = (i: number) => (!lit || subject[i] ? c.t.text : c.t.muted);
   const option = {
     ...baseOption(c),
-    grid: { left: nameW + 12, right: valueW + (targetCol && !c.narrow ? 62 : 0) + 12, top: 4, bottom: 4, containLabel: false },
+    grid: { left: nameW + 12, right: valueW + deltaW + 12, top: 4, height: layout.plot, containLabel: false },
     tooltip: tooltip(c, {
       trigger: 'item',
       formatter: (p: unknown) => {
@@ -538,49 +772,62 @@ export function buildBullet(c: Ctx): Built {
         const d = deltas[i];
         const rowsTip: TipRow[] = [{ label: col.label, value: fmt(actual[i], col), color: c.t.series }];
         if (targetCol) rowsTip.push({ label: targetCol.label, value: fmt(target[i], targetCol), color: c.t.cmp });
-        return tip(c, names[i] ?? '', rowsTip, d && targetCol ? `${d.text} vs ${targetCol.label.toLowerCase()}` : undefined);
+        return tip(c, full[i] ?? '', rowsTip, d && targetCol ? `${d.text} vs ${targetCol.label.toLowerCase()}` : undefined);
       },
     }),
     xAxis: hiddenValueAxis(c, col, { min: 0, max }),
     yAxis: [
-      categoryAxis(c, names, { inverse: true, axisLine: { show: false }, axisLabel: { color: c.t.text, fontSize: 12, fontFamily: c.t.font, width: nameW, overflow: 'truncate', interval: 0, margin: 10 } }),
-      // The values sit in their own right-aligned column, so a target mark never runs into a number.
+      categoryAxis(c, names, {
+        inverse: true,
+        axisLine: { show: false },
+        axisLabel: { color: (_: string, i: number) => ink(i), fontSize: 12, fontFamily: c.t.font, width: nameW, overflow: layout.pitch >= 28 ? 'break' : 'truncate', lineHeight: 13, interval: 0, margin: 10 },
+      }),
+      // The value and its gap to the target sit right after the track, in a column of their own, so a target mark never runs into a number.
       categoryAxis(c, names, {
         inverse: true,
         position: 'right',
         axisLine: { show: false },
         axisLabel: {
           interval: 0,
-          margin: 10,
+          margin: 8,
           fontFamily: c.t.font,
           formatter: (_: string, i: number) => {
             const d = deltas[i];
-            const value = `{v|${fmt(actual[i], col, true)}}`;
-            return d && !c.narrow ? `${value}{${d.tone}|${d.text}}` : value;
+            const value = `{${!lit || subject[i] ? 'v' : 'm'}|${fmt(actual[i], col, true)}}`;
+            return d && showDelta ? `${value}{${d.tone}|${d.text}}` : value;
           },
           rich: {
             v: { color: c.t.text, fontSize: 12, fontWeight: 500, fontFamily: c.t.font, width: valueW, align: 'right' },
-            good: { color: c.t.pos, fontSize: 11.5, fontFamily: c.t.font, width: 62, align: 'right' },
-            bad: { color: c.t.neg, fontSize: 11.5, fontFamily: c.t.font, width: 62, align: 'right' },
-            flat: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, width: 62, align: 'right' },
+            m: { color: c.t.muted, fontSize: 12, fontWeight: 400, fontFamily: c.t.font, width: valueW, align: 'right' },
+            good: { color: c.t.pos, fontSize: 11.5, fontFamily: c.t.font, width: deltaW, align: 'right' },
+            bad: { color: c.t.neg, fontSize: 11.5, fontFamily: c.t.font, width: deltaW, align: 'right' },
+            flat: { color: c.t.muted, fontSize: 11.5, fontFamily: c.t.font, width: deltaW, align: 'right' },
           },
         },
       }),
     ],
     series: [
-      { type: 'bar', name: col.label, data: actual, barWidth: 10, showBackground: true, backgroundStyle: { color: c.t.grid, borderRadius: markRadius(c.t, 3) }, itemStyle: { color: c.t.series, borderRadius: markRadius(c.t, 3) }, emphasis: { itemStyle: { color: c.t.series, opacity: 0.85 } } },
-      ...(targetCol ? [{ type: 'scatter', name: targetCol.label, data: target, symbol: 'rect', symbolSize: [3, 22], itemStyle: { color: c.t.cmp, borderColor: c.t.surface, borderWidth: 1 }, emphasis: { scale: false }, z: 3 }] : []),
+      {
+        type: 'bar',
+        name: col.label,
+        barWidth: Math.min(layout.bar, 12),
+        showBackground: true,
+        backgroundStyle: { color: c.t.grid, borderRadius: markRadius(c.t, 3) },
+        data: actual.map((v, i) => ({ value: v, itemStyle: { color: c.t.series, opacity: !lit || subject[i] ? 1 : MUTED, borderRadius: markRadius(c.t, 3) } })),
+        emphasis: { itemStyle: { opacity: 1 } },
+      },
+      ...(targetCol ? [{ type: 'scatter', name: targetCol.label, data: target, symbol: 'rect', symbolSize: [2.5, Math.min(layout.bar, 12) + 8], itemStyle: { color: c.t.cmp, borderColor: c.t.surface, borderWidth: 1 }, emphasis: { scale: false }, z: 3 }] : []),
     ],
   };
   return {
     render: 'echarts',
     kind: 'bullet',
     option,
-    points: names.map((name, i) => ({ seriesIndex: 0, dataIndex: i, text: `${name}: ${fmt(actual[i], col)}${targetCol ? `, ${targetCol.label.toLowerCase()} ${fmt(target[i], targetCol)}${deltas[i] ? `, ${deltas[i]!.spoken}` : ''}` : ''}` })),
+    points: names.map((_, i) => ({ seriesIndex: 0, dataIndex: i, text: `${full[i]}: ${fmt(actual[i], col)}${targetCol ? `, ${targetCol.label.toLowerCase()} ${fmt(target[i], targetCol)}${deltas[i] ? `, ${deltas[i]!.spoken}` : ''}` : ''}` })),
     legend: targetCol ? [{ label: col.label, color: c.t.series, mark: 'solid' }, { label: targetCol.label, color: c.t.cmp, mark: 'tick' }] : [],
-    note: c.rows.length > limit ? `Showing the first ${limit} of ${c.rows.length}. “View as table” has them all.` : undefined,
+    ...(more ? { more } : {}),
     table: tableModel(c, specKeys(c.spec)),
-    summary: summary(c, `Bullet chart: ${col.label}${targetCol ? ` against ${targetCol.label}` : ''} for ${names.length} rows.`, extremes(names.map((name, i) => ({ name, value: actual[i], text: fmt(actual[i], col) })))),
+    summary: summary(c, `Bullet chart: ${col.label}${targetCol ? ` against ${targetCol.label}` : ''} for ${allNames.length} rows.`, extremes(allFull.map((name, i) => ({ name, value: allActual[i], text: fmt(allActual[i], col) })))),
   };
 }
 

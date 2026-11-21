@@ -1,3 +1,4 @@
+import { hotelLabel } from './hotel-names';
 import type { ColumnKind, EvidenceColumn } from './widget-types';
 
 /*
@@ -127,6 +128,8 @@ export function formatValue(v: unknown, col: ColumnLike, o: FormatOptions = {}):
     const n = num(v);
     return n === null ? String(v) : formatNumber(n, col, o);
   }
+  // A hotel is never a code: its city (or short name) on the marks, its full name everywhere else.
+  if (col.kind === 'hotel') return hotelLabel(v, o.axis ? 'short' : 'full');
   return String(v);
 }
 

@@ -17,6 +17,7 @@ import { METRICS, MetricKey, NIGHTS, Range, metricSeries, metricTotal } from './
 import { ProposalCard } from './proposal-card';
 import { BoardsService } from './boards/boards.service';
 import type { Board, BoardWidget } from './boards/types';
+import { ViewAs } from './charts/view-as';
 import { WidgetChart } from './charts/widget-chart';
 import { formatDate, formatPeriod } from './evidence/format';
 import { sourceLabel } from './evidence/labels';
@@ -93,7 +94,7 @@ export class PerformanceWidget {
 /** A saved widget: the chart, its title and scope, and its own menu (move, remove, behind the numbers). */
 @Component({
   selector: 'app-saved-widget',
-  imports: [NgIcon, WidgetChart, HlmButtonImports, HlmDropdownMenuImports],
+  imports: [NgIcon, WidgetChart, ViewAs, HlmButtonImports, HlmDropdownMenuImports],
   providers: [provideIcons({ ...icons })],
   host: { class: 'block min-w-0' },
   template: `
@@ -106,10 +107,11 @@ export class PerformanceWidget {
             <p class="text-muted-foreground mt-1 text-[12.5px]/snug">{{ w.spec.subtitle }}</p>
           }
         </div>
+        <juyo-view-as class="mt-0.5" [for]="wc" />
         <button hlmBtn variant="ghost" size="icon-sm" class="text-muted-foreground" [attr.aria-label]="'More for ' + w.spec.title" [hlmDropdownMenuTrigger]="menu" align="end"><ng-icon name="phosphorDotsThreeBold" class="text-[18px]" /></button>
       </header>
       <div class="mt-stack min-h-0 flex-1">
-        <juyo-widget-chart [spec]="w.spec" [rows]="w.rows" [columns]="w.columns" [header]="false" [switcher]="true" [viewKey]="'board:' + w.id" />
+        <juyo-widget-chart #wc [spec]="w.spec" [rows]="w.rows" [columns]="w.columns" [header]="false" [switcher]="true" controls="external" [viewKey]="'board:' + w.id" />
       </div>
       @if (how()) {
         <section class="mt-card-pad text-[12.5px]" aria-label="Behind the numbers">

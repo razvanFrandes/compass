@@ -28,8 +28,18 @@ export function boardNameFor(title: string): string {
   host: { class: 'inline-flex' },
   template: `
     @if (added(); as a) {
-      <button hlmBtn type="button" variant="ghost" size="sm" class="text-muted-foreground max-w-[16rem]" (click)="view(a.boardId)">
-        <ng-icon name="phosphorCheckLight" aria-hidden="true" /><span class="truncate">On {{ a.boardName }} · Open</span>
+      @if (compact()) {
+        <button hlmBtn type="button" variant="ghost" size="icon-sm" class="text-muted-foreground" [attr.aria-label]="'On ' + a.boardName + '. Open the board'" [attr.title]="'On ' + a.boardName + ' · Open'" (click)="view(a.boardId)">
+          <ng-icon name="phosphorCheckLight" aria-hidden="true" />
+        </button>
+      } @else {
+        <button hlmBtn type="button" variant="ghost" size="sm" class="text-muted-foreground max-w-[16rem]" (click)="view(a.boardId)">
+          <ng-icon name="phosphorCheckLight" aria-hidden="true" /><span class="truncate">On {{ a.boardName }} · Open</span>
+        </button>
+      }
+    } @else if (compact()) {
+      <button hlmBtn type="button" variant="ghost" size="icon-sm" class="text-muted-foreground" [disabled]="saving()" [attr.aria-label]="saving() ? 'Adding to a board…' : 'Add to board'" [attr.title]="saving() ? 'Adding…' : 'Add to board'" [hlmDropdownMenuTrigger]="menu" align="end" (hlmDropdownMenuOpened)="load()">
+        <ng-icon name="phosphorPlusLight" aria-hidden="true" />
       </button>
     } @else {
       <button hlmBtn type="button" variant="outline" size="sm" [disabled]="saving()" [hlmDropdownMenuTrigger]="menu" align="end" (hlmDropdownMenuOpened)="load()">
@@ -59,6 +69,8 @@ export class KassandraBoardPicker {
   readonly widget = input.required<ChatWidget>();
   /** The question the widget answered, kept with it on the board. */
   readonly question = input<string | null>(null);
+  /** An icon button (with "Add to board" as its tooltip) for a card's header. */
+  readonly compact = input(false);
   /** The widget is on a board now. */
   readonly saved = output<{ boardId: string; widgetId: string }>();
 
