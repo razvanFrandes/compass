@@ -7,8 +7,8 @@ import { KIND_ICONS, KIND_ICON_SET } from './kind-icons';
 import { CONCEPT_ONLY } from '../theme-lab/tokens';
 import { WIDGET_THEME_SCOPE, WidgetChart, type WidgetLoading } from './widget-chart';
 
-type Preview = 'app' | 'dark' | 'light' | 'juyo-concept' | 'both';
-type Scope = 'app' | 'dark' | 'light' | 'juyo-concept';
+type Preview = 'app' | 'dark' | 'light' | 'juyo-concept' | 'juyo-concept-dark' | 'both';
+type Scope = 'app' | 'dark' | 'light' | 'juyo-concept' | 'juyo-concept-dark';
 
 /** Bumps when the gallery changes its preview theme, so the widgets re-read their colours. */
 const previewTick = signal(0);
@@ -17,7 +17,7 @@ const previewTick = signal(0);
 const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
 
 /**
- * /catalog: every widget kind with sample rows, in any of the three themes or all side by side, at both densities and
+ * /catalog: every widget kind with sample rows, in either theme and either mode, or all four side by side, at both densities and
  * as skeletons. The design-system page for the chart catalogue.
  */
 @Component({
@@ -207,7 +207,7 @@ const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
             <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[13.5px]/relaxed">{{ g.blurb }}</p>
             <div class="grid gap-4" [class]="both() ? '' : 'lg:grid-cols-2'">
               @for (sp of g.items; track sp.id) {
-                <div class="grid min-w-0 gap-4" [class]="both() ? 'lg:grid-cols-3' : sp.wide ? 'lg:col-span-2' : ''">
+                <div class="grid min-w-0 gap-4" [class]="both() ? 'lg:grid-cols-2' : sp.wide ? 'lg:col-span-2' : ''">
                   @for (scope of scopes(); track scope) {
                     <div class="cat-scope" [class]="themeClass(scope)" [attr.data-theme]="themeAttr(scope)" [style]="themeReset(scope)">
                       <article class="cat-card" [attr.aria-label]="sp.spec.kind + (both() ? ', ' + themeName(scope) + ' theme' : '')">
@@ -242,7 +242,8 @@ export class CatalogView {
     { value: 'app', label: 'App theme' },
     { value: 'dark', label: 'Dark' },
     { value: 'light', label: 'Light' },
-    { value: 'juyo-concept', label: 'Juyo concept' },
+    { value: 'juyo-concept', label: 'Concept light' },
+    { value: 'juyo-concept-dark', label: 'Concept dark' },
     { value: 'both', label: 'Side by side' },
   ];
 
@@ -279,25 +280,26 @@ export class CatalogView {
     this.timers = [setTimeout(() => this.loading.set('title'), 1400), setTimeout(() => this.setState('none'), 2800)];
   }
   protected readonly both = computed(() => this.preview() === 'both');
-  /** The theme of the page itself: the chosen one, or the app's when the three are shown side by side. */
+  /** The theme of the page itself: the chosen one, or the app's when the four are shown side by side. */
   protected readonly canvas = computed<Scope>(() => (this.preview() === 'both' ? 'app' : (this.preview() as Scope)));
-  protected readonly scopes = computed<Scope[]>(() => (this.both() ? ['dark', 'light', 'juyo-concept'] : ['app']));
+  protected readonly scopes = computed<Scope[]>(() => (this.both() ? ['dark', 'light', 'juyo-concept', 'juyo-concept-dark'] : ['app']));
 
   /**
    * A preview wears a theme the way <html> does: `data-theme` selects the tokens (styles.css and the concept layer
-   * both accept it on any element) and the class tells Tailwind's `dark:` variant. "app" adds nothing: it inherits.
+   * both accept it on any element) and the class is the mode, which Tailwind's `dark:` variant and the concept
+   * theme's dark column read. "app" adds nothing: it inherits.
    */
   protected themeAttr(scope: Scope): string | null {
-    return scope === 'app' ? null : scope;
+    return scope === 'app' ? null : scope === 'juyo-concept-dark' ? 'juyo-concept' : scope;
   }
   protected themeClass(scope: Scope): string {
-    return scope === 'app' ? '' : scope === 'dark' ? 'dark' : 'light';
+    return scope === 'app' ? '' : scope === 'dark' || scope === 'juyo-concept-dark' ? 'dark' : 'light';
   }
   protected themeReset(scope: Scope): Record<string, string> | null {
     return scope === 'dark' || scope === 'light' ? RESET : null;
   }
   protected themeName(scope: Scope): string {
-    return scope === 'juyo-concept' ? 'Juyo concept' : scope;
+    return scope === 'juyo-concept' ? 'Juyo concept light' : scope === 'juyo-concept-dark' ? 'Juyo concept dark' : scope;
   }
 
   protected setPreview(p: Preview) {

@@ -1,6 +1,6 @@
 # Juyo concept theme: direction and specification
 
-The third Compass theme, selected with `data-theme="juyo-concept"`. The research behind it is in [juyo-concept-research.md](juyo-concept-research.md). The living version of this document is the app's `/theme-lab` view, which reads every value from the rendered CSS.
+Compass's second theme, selected with `data-theme="juyo-concept"`, in a light and a dark mode. Sections 1 to 13 describe the system and its light mode; §14 is the dark mode. The research behind it is in [juyo-concept-research.md](juyo-concept-research.md). The living version of this document is the app's `/theme-lab` view, which reads every value from the rendered CSS and shows the four combinations of theme and mode side by side.
 
 ## 1. The direction: "Ledger"
 
@@ -45,7 +45,7 @@ Rejected because:
 - The evidence favours a light surface for small figures (research §4), and this product is mostly small figures.
 - Juyo's light theme exists in their CSS, and none of their screenshots show it. A considered light product is the more useful thing to put in front of them.
 
-The dark rail keeps what was right about this direction.
+The dark rail keeps what was right about this direction. The dark mode of §14 came later and is a different thing: a second column of the same scales under the same roles, chosen by the person or their device, not a second theme with its own rules.
 
 ### Also weighed and dropped
 
@@ -69,7 +69,7 @@ A theme is a new mapping of the semantic tier. The 47 colour roles that the Ligh
 
 ### Naming
 
-- Primitives: `--jc-<scale>-<step>`. Colour scales count up from light to dark; other scales count up from small to large or short to long. Names say what the value is (`--jc-blue-6`, `--jc-duration-2`).
+- Primitives: `--jc-<scale>-<step>`. Colour scales count up from the surface's end to the text's end, which is light to dark in the light mode; a step is a job, and each scale has a second column for the dark mode (§14.4). Other scales count up from small to large or short to long. Names say what the value is (`--jc-blue-6`, `--jc-duration-2`).
 - Semantic: element, then role, then state, never a hue (Carbon, Primer, Atlassian). `--border-control`, `--surface-sunken`, `--elevation-overlay`, `--motion-fast`, `--type-dense-size`, `--radius-container`.
 - Component: `--<component>-<property>`: `--button-radius`, `--table-total-rule`, `--chart-line-width`.
 - The existing role names are kept as they are (`--background`, `--card`, `--muted-foreground`, `--series`, `--decision` and the rest), even where the grammar would name them differently. Renaming them would mean editing every component, which is the opposite of the point.
@@ -81,12 +81,13 @@ A theme is a new mapping of the semantic tier. The 47 colour roles that the Ligh
 | `apps/web/src/themes/juyo-concept/tokens.css` | All three tiers, and the inverse scope for the rail |
 | `apps/web/src/themes/juyo-concept/bridge.css` | Maps the literals components still carry onto the tokens |
 | `apps/web/src/themes/juyo-concept/index.css` | Imports the two; listed after `styles.css` in `angular.json` |
-| `apps/web/src/app/theme.ts` | The theme signal, the list of themes, the storage key |
+| `apps/web/src/app/theme.ts` | The theme and mode signals, the lists of both, the storage keys |
+| `apps/web/src/app/theme/theme-switcher.ts` | The switch for both, as rows or as a menu (§14.11) |
 | `apps/web/src/app/theme-lab/` | The `/theme-lab` view |
 
 ### How a theme is selected
 
-`<html data-theme="light | dark | juyo-concept">`. The inline script in `index.html` reads the saved choice (`localStorage["compass-theme"]`) before the first paint and maps it to the `.dark` or `.light` class that Spartan's `dark:` variant reads. `juyo-concept` is a light theme. `data-theme` also works on any element, which is how the theme lab shows two themes side by side.
+`<html data-theme="default | juyo-concept" data-mode="light | dark | system" class="light | dark">`. Theme and mode are two choices (§14.10). The inline script in `index.html` reads both (`localStorage["compass.theme"]`, `localStorage["compass.mode"]`) before the first paint and sets the class to the mode in effect, which is what Spartan's `dark:` variant and every theme's CSS read. `data-theme` with the class also works on any element, which is how the theme lab shows the four combinations side by side; for the default theme a subtree's attribute is the mode's name (`data-theme="light"` or `"dark"`).
 
 ### The bridge
 
@@ -115,7 +116,7 @@ The CSS is the source of truth today. The same tokens map directly onto the DTCG
 }
 ```
 
-Light, Dark and Juyo concept would be three contexts of one `theme` modifier in a DTCG resolver file, with density as a second, independent modifier.
+In a DTCG resolver file, theme (default, juyo-concept) and mode (light, dark) would be two modifiers, with density as a third, independent one. The mode modifier swaps the values of the primitive colour scales and the few roles of §14.5.
 
 ## 4. Colour
 
@@ -509,7 +510,7 @@ Edits outside the theme's own files, all small:
 | `apps/web/public/_headers` | The new hash of that script in the Content-Security-Policy. |
 | `apps/web/angular.json` | Adds the theme stylesheet after `styles.css`. |
 | `apps/web/src/styles.css` | The default token blocks also match `[data-theme='dark']` and `[data-theme='light']`, so a subtree can be themed. `dark:` follows the nearest themed ancestor. A `.seg--fill` variant for the theme switch. No value changed. |
-| `apps/web/src/app/app.ts` | The two-way toggle becomes a three-way switch and a link to the lab; the `theme-lab` view. |
+| `apps/web/src/app/app.ts` | The two-way toggle becomes a three-way switch and a link to the lab; the `theme-lab` view. (Since §14 the switch is `app-theme-switcher`, with theme and mode as two choices.) |
 | `apps/web/src/app/store.ts`, `live.ts` | The `theme-lab` view and its address, `/theme-lab`. |
 | `apps/web/src/app/echart.ts` | The concept ECharts theme, `chartStyle()`, a scope for `palette()`. |
 | `apps/web/src/app/icons.ts` | One icon. |
@@ -520,7 +521,357 @@ Nothing under `charts/`, `kassandra/`, `evidence/`, `scope/` or `orb/` is touche
 
 1. Replace the literals in components with the tokens, one component at a time, and delete the matching lines from the bridge. The bridge lists them.
 2. Move the chart option builders to `chartStyle()` and the theme's font, then drop the CSS override for chart text.
-3. Give the default themes the tokens they lack (radius, elevation, focus, motion, type). Then all three themes are mappings of one contract and the bridge is not needed at all.
+3. Give the default themes the tokens they lack (radius, elevation, focus, motion, type). Then both themes, in both modes, are mappings of one contract and the bridge is not needed at all.
 4. Fix in the default themes what the lab's audit found: the dark field border (1.54:1), the dark focus ring beside a primary button (1.63:1), white on the dark destructive red (3.16:1), and `text-muted-foreground/80` in light (3.73:1).
 5. Emit the tokens as a DTCG file from the CSS, so a design tool can read the same source.
-6. A dark mapping of the concept (the night scale already holds its surfaces).
+6. Done: the dark mode, §14. Its follow-ups: the confirm dialog's delete button and the chart builders' `inkOn()` still write a white literal, which the theme cannot reach; `<meta name="theme-color">` is fixed at the default dark canvas; and the default theme could take `data-theme="default"` with the class on a subtree too, so the lab and the catalogue would not need the mode's name as the attribute.
+7. The light ochre-6 `#8e670b` is 4.48:1 on a muted fill (ink-3), a hair under the 4.5:1 its step promises on surfaces 0 to 3. Ochre is a chart category and is never set as text, so nothing on screen fails; the step should still be darkened by a point of lightness. `apps/worker/test/web-theme-tokens.test.ts` holds every other step of both columns to its promise and names this exception.
+
+## 14. Dark mode: "Ink ledger"
+
+The concept has two modes. Light is the ledger on paper described above. Dark is the same ledger in ink: the same type, shapes, motion and density, the same three jobs for colour, and a second column of every colour scale. Theme and mode are two separate choices (§14.10), so there are four combinations: Default or Concept, each light or dark. Screenshots of every view in the dark mode are in [screenshots/concept-dark](screenshots/concept-dark/).
+
+### 14.1 The direction
+
+1. **Graphite for work, ink for the frame.** The rail is the same `#101418` in both modes, so the frame does not change when the mode does. The workspace sits one tonal step above it, in a graphite with almost no chroma, and each layer is lighter than the one under it: rail, canvas, card, what floats, fills. Nothing is black and nothing is white.
+2. **A second column, not an inversion.** Each scale gets dark values built for the same jobs. Step 5 is still a chart mark at 3:1 or more and step 6 is still text at 4.5:1 or more, so the semantic tier above barely changes: 11 of its 80 colour roles are mapped again, and the other 69 follow their step.
+3. **The same three jobs, re-tuned.** Blue is this period’s data, violet is Kassandra, orange is a decision. On graphite each is lighter and, where it covers an area, far less saturated: a tint carries about a quarter of the chroma of the mark of the same hue.
+4. **Hairlines carry the layers.** A shadow reads weakly on a dark surface. What floats is one tone lighter than the card under it and takes a stronger hairline; the shadow only seats it.
+5. **Type, shape, density and motion are untouched.** Archivo at three widths, Chivo Mono for code, four radii, 110 ms. A mode is a colour decision and nothing else.
+
+### 14.2 What was weighed
+
+- **Reversing the light scales.** The fastest dark mode, and wrong in three places. The light mode’s dark steps are saturated (blue-8 is chroma 0.12): as surfaces they glow. Its lightest neutral (white) would become the text, and pure white on a near-black surface measures 16.4:1, APCA Lc 106, which is the halation range. And the order of surfaces would flip: cards darker than the canvas, popovers darkest of all, which is the opposite of how depth reads in the dark (Material, Carbon: lighter is closer).
+- **Pure black.** Rejected: OLED smear on scroll, no room below the canvas for the rail, and nothing left for a shadow to darken.
+- **Juyo’s product surfaces for the whole workspace** (the night scale, `#161b22` / `#1f2630` / `#2b343e`, chroma 0.016 to 0.022). They stay where they are, in the rail. As the ground under charts they are visibly blue, and a blue ground makes the blue series, which is the data, the least distinct colour on the page. The workspace neutral is hue 250 at chroma 0.008 to 0.011 for its surfaces: it still leans to Juyo’s ink, and it reads as grey.
+- **One tone for the rail and the canvas.** Simpler, and it loses the frame. The rail stays the deepest tone; a 1.05:1 step and one rule separate it from the canvas.
+- **Juyo’s blue `#477EE3` unchanged as the series.** It passes on a card (4.17:1) and Juyo’s own dark product draws with it. APCA reads it at Lc 33, half of what the same blue reads on white (Lc 66). The dark step 5 is the same hue one step lighter, `#5d92ef`: 5.31:1 and Lc 42.
+- **A paler or a greyer primary button.** The primary action stays ink-12, which is now the light end of the scale: a light button with a graphite label, which is how Juyo’s dark product draws its primary actions. It is the brightest thing on a screen, and a screen has few of them.
+
+### 14.3 Surfaces
+
+Five tones, hand-set in OKLCH at hue 250. The step between neighbours is 1.05 to 1.11 in luminance: small enough to stay calm, and a little wider than the light mode’s steps between white, `#f9fafb` and `#f4f6f8` (1.03 to 1.05), because a small step is harder to see in the dark.
+
+| Layer | Token | Value | OKLCH L / C | Against the layer below |
+|---|---|---|---|---|
+| Rail (the frame) | `--rail`, `--surface-inverse` | night-1 `#101418` | 0.189 / 0.010 | |
+| Canvas | `--background` | ink-2 `#16191c` | 0.212 / 0.008 | 1.05 |
+| Card, field | `--card`, `--field` | ink-0 `#1d2024` | 0.243 / 0.009 | 1.08 |
+| What floats; a table’s header band | `--popover`, `--table-header-surface` | ink-1 `#22262b` | 0.268 / 0.010 | 1.07 |
+| Fill: chips, tracks, code | `--muted`, `--secondary`, `--accent`, `--surface-sunken` | ink-3 `#292e33` | 0.298 / 0.011 | 1.11 (1.19 on a card) |
+
+The step numbers are jobs, as in the light mode, so they are not in order of lightness here: 0 is the raised surface and 2 is the canvas in both modes, and in the dark the raised surface is the lighter of the two. `--surface-sunken` keeps its name and is a lifted fill in the dark; what it promises is “a fill that shows on a card and on the canvas”.
+
+### 14.4 The dark column of each scale
+
+Same method as §4: one hue per scale, lightness and chroma set by hand per step in OKLCH, converted to sRGB. The jobs do not change:
+
+| Step | Job | Contrast on the dark card `#1d2024` |
+|---|---|---|
+| 1–2 | Tinted surfaces | 1.05–1.24 |
+| 3 | Their border | 1.7–1.8 |
+| 4 | Soft fills; the fill of a destructive button | 2.7–3.2 |
+| 5 | Graphics: lines, bars, icons | 3:1 or more (5.0–5.8) |
+| 6 | Text | 4.5:1 or more (7.3–8.1), on the card, the canvas, a fill and the scale’s own tint |
+| 7 | Strong text; the light member of a categorical pair | 7:1 or more (11.0–11.7) |
+| 8 | The far end | 13.4 or more |
+
+Two decisions shape the column:
+
+- **Steps 6, 7 and 8 are steps 4, 3 and 2 of the light column, value for value.** Light blue-4 `#87b1fa` was already “blue on ink”: the rail’s focus ring. It is now also blue text on graphite. The two modes therefore share half of every hue scale, and a colour seen on the rail is the same colour in the dark workspace.
+- **Steps 1 to 5 are new, and their chroma falls with their area.** A mark (step 5) has chroma 0.10 to 0.165 (slate, the drained hue, 0.058). A tint (step 1) has 0.016 to 0.038 at lightness 0.262, two hundredths above the card: enough to say “orange” or “violet” next to a neutral card, not enough to glow. The light mode’s dark steps were not reused: blue-8 `#0f3375` has chroma 0.12.
+
+**ink** (hue 250): 0 raised surface · 1 what floats · 2 canvas · 3 fill · 4 rule, gridline · 5 hairline · 6 card outline · 7 strong divider · 8 control border · 9 quiet icons, the grey series · 10 secondary text · 11 strong secondary, reference lines · 12 text.
+
+| Step | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Hex | `#1d2024` | `#22262b` | `#16191c` | `#292e33` | `#2d3237` | `#33383e` | `#3b4046` | `#4b5057` | `#737a81` | `#8f969d` | `#afb5bc` | `#c9ced3` | `#e5e8ec` |
+| L / C | 0.243 / 0.009 | 0.268 / 0.01 | 0.212 / 0.008 | 0.298 / 0.011 | 0.314 / 0.011 | 0.338 / 0.012 | 0.37 / 0.012 | 0.43 / 0.013 | 0.575 / 0.014 | 0.67 / 0.013 | 0.77 / 0.012 | 0.85 / 0.009 | 0.93 / 0.006 |
+| On the card | 1.00 | 1.07 | 1.08 | 1.19 | 1.26 | 1.38 | 1.56 | 2.01 | 3.76 | 5.46 | 7.91 | 10.32 | 13.30 |
+| On the canvas | 1.08 | 1.16 | 1.00 | 1.29 | 1.36 | 1.49 | 1.69 | 2.17 | 4.06 | 5.90 | 8.54 | 11.14 | 14.36 |
+
+**blue** (hue 261)
+
+| Step | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Hex | `#1a2537` | `#1e2f4c` | `#29467a` | `#3766b8` | `#5d92ef` | `#87b1fa` | `#c1d9ff` | `#dfecff` |
+| L / C | 0.262 / 0.038 | 0.305 / 0.058 | 0.4 / 0.095 | 0.52 / 0.14 | 0.665 / 0.15 | 0.76 / 0.115 | 0.88 / 0.062 | 0.94 / 0.032 |
+| On the card | 1.06 | 1.22 | 1.75 | 2.92 | 5.31 | 7.55 | 11.40 | 13.69 |
+
+**violet** (hue 290)
+
+| Step | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Hex | `#242135` | `#2f2a48` | `#483e74` | `#6959ae` | `#9384e0` | `#b0a6ef` | `#d6d2fc` | `#eae8ff` |
+| L / C | 0.262 / 0.036 | 0.305 / 0.054 | 0.4 / 0.09 | 0.52 / 0.13 | 0.665 / 0.135 | 0.76 / 0.105 | 0.88 / 0.058 | 0.94 / 0.03 |
+| On the card | 1.05 | 1.20 | 1.73 | 2.83 | 5.15 | 7.43 | 11.28 | 13.61 |
+
+**orange** (hue 45)
+
+| Step | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Hex | `#312018` | `#42271b` | `#6a3922` | `#a6552d` | `#eb7b44` | `#ff9c6b` | `#ffc8ac` | `#ffe4d6` |
+| L / C | 0.262 / 0.03 | 0.305 / 0.046 | 0.4 / 0.078 | 0.54 / 0.12 | 0.7 / 0.155 | 0.79 / 0.14 | 0.88 / 0.08 | 0.94 / 0.04 |
+| On the card | 1.05 | 1.20 | 1.73 | 3.08 | 5.80 | 7.96 | 10.99 | 13.49 |
+
+**teal** (hue 196)
+
+| Step | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Hex | `#162828` | `#173535` | `#185152` | `#197778` | `#33a7a8` | `#64c3c4` | `#b0e3e3` | `#d7f1f1` |
+| L / C | 0.262 / 0.024 | 0.305 / 0.036 | 0.4 / 0.058 | 0.52 / 0.082 | 0.665 / 0.1 | 0.76 / 0.09 | 0.88 / 0.052 | 0.94 / 0.028 |
+| On the card | 1.07 | 1.24 | 1.82 | 3.08 | 5.63 | 7.90 | 11.63 | 13.81 |
+
+**green** (hue 160)
+
+| Step | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Hex | `#192820` | `#1c3528` | `#24523c` | `#2d7956` | `#45a678` | `#71c69a` | `#b5e5ca` | `#d9f3e3` |
+| L / C | 0.262 / 0.026 | 0.305 / 0.04 | 0.4 / 0.064 | 0.52 / 0.095 | 0.655 / 0.115 | 0.76 / 0.105 | 0.88 / 0.062 | 0.94 / 0.034 |
+| On the card | 1.06 | 1.24 | 1.83 | 3.10 | 5.43 | 7.98 | 11.70 | 13.92 |
+
+**red** (hue 25)
+
+| Step | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Hex | `#331e1c` | `#462422` | `#70312e` | `#ac3c39` | `#e7645e` | `#f4928a` | `#fdc9c4` | `#ffe4e1` |
+| L / C | 0.262 / 0.034 | 0.305 / 0.052 | 0.4 / 0.09 | 0.515 / 0.148 | 0.665 / 0.165 | 0.76 / 0.12 | 0.88 / 0.06 | 0.94 / 0.03 |
+| On the card | 1.05 | 1.20 | 1.69 | 2.69 | 4.97 | 7.26 | 11.16 | 13.58 |
+
+**ochre** (hue 82)
+
+| Step | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Hex | `#2b2316` | `#392d16` | `#58441d` | `#89692a` | `#b88e37` | `#dcb05b` | `#f0d39f` | `#f9e9ce` |
+| L / C | 0.262 / 0.026 | 0.305 / 0.04 | 0.4 / 0.062 | 0.54 / 0.09 | 0.67 / 0.115 | 0.78 / 0.115 | 0.88 / 0.075 | 0.94 / 0.04 |
+| On the card | 1.05 | 1.22 | 1.76 | 3.21 | 5.42 | 8.10 | 11.31 | 13.68 |
+
+**slate** (hue 264)
+
+| Step | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Hex | `#21252c` | `#292f3b` | `#3e485c` | `#5a6986` | `#8294b8` | `#a4b1cb` | `#d0d8e7` | `#e7ebf3` |
+| L / C | 0.262 / 0.016 | 0.305 / 0.024 | 0.4 / 0.036 | 0.52 / 0.05 | 0.665 / 0.058 | 0.76 / 0.04 | 0.88 / 0.022 | 0.94 / 0.012 |
+| On the card | 1.06 | 1.22 | 1.78 | 2.96 | 5.35 | 7.58 | 11.41 | 13.68 |
+
+**plum** (hue 345)
+
+| Step | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Hex | `#2f1f28` | `#402534` | `#663551` | `#9a4879` | `#cf6da7` | `#e196c0` | `#f3cae0` | `#fae4ef` |
+| L / C | 0.262 / 0.03 | 0.305 / 0.046 | 0.4 / 0.08 | 0.52 / 0.125 | 0.665 / 0.14 | 0.76 / 0.105 | 0.88 / 0.055 | 0.94 / 0.028 |
+| On the card | 1.05 | 1.19 | 1.71 | 2.79 | 4.98 | 7.26 | 11.16 | 13.55 |
+
+Night (`#101418` … `#fafafa`) and the signal orange `#fe7637` are the same in both modes.
+
+### 14.5 Semantic mapping
+
+Every role in §4 keeps its step: `--foreground` is ink-12, `--border` is ink-5, `--series` is blue-5, `--decision` is orange-6, `--kassandra-tint` is violet-1. The values change because the scales have a dark column. Seventeen tokens are mapped again (11 colour roles, the three shadows and the scrim, two component tokens), because in the dark their job needs a different step or a different recipe:
+
+| Role | Light | Dark | Why |
+|---|---|---|---|
+| `--popover` | ink-0 (the card’s white; the shadow lifts it) | ink-1 `#22262b` | A shadow cannot lift a layer on graphite, so the tone does |
+| `--primary-foreground` | ink-0 `#ffffff` | ink-2 `#16191c` | The primary fill is ink-12, now the light end |
+| `--destructive-fill` | red-6 `#c02b2f` | red-4 `#ac3c39` | Red text is the light step 6 in the dark, which no label can sit on |
+| `--destructive-foreground` | ink-0 `#ffffff` | ink-12 `#e5e8ec` | 4.94:1 on red-4; not pure white |
+| `--overlay-hover` / `--overlay-pressed` | ink at 5% / 10% | `#e5e8ec` at 6% / 11% | A hover lightens in the dark |
+| `--series-soft` | blue-5 at 60% | the dark blue-5 at 60% | An alpha of the series |
+| `--series-muted` | ink-8 `#82888f` (3.58:1, Lc 63) | ink-9 `#8f969d` (5.46:1, Lc 43) | Ink-8 is the control border; as a mark on graphite it would read at Lc 29 |
+| `--selection` | blue-5 at 24% | the dark blue-5 at 36% | The text selection |
+| `--on-inverse-ring`, `--on-inverse-decision` | blue-4, orange-4 | blue-6, orange-6 | The same two values (`#87b1fa`, `#ff9c6b`): the rail does not change, the step numbers do |
+| `--elevation-raised` / `-overlay` / `-modal`, `--scrim` | ink at 4–24% | `rgb(6 8 10)` at 28–70% | §14.9 |
+| `--segment-selected-surface` | the card | ink-6 `#3b4046` | A selected segment is lifted out of its track, not sunk into it |
+| `--rail-border` | none | ink-4 `#2d3237` | Ink beside graphite is a 1.05:1 step; paper beside ink needed no rule |
+
+`--destructive-fill`, `--destructive-foreground`, `--selection`, `--on-signal`, `--on-inverse-*`, `--segment-selected-surface` and `--rail-border` are new roles in both modes. Each replaces a primitive or a literal that the bridge used to read directly, which only worked while there was one mode.
+
+### 14.6 The three jobs in the dark
+
+| Job | Mark (step 5) | Text (step 6) | Surface and border (steps 1, 3) |
+|---|---|---|---|
+| This period’s data: blue | `#5d92ef` 5.31:1 | `#87b1fa` 7.55:1 (links, the focus ring) | `#1a2537` / `#29467a` (a selected row) |
+| Kassandra: violet | `#9384e0` 5.15:1 | `#b0a6ef` 7.43:1 | `#242135` / `#483e74` (the AI tag) |
+| A decision: orange | `#eb7b44` 5.80:1 | `#ff9c6b` 7.96:1 | `#312018` / `#6a3922` (a decision card) |
+
+The one orange action keeps Juyo’s signal `#fe7637` with ink `#101418` on it (6.92:1) in both modes: the fill does not change, so its label does not either. Numbers are still never violet. Ahead is green-6 `#71c69a` and behind is red-6 `#f4928a`, always with a sign and an arrow.
+
+### 14.7 Contrast
+
+Computed as in §4 (WCAG 2, unrounded; APCA 0.0.98G-4g). The theme lab recomputes the pairs in the browser, in the dark pane, from the rendered tokens.
+
+**Text (WCAG 1.4.3, 4.5:1)**
+
+| Pair | Foreground | Surface | WCAG | APCA Lc | Needs | Result |
+|---|---|---|---|---|---|---|
+| Text on the canvas | `#e5e8ec` ink-12 | `#16191c` ink-2 | 14.36:1 | 92 | 4.5 | pass |
+| Text on a card | `#e5e8ec` ink-12 | `#1d2024` ink-0 | 13.30:1 | 91 | 4.5 | pass |
+| Text on a popover or a table header | `#e5e8ec` ink-12 | `#22262b` ink-1 | 12.38:1 | 90 | 4.5 | pass |
+| Text on a muted fill | `#e5e8ec` ink-12 | `#292e33` ink-3 | 11.15:1 | 88 | 4.5 | pass |
+| Secondary text on the canvas | `#afb5bc` ink-10 | `#16191c` ink-2 | 8.54:1 | 61 | 4.5 | pass |
+| Secondary text on a card | `#afb5bc` ink-10 | `#1d2024` ink-0 | 7.91:1 | 60 | 4.5 | pass |
+| Secondary text on a popover or a table header | `#afb5bc` ink-10 | `#22262b` ink-1 | 7.36:1 | 59 | 4.5 | pass |
+| Secondary text on a muted fill | `#afb5bc` ink-10 | `#292e33` ink-3 | 6.63:1 | 57 | 4.5 | pass |
+| Primary button label | `#16191c` ink-2 | `#e5e8ec` ink-12 | 14.36:1 | 91 | 4.5 | pass |
+| Destructive button label | `#e5e8ec` ink-12 | `#ac3c39` red-4 | 4.94:1 | 69 | 4.5 | pass |
+| Destructive text on a card | `#f4928a` red-6 | `#1d2024` ink-0 | 7.26:1 | 56 | 4.5 | pass |
+| Link on a card | `#87b1fa` blue-6 | `#1d2024` ink-0 | 7.55:1 | 58 | 4.5 | pass |
+| Link on the canvas | `#87b1fa` blue-6 | `#16191c` ink-2 | 8.15:1 | 59 | 4.5 | pass |
+| Decision text on its tint | `#ff9c6b` orange-6 | `#312018` orange-1 | 7.57:1 | 60 | 4.5 | pass |
+| Decision text on a card | `#ff9c6b` orange-6 | `#1d2024` ink-0 | 7.96:1 | 60 | 4.5 | pass |
+| Text on the decision tint | `#e5e8ec` ink-12 | `#312018` orange-1 | 12.65:1 | 90 | 4.5 | pass |
+| Secondary text on the decision tint | `#afb5bc` ink-10 | `#312018` orange-1 | 7.52:1 | 59 | 4.5 | pass |
+| Decision button: ink on signal orange | `#101418` night-1 | `#fe7637` orange-signal | 6.92:1 | 52 | 4.5 | pass |
+| Ahead (positive) on a card | `#71c69a` green-6 | `#1d2024` ink-0 | 7.98:1 | 60 | 4.5 | pass |
+| Ahead on the canvas | `#71c69a` green-6 | `#16191c` ink-2 | 8.61:1 | 61 | 4.5 | pass |
+| Behind (negative) on a card | `#f4928a` red-6 | `#1d2024` ink-0 | 7.26:1 | 56 | 4.5 | pass |
+| Behind on the canvas | `#f4928a` red-6 | `#16191c` ink-2 | 7.84:1 | 57 | 4.5 | pass |
+| Failed chip: red on its tint | `#f4928a` red-6 | `#331e1c` red-1 | 6.94:1 | 55 | 4.5 | pass |
+| Kassandra tag on its tint | `#b0a6ef` violet-6 | `#242135` violet-1 | 7.10:1 | 56 | 4.5 | pass |
+| Kassandra text on a card | `#b0a6ef` violet-6 | `#1d2024` ink-0 | 7.43:1 | 57 | 4.5 | pass |
+| Selected row: text on the blue tint | `#e5e8ec` ink-12 | `#1a2537` blue-1 | 12.53:1 | 90 | 4.5 | pass |
+| Selected row: secondary text | `#afb5bc` ink-10 | `#1a2537` blue-1 | 7.45:1 | 59 | 4.5 | pass |
+| Rail: current item | `#fafafa` night-9 | `#101418` night-1 | 17.72:1 | 104 | 4.5 | pass |
+| Rail: other items | `#999fa7` night-7 | `#101418` night-1 | 6.93:1 | 49 | 4.5 | pass |
+| Rail: decision count | `#ff9c6b` orange-6 | `#101418` night-1 | 9.00:1 | 62 | 4.5 | pass |
+| Rail: selected segment | `#fafafa` night-9 | `#2b343e` night-4 | 12.09:1 | 99 | 4.5 | pass |
+| Rail: unselected segment | `#999fa7` night-7 | `#161b22` night-2 | 6.48:1 | 49 | 4.5 | pass |
+
+**Graphics, borders and focus (WCAG 1.4.11, 3:1)**
+
+| Pair | Mark | Surface | WCAG | APCA Lc | Needs | Result |
+|---|---|---|---|---|---|---|
+| Field border on a card | `#737a81` ink-8 | `#1d2024` ink-0 | 3.76:1 | 29 | 3 | pass |
+| Field border on the canvas | `#737a81` ink-8 | `#16191c` ink-2 | 4.06:1 | 30 | 3 | pass |
+| Field border on a popover | `#737a81` ink-8 | `#22262b` ink-1 | 3.50:1 | 29 | 3 | pass |
+| Field border on a muted fill | `#737a81` ink-8 | `#292e33` ink-3 | 3.15:1 | 27 | 3 | pass |
+| Switch, off, on a card | `#737a81` ink-8 | `#1d2024` ink-0 | 3.76:1 | 29 | 3 | pass |
+| Focus ring on the canvas | `#87b1fa` blue-6 | `#16191c` ink-2 | 8.15:1 | 59 | 3 | pass |
+| Focus ring on a card | `#87b1fa` blue-6 | `#1d2024` ink-0 | 7.55:1 | 58 | 3 | pass |
+| Focus ring on a popover | `#87b1fa` blue-6 | `#22262b` ink-1 | 7.03:1 | 57 | 3 | pass |
+| Focus ring on a muted fill | `#87b1fa` blue-6 | `#292e33` ink-3 | 6.33:1 | 55 | 3 | pass |
+| Focus ring in the rail | `#87b1fa` blue-6 | `#101418` night-1 | 8.54:1 | 59 | 3 | pass |
+| Focus ring against a primary button’s fill | `#87b1fa` blue-6 | `#e5e8ec` ink-12 | 1.76:1 | 29 | 3 | gap, see below |
+| Series: this period, on a card | `#5d92ef` blue-5 | `#1d2024` ink-0 | 5.31:1 | 42 | 3 | pass |
+| Series: this period, on the canvas | `#5d92ef` blue-5 | `#16191c` ink-2 | 5.73:1 | 43 | 3 | pass |
+| Series: comparison period | `#8294b8` slate-5 | `#1d2024` ink-0 | 5.35:1 | 42 | 3 | pass |
+| Series: reference (budget) | `#c9ced3` ink-11 | `#1d2024` ink-0 | 10.32:1 | 74 | 3 | pass |
+| Series: muted | `#8f969d` ink-9 | `#1d2024` ink-0 | 5.46:1 | 43 | 3 | pass |
+| Series: third | `#33a7a8` teal-5 | `#1d2024` ink-0 | 5.63:1 | 45 | 3 | pass |
+| Decision mark | `#eb7b44` orange-5 | `#1d2024` ink-0 | 5.80:1 | 46 | 3 | pass |
+| Negative mark | `#f4928a` red-6 | `#1d2024` ink-0 | 7.26:1 | 56 | 3 | pass |
+| Category 1, blue | `#5d92ef` blue-5 | `#1d2024` ink-0 | 5.31:1 | 42 | 3 | pass |
+| Category 2, teal | `#b0e3e3` teal-7 | `#1d2024` ink-0 | 11.63:1 | 82 | 3 | pass |
+| Category 3, ochre | `#b88e37` ochre-5 | `#1d2024` ink-0 | 5.42:1 | 43 | 3 | pass |
+| Category 4, plum | `#f3cae0` plum-7 | `#1d2024` ink-0 | 11.16:1 | 79 | 3 | pass |
+| Category 5, green | `#45a678` green-5 | `#1d2024` ink-0 | 5.43:1 | 43 | 3 | pass |
+| Category 6, slate | `#d0d8e7` slate-7 | `#1d2024` ink-0 | 11.41:1 | 81 | 3 | pass |
+| Sequential step 5 | `#5d92ef` blue-5 | `#1d2024` ink-0 | 5.31:1 | 42 | 3 | pass |
+| Sequential step 6 | `#87b1fa` blue-6 | `#1d2024` ink-0 | 7.55:1 | 58 | 3 | pass |
+| Sequential step 7 | `#dfecff` blue-8 | `#1d2024` ink-0 | 13.69:1 | 93 | 3 | pass |
+| Diverging: far below | `#ff9c6b` orange-6 | `#1d2024` ink-0 | 7.96:1 | 60 | 3 | pass |
+| Diverging: far above | `#87b1fa` blue-6 | `#1d2024` ink-0 | 7.55:1 | 58 | 3 | pass |
+
+61 of the 62 pairs pass WCAG 2.2 AA outright, and the last is not a pair that touches. The readings worth knowing:
+
+- **The focus ring against a primary button’s fill is 1.76:1.** The two never touch: the ring is drawn 2px away (`--focus-offset`), so on both of its sides it is read against the surface, where it is 7.55:1 on a card and 8.15:1 on the canvas. A ring that reached 3:1 against both the graphite and the light button would have to sit between them, at about 4:1 on a card, as Juyo’s `#477ee3` does (4.17:1), and would be the weaker ring everywhere else. The lab reports this pair as “gap”, not as a pass, and only for a theme that sets the gap as a token.
+- **Body text is Lc 88 to 92, on purpose not more.** APCA advises against going far past Lc 90 for light text on dark. Ink-12 is `#e5e8ec`, lightness 0.93 with a trace of the ink’s hue; white would be Lc 106.
+- **Secondary text is Lc 57 to 61, against 73 to 82 in the light mode.** WCAG gives the same pairs 6.6 to 8.5:1, which is the dark-surface overstatement of §4. Ink-10 was set by the APCA reading, not the WCAG one: it is the lightest grey that still leaves a clear step to the text (Lc 60 against 91), and it is a step lighter than the rail’s secondary text (Lc 49), because the workspace carries captions and the rail carries labels.
+- **Coloured text is Lc 55 to 61 in the workspace** (6.9 to 8.6:1). It is used for links, deltas with a sign, a tag and a count, never for a paragraph.
+- **Chart marks are Lc 42 to 46, against 60 to 71 in the light mode.** This is why the dark blue-5 is lighter than Juyo’s `#477ee3` (Lc 33), and why the grey series moves from ink-8 to ink-9. Going further would bring the series up to the lightness of text.
+- **A field border is Lc 27 to 30** (3.15 to 4.06:1), where the light mode has Lc 58 to 63. It passes 1.4.11 on every surface a field sits on. A lighter border would reach the lightness of secondary text and stop reading as a line, so a field also keeps its label above it, as it does today.
+
+### 14.8 Charts
+
+| | Light | Dark |
+|---|---|---|
+| This period | blue-5 `#477ee3`, 2px | blue-5 `#5d92ef`, 2px |
+| Comparison period | slate-5 `#65779d`, dashed 4 3 | slate-5 `#8294b8`, dashed 4 3 |
+| Reference (budget) | ink-11 `#394149` | ink-11 `#c9ced3` |
+| Gridlines | ink-4 `#e5e8eb` | ink-4 `#2d3237`: 1.26:1 on a card, a rule and not a mark |
+| Axis line, labels | ink-7, ink-10 | ink-7 `#4b5057`, ink-10 `#afb5bc` |
+| Label printed in a fill | white or ink, whichever reads | the same rule (`inkOn`), so ink on the pale steps |
+| Sequential | pale to dark blue: dark is more | graphite-blue to pale blue: light is more |
+| Diverging | orange, grey, blue | the same, with the midpoint at the fill tone ink-3 |
+
+Categories keep their order and their alternation of a mid step and a far step, so neighbours still differ by 2:1 or more in luminance:
+
+| | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|
+| Colour | blue-5 `#5d92ef` | teal-7 `#b0e3e3` | ochre-5 `#b88e37` | plum-7 `#f3cae0` | green-5 `#45a678` | slate-7 `#d0d8e7` |
+| On a card | 5.31 | 11.63 | 5.42 | 11.16 | 5.43 | 11.41 |
+| APCA Lc | 42 | 82 | 43 | 79 | 43 | 81 |
+| Against the next | 2.19 | 2.15 | 2.06 | 2.05 | 2.10 | |
+
+The far steps are pale in the dark where they were deep in the light. By APCA they are quieter than their light counterparts, not louder (Lc 79 to 82 against 88 to 91), and at chroma 0.05 to 0.06 they are tints, not colours at full strength. A sequential ramp still cannot hold 3:1 at every step: steps 1 to 4 are below 3:1 on a card in both modes, and a heat map prints its value in each cell.
+
+In `echart.ts` the concept theme registers one ECharts theme per mode (`compass-juyo-concept` and `compass-juyo-concept-dark`), each built from the tokens the first time its mode is used. `palette()`, `chartStyle()` and the widget charts’ `readTokens()` read the tokens in effect, so a chart redraws in the new colours when the mode changes and no chart code names a mode.
+
+### 14.9 Elevation, borders, focus
+
+| | Light | Dark |
+|---|---|---|
+| Card at rest | white on `#f4f6f8`, outline ink-6 | `#1d2024` on `#16191c`, outline ink-6 `#3b4046` (1.69:1 on the canvas) |
+| Raised | `0 1px 2px` ink at 7%, `0 1px 1px` ink at 4% | `0 1px 2px rgb(6 8 10 / 0.4), 0 1px 1px rgb(6 8 10 / 0.28)` |
+| Overlay | ink at 14% and 8% | `0 8px 20px -4px rgb(6 8 10 / 0.55), 0 2px 6px -2px rgb(6 8 10 / 0.4)`, on a surface one tone lighter, with a strong hairline (ink-7) |
+| Modal | ink at 24% and 12% | `0 24px 56px -12px rgb(6 8 10 / 0.7), 0 8px 16px -8px rgb(6 8 10 / 0.5)` |
+| Scrim | ink at 45% | `rgb(6 8 10 / 0.62)` |
+
+Shadows are still two-part and tinted with ink. They are stronger because a dark surface hides them, and they are no longer what tells a popover from a card: the tone and the hairline do. The three borders keep their jobs: hairline ink-5 (1.38:1 on a card), strong ink-7 (2.01:1), control ink-8 (3.76:1).
+
+The focus ring is the same recipe, `2px solid var(--ring)` with a 2px gap, in blue-6 `#87b1fa`: the colour the rail’s ring has always had, so there is one ring on every dark surface of the product.
+
+### 14.10 Theme and mode
+
+Two independent choices, each remembered:
+
+| Choice | Values | Stored in | On `<html>` |
+|---|---|---|---|
+| Theme | `default`, `juyo-concept` | `localStorage["compass.theme"]` | `data-theme` |
+| Mode | `light`, `dark`, `system` | `localStorage["compass.mode"]` | `data-mode` (the choice), and the class `.light` or `.dark` (the mode in effect) |
+
+- **The class is what CSS reads.** It is the class Spartan and Tailwind’s `dark:` variant already read, and the default themes already switch on it (`:root.light`). The concept’s dark mode is therefore one more selector, `[data-theme='juyo-concept'].dark`, and a themed subtree works the same way as the page: the theme lab’s dark pane is `<div class="dark" data-theme="juyo-concept">`.
+- **With no choice, the mode is Dark.** A first visit is the default theme in the dark mode, whatever the device prefers: Juyo’s product is dark, and the owner decided the demo opens that way for everyone. Nothing is stored until a choice is made.
+- **System is a choice, never an assumption.** Once chosen it follows `prefers-color-scheme` and keeps following it; what is stored is “system”, never the mode it resolved to. With no answer from the device it is dark.
+- **Before the first paint**, the inline script in `index.html` reads the two values and sets the attribute, the choice and the class, so no combination flashes another, and a light device with no stored choice paints dark from the first frame. `theme.ts` applies the same rules afterwards and listens to the device.
+- **Old values still work.** `compass.theme` used to hold one of `light`, `dark`, `juyo-concept`. They read as default light, default dark and concept light (the concept was a light theme), and the service rewrites them once as two values. `choiceFrom()` in `theme.ts` and the inline script hold the same rules; `theme.spec.ts` tests the first and `apps/worker/test/web-theme-script.test.ts` runs the second.
+- A dark block may only set tokens that the light block declares. A light pane nested in a dark page then gets every value back, which is how the lab and the chart catalogue show the four combinations at once.
+
+A mode holds colours and shadows and nothing else: no height, padding, gap, type size or duration. That keeps it clear of the density layer that comes next (`data-density="comfortable | compact"`, a third choice, independent of theme and mode; research in `docs/research/layout/layout-and-density.md`). `apps/worker/test/web-theme-tokens.test.ts` fails if the dark block declares a size.
+
+The theme's base block is not clear of it yet. §6 put the concept's density there (`--control-height-*`, `--row-height`, `--row-height-two-line`, `--cell-padding-x`, `--cell-padding-y` and the touch heights), before density was a choice. Three things follow for whoever lands the density layer:
+
+- **Specificity.** `:root[data-theme='juyo-concept']` outranks `[data-density='compact']`, so the theme's values would win in both densities. The eight tokens should move out of the theme into the density layer.
+- **Names.** The research names them `--control-h`, `--row-h` and `--cell-pad-x`; the theme and its bridge read `--control-height-md`, `--row-height` and `--cell-padding-x` on 19 lines. One set should alias the other.
+- **Values.** The concept's are the compact column already (32px controls, 32px rows, 12px cell padding), so under the concept theme “comfortable” would look like “compact” until the tokens move.
+
+### 14.11 The switcher
+
+`src/app/theme/theme-switcher.ts`, selector `app-theme-switcher`. It injects `Theme`, brings its own icons and takes its colours from where it sits, so it needs nothing from the shell.
+
+| Input | Values | |
+|---|---|---|
+| `variant` | `rows` (default), `menu` | `rows`: two labelled segmented controls, Theme (Default, Concept) and Mode (Light, Dark, System), which fill the width they are given. `menu`: one icon button that opens the same two choices as a menu, for a collapsed rail or a phone’s header |
+| `side`, `align` | the menu’s side and alignment | Where the menu opens: `side="right"` for a collapsed rail |
+
+`rows` asks its own width, with a container query, how much it can show. Under 256px, as in the sidebar’s footer (192px), the modes are icons with tooltips and the two rows are 60px tall together in the concept theme (68px in the default). From 256px up, as in a phone’s menu sheet, each mode has its word beside its icon; it was checked at 288px and 358px, the inner widths of a sheet on 320px and 390px phones, in all four combinations. On a touch device every segment is 44px tall in either theme. It needs nothing from its host but a width.
+
+Each group in `rows` is a `radiogroup` with one tab stop and arrow keys; the menu is a CDK menu of `menuitemradio`. The button’s name says the state: “Theme: Concept, system (dark). Change theme or mode”.
+
+`Theme` (`src/app/theme.ts`): `id()` the theme, `mode()` the choice, `scheme()` the mode in effect, `dark()`, `set(theme)`, `setMode(mode)`.
+
+### 14.12 What changed in the code
+
+| File | Change |
+|---|---|
+| `themes/juyo-concept/tokens.css` | The dark block: the dark column of 10 scales and the 17 tokens of §14.5. Eight new roles in the light block |
+| `themes/juyo-concept/bridge.css` | Six rules read a role where they read a primitive or a literal (selection, the decision button’s label, the selected segment, the rail’s border, the destructive button, the switch’s thumb) |
+| `app/theme.ts`, `app/theme.spec.ts` | Theme and mode as two signals, the system mode, the migration |
+| `app/theme/theme-switcher.ts` | The switcher, in the rail’s footer and the phone header |
+| `index.html`, `public/_headers` | The pre-paint script for two choices, and its new hash in the Content-Security-Policy |
+| `app/echart.ts` | One ECharts theme per mode of the concept |
+| `app/theme-lab/` | Four panes, a switch for which of them show, “gap” in the contrast audit, five more pairs |
+| `app/charts/catalog.ts` | “Concept dark” as a preview; side by side shows all four |
+| `apps/worker/test/web-theme-script.test.ts` | Runs the inline script against the same cases as `theme.spec.ts` |
+| `apps/worker/test/web-theme-tokens.test.ts` | Reads `tokens.css`: the dark block sets only tokens the light block declares, both columns are complete, and the pairs of §14.7 hold their ratios |
+
+No component under `charts/`, `kassandra/`, `evidence/`, `scope/`, `studio/`, `builder/` or `orb/` changed for the dark mode: they read roles, and the roles have a dark value.

@@ -24,25 +24,27 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Geist+Mono:wght@400;500&family=Archivo:wdth,wght@75..125,400..700&family=Chivo+Mono:wght@400;500&display=swap">
   <script>
-    // Theme: an explicit data-theme on <html> wins, then the choice remembered in this browser (localStorage
-    // "compass.theme": light, dark or juyo-concept), then the OS setting for light or dark.
-    // Spartan reads the .dark class; "juyo-concept" is a light theme.
+    // Theme and mode, before the first paint. This browser remembers two choices: "compass.theme" (default or
+    // juyo-concept) and "compass.mode" (light, dark or system). With no choice the mode is dark, whatever the OS
+    // prefers; system follows the OS, and only when it is chosen.
+    // Until the mode was a choice of its own, "compass.theme" alone held light, dark or juyo-concept, which was
+    // a light theme: those still read as what the person had. An attribute already on <html> wins.
+    // The class is the mode in effect; Spartan, Tailwind's dark: and the themes' CSS read it.
+    // src/app/theme.ts applies the same rules and takes over from here.
     (function () {
       var root = document.documentElement;
-      var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+      var theme = root.getAttribute('data-theme');
+      var mode = root.getAttribute('data-mode');
       try {
-        var saved = localStorage.getItem('compass.theme');
-        if (!root.getAttribute('data-theme') && (saved === 'light' || saved === 'dark' || saved === 'juyo-concept')) root.setAttribute('data-theme', saved);
+        theme = theme || localStorage.getItem('compass.theme');
+        mode = mode || localStorage.getItem('compass.mode');
       } catch (e) {}
-      function apply() {
-        var theme = root.getAttribute('data-theme') || (mq && mq.matches ? 'light' : 'dark');
-        var light = theme === 'light' || theme === 'juyo-concept';
-        root.classList.toggle('light', light);
-        root.classList.toggle('dark', !light);
-      }
-      apply();
-      new MutationObserver(apply).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
-      if (mq && mq.addEventListener) mq.addEventListener('change', apply);
+      if (mode !== 'light' && mode !== 'dark' && mode !== 'system') mode = theme === 'light' || theme === 'dark' ? theme : theme === 'juyo-concept' ? 'light' : 'dark';
+      var light = mode === 'system' ? !!window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches : mode === 'light';
+      root.setAttribute('data-theme', theme === 'juyo-concept' ? theme : 'default');
+      root.setAttribute('data-mode', mode);
+      root.classList.add(light ? 'light' : 'dark');
+      root.classList.remove(light ? 'dark' : 'light');
     })();
   </script>
 </head>

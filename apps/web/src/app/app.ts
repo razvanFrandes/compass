@@ -8,6 +8,7 @@ import { BoardView, BoardsList } from './board';
 import { InboxView } from './inbox';
 import { CompassStore, View } from './store';
 import { Theme } from './theme';
+import { ThemeSwitcher } from './theme/theme-switcher';
 import { ThemeLab } from './theme-lab/theme-lab';
 import { ThreadView } from './thread';
 import { WatchersView } from './watchers';
@@ -32,7 +33,7 @@ import * as icons from './icons';
  */
 @Component({
   selector: 'app-root',
-  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, Sidebar, HlmButtonImports, HlmToasterImports],
+  imports: [NgIcon, BoardView, BoardsList, InboxView, ThreadView, WatchersView, WatcherPage, WorkflowBuilder, JuyoLogo, NotFound, ScopeSwitcher, OrbLab, CatalogView, ThemeLab, Sidebar, ThemeSwitcher, HlmButtonImports, HlmToasterImports],
   providers: [provideIcons({ ...icons, phosphorCompassLight }), provideBrnTooltipGroup()],
   host: { class: 'block', '(document:keydown)': 'onKey($event)' },
   styles: `
@@ -77,7 +78,7 @@ import * as icons from './icons';
               <span class="text-muted-foreground text-[14px]" aria-hidden="true">/</span>
               <app-scope-switcher />
             </div>
-            <button hlmBtn variant="ghost" size="icon" [attr.aria-label]="'Theme: ' + theme.option().label + '. Switch to ' + theme.next().label" (click)="theme.set(theme.next().id)"><ng-icon [name]="theme.option().icon" /></button>
+            <app-theme-switcher variant="menu" />
           </header>
         }
         @switch (store.view()) {

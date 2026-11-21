@@ -3,7 +3,7 @@ import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { LabCharts } from './lab-charts';
 import { LabContrast, LabPalette } from './lab-colour';
-import { LabCompare, LabProbe, LabState } from './lab-kit';
+import { LAB_VIEWS, LabCompare, LabProbe, LabState } from './lab-kit';
 import { LabTokenTable } from './lab-token-table';
 import { LabType } from './lab-type';
 import { COLOR_ROLES, CONCEPT_ROLES, CONTRAST_PAIRS, PRIMITIVES, RAIL_PAIRS } from './tokens';
@@ -26,6 +26,7 @@ const PRINCIPLES = [
   { name: 'Figures are the display type', text: 'One family, Archivo, on its width axis: wide for headings, normal for text, condensed tabular figures for numbers. A 13px column takes the room an 11.5px one did.' },
   { name: 'Lines before shadows', text: 'Layers are separated by tone and a hairline. A shadow means one thing: this floats above the page. Radius follows size, from 2px marks to 10px dialogs.' },
   { name: 'Fast and quiet', text: 'A state change takes 110 ms on one curve. Nothing blurs, bounces or scales. Charts draw once, in 400 ms.' },
+  { name: 'Dark is the same ledger in ink', text: 'Not an inversion: every scale has a dark column built for the same jobs, so step 5 is a chart mark and step 6 is text in both modes. The rail keeps Juyo’s ink; the workspace is graphite, one step above it, and each layer is lighter than the one under it.' },
 ] as const;
 
 /** The motion the default themes write in their components, for the comparison. */
@@ -50,8 +51,9 @@ const NIGHTS = [
 ] as const;
 
 /**
- * /theme-lab: the design system of the "Juyo concept" theme, documented next to a default theme. The page is
- * built from the app's own classes and components, and its tables read the rendered CSS.
+ * /theme-lab: the design system of the "Juyo concept" theme, documented next to the default theme, each in its
+ * light and dark mode: four panes. The page is built from the app's own classes and components, and its tables
+ * read the rendered CSS.
  */
 @Component({
   selector: 'app-theme-lab',
@@ -68,7 +70,7 @@ const NIGHTS = [
     <div class="mx-auto max-w-[1320px] px-4 pt-8 pb-28 sm:px-8">
       <header class="max-w-[72ch]">
         <h1 class="text-[26px] font-semibold tracking-[-0.02em]">Theme lab</h1>
-        <p class="text-muted-foreground mt-2 text-[14px]">Compass has three themes that share one set of token names. This page puts the Juyo concept theme next to a default one. Every value on it is read from the page as it renders, so the tables cannot drift from the CSS.</p>
+        <p class="text-muted-foreground mt-2 text-[14px]">Compass has two themes, Default and Juyo concept, and each has a light and a dark mode: four combinations that share one set of token names. This page puts the four side by side. Every value on it is read from the pane it sits in as it renders, so the tables cannot drift from the CSS.</p>
       </header>
 
       <div class="bg-background border-border sticky top-0 z-20 -mx-4 mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2 sm:-mx-8 sm:px-8">
@@ -78,10 +80,11 @@ const NIGHTS = [
           }
         </nav>
         <div class="ml-auto flex items-center gap-2">
-          <span id="lab-compare-label" class="text-muted-foreground text-[12.5px]">Compare with</span>
-          <div class="seg" role="radiogroup" aria-labelledby="lab-compare-label">
-            <button type="button" role="radio" [attr.aria-checked]="lab.compare() === 'dark'" (click)="lab.compare.set('dark')">Dark</button>
-            <button type="button" role="radio" [attr.aria-checked]="lab.compare() === 'light'" (click)="lab.compare.set('light')">Light</button>
+          <span id="lab-show-label" class="text-muted-foreground text-[12.5px]">Show</span>
+          <div class="seg" role="radiogroup" aria-labelledby="lab-show-label">
+            @for (v of views; track v.id) {
+              <button type="button" role="radio" [attr.aria-checked]="lab.show() === v.id" (click)="lab.show.set(v.id)">{{ v.label }}</button>
+            }
           </div>
         </div>
       </div>
@@ -101,12 +104,12 @@ const NIGHTS = [
 
       <section class="lab-section" aria-labelledby="colour">
         <h2 id="colour" tabindex="-1" class="lab-h2 text-[20px] font-semibold tracking-[-0.01em]">Colour</h2>
-        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">Juyo’s palette, rebuilt as scales in OKLCH. A step has the same job in every scale, so contrast follows from the step number and does not have to be checked by eye each time.</p>
+        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">Juyo’s palette, rebuilt as scales in OKLCH. A step has the same job in every scale and in both modes, so contrast follows from the step number and does not have to be checked by eye each time. The dark column is not the light one reversed: its tints carry about a quarter of the chroma of its marks, and its text steps are the ones the rail already used on ink.</p>
         <ng-template #paletteSpec><app-lab-palette /></ng-template>
         <app-lab-compare [content]="paletteSpec" />
 
         <h3 class="mt-8 text-[16px] font-semibold">Roles and contrast</h3>
-        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">WCAG 2.2 AA is the gate: 4.5:1 for text, 3:1 for chart marks, field borders and the focus ring. APCA is shown as a second reading, because it tracks small text and dark surfaces more closely. Each pair is measured in the pane it sits in.</p>
+        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">WCAG 2.2 AA is the gate: 4.5:1 for text, 3:1 for chart marks, field borders and the focus ring. APCA is shown as a second reading, because it tracks small text and dark surfaces more closely. Each pair is measured live in the pane it sits in, so the four tables are the four combinations’ own values.</p>
         <ng-template #contrastSpec>
           <app-lab-contrast [pairs]="pairs" caption="Contrast of text and chart colours on their surfaces" />
           <div class="mt-4 rounded-[6px] p-3" data-surface="inverse" style="background: var(--rail); color: var(--foreground)">
@@ -200,7 +203,7 @@ const NIGHTS = [
 
       <section class="lab-section" aria-labelledby="elevation">
         <h2 id="elevation" tabindex="-1" class="lab-h2 text-[20px] font-semibold tracking-[-0.01em]">Elevation</h2>
-        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">Three levels above the canvas. A card is the surface tone and a hairline, with no shadow. A popover floats, so it takes the overlay shadow. A dialog takes the modal shadow and a scrim. Shadows are two-part and tinted with ink, not black.</p>
+        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">Three levels above the canvas. A card is the surface tone and a hairline, with no shadow. A popover floats, so it takes the overlay shadow. A dialog takes the modal shadow and a scrim. Shadows are two-part and tinted with ink, not black. In the dark mode a shadow reads weakly, so what floats is also one tone lighter than the card under it.</p>
         <ng-template #elevationSpec>
           <div class="grid gap-5 sm:grid-cols-3">
             <app-lab-probe read="box-shadow" label="shadow"><div class="insight-card w-full p-3"><p class="text-[13px] font-medium">Card</p><p class="text-muted-foreground text-[12px]">Sits on the canvas</p></div></app-lab-probe>
@@ -213,8 +216,8 @@ const NIGHTS = [
 
       <section class="lab-section" aria-labelledby="motion">
         <h2 id="motion" tabindex="-1" class="lab-h2 text-[20px] font-semibold tracking-[-0.01em]">Motion</h2>
-        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">Motion answers an action and then gets out of the way. Durations and curves follow Carbon’s productive set. Both panes play together; with reduced motion on, neither animates.</p>
-        <button hlmBtn variant="secondary" size="sm" class="mb-3" (click)="run.set(run() + 1)"><ng-icon name="phosphorArrowClockwiseLight" />Play both</button>
+        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">Motion answers an action and then gets out of the way. Durations and curves follow Carbon’s productive set. The panes play together; with reduced motion on, none animates.</p>
+        <button hlmBtn variant="secondary" size="sm" class="mb-3" (click)="run.set(run() + 1)"><ng-icon name="phosphorArrowClockwiseLight" />Play all</button>
         <ng-template #motionSpec let-concept>
           <div class="grid gap-5 sm:grid-cols-2">
             <ul class="flex flex-col gap-2">
@@ -242,8 +245,8 @@ const NIGHTS = [
 
       <section class="lab-section" aria-labelledby="components">
         <h2 id="components" tabindex="-1" class="lab-h2 text-[20px] font-semibold tracking-[-0.01em]">Components</h2>
-        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">The same components and classes the app renders, in both themes. Press Tab through a pane to see its focus ring: the concept theme draws one ring on every control, a 2px line with a 2px gap.</p>
-        <ng-template #componentSpec let-concept>
+        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">The same components and classes the app renders, in every combination. Press Tab through a pane to see its focus ring: the concept theme draws one ring on every control, a 2px line with a 2px gap.</p>
+        <ng-template #componentSpec let-pane="pane">
           <p class="mb-2 text-[12.5px] font-medium">Buttons</p>
           <div class="flex flex-wrap items-center gap-2">
             <button hlmBtn>Review 3 nights</button>
@@ -309,7 +312,7 @@ const NIGHTS = [
           </div>
 
           <p class="mt-5 mb-2 text-[12.5px] font-medium">Decision table</p>
-          <div class="border-border bg-card overflow-x-auto rounded-lg border pt-3" tabindex="0" role="region" [attr.aria-label]="'Decision table sample, ' + (concept ? 'Juyo concept' : 'default theme')">
+          <div class="border-border bg-card overflow-x-auto rounded-lg border pt-3" tabindex="0" role="region" [attr.aria-label]="'Decision table sample, ' + pane.name">
             <table class="dec-table w-full min-w-[460px]">
               <caption class="sr-only">Nights that need a rate decision</caption>
               <thead>
@@ -366,10 +369,10 @@ const NIGHTS = [
 
       <section class="lab-section" aria-labelledby="tokens">
         <h2 id="tokens" tabindex="-1" class="lab-h2 text-[20px] font-semibold tracking-[-0.01em]">Tokens</h2>
-        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">Three tiers: primitives hold raw values, semantic tokens give them a role, component tokens make one component’s decision. A component reads semantic or component tokens, never a primitive. A theme is a new mapping of the semantic tier.</p>
+        <p class="text-muted-foreground mt-1 mb-4 max-w-[72ch] text-[14px]">Three tiers: primitives hold raw values, semantic tokens give them a role, component tokens make one component’s decision. A component reads semantic or component tokens, never a primitive. A theme is a new mapping of the semantic tier; a mode is a second column of the primitive scales, with the few roles whose step changes mapped again.</p>
         <ng-template #tokenSpec let-concept>
           <details open class="mb-2">
-            <summary class="cursor-pointer py-1.5 text-[13.5px] font-medium">Semantic colour roles, shared by all three themes ({{ roles.length }})</summary>
+            <summary class="cursor-pointer py-1.5 text-[13.5px] font-medium">Semantic colour roles, shared by both themes in both modes ({{ roles.length }})</summary>
             <app-lab-token-table [names]="roles" caption="Semantic colour roles" />
           </details>
           @if (concept) {
@@ -392,6 +395,7 @@ export class ThemeLab {
   protected readonly lab = inject(LabState);
   private readonly doc = inject(DOCUMENT);
   protected readonly sections = SECTIONS;
+  protected readonly views = LAB_VIEWS;
   protected readonly principles = PRINCIPLES;
   protected readonly pairs = CONTRAST_PAIRS;
   protected readonly railPairs = RAIL_PAIRS;
@@ -404,7 +408,7 @@ export class ThemeLab {
     { name: 'Normal', pct: 100 },
     { name: 'Wide', pct: 112 },
   ];
-  /** Bumped by "Play both": the motion samples are re-created, so their animations run again. */
+  /** Bumped by "Play all": the motion samples are re-created, so their animations run again. */
   protected readonly run = signal(0);
   protected readonly groups = [
     { title: 'Semantic roles the concept theme adds: colour', names: CONCEPT_ROLES.colour },

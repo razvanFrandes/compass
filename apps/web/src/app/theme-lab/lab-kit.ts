@@ -4,14 +4,46 @@ import { Theme } from '../theme';
 import type { Rgb } from './contrast';
 import { CONCEPT_ONLY } from './tokens';
 
-/** What the lab compares the concept theme with, and a version that changes whenever anything must be re-read. */
+/**
+ * The four combinations the lab puts side by side: two themes, each in two modes. A pane wears a combination the
+ * way `<html>` does: `data-theme` selects the tokens and the class is the mode. For the default themes the
+ * attribute is the mode's name (styles.css accepts `[data-theme='light']` and `[data-theme='dark']` on any element).
+ */
+export const LAB_PANES = [
+  { id: 'concept-light', concept: true, scheme: 'light', attr: 'juyo-concept', name: 'Juyo concept, light' },
+  { id: 'concept-dark', concept: true, scheme: 'dark', attr: 'juyo-concept', name: 'Juyo concept, dark' },
+  { id: 'default-light', concept: false, scheme: 'light', attr: 'light', name: 'Default, light' },
+  { id: 'default-dark', concept: false, scheme: 'dark', attr: 'dark', name: 'Default, dark' },
+] as const;
+export type LabPane = (typeof LAB_PANES)[number];
+
+/** Which of the four are on the page. */
+export const LAB_VIEWS = [
+  { id: 'all', label: 'All four' },
+  { id: 'concept', label: 'Concept' },
+  { id: 'light', label: 'Light' },
+  { id: 'dark', label: 'Dark' },
+] as const;
+export type LabView = (typeof LAB_VIEWS)[number]['id'];
+
+/** What the specimen templates get: `let-concept` (the implicit value) and `let-pane="pane"`. */
+export interface LabContext {
+  $implicit: boolean;
+  pane: LabPane;
+}
+
+/** Which panes the lab shows, and a version that changes whenever anything must be re-read. */
 @Service()
 export class LabState {
   private readonly theme = inject(Theme);
-  readonly compare = signal<'dark' | 'light'>('dark');
+  readonly show = signal<LabView>('all');
+  readonly panes = computed(() => {
+    const show = this.show();
+    return LAB_PANES.filter((p) => show === 'all' || (show === 'concept' ? p.concept : p.scheme === show));
+  });
   /** Bumped when the web fonts finish loading: measured type changes with them. */
   private readonly fonts = signal(0);
-  readonly version = computed(() => `${this.theme.id()}:${this.compare()}:${this.fonts()}`);
+  readonly version = computed(() => `${this.theme.id()}:${this.theme.scheme()}:${this.show()}:${this.fonts()}`);
 
   constructor() {
     globalThis.document?.fonts?.ready.then(() => this.fonts.update((n) => n + 1));
@@ -43,8 +75,8 @@ export function rgbOf(value: string, backdrop: Rgb = [255, 255, 255]): Rgb | nul
 const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
 
 /**
- * The same content in two themes: the concept theme and a default one. Each pane sets `data-theme`, so every
- * token, and the bridge's donut scope, resolves for that pane alone.
+ * The same content in every combination of theme and mode on show. Each pane sets `data-theme` and the mode's
+ * class, so every token, and the bridge's donut scope, resolves for that pane alone.
  */
 @Component({
   selector: 'app-lab-compare',
@@ -60,22 +92,20 @@ const RESET = Object.fromEntries(CONCEPT_ONLY.map((name) => [name, 'initial']));
     .lab-pane__name { margin: 0 0 12px; font-size: 12px; line-height: 16px; color: var(--muted-foreground); }
   `,
   template: `
-    <div class="grid items-start gap-3" [class]="wide() ? '' : 'xl:grid-cols-2'">
-      <div class="lab-pane light" data-theme="juyo-concept" role="group" aria-label="Juyo concept">
-        <p class="lab-pane__name">Juyo concept</p>
-        <ng-container [ngTemplateOutlet]="content()" [ngTemplateOutletContext]="{ $implicit: true }" />
-      </div>
-      <div class="lab-pane" [class]="lab.compare()" [attr.data-theme]="lab.compare()" [style]="reset" role="group" [attr.aria-label]="'Default theme, ' + lab.compare()">
-        <p class="lab-pane__name">Default, {{ lab.compare() }}</p>
-        <ng-container [ngTemplateOutlet]="content()" [ngTemplateOutletContext]="{ $implicit: false }" />
-      </div>
+    <div class="grid items-start gap-3" [class]="wide() && lab.panes().length < 4 ? '' : 'xl:grid-cols-2'">
+      @for (p of lab.panes(); track p.id) {
+        <div class="lab-pane @container" [class]="p.scheme" [attr.data-theme]="p.attr" [style]="p.concept ? null : reset" role="group" [attr.aria-label]="p.name">
+          <p class="lab-pane__name">{{ p.name }}</p>
+          <ng-container [ngTemplateOutlet]="content()" [ngTemplateOutletContext]="{ $implicit: p.concept, pane: p }" />
+        </div>
+      }
     </div>
   `,
 })
 export class LabCompare {
-  /** The specimen. Its context value is true in the concept pane. */
-  readonly content = input.required<TemplateRef<{ $implicit: boolean }>>();
-  /** Stack the panes at every width (for wide specimens such as tables and charts). */
+  /** The specimen. Its implicit context value is true in a concept pane; `pane` is the combination. */
+  readonly content = input.required<TemplateRef<LabContext>>();
+  /** A wide specimen (charts): two panes stack instead of sharing a row. Four always make a two-by-two grid. */
   readonly wide = input(false);
   protected readonly lab = inject(LabState);
   protected readonly reset = RESET;

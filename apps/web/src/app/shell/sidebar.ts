@@ -9,7 +9,7 @@ import { JuyoLogo } from '../juyo-logo';
 import { KassandraThreadList } from '../kassandra/kassandra-thread-list';
 import { ScopeSwitcher } from '../scope/scope-switcher';
 import { CompassStore } from '../store';
-import { THEMES, Theme } from '../theme';
+import { ThemeSwitcher } from '../theme/theme-switcher';
 import { isActiveNav, type NavItem } from './nav';
 import { RailThreads } from './rail-threads';
 import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sidebar-state';
@@ -28,7 +28,7 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
  */
 @Component({
   selector: 'nav[appSidebar]',
-  imports: [NgIcon, JuyoLogo, ScopeSwitcher, KassandraThreadList, RailThreads, HlmTooltipImports],
+  imports: [NgIcon, JuyoLogo, ScopeSwitcher, KassandraThreadList, RailThreads, ThemeSwitcher, HlmTooltipImports],
   providers: [provideIcons({ ...icons, phosphorCompassLight, phosphorInfoLight, phosphorSidebarSimpleLight, phosphorSwatchesFill })],
   encapsulation: ViewEncapsulation.None,
   host: {
@@ -78,10 +78,8 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
 
     .rail-foot { display: flex; flex-direction: column; gap: 1px; margin-top: auto; }
     .rail-theme { padding: 0 8px 6px; }
-    .rail-theme .seg > button ng-icon { font-size: 16px; }
-    .rail[data-collapsed] .rail-theme { padding: 0 0 6px; }
-    .rail[data-collapsed] .rail-theme .seg { flex-direction: column; }
-    .rail[data-collapsed] .rail-theme .seg > button { flex: none; height: 28px; padding: 0; }
+    .rail[data-collapsed] .rail-theme { padding: 0 0 6px; justify-content: center; }
+    .rail[data-collapsed] .rail-theme > button { width: 100%; }
 
     /* The note about the demo data: a paragraph in the panel, a popover beside the rail. */
     .rail-note { padding: 12px 8px 0; color: var(--muted-foreground); }
@@ -159,20 +157,12 @@ import { RAIL_TIP_GAP, RAIL_WIDTH, SidebarState, isSidebarShortcut } from './sid
     }
 
     <div class="rail-foot text-muted-foreground text-[14px]">
-      <div class="rail-theme">
-        <p id="theme-label" class="pb-1 text-[12px] font-medium" [class.sr-only]="collapsed()">Theme</p>
-        <div class="seg seg--fill" role="radiogroup" aria-labelledby="theme-label">
-          @for (t of themes; track t.id) {
-            <button type="button" role="radio" [attr.aria-checked]="theme.id() === t.id" [attr.aria-label]="t.label" [hlmTooltip]="t.label" [position]="collapsed() ? 'right' : 'top'" [sideOffset]="collapsed() ? tipGap + 2 : 8" (click)="theme.set(t.id)">
-              @if (collapsed()) {
-                <ng-icon [name]="t.icon" aria-hidden="true" />
-              } @else {
-                {{ t.short }}
-              }
-            </button>
-          }
-        </div>
-      </div>
+      <!-- Theme and mode (src/app/theme/theme-switcher): two rows in the panel, one button with a menu in the rail -->
+      @if (collapsed()) {
+        <app-theme-switcher class="rail-theme" variant="menu" side="right" align="end" />
+      } @else {
+        <app-theme-switcher class="rail-theme" />
+      }
       @for (n of foot; track n.view) {
         <button
           type="button"
@@ -203,7 +193,6 @@ export class Sidebar {
   readonly items = input.required<readonly NavItem[]>();
 
   protected readonly store = inject(CompassStore);
-  protected readonly theme = inject(Theme);
   private readonly state = inject(SidebarState);
   private readonly doc = inject(DOCUMENT);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -211,7 +200,6 @@ export class Sidebar {
   private readonly toggleButton = viewChild.required<ElementRef<HTMLButtonElement>>('toggleButton');
 
   protected readonly group = GROUP;
-  protected readonly themes = THEMES;
   protected readonly collapsed = this.state.collapsed;
   /** A tooltip starts 6 px outside the rail: the item ends 12 px before the rail's edge. */
   protected readonly tipGap = RAIL_TIP_GAP;

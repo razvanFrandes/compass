@@ -76,7 +76,8 @@ describe('Sidebar', () => {
     expect(nav.querySelector('kassandra-thread-list')?.textContent).toContain('Why is Lisbon pacing behind?');
     expect(nav.querySelector('app-rail-threads')).toBeNull();
     expect(nav.querySelector('.sw-side')?.hasAttribute('data-compact')).toBe(false);
-    expect([...nav.querySelectorAll('[role=radio]')].map((radio) => radio.textContent?.trim())).toEqual(['Light', 'Dark', 'Concept']);
+    // Theme (two radios) and Mode (three), from the theme switcher's rows.
+    expect([...nav.querySelectorAll('app-theme-switcher [role=radio]')].map((radio) => radio.textContent?.trim())).toEqual(['Default', 'Concept', 'Light', 'Dark', 'System']);
     expect(nav.querySelector('#rail-note')?.hasAttribute('popover')).toBe(false);
     expect(nav.querySelector('[popovertarget]')).toBeNull();
   });
@@ -105,11 +106,11 @@ describe('Sidebar', () => {
     expect(threads.getAttribute('aria-label')).toBe('Conversations');
     expect(threads.getAttribute('aria-haspopup')).toBe('menu');
 
-    // The theme switch is three icons; the label stays for the radio group.
-    const radios = [...nav.querySelectorAll('[role=radio]')];
-    expect(radios.map((radio) => radio.getAttribute('aria-label'))).toEqual(['Light', 'Dark', 'Juyo concept']);
-    expect(radios.every((radio) => radio.querySelector('ng-icon') !== null)).toBe(true);
-    expect(nav.querySelector('#theme-label')?.classList.contains('sr-only')).toBe(true);
+    // Theme and mode are one button with a menu (the theme switcher's "menu" shape); the two rows are for the panel.
+    expect(nav.querySelectorAll('[role=radio]').length).toBe(0);
+    const themeButton = nav.querySelector<HTMLButtonElement>('app-theme-switcher button')!;
+    expect(themeButton.getAttribute('aria-label')).toMatch(/^Theme: .+\. Change theme or mode$/);
+    expect(themeButton.querySelector('ng-icon')).not.toBeNull();
 
     // The note about the demo data moves into a popover, behind its own button.
     expect(nav.querySelector('#rail-note')?.getAttribute('popover')).toBe('auto');

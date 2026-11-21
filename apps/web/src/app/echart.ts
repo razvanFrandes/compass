@@ -20,9 +20,13 @@ const isLight = () => typeof document !== 'undefined' && root().classList.contai
 /** Theme as a signal, so option builders re-run with the right palette when the app switches theme. */
 export const chartTheme = signal<'dark' | 'light'>(isLight() ? 'light' : 'dark');
 
-/** The ECharts theme in use. A theme named in `data-theme` brings its own; the rest follow dark or light. */
-export type ChartSkin = 'dark' | 'light' | 'juyo-concept';
-const skinNow = (): ChartSkin => (typeof document !== 'undefined' && root().dataset['theme'] === 'juyo-concept' ? 'juyo-concept' : isLight() ? 'light' : 'dark');
+/** The ECharts theme in use: the default themes' dark or light, or the concept theme's own in either mode. */
+export type ChartSkin = 'dark' | 'light' | 'juyo-concept' | 'juyo-concept-dark';
+const skinNow = (): ChartSkin => {
+  const mode = isLight() ? 'light' : 'dark';
+  if (typeof document === 'undefined' || root().dataset['theme'] !== 'juyo-concept') return mode;
+  return mode === 'light' ? 'juyo-concept' : 'juyo-concept-dark';
+};
 export const chartSkin = signal<ChartSkin>(skinNow());
 if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
   new MutationObserver(() => {
@@ -81,20 +85,20 @@ export function chartStyle(scope?: Element): ChartStyle {
   };
 }
 
-/** The concept theme's ECharts defaults are built from its tokens, the first time the theme is used. */
-let conceptRegistered = false;
+/** The concept theme's ECharts defaults are built from its tokens, the first time each of its modes is used. */
+const conceptRegistered = new Set<ChartSkin>();
 function themeName(skin: ChartSkin) {
-  if (skin === 'juyo-concept' && !conceptRegistered) {
+  if (skin !== 'dark' && skin !== 'light' && !conceptRegistered.has(skin)) {
     const p = palette();
     const s = chartStyle();
-    echarts.registerTheme('compass-juyo-concept', {
+    echarts.registerTheme(`compass-${skin}`, {
       ...base(s.axis, s.font),
       categoryAxis: { axisLine: { lineStyle: { color: s.rule } }, axisTick: { show: false }, splitLine: { show: false } },
       valueAxis: { axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: p.grid, width: 1 } } },
       line: { lineStyle: { width: s.lineWidth }, symbol: 'none', smooth: false },
       bar: { itemStyle: { borderRadius: s.barRadius } },
     });
-    conceptRegistered = true;
+    conceptRegistered.add(skin);
   }
   return `compass-${skin}`;
 }

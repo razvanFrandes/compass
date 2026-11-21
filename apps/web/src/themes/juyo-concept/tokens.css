@@ -9,6 +9,12 @@
 
   The theme is selected with data-theme="juyo-concept" on <html>, or on any element, so the theme lab can put it
   next to the default themes. The first selector gives the root the specificity it needs over `:root.light`.
+
+  Two modes. The mode is the `.light` or `.dark` class that index.html and theme.ts keep on <html> (the class
+  Spartan and Tailwind's `dark:` already read), so the dark mode is `[data-theme='juyo-concept'].dark`. This first
+  block is the light mode and the whole contract; the dark block below it gives every colour scale its dark column
+  and remaps the few roles whose step changes. A token the dark block sets is always declared here first, so a
+  light pane nested in a dark page gets its own value back.
 */
 :root[data-theme='juyo-concept'],
 [data-theme='juyo-concept'] {
@@ -89,6 +95,8 @@
   --accent: var(--jc-ink-3);
   --accent-foreground: var(--foreground);
   --destructive: var(--jc-red-6);
+  --destructive-fill: var(--jc-red-6);
+  --destructive-foreground: var(--jc-ink-0);
   --overlay-hover: rgb(16 20 24 / 0.05);
   --overlay-pressed: rgb(16 20 24 / 0.1);
 
@@ -128,6 +136,12 @@
   --negative: var(--jc-red-6);
   --selected: var(--jc-blue-1);
   --selected-border: var(--jc-blue-6);
+  --selection: rgb(71 126 227 / 0.24);
+  /* Ink on the signal orange, in both modes: the fill does not change, so its text does not either. */
+  --on-signal: var(--jc-night-1);
+  /* On the inverse surface (the rail): the steps that read on ink. */
+  --on-inverse-ring: var(--jc-blue-4);
+  --on-inverse-decision: var(--jc-orange-4);
 
   /* Charts. This period is blue; the comparison period is the same hue with the colour drained (slate) and a
      dash; a reference such as budget is an ink rule. Categories alternate light and dark steps, so neighbours differ
@@ -232,9 +246,76 @@
   --table-header-surface: var(--jc-ink-1);
   --table-rule: var(--jc-ink-4);
   --table-total-rule: var(--jc-ink-12);
+  --segment-selected-surface: var(--card);
+  --rail-border: transparent;
   --chart-line-width: 2px;
   --chart-cmp-dash: 4 3;
   --chart-bar-radius: var(--radius-mark);
+}
+
+/*
+  Dark mode: "ink ledger". Spec: docs/research/theme/juyo-concept-spec.md §14.
+
+  Not an inversion. Every scale gets a dark column built for the same jobs, so a step number keeps its promise
+  (5 is a graphic at 3:1 or more, 6 is text at 4.5:1 or more) and the semantic tier above needs almost no change.
+  The frame stays Juyo's ink (#101418, the rail); the workspace is graphite, one tonal step above it, and each
+  layer is lighter than the one under it: rail < canvas (2) < card (0) < overlay (1) < fill (3).
+  Hue steps 6, 7 and 8 are steps 4, 3 and 2 of the light column, value for value: the colours the rail already
+  used on ink. Steps 1 to 5 are new: a tint has about a quarter of its mark's chroma, so a large area stays calm.
+*/
+:root[data-theme='juyo-concept'].dark,
+[data-theme='juyo-concept'].dark {
+  color-scheme: dark;
+
+  /* ───────────────────────── Tier 1: primitives, the dark column ───────────────────────── */
+
+  /* Ink, hue 250, chroma 0.006 to 0.014: 0 raised surface · 1 overlay and header band · 2 canvas · 3 fill
+     · 4 rule · 5 hairline · 6 card outline · 7 strong divider · 8 control border (3:1 or more on 0 to 3)
+     · 9 quiet icons, the grey series · 10 secondary text · 11 strong secondary · 12 text (never white). */
+  --jc-ink-0: #1d2024; --jc-ink-1: #22262b; --jc-ink-2: #16191c; --jc-ink-3: #292e33; --jc-ink-4: #2d3237; --jc-ink-5: #33383e; --jc-ink-6: #3b4046; --jc-ink-7: #4b5057; --jc-ink-8: #737a81; --jc-ink-9: #8f969d; --jc-ink-10: #afb5bc; --jc-ink-11: #c9ced3; --jc-ink-12: #e5e8ec;
+  /* Hues: 1 to 2 tinted surfaces · 3 their border · 4 soft fill · 5 graphics (3:1 or more on surfaces 0 to 3)
+     · 6 text (4.5:1 or more on 0 to 3 and on the scale's own tint) · 7 strong text · 8 text on a soft fill. */
+  --jc-blue-1: #1a2537; --jc-blue-2: #1e2f4c; --jc-blue-3: #29467a; --jc-blue-4: #3766b8; --jc-blue-5: #5d92ef; --jc-blue-6: #87b1fa; --jc-blue-7: #c1d9ff; --jc-blue-8: #dfecff;
+  --jc-violet-1: #242135; --jc-violet-2: #2f2a48; --jc-violet-3: #483e74; --jc-violet-4: #6959ae; --jc-violet-5: #9384e0; --jc-violet-6: #b0a6ef; --jc-violet-7: #d6d2fc; --jc-violet-8: #eae8ff;
+  --jc-orange-1: #312018; --jc-orange-2: #42271b; --jc-orange-3: #6a3922; --jc-orange-4: #a6552d; --jc-orange-5: #eb7b44; --jc-orange-6: #ff9c6b; --jc-orange-7: #ffc8ac; --jc-orange-8: #ffe4d6;
+  --jc-teal-1: #162828; --jc-teal-2: #173535; --jc-teal-3: #185152; --jc-teal-4: #197778; --jc-teal-5: #33a7a8; --jc-teal-6: #64c3c4; --jc-teal-7: #b0e3e3; --jc-teal-8: #d7f1f1;
+  --jc-green-1: #192820; --jc-green-2: #1c3528; --jc-green-3: #24523c; --jc-green-4: #2d7956; --jc-green-5: #45a678; --jc-green-6: #71c69a; --jc-green-7: #b5e5ca; --jc-green-8: #d9f3e3;
+  --jc-red-1: #331e1c; --jc-red-2: #462422; --jc-red-3: #70312e; --jc-red-4: #ac3c39; --jc-red-5: #e7645e; --jc-red-6: #f4928a; --jc-red-7: #fdc9c4; --jc-red-8: #ffe4e1;
+  --jc-ochre-1: #2b2316; --jc-ochre-2: #392d16; --jc-ochre-3: #58441d; --jc-ochre-4: #89692a; --jc-ochre-5: #b88e37; --jc-ochre-6: #dcb05b; --jc-ochre-7: #f0d39f; --jc-ochre-8: #f9e9ce;
+  --jc-slate-1: #21252c; --jc-slate-2: #292f3b; --jc-slate-3: #3e485c; --jc-slate-4: #5a6986; --jc-slate-5: #8294b8; --jc-slate-6: #a4b1cb; --jc-slate-7: #d0d8e7; --jc-slate-8: #e7ebf3;
+  --jc-plum-1: #2f1f28; --jc-plum-2: #402534; --jc-plum-3: #663551; --jc-plum-4: #9a4879; --jc-plum-5: #cf6da7; --jc-plum-6: #e196c0; --jc-plum-7: #f3cae0; --jc-plum-8: #fae4ef;
+  /* Night and the signal orange are the same in both modes: the rail does not change. */
+
+  /* ───────────────────────── Tier 2: the roles whose mapping changes ───────────────────────── */
+
+  /* What floats is one step lighter than the card it floats over; in the light mode a shadow says that alone. */
+  --popover: var(--jc-ink-1);
+  /* Actions are still ink-12, which is now the light end: the label takes the canvas tone. */
+  --primary-foreground: var(--jc-ink-2);
+  /* Red text is the light step 6, which no label can sit on: a destructive button is filled with step 4. */
+  --destructive-fill: var(--jc-red-4);
+  --destructive-foreground: var(--jc-ink-12);
+  --overlay-hover: rgb(229 232 236 / 0.06);
+  --overlay-pressed: rgb(229 232 236 / 0.11);
+  --series-soft: rgb(93 146 239 / 0.6);
+  /* A grey series is a mark, and a mark needs more than a border does on graphite: one step above the control border. */
+  --series-muted: var(--jc-ink-9);
+  --selection: rgb(93 146 239 / 0.36);
+  --on-inverse-ring: var(--jc-blue-6);
+  --on-inverse-decision: var(--jc-orange-6);
+
+  /* Elevation: a shadow reads weakly on graphite, so the lighter surface and its hairline carry the layer and
+     the shadow only seats it. Tinted with the rail's ink, as in the light mode. */
+  --elevation-raised: 0 1px 2px rgb(6 8 10 / 0.4), 0 1px 1px rgb(6 8 10 / 0.28);
+  --elevation-overlay: 0 8px 20px -4px rgb(6 8 10 / 0.55), 0 2px 6px -2px rgb(6 8 10 / 0.4);
+  --elevation-modal: 0 24px 56px -12px rgb(6 8 10 / 0.7), 0 8px 16px -8px rgb(6 8 10 / 0.5);
+  --scrim: rgb(6 8 10 / 0.62);
+
+  /* ───────────────────────── Tier 3: component ───────────────────────── */
+  /* A selected segment is lifted out of its track, not sunk into it. */
+  --segment-selected-surface: var(--jc-ink-6);
+  /* Ink beside graphite is a 1.05:1 step, so the rail takes a rule where paper needed none. */
+  --rail-border: var(--jc-ink-4);
 }
 
 /* Narrow screens and touch: one step up, so body text is 16px where a keyboard may open (iOS zooms below it). */
@@ -266,16 +347,17 @@
     --field-border: var(--jc-night-4);
     --overlay-hover: rgb(255 255 255 / 0.06);
     --overlay-pressed: rgb(255 255 255 / 0.11);
-    --ring: var(--jc-blue-4);
+    --ring: var(--on-inverse-ring);
     --brass: var(--jc-orange-signal);
-    --brass-ink: var(--jc-orange-4);
+    --brass-ink: var(--on-inverse-decision);
     --text-1: var(--jc-night-9);
     --icon-quiet: var(--jc-night-8);
+    --segment-selected-surface: var(--jc-night-4);
     color: var(--foreground);
   }
 
-  /* What floats out of the rail (the hotel picker is a dialog inside it) is paper again: a popover takes the
-     page's roles, not the inverse ones it would inherit. */
+  /* What floats out of the rail (the hotel picker is a dialog inside it) is the workspace again: a popover takes
+     the page's roles, not the inverse ones it would inherit. The ink steps are the mode's own. */
   :is(nav[aria-label='Main']:not(.fixed), [data-surface='inverse']) :is(dialog, [popover], [data-surface='paper']) {
     --background: var(--jc-ink-2);
     --foreground: var(--jc-ink-12);
@@ -294,6 +376,7 @@
     --brass-ink: var(--jc-orange-6);
     --text-1: var(--jc-ink-12);
     --icon-quiet: var(--jc-ink-10);
+    --segment-selected-surface: var(--card);
     color: var(--foreground);
   }
 }
