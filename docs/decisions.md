@@ -531,3 +531,26 @@ The owner's verdict on the Round 3 brief: far too minimal, "ranked by money" mea
   - "Brief written at 19:01" is the demo's truth (the brief was last regenerated then); in production it is the 05:00 UTC cron.
   - The 20 Nov snapshot in `halcyon-data.ts` still backs the findings when `GET /api/brief` fails; the numbers around them have no snapshot and show their error state.
   - `brief-charts.ts` (the hand-drawn SVG charts of Round 3) is deleted: nothing used it any more.
+
+## The decision card says what it does (21 Nov 2026)
+
+The owner's reading of the card ("Waiting for your decision · Lower BAR … to 1.2x comp median", a struck-through "BAR 145–220 EUR, 1.10x–1.89x comp median", "LIS", ISO dates, "Change the rate · high risk", Approve / Decline): it looks as if Compass changes the hotel's rates. It does not. Compass is read-only: the button hands the action to the revenue manager as a task and writes the audit log. **This replaces what earlier sections say about Approve / Deny on the proposal card.**
+
+- **One card, everywhere.** `app-proposal-card` is the card in the brief, in Agent Studio, on an agent's page and on a board, so the rewrite reaches all four with no change to those pages.
+- **The card is written for the person who decides, not for a rate desk.**
+  - "Waiting for your decision · Arbor Lisbon Chiado": the hotel by name.
+  - "Suggestion: lower rates on Lisbon's most overpriced nights": a suggestion, not a change under way.
+  - One or two sentences of why, then what it could be worth: "… This could win back about €38k."
+  - "This goes to your revenue manager as a task. Compass never changes your rates." For a channel: "… never closes or opens a channel."
+  - Buttons: **Send to revenue manager** and **Dismiss**. No "Approve".
+  - A small label for the kind and who it needs: "Price change · needs a person", in place of "high risk".
+  - After: "Sent to the revenue manager" with "Logged · 3 min ago" and Undo; or "Dismissed · Nothing was sent".
+- **Before → after moved one step down,** behind "See the reasoning": Today / Suggested as two labelled values (no strikethrough), the nights it covers with human dates ("Fri 20 Nov – Sun 3 Jan"), the agent's full reasoning, and which agent suggested it.
+- **The agent's wording is turned into plain words by rule, on the client** (`proposal-text.ts`), so the decision already waiting reads right without a new run: hotel codes become places ("LIS" → "Lisbon"; "DXB1" → "Dubai Marina", where a city has two hotels), ISO dates become days, "BAR" becomes "rates" or "the rate", "comp median" becomes "the competition", "1.10x–1.89x" becomes "up to 1.9×", "145–220 EUR" becomes "€145–220", a hyphen before a figure becomes a minus. No number is computed: figures are re-worded and rounded to one decimal, and the exact ones stay in the thread and in Agent Studio's run log.
+  - The two sentences the card leads with are the agent's first and, for a price change, the one about the rate against the competition.
+  - "Win back" is used when the money was there before or a lower price would bring it back; otherwise "bring in".
+- **"The competition" on this card, "comp set" elsewhere.** The glossary keeps "comp set" for the revenue manager's screens; the decision card follows the owner's wording for the person who signs off. The glossary says so.
+- **The toasts follow:** "Sent to the revenue manager" (with Undo) and "Dismissed · Nothing was sent."
+- **The brief's wording follows the copy glossary** that landed on main meanwhile: "last year", never "STLY"; "Try again" for a retry; "comp set", never "the market".
+- **Not changed, and worth a follow-up:** Agent Studio's autonomy levels still say an agent "acts once you approve", and the server's own words (`ACTION_LABELS`, the agent prompts, `approved` in the API) are as they were. The agents still write "BAR" and "comp median"; the card translates. Asking the agents to write the plain version themselves is a prompt change for a later pass.
+

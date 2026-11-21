@@ -54,7 +54,7 @@ describe('PulseRail', () => {
     expect(text(el.querySelector('#pulse-title'))).toBe('Pulse · Asia · 3 hotels');
     expect(text(tiles[0]!.querySelector('.pulse-period'))).toBe('· next 30 nights');
     expect(text(tiles[0]!.querySelector('.pulse-value'))).toBe('53%.');
-    expect(text(tiles[0]!.querySelector('.pulse-delta'))).toBe('▲ +0.4 pts vs STLY');
+    expect(text(tiles[0]!.querySelector('.pulse-delta'))).toBe('▲ +0.4 pts vs last year');
     // What a screen reader says is the tile's own text, with the symbols replaced by words.
     const spoken = (el: Element) => { const copy = el.cloneNode(true) as Element; copy.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove()); return text(copy).replace(/:(?=\S)/g, ': ').replace(/\.(?=[A-Z])/g, '. '); };
     expect(spoken(tiles[0]!)).toBe('Occupancy, next 30 nights: 53%. Up 0.4 pts against same time last year. Ask why.');
@@ -208,7 +208,7 @@ describe('NightsCalendar', () => {
     const rows = [...el.querySelectorAll('tbody tr')];
     expect(rows[1]!.querySelector('.nights-event')).not.toBeNull();
     expect(rows[2]!.querySelectorAll('button.nights-cell--flagged')).toHaveLength(1);
-    expect([...el.querySelectorAll('.nights-notes li > span')].map(text)).toEqual(['Dubai Marina: 1 night with the rate under the market on a busy night (28 Nov)', 'Atlantic Web Forum: Lisbon Chiado, 27 Nov']);
+    expect([...el.querySelectorAll('.nights-notes li > span')].map(text)).toEqual(['Dubai Marina: 1 night with the rate well under the comp set on a busy night (28 Nov)', 'Atlantic Web Forum: Lisbon Chiado, 27 Nov']);
   });
 
   it('a night of the scope asks about the night; a flagged night of a hotel asks about its rate', () => {

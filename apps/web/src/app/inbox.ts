@@ -115,7 +115,7 @@ const TOP_FINDINGS = 3;
                 }
                 @default {
                   <span><span class="text-foreground">The live brief didn’t load{{ live.briefError() ? ' (' + live.briefError() + ')' : '' }}.</span> These are the findings saved on {{ today() }}, 07:00.</span>
-                  <button type="button" class="brief-link" (click)="live.briefApi.brief.reload()">Retry</button>
+                  <button type="button" class="brief-link" (click)="live.briefApi.brief.reload()">Try again</button>
                 }
               }
             </p>
@@ -136,7 +136,7 @@ const TOP_FINDINGS = 3;
           @if (api.state() === 'error' && findings().length) {
             <div class="brief-notice" role="alert">
               <p>The charts and the numbers around the brief didn’t load{{ api.error() ? ' (' + api.error() + ')' : '' }}.</p>
-              <button hlmBtn variant="outline" size="sm" (click)="api.retry()">Retry</button>
+              <button hlmBtn variant="outline" size="sm" (click)="api.retry()">Try again</button>
             </div>
           }
 
@@ -209,7 +209,7 @@ const TOP_FINDINGS = 3;
             heading="Decisions waiting"
             [count]="live.pendingList().length || null"
             tone="decision"
-            hint="What an agent wants to change, and why. Nothing is sent without you."
+            hint="What an agent suggests, and why. You send it to the revenue manager or dismiss it."
             [state]="decisionsState()"
             [height]="280"
             error="The decisions didn’t load."
@@ -225,8 +225,8 @@ const TOP_FINDINGS = 3;
               <div class="brief-card brief-decision-empty">
                 <ng-icon name="phosphorCheckCircleLight" class="brief-decision-ok" aria-hidden="true" />
                 <div>
-                  <p class="brief-decision-none">Nothing waits for your approval.</p>
-                  <p class="brief-decision-how">When an agent wants to change a rate or a channel at {{ scope.phrase() }}, it asks here first.</p>
+                  <p class="brief-decision-none">Nothing waits for your decision.</p>
+                  <p class="brief-decision-how">When an agent suggests a change to a rate or a channel at {{ scope.phrase() }}, it shows here for you to send to the revenue manager or dismiss. Compass never changes them itself.</p>
                 </div>
               </div>
             }
@@ -303,7 +303,7 @@ const TOP_FINDINGS = 3;
                       <strong>{{ eur(books.total) }}</strong> room revenue on the books
                       @if (books.change) {
                         <span class="brief-figure-delta" [attr.data-tone]="books.change.startsWith('+') ? 'up' : 'down'"><span aria-hidden="true">{{ books.change.startsWith('+') ? '▲' : '▼' }}</span> {{ books.change }}</span>
-                        <span>vs STLY</span>
+                        <span>vs last year</span>
                       }
                     }
                   </p>

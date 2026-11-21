@@ -6,7 +6,7 @@ let next = 0;
 /**
  * A labelled section of the brief: its title, one line on what it shows and its actions sit above a flat card.
  * While the numbers load the card holds a skeleton at the height the content will have; a failed read says so
- * with Retry; nothing to show is said in words. `bare` leaves the card to the content (a decision card).
+ * with Try again; nothing to show is said in words. `bare` leaves the card to the content (a decision card).
  */
 @Component({
   selector: 'app-brief-section',
@@ -32,7 +32,7 @@ let next = 0;
         @case ('error') {
           <div class="brief-card brief-msg" [style.min-height.px]="height()" role="alert">
             <p>{{ error() }}</p>
-            <button hlmBtn variant="outline" size="sm" (click)="retry.emit()">Retry</button>
+            <button hlmBtn variant="outline" size="sm" (click)="retry.emit()">Try again</button>
           </div>
         }
         @case ('empty') {

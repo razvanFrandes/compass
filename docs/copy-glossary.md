@@ -12,7 +12,7 @@ How Compass talks. One reader: a revenue manager or general manager who knows ho
 6. **Sentence case everywhere.** Headings, buttons, menu items and table headers. Product names keep their capitals.
 7. **Nothing internal.** No tool names, table names, column names, hotel codes, ISO dates, status codes or the words "tool", "spec", "widget", "node", "payload", "workflow". "Query" is allowed in one place: the control that shows the SQL behind a number. "Rows" is fine for the rows of a table the reader can see. If the reader cannot act on a word, it goes.
 8. **Errors say what happened and what to do.** "Couldn’t save the agent. Check your connection and try again." Never the raw error alone, never blame.
-9. **Buttons are verbs.** "Approve", "Decline", "Run now", "Save agent". The same action has the same label everywhere.
+9. **Buttons are verbs, and say what really happens.** "Send to revenue manager", "Dismiss", "Run now", "Save agent". The same action has the same label everywhere. Compass is read-only, so no button may read as if it changed a rate, a channel or a booking.
 10. **Toasts are a title and, when needed, one sentence.** The title says what happened, with the name, and has no full stop: "Pace guard paused", "Couldn’t save the agent". The sentence under it says what to do or where it went.
 11. **One word per thing.** The table below is the whole vocabulary. If two words mean the same thing, one of them is wrong.
 
@@ -27,7 +27,7 @@ How Compass talks. One reader: a revenue manager or general manager who knows ho
 | **step** | One part of an agent in the builder: when it runs, hotels, data, what to watch for, approval, action. | node, block, stage |
 | **run** | One time an agent did its work. A **test run** is one you start by hand before saving. | execution, job, invocation |
 | **finding** | Something the morning brief or an agent found that is worth money or a decision. | insight, alert, anomaly, detection, result |
-| **decision** | An action an agent proposes that waits for you. You **approve** or **decline** it. | proposal, pending approval, request, deny, reject |
+| **decision** | Something an agent suggests that waits for you. You **send it to the revenue manager** (it becomes a task for them and a line in the audit log) or **dismiss** it. Compass never changes anything itself, and the card says so. | proposal, pending approval, request, approve, decline, deny, reject (on the card and its buttons) |
 | **morning brief** | The findings of the day, the biggest money first. "The brief" on second mention. | briefing, digest, feed, report |
 | **board** | A page of charts you keep. Kassandra builds one from a description, or you add charts to it from an answer. (Juyo’s Canvas.) | dashboard, view, canvas, workspace |
 | **chart** | Anything on a board or in an answer: a line, a table, a single figure. | widget, visual, tile, component, artifact |
@@ -35,7 +35,7 @@ How Compass talks. One reader: a revenue manager or general manager who knows ho
 | **hotel** | One property. Always by name ("Lisbon Chiado"), never by code. | property, LIS, DXB2 |
 | **on the books** | Rooms or revenue already booked for future nights. | OTB, booked position |
 | **last year** | The comparison period: the same weekday 364 days earlier. "Same time last year" only where lead time is the point (pace). | STLY, LY, YoY, prior year |
-| **comp set** | The competing hotels a hotel is priced against. "Comp set median" for their middle rate. | compset, comp-set, comps, the market, competitors’ median |
+| **comp set** | The competing hotels a hotel is priced against. "Comp set median" for their middle rate. On a decision card, which the person who decides reads, it is **the competition**. | compset, comp-set, comps, the market, competitors’ median |
 | **pace** | On the books now against on the books at the same time last year. | OTB variance |
 | **pickup** | New bookings in a recent window for future nights. | bookings delta |
 | **pts** | Percentage points, for a change in a percentage: "▲ 3.1 pts". | pp, ppt, % points |
@@ -49,7 +49,7 @@ How Compass talks. One reader: a revenue manager or general manager who knows ho
 - Changes: `▲ 4.2%`, `▼ 2.0%`, `▲ 3.1 pts`. Always against something named: "vs last year", "vs budget".
 - Dates: `Fri 20 Nov`, `16–18 Dec`, `20 Nov 2026` when the year matters. Never `2026-11-20`.
 - Times: `07:00`. Relative when recent: "32 min ago", "3 h ago".
-- Multiples of the comp set read as a percentage: "26% under the comp set median", not "0.74x".
+- Multiples of the comp set read as a percentage: "26% under the comp set median", not "0.74x". A decision card may say "up to 1.9× the competition": one decimal, a true ×.
 - Loading: say what is loading and end with an ellipsis character: "Loading agents…".
 - Quotes and apostrophes are curly (’ “ ”). Ranges use an en dash (–).
 - Spelling is British: colour, catalogue, labour.
@@ -64,6 +64,8 @@ Most strings sit in the component that shows them. The ones shared across the ap
 | Names of the data an answer or an agent reads ("Pace vs last year", "Recent pickup") | `apps/worker/src/presentation/tools/tool-views.ts` (what the server sends), `apps/web/src/app/evidence/labels.ts` and `kassandra/turn-text.ts` (fallbacks), `packages/contracts/src/workflow-graph.ts` `CHECK_LABELS`, `apps/web/src/app/builder/builder-steps.ts` |
 | Finding names after "When the brief finds …" | `packages/contracts/src/workflow-graph.ts` `FINDING_LABELS`, `apps/web/src/app/studio/studio.ts` `FINDING_LABEL` |
 | Action names | `packages/contracts/src/workflow-graph.ts` `ACTION_LABELS`, `apps/web/src/app/proposal-card.ts` `ACTION_LABEL` |
+| The decision card: its labels, what sending does, and the rules that turn an agent’s wording into plain words | `apps/web/src/app/proposal-text.ts` |
+| The morning brief: headline, chips, section names, finding kinds, "Watch this" descriptions | `apps/web/src/app/inbox.ts`, `apps/web/src/app/brief/brief-model.ts` |
 | Autonomy levels | `apps/web/src/app/studio/studio.ts` |
 | Voice rules for what Kassandra, the brief and the agents write | `apps/worker/src/presentation/agents/kassandra-prompt.ts`, `apps/worker/src/application/brief.ts`, `apps/worker/src/application/workflows/templates.ts` (`VOICE`), `apps/worker/src/presentation/agents/builder-prompt.ts` |
 | Email subject, body and footer | `apps/worker/src/application/workflows/email.ts` |
@@ -101,8 +103,13 @@ The changes that matter most, from the pass of 21 Nov 2026 (about 570 strings).
 | Agent Studio, audit log | Nothing is written to source systems: approved actions become tasks for the revenue manager | Nothing changes in your hotel systems. An approved action becomes a task for the revenue manager. |
 | Agent page | Autonomy · Checks first · Proposals · Done · manual | How far it may go · Data it reads first · Decisions · Finished · run by hand |
 | Agent page, run log | Run the workflow now (trigger: manual, test from builder, test run). | Started by hand · test run |
-| Decision card | Deny · Why, in full | Decline · See the full reasoning |
-| Decision toast | Handed to the revenue manager as an RMS task; it shows in the audit log. | Sent to the revenue manager as a task. It’s in the audit log. |
+| Decision card, buttons | Approve · Deny · Why, in full | Send to revenue manager · Dismiss · See the reasoning |
+| Decision card, title | Lower BAR on Lisbon's most overpriced nights to 1.2x comp median | Suggestion: lower rates on Lisbon's most overpriced nights |
+| Decision card, what it does | (nothing said) | This goes to your revenue manager as a task. Compass never changes your rates. |
+| Decision card, label | Change the rate · high risk | Price change · needs a person |
+| Decision card, the change | ~~BAR 145–220 EUR, 1.10x–1.89x comp median~~ → Cap at about 1.2x comp median · LIS, stay dates 2026-11-20 to 2027-01-03 | behind "See the reasoning": Today €145–220 a night, up to 1.9× the competition → Suggested Cap at about 1.2× the competition · Covers Lisbon, stay dates Fri 20 Nov – Sun 3 Jan |
+| Decision card, after | Approved · Sent to the revenue manager | Sent to the revenue manager · Logged · 3 min ago · Undo |
+| Decision toast | Approved · Handed to the revenue manager as an RMS task; it shows in the audit log. | Sent to the revenue manager · It’s a task for them now, and it’s in the audit log. Compass changed nothing in your systems. |
 | Builder, steps | TRIGGER · CHECK · ANALYZE | WHEN · DATA · WATCH FOR |
 | Builder, header | Draft · 5 steps to finish · Save · Send test now | Draft · 5 details missing · Save agent · Run a test |
 | Builder, to finish | Trigger: not set yet · Goal: Too small | When it runs: not set · What to watch for: too short |
@@ -114,5 +121,5 @@ The changes that matter most, from the pass of 21 Nov 2026 (about 570 strings).
 
 ## Not covered by this pass
 
-- The Inbox and the header of the morning brief (`inbox.ts`, `brief-charts.ts`): another branch rewrites them. They still say "ranked by money" and "comp-set".
+- Agent Studio still says an agent "acts once you approve" (the autonomy levels, the intro, the audit note). The decision card no longer has an Approve button, so those lines should follow it: "acts once you send it on", or similar.
 - The docs hub.

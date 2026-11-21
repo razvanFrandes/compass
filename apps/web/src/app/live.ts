@@ -82,7 +82,7 @@ export class Live {
   readonly pendingList = computed(() => (this.pending.hasValue() ? this.pending.value() : []).filter((p) => this.hotelScope.includes(p.hotel_code)));
   readonly workflowList = computed(() => (this.workflows.hasValue() ? this.workflows.value() : []));
   readonly workflowsError = computed(() => (this.workflows.error() ? toApiError(this.workflows.error()).message : null));
-  /** Calls in flight, by workflow or proposal id, so buttons can say "Running…" / "Approving…". */
+  /** Calls in flight, by workflow or proposal id, so buttons can say "Running…" / "Sending…". */
   readonly busy = signal<Record<string, string>>({});
 
   /* ── Chat ── */
@@ -362,13 +362,14 @@ export class Live {
     return r;
   }
   async decide(p: Proposal, approved: boolean, note = '') {
-    this.mark(p.id, approved ? 'Approving…' : 'Declining…');
+    this.mark(p.id, approved ? 'Sending…' : 'Dismissing…');
     const r = await this.workflowsApi.decide(p.id, { approved, by: DECIDER, note });
     this.mark(p.id, null);
     if (!r.ok) toast('Couldn’t save your decision', { description: r.error.message, duration: 8000 });
     else
-      toast(approved ? 'Approved' : 'Declined', {
-        description: approved ? 'Sent to the revenue manager as a task. It’s in the audit log.' : 'Nothing changes.',
+      // Compass is read-only: a sent suggestion is a task for a person and a line in the audit log, nothing more.
+      toast(approved ? 'Sent to the revenue manager' : 'Dismissed', {
+        description: approved ? 'It’s a task for them now, and it’s in the audit log. Compass changed nothing in your systems.' : 'Nothing was sent.',
         duration: 6000,
         ...(approved ? { action: { label: 'Undo', onClick: () => void this.undo(p) } } : {}),
       });
@@ -378,7 +379,7 @@ export class Live {
   async undo(p: Proposal) {
     const r = await this.workflowsApi.undo(p.id, DECIDER);
     if (!r.ok) toast('Couldn’t undo the decision', { description: r.error.message, duration: 8000 });
-    else toast('Undone', { description: 'The revenue manager has a task to reverse it. It’s in the audit log.', duration: 5000 });
+    else toast('Taken back', { description: 'The revenue manager has a task to reverse it. It’s in the audit log.', duration: 5000 });
     this.reloadAll();
     return r;
   }

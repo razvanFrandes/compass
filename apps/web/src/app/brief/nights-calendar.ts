@@ -11,7 +11,7 @@ const dayOf = (iso: string) => shortDay.format(Date.parse(`${iso}T00:00:00Z`));
 /**
  * The next 14 nights as an occupancy calendar: one row for the scope, one per hotel. A fill of one hue in five
  * steps says how full a night is; ✦ marks a city event and an orange dot a rate that is out of line with the
- * market. It is a real table, so it reads in rows and columns; a night of the scope and a flagged night of a hotel
+ * comp set. It is a real table, so it reads in rows and columns; a night of the scope and a flagged night of a hotel
  * are buttons that ask Kassandra about it.
  */
 @Component({
@@ -112,7 +112,7 @@ const dayOf = (iso: string) => shortDay.format(Date.parse(`${iso}T00:00:00Z`));
         }
       </ul>
     } @else {
-      <p class="nights-none">No city events and no rates out of line with the market in these 14 nights.</p>
+      <p class="nights-none">No city events and no rates out of line with the comp set in these 14 nights.</p>
     }
   `,
 })

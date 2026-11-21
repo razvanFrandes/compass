@@ -69,7 +69,7 @@ export interface FindingView {
           } @else if (chartState() === 'error') {
             <div class="finding-nochart" role="alert">
               <p>The chart didn’t load.</p>
-              <button hlmBtn variant="outline" size="sm" (click)="retry.emit()">Retry</button>
+              <button hlmBtn variant="outline" size="sm" (click)="retry.emit()">Try again</button>
             </div>
           }
         </div>

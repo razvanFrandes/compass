@@ -145,7 +145,7 @@ describe('Pulse tiles', () => {
   it('a rise reads ▲ with a plus, in points for a percentage, and names its base', () => {
     const view = pulseView(tile({}));
     expect(view).toMatchObject({ label: 'Occupancy', period: 'next 30 nights', value: '53%' });
-    expect(view.deltas).toEqual([{ arrow: '▲', text: '+0.4 pts', tone: 'up', basis: 'STLY', spoken: 'Up 0.4 pts against same time last year.' }]);
+    expect(view.deltas).toEqual([{ arrow: '▲', text: '+0.4 pts', tone: 'up', basis: 'last year', spoken: 'Up 0.4 pts against same time last year.' }]);
     expect(view.spoken).toBe('Occupancy, next 30 nights: 53%. Up 0.4 pts against same time last year.');
   });
 
@@ -246,7 +246,7 @@ describe('Next 14 nights', () => {
       ['LIS', 'Lisbon Chiado', 1, 1],
       ['DXB1', 'Dubai Marina', 1, 0],
     ]);
-    expect(m.rows[0]!.cells[1]!.label).toBe('Sat 28 Nov: 40% occupied, 20 points behind last year. To check: rate over the market, behind last year, rate at 1.40× the comp set.');
+    expect(m.rows[0]!.cells[1]!.label).toBe('Sat 28 Nov: 40% occupied, 20 points behind last year. To check: rate well over the comp set, behind last year, rate at 1.40× the comp set.');
     expect(m.rows[1]!.cells[1]!.flag).toBe('underpriced');
     expect(m.flags).toBe(2);
     expect(m.events).toEqual(['Atlantic Web Forum']);

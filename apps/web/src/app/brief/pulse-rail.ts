@@ -29,7 +29,7 @@ type PulseTab = 'forward' | 'month';
             } @else if (tab() === 'month') {
               {{ g.monthLabel }}, the last closed month, against {{ g.monthBasis }} and against budget
             } @else {
-              On the books for the next 30 nights, against the same time last year (STLY)
+              On the books for the next 30 nights, against the same time last year
             }
           </p>
         </div>
@@ -61,7 +61,7 @@ type PulseTab = 'forward' | 'month';
         @case ('error') {
           <div class="brief-card brief-msg pulse-error" role="alert">
             <p>{{ error() || 'The numbers didn’t load.' }}</p>
-            <button hlmBtn variant="outline" size="sm" (click)="retry.emit()">Retry</button>
+            <button hlmBtn variant="outline" size="sm" (click)="retry.emit()">Try again</button>
           </div>
         }
         @default {

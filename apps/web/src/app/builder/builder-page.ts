@@ -43,7 +43,7 @@ export function statusChip(state: {
 /** How a finished test reads under the canvas; nothing while it runs. `summary` is the run's own last word. */
 export function testResult(run: BuilderRun | null, draft: WorkflowDraft, labelOf: (id: string) => string, summary: string | null): CanvasResult | null {
   if (!run || run.status === 'running') return null;
-  if (run.status === 'waiting_approval') return { tone: 'warn', text: 'The test run needs your decision', detail: 'Approve or decline it in Agent Studio to let it finish.' };
+  if (run.status === 'waiting_approval') return { tone: 'warn', text: 'The test run needs your decision', detail: 'Send it to the revenue manager or dismiss it in Agent Studio to let it finish.' };
   if (run.status === 'failed') {
     const where = run.failed ? labelOf(run.failed) : '';
     return { tone: 'fail', text: where ? `The test run stopped at “${where}”` : 'The test run couldn’t finish', detail: summary ?? 'Open the agent in Agent Studio to read its run log.' };

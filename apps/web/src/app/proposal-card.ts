@@ -1,10 +1,9 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
-import { provideIcons } from '@ng-icons/core';
+import { Component, ViewEncapsulation, computed, inject, input, signal } from '@angular/core';
+import { NgIcon, provideIcons } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import type { ActionType, Proposal } from '@compass/contracts';
 import { Live, ago } from './live';
-import { formatEurShort } from './data';
-import { humanizeText } from './text';
+import { decisionView } from './proposal-text';
 import { ScopeService } from './scope/scope.service';
 import * as icons from './icons';
 
@@ -17,55 +16,81 @@ export const ACTION_LABEL: Record<ActionType, string> = {
   notify: 'Notify the team',
   email: 'Send an email',
 };
-const STATUS: Record<Proposal['status'], string> = {
-  pending: 'Waiting for your decision',
-  approved: 'Approved',
-  denied: 'Declined',
-  auto_approved: 'Done by the agent (low risk)',
-  suggested: 'Suggested only',
-  applied: 'Sent to the revenue manager',
-  undone: 'Undone',
-  superseded: 'Replaced by a newer decision',
-};
+
+/** What `Live.decide` shows on the buttons while the answer is on its way. */
+export const SENDING = 'Sending…';
+export const DISMISSING = 'Dismissing…';
+
+let next = 0;
 
 /**
- * A proposal from a workflow: what would change (before → after), why, the money, and Approve / Deny.
- * Compass is read-only: an approved action becomes a task for the revenue manager, logged in the audit.
+ * A decision: something an agent suggests, waiting for a person. The card is written for the person who decides, not
+ * for a rate desk (proposal-text.ts): what is suggested and why in plain words, what it could be worth, and what
+ * sending it does. Compass is read-only, and the card says so: "Send to revenue manager" hands over a task and
+ * writes the audit log; no rate, channel or account changes. The figures behind it (today → suggested, the nights
+ * it covers, the agent's full reasoning) are one step down, behind "See the reasoning".
+ *
+ * One card for every place a decision shows: the morning brief, Agent Studio, an agent's page and a board.
  */
 @Component({
   selector: 'app-proposal-card',
-  imports: [HlmButtonImports],
+  imports: [NgIcon, HlmButtonImports],
   providers: [provideIcons({ ...icons })],
+  encapsulation: ViewEncapsulation.None,
+  styleUrl: './proposal-card.css',
   host: { class: 'block' },
   template: `
     @let p = proposal();
-    <article class="relative flex h-full flex-col p-5" [class]="p.status === 'pending' ? 'decision-card' : 'insight-card'" [attr.aria-label]="p.title">
-      <div class="flex items-center justify-between gap-3">
-        <span class="card-eyebrow" [class]="p.status === 'pending' ? 'text-(--decision)' : 'text-muted-foreground'">{{ status() }}</span>
-        <span class="text-muted-foreground text-right text-[12.5px]">{{ hotel() }} · {{ action() }}{{ p.risk === 'high' ? ' · high risk' : '' }}</span>
+    @let v = view();
+    <article class="dcard" [class]="p.status === 'pending' ? 'decision-card' : 'insight-card'" [attr.aria-labelledby]="uid + '-t'">
+      <div class="dcard-top">
+        <p class="dcard-status" [class.dcard-status--waiting]="p.status === 'pending'">
+          <span class="dcard-state">{{ v.status }}</span><span class="dcard-hotel"> · {{ hotel() }}</span>
+        </p>
+        <p class="dcard-kind">{{ v.kind }}</p>
       </div>
-      <h3 class="mt-2 text-[16px]/[1.35] font-semibold tracking-[-0.01em]">{{ p.title }}</h3>
-      <p class="mt-3 text-[14px] tabular-nums">
-        <span class="text-muted-foreground line-through decoration-1">{{ p.change.before }}</span> → <span class="font-medium">{{ p.change.after }}</span>
-        <span class="text-muted-foreground"> · {{ p.change.scope }}</span>
-      </p>
-      @if (p.impact_eur !== null) {
-        <p class="text-muted-foreground mt-1 text-[13px] tabular-nums">Impact {{ money() }}</p>
-      }
-      <p class="text-muted-foreground mt-2 text-[13.5px]" [class.line-clamp-3]="!more()">{{ rationale() }}</p>
-      @if (p.rationale.length > 220) {
-        <button type="button" class="text-muted-foreground hover:text-foreground self-start text-[12.5px] underline underline-offset-2" (click)="more.set(!more())">{{ more() ? 'Show less' : 'See the full reasoning' }}</button>
-      }
-      <div class="mt-auto flex flex-wrap items-center gap-2 pt-4">
+
+      <h3 class="dcard-title" [id]="uid + '-t'">{{ v.title }}</h3>
+      <p class="dcard-summary">{{ v.summary }}</p>
+      <p class="dcard-promise"><ng-icon name="phosphorLockSimpleLight" aria-hidden="true" /><span>{{ v.promise }}</span></p>
+
+      <div class="dcard-actions">
         @if (p.status === 'pending') {
-          <button hlmBtn class="decision-btn" [disabled]="!!working()" (click)="live.decide(p, true)">{{ working() === 'Approving…' ? working() : 'Approve' }}</button>
-          <button hlmBtn variant="ghost" [disabled]="!!working()" (click)="live.decide(p, false)">{{ working() && working() !== 'Approving…' ? 'Declining…' : 'Decline' }}</button>
+          <button hlmBtn class="decision-btn" [disabled]="!!working()" (click)="live.decide(p, true)">{{ working() === sending ? sending : 'Send to revenue manager' }}</button>
+          <button hlmBtn variant="ghost" [disabled]="!!working()" (click)="live.decide(p, false)">{{ working() === dismissing ? dismissing : 'Dismiss' }}</button>
         } @else {
-          <span class="text-muted-foreground text-[12.5px]">{{ decider() ? 'By ' + decider() + ' · ' : '' }}{{ when() }}</span>
-          @if (p.status === 'approved' || p.status === 'applied' || p.status === 'auto_approved') {
-            <button hlmBtn variant="ghost" size="sm" class="ml-auto" (click)="live.undo(p)">Undo</button>
+          <p class="dcard-done">{{ done() }}</p>
+          @if (v.canUndo) {
+            <button hlmBtn variant="ghost" size="sm" (click)="live.undo(p)">Undo<span class="sr-only">: {{ v.title }}</span></button>
           }
         }
+        <button type="button" class="dcard-why" [attr.aria-expanded]="open()" [attr.aria-controls]="uid + '-r'" (click)="open.set(!open())">
+          {{ open() ? 'Hide the reasoning' : 'See the reasoning' }}<ng-icon name="phosphorCaretDownLight" [class.rotate-180]="open()" aria-hidden="true" />
+        </button>
+      </div>
+
+      <div class="dcard-reasoning" [id]="uid + '-r'" [hidden]="!open()">
+        <dl>
+          @if (v.reasoning.today || v.reasoning.suggested) {
+            <div class="dcard-plan">
+              <dt>Today</dt>
+              <dd>{{ v.reasoning.today || 'not stated' }}</dd>
+              <dt><span aria-hidden="true">→ </span>Suggested</dt>
+              <dd>{{ v.reasoning.suggested || 'not stated' }}</dd>
+            </div>
+          }
+          @if (v.reasoning.covers) {
+            <div>
+              <dt>Covers</dt>
+              <dd>{{ v.reasoning.covers }}</dd>
+            </div>
+          }
+          <div>
+            <dt>Why</dt>
+            <dd>{{ v.reasoning.why }}</dd>
+          </div>
+        </dl>
+        <p class="dcard-from">Suggested by the agent {{ agent() }}, {{ suggested() }}.</p>
       </div>
     </article>
   `,
@@ -74,21 +99,26 @@ export class ProposalCard {
   readonly proposal = input.required<Proposal>();
   protected readonly live = inject(Live);
   private readonly scope = inject(ScopeService);
-  /** The hotel by name ("Arbor Amsterdam Centraal"), not by code. */
+  protected readonly uid = `dcard-${next++}`;
+  protected readonly sending = SENDING;
+  protected readonly dismissing = DISMISSING;
+  protected readonly open = signal(false);
+
+  /** The hotel by name ("Arbor Lisbon Chiado"), never by code. */
   protected readonly hotel = computed(() => this.scope.nameOf(this.proposal().hotel_code));
-  protected readonly more = signal(false);
-  protected readonly status = computed(() => STATUS[this.proposal().status]);
-  protected readonly action = computed(() => ACTION_LABEL[this.proposal().action] ?? this.proposal().action);
+  protected readonly view = computed(() => decisionView(this.proposal(), this.scope.catalog()));
   protected readonly working = computed(() => this.live.busy()[this.proposal().id] ?? '');
-  protected readonly money = computed(() => {
-    const v = this.proposal().impact_eur ?? 0;
-    return `${v < 0 ? '−' : '+'}${formatEurShort(v)}`;
+  /** After the decision: what it left behind and when. "Logged · 3 min ago", "Nothing was sent · 1 h ago". */
+  protected readonly done = computed(() => {
+    const outcome = this.view().outcome;
+    const when = ago(this.proposal().decidedAt ?? this.proposal().createdAt);
+    return [outcome ? outcome[0]!.toUpperCase() + outcome.slice(1) : '', when].filter(Boolean).join(' · ');
   });
-  /** Who decided, in words: an action the agent took alone reads "the agent", not "auto (low risk)". */
-  protected readonly decider = computed(() => {
-    const by = this.proposal().decidedBy ?? '';
-    return /^auto\b/i.test(by) ? 'the agent' : by;
+  /** The agent that suggested it, by name; a deleted agent keeps the name it had. */
+  protected readonly agent = computed(() => {
+    const p = this.proposal();
+    const name = p.deletedWorkflowName ?? this.live.workflowList().find((w) => w.id === p.workflowId)?.name;
+    return name ? `“${name}”` : 'that watches this hotel';
   });
-  protected readonly rationale = computed(() => humanizeText(this.proposal().rationale));
-  protected readonly when = computed(() => ago(this.proposal().decidedAt ?? this.proposal().createdAt));
+  protected readonly suggested = computed(() => ago(this.proposal().createdAt));
 }

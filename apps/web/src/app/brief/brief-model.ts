@@ -215,7 +215,7 @@ export interface PulseDelta {
   /** "+4.2%", "−9.9 pts", "±0". */
   text: string;
   tone: 'up' | 'down' | 'flat';
-  /** What it is against, short: "STLY", "Oct 2025", "budget". */
+  /** What it is against, short: "last year", "Oct 2025", "budget". */
   basis: string;
   spoken: string;
 }
@@ -249,8 +249,8 @@ export function pulseValue(tile: Pick<PulseTile, 'unit' | 'value'>): string {
   return `€${grouped.format(v)}`;
 }
 
-/** "same time last year" is STLY on a tile; the section's header spells it out once. */
-export const shortBasis = (basis: string) => (basis === 'same time last year' ? 'STLY' : basis);
+/** On a tile "same time last year" is "last year" (the glossary's word); the section's line says "same time" once. */
+export const shortBasis = (basis: string) => (basis === 'same time last year' ? 'last year' : basis);
 
 export function pulseDelta(delta: number | null, unit: 'pp' | 'pct', basis: string): PulseDelta {
   const short = shortBasis(basis);
@@ -313,8 +313,8 @@ const DAY_LONG = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'nume
 const stamp = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
 
 export const FLAG_TEXT: Record<RateFlag, string> = {
-  underpriced: 'rate under the market on a busy night',
-  overpriced: 'rate over the market, behind last year',
+  underpriced: 'rate well under the comp set on a busy night',
+  overpriced: 'rate well over the comp set, behind last year',
 };
 
 export interface NightCell {
