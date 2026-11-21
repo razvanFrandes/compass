@@ -241,7 +241,7 @@ describe('planted stories S2–S5', () => {
     const before = await data.getMix({ hotels: ['NYC'], from: '2025-11-20', to: '2026-05-03', grain: 'total', by: 'segment' });
     const after = await data.getMix({ hotels: ['NYC'], from: '2026-06-02', to: '2026-11-19', grain: 'total', by: 'segment' });
     const share = (r: typeof before.rows, key: string) => r.find((x) => x.key === key)?.share_pct ?? 0;
-    expect(share(after.rows, 'COR')).toBeLessThan(0.75 * share(before.rows, 'COR'));
+    expect(share(after.rows, 'Corporate negotiated')).toBeLessThan(0.75 * share(before.rows, 'Corporate negotiated'));
 
     const otaBefore = await data.getMix({ hotels: ['NYC'], from: '2025-11-20', to: '2026-05-03', grain: 'total', by: 'channel_type' });
     const otaAfter = await data.getMix({ hotels: ['NYC'], from: '2026-06-02', to: '2026-11-19', grain: 'total', by: 'channel_type' });
@@ -261,7 +261,7 @@ describe('planted stories S2–S5', () => {
   it('S4: Booking.com share of new bookings in Amsterdam rises (by booking date)', async () => {
     const recent = await data.getMix({ hotels: ['AMS'], from: '2026-10-21', to: '2026-11-19', grain: 'total', by: 'channel', basis: 'booked' });
     const before = await data.getMix({ hotels: ['AMS'], from: '2026-08-22', to: '2026-10-20', grain: 'total', by: 'channel', basis: 'booked' });
-    const bdc = (r: typeof recent.rows) => r.find((x) => x.key === 'BDC')!.share_pct;
+    const bdc = (r: typeof recent.rows) => r.find((x) => x.key === 'Booking.com')!.share_pct;
     expect(bdc(recent.rows)).toBeGreaterThan(bdc(before.rows) + 4);
   });
 

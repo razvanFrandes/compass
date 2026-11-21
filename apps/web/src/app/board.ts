@@ -19,6 +19,7 @@ import { BoardsService } from './boards/boards.service';
 import type { Board, BoardWidget } from './boards/types';
 import { ViewAs } from './charts/view-as';
 import { WidgetChart, subtitleWithUnit } from './charts/widget-chart';
+import { tidyBoardWidget } from './widget-tidy';
 import { formatDate, formatPeriod } from './evidence/format';
 import { sourceLabel } from './evidence/labels';
 import * as icons from './icons';
@@ -155,7 +156,8 @@ export class PerformanceWidget {
   `,
 })
 export class SavedWidget {
-  readonly widget = input.required<BoardWidget>({ alias: 'widgetRef' });
+  /** Tidied as it arrives (widget-tidy.ts): a board may hold widgets saved before the server tidied them. */
+  readonly widget = input.required<BoardWidget, BoardWidget>({ alias: 'widgetRef', transform: tidyBoardWidget });
   /** The subtitle, with the unit of the amounts when the chart's numbers carry none. */
   protected readonly withUnit = subtitleWithUnit;
   readonly board = input.required<Board>({ alias: 'boardRef' });

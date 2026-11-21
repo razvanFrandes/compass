@@ -1,4 +1,5 @@
 import { WidgetSpec, type ChatEntry, type Evidence, type Widget } from '@compass/contracts';
+import { tidyWidget } from '@compass/contracts/widget-tidy';
 import type { Context } from '@earendil-works/chord/context';
 import type { Extension, PromptSection, ToolExecutionApi, ToolRegistration } from '@earendil-works/pi-durable';
 import { z } from 'zod';
@@ -199,6 +200,11 @@ async function scanTranscript(api: ToolExecutionApi, context: Context, sourceCal
   }, context);
 }
 
+/** The tidied subtitle and y, without keys the widget does not have. */
+function defined({ subtitle, y }: { subtitle?: string; y?: string[] }): Partial<Pick<Widget, 'subtitle' | 'y'>> {
+  return { ...(subtitle === undefined ? {} : { subtitle }), ...(y === undefined ? {} : { y }) };
+}
+
 function createShowWidgetTool(): ToolRegistration {
   const { $schema: _ignored, ...parameters } = z.toJSONSchema(ShowWidgetArgs, { io: 'input' }) as Record<string, unknown>;
   return {
@@ -226,7 +232,9 @@ function createShowWidgetTool(): ToolRegistration {
       const fitted = fitWidget(spec, { rows: data.rows, columns });
       if (!fitted.ok) throw new Error(fitted.error);
 
-      const widget: Widget = { ...fitted.value, rows: data.rows, columns, evidence: data.evidence };
+      // A column that says the same on every row is said once in the subtitle; a unit the label says is not repeated.
+      const tidy = tidyWidget({ ...fitted.value, rows: data.rows, columns });
+      const widget: Widget = { ...fitted.value, ...defined(tidy), rows: data.rows, columns: tidy.columns, evidence: data.evidence };
       return {
         output: [{ type: 'text', text: `Shown to the user: ${widget.kind} "${widget.title}" (${widget.rows.length} rows). Do not repeat its rows in your answer.` }],
         details: { widget },

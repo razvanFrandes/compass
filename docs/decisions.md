@@ -799,3 +799,15 @@ The owner asked a Thread "What's the channel mix at Barcelona?" and Kassandra an
 - **Calendar heatmaps** sit at the left under their legend, cells sized by the height; a wide card leaves the rest empty instead of centring a small calendar.
 - **The initial bundle's error budget is 3.1 MB** (was 3 MB). Main had reached 3.00 MB; the band tooltips, the lying bridge, money by hotel and the fitted donut centre add about 3 kB.
 - **Donut centres fit their hole:** the number large (compacted to 1.1k when needed), "Total room nights" small under it, the type sized to the hole's diameter down to 12 px, no label at all rather than a clipped one. A pie or donut on a phone gets the room its legend takes. Card headers put their tools under the title when the card is narrow.
+
+## Names, not codes; a column that says the same on every row is said once (21 Nov 2026)
+
+The owner's table for "How has the segment mix changed versus last year?" had a "Period from" column with the same date on every row, segment codes (RET, ADV, WHL, GRP, COR, PKG) and the header "Room nights (room nights)"; the prose said "London (LON2)".
+
+- **The tools return names.** `get_mix` (by segment or channel), `get_channel_mix` and `get_lost_business` (detail) join `hotel.segments` and `hotel.channels` and return their `name`: "Transient retail", "Booking.com". These are the names the web already ships (`PF_SEGMENTS`, `PF_CHANNELS`). Hotel columns stay codes with kind `hotel`, which the UI names. `test/tool-columns.test.ts` fails on a segment, channel or rate plan code in any tool's rows.
+- **The prompt forbids codes** for hotels, segments, channels and rate plans, "not even in brackets"; codes are for tool arguments.
+- **A widget's constant label column is hidden and said once in the subtitle** (`packages/contracts/src/widget-tidy.ts`, shared): a date, month, text or hotel column with one value on every row (two rows or more), unless the chart draws it (x, group, compare). The subtitle gets "Period from Sat 21 Nov 2026" (or the hotel's name) unless it already says it, within its 140 characters. A table's `y` loses the column too. Numbers are never hidden.
+- **A unit the label says is dropped**, in the tool views (every column) and in widgets.
+- **Server and web both apply it:** `show_widget` before it returns the widget, and the web in the Thread's slots and on boards, for widgets saved before.
+- **The bundle:** this guard adds about 2.5 kB to the initial bundle, within the 3.1 MB error budget set by "Charts that hold still".
+

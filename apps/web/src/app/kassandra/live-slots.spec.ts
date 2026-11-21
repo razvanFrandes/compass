@@ -34,6 +34,19 @@ describe('widgetSlots: live state → what the widget shows', () => {
     expect(slot!.spec.kind).toBe('line');
   });
 
+  it('phase 3 shows a column that is the same on every row once, in the subtitle, and no unit twice', () => {
+    const w = widget({
+      kind: 'table',
+      subtitle: 'All 20 hotels',
+      rows: [{ period: '2026-11-21', segment: 'Group', rooms: 412 }, { period: '2026-11-21', segment: 'Wholesale', rooms: 980 }],
+      columns: [{ key: 'period', label: 'Period from', kind: 'date' }, { key: 'segment', label: 'Segment', kind: 'text' }, { key: 'rooms', label: 'Room nights', kind: 'count', unit: 'room nights' }],
+    });
+    const [slot] = widgetSlots(turn({ steps: [step({ callId: 'w1', name: 'show_widget', args: ARGS, widget: w })] }));
+    expect(slot!.subtitle).toBe('All 20 hotels · Period from Sat 21 Nov 2026');
+    expect(slot!.spec.subtitle).toBe('All 20 hotels · Period from Sat 21 Nov 2026');
+    expect(slot!.widget!.columns.map((c) => [c.key, c.hidden ?? false, c.unit ?? null])).toEqual([['period', true, null], ['segment', false, null], ['rooms', false, null]]);
+  });
+
   it('walks one call through the three phases under the same id, so the card is never replaced', () => {
     const live = [call('w1', 'show_widget')];
     const first = widgetSlots(turn({ running: true }), live);

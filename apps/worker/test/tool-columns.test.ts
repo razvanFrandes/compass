@@ -17,6 +17,9 @@ const period = { from: '2026-10-01', to: '2026-10-31' };
 
 const CALLS = TOOL_CALLS;
 
+/** The codes of segments, channels and rate plans (hotel.segments, hotel.channels). GDS is also a channel type, a word. */
+const CODES = new Set(['RET', 'ADV', 'COR', 'GRP', 'WHL', 'PKG', 'WEB', 'VOICE', 'GRPDESK', 'BDC', 'EXP', 'WHS', 'BAR', 'NRF', 'CORP', 'GROUP', 'WHS-NET', 'PKG-BB']);
+
 /** Tools that cannot run on the local database, or that return no rows. */
 const NOT_RUN = new Set(['find_reviews', 'get_schema']);
 
@@ -78,6 +81,14 @@ describe('tool views', () => {
         // Every source has a name written for it, not one derived from the table name.
         for (const source of evidence.sources) expect(SOURCE_LABELS[source], source).toBeTruthy();
         expect(evidence.sourceLabels).toEqual(sourceLabelsFor(evidence.sources));
+
+        // "Room nights (room nights)": a unit the label already says is not repeated.
+        for (const column of columns) {
+          if (column.unit) expect(column.label.toLowerCase(), `${column.key}: unit "${column.unit}"`).not.toContain(column.unit.toLowerCase());
+        }
+        // A segment, channel or rate plan is named, never coded: "Transient retail", not RET; "Booking.com", not BDC.
+        const coded = rows.flatMap((row) => Object.values(row).filter((value) => typeof value === 'string' && CODES.has(value)));
+        expect(coded, 'codes in the rows').toEqual([]);
       });
     }
   }

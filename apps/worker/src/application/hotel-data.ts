@@ -478,12 +478,12 @@ export class HotelData {
              round(100 * sum(${eur('commission')}) over () / nullif(sum(${eur('gross_revenue')}) over (), 0), 1)::float8 as total_commission_pct`;
     // Each hotel's month is converted to EUR before anything is summed.
     const channels = (perHotel: boolean) => `
-      select ${perHotel ? 'v.hotel_code, ' : ''}v.channel, v.channel_type, sum(v.room_nights)::int as room_nights,
+      select ${perHotel ? 'v.hotel_code, ' : ''}ch.name as channel, v.channel_type, sum(v.room_nights)::int as room_nights,
              round(${eur('gross_revenue')}, 0)::float8 as gross_revenue_eur,
              round(${eur('commission')}, 0)::float8 as commission_eur,
              round(${eur('net_revenue')}, 0)::float8 as net_revenue_eur,
              round(100 * ${eur('commission')} / nullif(${eur('gross_revenue')}, 0), 1)::float8 as commission_pct${perHotel ? '' : totals}
-        from hotel.v_channel_month v join hotel.hotels h using (hotel_code)
+        from hotel.v_channel_month v join hotel.hotels h using (hotel_code) join hotel.channels ch on ch.channel = v.channel
        where v.month between date_trunc('month', $1::date) and $2::date
          and ($3::text[] is null or v.hotel_code = any($3::text[]))
        group by ${perHotel ? '1, 2, 3' : '1, 2'}`;
@@ -553,7 +553,8 @@ export class HotelData {
     const grain = input.grain ?? 'month';
     const booked = input.basis === 'booked';
     const dateColumn = booked ? 'r.created_at::date' : 'n.stay_date';
-    const key = { segment: 'r.segment', channel: 'r.channel', channel_type: 'c.channel_type' }[input.by];
+    // Names, never codes: "Transient retail", not RET; "Booking.com", not BDC. A reader (and the model) sees these.
+    const key = { segment: 's.name', channel: 'c.name', channel_type: 'c.channel_type' }[input.by];
     const perHotel = `
       with x as (
         select ${period(grain, dateColumn, '$1')} as period, n.hotel_code, ${key} as key,
@@ -561,6 +562,7 @@ export class HotelData {
           from hotel.reservation_nights n
           join hotel.reservations r using (reservation_id)
           join hotel.channels c on c.channel = r.channel
+          join hotel.segments s on s.segment = r.segment
          where ${dateColumn} between $1::date and $2::date and ($3::text[] is null or n.hotel_code = any($3::text[]))
          group by 1, 2, 3)`;
     const sql = input.rollUp
@@ -585,10 +587,9 @@ export class HotelData {
       sql,
       [input.from, input.to, input.hotels?.length ? input.hotels : null],
       {
-        sources: ['hotel.reservation_nights', 'hotel.reservations', 'hotel.channels'],
+        sources: ['hotel.reservation_nights', 'hotel.reservations', 'hotel.channels', 'hotel.segments'],
         definitions: {
           share_pct: `Share of the hotel's room nights in the period by ${input.by}.`,
-          segments: 'RET transient retail, ADV advance purchase, COR corporate negotiated, GRP group, WHL wholesale, PKG leisure package.',
         },
         period: { from: input.from, to: input.to },
         notes: [

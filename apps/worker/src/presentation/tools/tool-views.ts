@@ -1,6 +1,7 @@
 import type { EvidenceColumn, EvidenceColumnKind } from '@compass/contracts';
 import { humanize, inferColumns } from '../../domain/evidence-columns.ts';
 import { metricByKey } from '../../domain/metrics.ts';
+import { withoutRepeatedUnit } from '@compass/contracts/widget-tidy';
 
 /**
  * How each catalog tool's rows are shown: a human title for its card ("Pace vs last year", not "get_pace"), and one
@@ -22,7 +23,9 @@ export interface ToolView {
   columns(args: Args, rows: Rows): EvidenceColumn[];
 }
 
-const col = (key: string, label: string, kind: EvidenceColumnKind, unit?: string): EvidenceColumn => ({ key, label, kind, ...(unit ? { unit } : {}) });
+/** A unit the label already says is left out: "Room nights", never "Room nights (room nights)". */
+const col = (key: string, label: string, kind: EvidenceColumnKind, unit?: string): EvidenceColumn =>
+  withoutRepeatedUnit({ key, label, kind, ...(unit ? { unit } : {}) });
 const hidden = (column: EvidenceColumn): EvidenceColumn => ({ ...column, hidden: true });
 const text = (key: string, label: string) => col(key, label, 'text');
 const eur = (key: string, label: string) => col(key, label, 'currency', 'EUR');
@@ -452,6 +455,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   'hotel.rates_daily': 'Daily rates (BAR)',
   'hotel.v_channel_month': 'Channel revenue by month',
   'hotel.channels': 'Booking channels',
+  'hotel.segments': 'Market segments',
   'hotel.data_sources': 'Data feed status',
   'hotel.reservation_nights': 'Reservation nights',
   'hotel.reservations': 'Reservations',
